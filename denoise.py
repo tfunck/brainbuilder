@@ -14,7 +14,7 @@ from torch.utils.data import Dataset, DataLoader
 
 import os, pickle, h5py
 from PIL import Image
-from skimage.util import view_as_window
+# from skimage.util import view_as_window
 
 
 epoch = 100
