@@ -142,6 +142,7 @@ class Decoder(nn.Module):
 
 
 if __name__ == '__main___':
+    print('PyTorch denoising of Juelich receptor maps')
     results_dir, experiment_number = setup_experiment(workdir)
 
     train_dataset = ReceptorMapDataset(data_dir)
