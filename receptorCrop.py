@@ -86,56 +86,60 @@ def get_kmeans_img(img_dwn, nMeans):
 
 
 
-def remove_lines(img_dwn, clustered):
-    dim0=img_dwn.shape[0]
-    dim1=img_dwn.shape[1]
-    nmi_0=[]
-    nmi_1=[]
-    xc_0=[]
-    xc_1=[]
-    cx, cy = np.gradient(clustered)
-    cg= np.sqrt(cx**2 + cy**2)
-    d=5
-    o = np.ones([img_dwn.shape[0],d])    
-    for i in range(dim1-d+1):
-        xc_0.append(np.sum(o* cg[:,i:(i+d)])) #/np.mean(img_dwn[:,i])
-    o = np.ones([d,img_dwn.shape[1]])    
-    for i in range(dim0-d+1):
-        xc_1.append(np.sum(o * cg[i:(i+d),:])) #/np.mean(img_dwn[i,:]))
-
-    xc_0 = np.array(xc_0)
-    xc_1 = np.array(xc_1)
-    xc_1 = (xc_1 - xc_1.mean()) / xc_1.std()
-    xc_0 = (xc_0 - xc_0.mean()) / xc_0.std()
-    n_sd=3
-    for i, xc in zip(range(dim1), xc_0) :
-        if xc > np.abs(n_sd) :
-            clustered[:,i]=0
-
-    for i, xc in zip(range(dim0), xc_1) :
-        if xc > np.abs(n_sd) :
-            clustered[i,:]=0
-
-    return(clustered)
+def threshold_lines(img_dwn, clustered, subject_fn):
+    ar = np.arange(np.min(img_dwn), np.max(img_dwn), np.max(img_dwn)/20)
+    t=[]
+    for thr in ar :
+        temp=clustered
+        temp[img_dwn<thr]=0
+        t.append( np.sum(curvature(temp)) )
+    t = np.array(t)
+    t = t / t[0]
+    dt0 = np.diff(np.diff(t))
+    dt = np.copy(dt0)
+    idx = dt < 0.25
+    dt[ idx ] = 0 
+    dt[ ~idx] = 1
+    thr_list = ar[0:-2] * dt
+    thr = min( thr_list[ thr_list > 0 ] )
+    img_mask=np.zeros(img_dwn.shape)
+    img_thr=np.copy(img_dwn)
+    img_mask[ img_dwn < thr ] = 1
+    img_mask = binary_dilation(img_mask, iterations=2).astype(int)
+    img_thr[ img_mask == 1 ] =np.max(img_dwn[img_mask == 0])
+    plt.clf() 
+    plt.subplot(2,1,1)
+    plt.hist(img_dwn.reshape(-1,1), 100)
+    plt.subplot(2,1,2)
+    plt.plot(ar, t)
+    plt.plot(ar[0:-2], dt0)
+    plt.plot(ar[0:-2], dt)
+    print('Histogram:', subject_fn +'hist.jpg')
+    plt.savefig(subject_fn +'hist.jpg' )
+    print("Threshold: ", thr) 
+    print('Thresholded Image:', subject_fn +'thr.jpg')
+    scipy.misc.imsave(subject_fn +'thr.jpg',  img_thr)
+    return img_mask, img_thr
 
 
 import matplotlib.pyplot as plt
 def cluster(img_dwn, subject_fn, nMeans=2):
-    
     dim1=img_dwn.shape[1]
     dim0=img_dwn.shape[0]
+
+    clustered_init = get_kmeans_img(img_dwn, nMeans)
+    img_mask, img_thr = threshold_lines(img_dwn, clustered_init, subject_fn)
+
     #Use KMeans clustering with 2 classes
-    clustered = get_kmeans_img(img_dwn, nMeans)
-    K = clustered
-    clustered = remove_lines(img_dwn, clustered)
-    clustered_original = clustered 
+    clustered = get_kmeans_img(img_thr, nMeans)
+    clustered_original = np.copy(clustered)
     print('Clustering:', subject_fn +'kmeans.jpg')
     scipy.misc.imsave(subject_fn +'kmeans.jpg',  clustered)
     
     #Calculate curvature of clustered image
     clustered = binary_fill_holes(clustered).astype(int)
-    clustered = binary_dilation(clustered, iterations=5).astype(int)
-    clustered = binary_erosion(clustered, iterations=5).astype(int)
+    clustered = binary_dilation(clustered, iterations=3).astype(int)
+    clustered = binary_erosion(clustered, iterations=3).astype(int)
     
     clustered[ 0:2, : ] = clustered_original[ 0:2, : ]
     clustered[ :, 0:2 ] = clustered_original[ :, 0:2 ]
@@ -144,19 +148,24 @@ def cluster(img_dwn, subject_fn, nMeans=2):
 
     #Separate clusters into labels
     labels, nlabels = label(clustered, structure=np.ones([3,3]))
+    nlabels += 1
     print('Labels:', subject_fn +'labels.jpg')
     scipy.misc.imsave(subject_fn +'labels.jpg', labels)
-    return labels, clustered, K, nlabels
+    return img_thr, labels, clustered, nlabels
 
 def get_bounding_boxes(labels, nlabels):
+    temp=np.zeros(labels.shape)
+    ignore_list=[]
+    maybe_list=[]
+    okay_list=[]
+    dim0=labels.shape[0]
+    dim1=labels.shape[1]
     boxes=np.zeros([nlabels] + list(labels.shape))
     boxSum = np.zeros(labels.shape)
     area=np.zeros(nlabels)
-    ignore_list=[]
-    dim0=labels.shape[0]
-    dim1=labels.shape[1]
-    temp=np.zeros(labels.shape)
-    d=5
+
+    d=int(0.005 * max(labels.shape))
+    #print(d)
     for l in range(1,nlabels) :
         temp *= 0
         temp[ labels == l ]=2
@@ -166,31 +175,67 @@ def get_bounding_boxes(labels, nlabels):
         end_check = x1 < (dim1-d) and y1 < (dim0-d)
         area_temp = (x1-x0)*(y1-y0)
 
-        if area_temp > 0  and start_check and end_check : 
+        if area_temp > 0 :
+            #print(area_temp,)
             boxes[l,y0:y1, x0:x1] = 1.
             boxSum += boxes[l]
-            area[l] =area_temp
+            area[l] = area_temp
+            if start_check and end_check :
+                #print("okay")
+                okay_list.append(l)
+            else :
+                #print("maybe",x0,y0, start_check, end_check)
+                maybe_list.append(l)
         else :
             ignore_list.append(l)
-   
-    for l in range(1,nlabels) :
-        for l0 in range(l,nlabels) :
-            if l0 in ignore_list : continue
-            
+    return okay_list, maybe_list, ignore_list, boxes, boxSum, area 
+
+def concat_bounding_boxes(okay_list, boxes, area):
+    for i in range(len(okay_list)) :
+        l=okay_list[i]
+        for l0 in okay_list[i:] :
+            #if l0 in ignore_list or l0 in maybe_list : continue
             if l0 != l :
                 overlap = np.sum(boxes[l] * boxes[l0] )
                 if overlap != 0 :
                     boxes[l] = boxes[l] +boxes[l0]
-                    boxes[l0] *= 0 #np.zeros(labels.shape)
-                    area[l] += area[l0]
-                    area[l0]=0
-                    ignore_list.append(l0)
-   
-    max_area = area.argmax()
+                    idx = boxes > 0
+                    boxes[ idx ] = 1
+                    boxes[ ~idx] = 0
+                    area[l] = np.sum(boxes[l][ boxes[l] > 0 ] )
+                    boxes[l0] = boxes[l] 
+                    area[l0] = area[l]
+    return boxes, area
+
+def check_extra_boxes(okay_list, maybe_list, area, boxes) : 
+    if okay_list != [] :
+        max_area = okay_list[ area[okay_list].argmax()]
+    else : 
+        max_area = maybe_list[ area[maybe_list].argmax()] 
+
+    temp0=np.zeros(boxes[0].shape)
+    temp1=np.zeros(boxes[0].shape)
+    for l in maybe_list :
+        temp0 *= 0
+        temp1 *= 0
+        temp0[ boxes[l] > 0 ] = 1
+        temp1[ boxes[max_area] > 0 ] = 1
+        overlap = np.sum(temp0*temp1)/np.sum(temp1)
+        #print(l, np.sum(temp1), np.sum(temp0), overlap)
+        if overlap > 0.50 :
+            boxes[max_area] = boxes[l] + boxes[max_area]
+    return max_area, boxes
+
+def get_bounding_box(labels, nlabels):
+
+    okay_list, maybe_list, ignore_list, boxes, boxSum, area=get_bounding_boxes(labels,nlabels)
+    boxes, area = concat_bounding_boxes(okay_list, boxes, area)
+
+    max_area, boxes = check_extra_boxes(okay_list, maybe_list, area, boxes)
+
     bounding_box = np.zeros(labels.shape)
     bounding_box[ boxes[max_area] > 0 ] = 1
     bounding_box= binary_dilation(bounding_box, iterations=2).astype(bounding_box.dtype)
-    #scipy.misc.imsave('test.jpg', boxSum)
     return bounding_box, boxSum
 
 
@@ -222,9 +267,10 @@ def crop(source_files, output_dir, nMeans, clobber=True) :
         subject_output_base = subject_output_dir+fsplit[0]+'_'
         fout = output_dir + os.sep + fsplit[0]+'_cropped'+fsplit[1]
         if "cropped" in f : continue 
-        #if not "RG#hg#MRIs6#R#musc#5686#26" in f : continue
-        #if not "OL#hg#MR1s6#L#musc#6400#06" in f : continue
-        #if not "RG#hg" in f : continue
+        #if not "OL#hg#MR1s6#L#musc#6403#32" in f : continue
+        #if not "QY#HG#MR1s2#R#musc#6130#11" in f : continue
+        #if not "QW#HG#MR1s1#R#musc#5640#21" in f : continue
+        #if not  "RE#hg#MR1s4#R#musc#5856" in f : continue
         if not os.path.exists(fout) or clobber :
             print("Input:", f)
             if not os.path.exists(subject_output_dir) : os.makedirs(subject_output_dir)
@@ -237,8 +283,8 @@ def crop(source_files, output_dir, nMeans, clobber=True) :
             img_dwn = downsample(img, subject_output_base, 1, 1)
 
             #Cluster the image with KMeans
-            labels, clustered, K, nlabels = cluster(img_dwn, subject_output_base, nMeans)
-            bounding_box_dwn, boxSum = get_bounding_boxes(labels, nlabels)
+            img_thr, labels, clustered,  nlabels = cluster(img_dwn, subject_output_base, nMeans)
+            bounding_box_dwn, boxSum = get_bounding_box(labels, nlabels)
 
             bounding_box = scipy.misc.imresize(bounding_box_dwn,size=(img.shape[0],img.shape[1]),interp='nearest' )
             #Crop image
@@ -251,12 +297,14 @@ def crop(source_files, output_dir, nMeans, clobber=True) :
             dim1=img_dwn.shape[1]
             qc=np.zeros([ dim0*2, dim1*3 ])
             qc[0:dim0,0:dim1]            = img_dwn / img_dwn.max()
-            qc[0:dim0,(1*dim1):(2*dim1)] = K/K.max()
+            qc[0:dim0,(1*dim1):(2*dim1)] = img_thr / img_thr.max()
             qc[0:dim0,(2*dim1):(3*dim1)] = clustered/clustered.max()
 
             qc[dim0:(dim0*2),0:(1*dim1) ] = labels/labels.max()
             qc[dim0:(dim0*2),(1*dim1):(2*dim1) ] = boxSum/boxSum.max()
             qc[dim0:(dim0*2),(2*dim1):(3*dim1) ]=cropped_dwn/cropped_dwn.max()
+            print("QC :", qc_dir+os.sep+fsplit[0]+'_cropped_qc.png',)
+            #plt.imsave(qc_dir+os.sep+fsplit[0]+'_cropped_qc.png', qc)
             scipy.misc.imsave(qc_dir+os.sep+fsplit[0]+'_cropped_qc.png', qc)
             
             print("Cropped:", fout,"\n")
