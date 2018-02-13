@@ -17,6 +17,7 @@ from skimage.morphology import remove_small_holes, reconstruction
 from skimage.restoration import inpaint
 import pandas as pd
 import argparse
+from utils.mouse_click import click
 
 def rgb2gray(rgb): return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
 
@@ -56,7 +57,6 @@ from skimage.filters import frangi
 def get_kmeans_img(img_dwn, nMeans):
     db = KMeans(nMeans).fit_predict(img_dwn.reshape(-1,1))
     clustering = db.reshape(img_dwn.shape)
-
     #In order for the "label" function to work, the background
     #must be equal to 0 in the clustering array. To ensure this,
     #the following bit of code switches the labeled region with the lowest
@@ -68,6 +68,7 @@ def get_kmeans_img(img_dwn, nMeans):
         if cur_pixel_measure > pixel_measure :
             max_pixel_measure = cur_pixel_measure
             measure_n =n
+
     if measure_n != 0 :
         idx0 = clustering == 0
         idx1 = clustering == measure_n
@@ -87,38 +88,49 @@ def get_kmeans_img(img_dwn, nMeans):
 
 
 def threshold_lines(img_dwn, clustered, subject_fn):
-    ar = np.arange(np.min(img_dwn), np.max(img_dwn), np.max(img_dwn)/20)
-    t=[]
-    for thr in ar :
-        temp=clustered
-        temp[img_dwn<thr]=0
-        t.append( np.sum(curvature(temp)) )
-    t = np.array(t)
-    t = t / t[0]
-    dt0 = np.diff(np.diff(t))
-    dt = np.copy(dt0)
-    idx = dt < 0.25
-    dt[ idx ] = 0 
-    dt[ ~idx] = 1
-    thr_list = ar[0:-2] * dt
-    thr = min( thr_list[ thr_list > 0 ] )
     img_mask=np.zeros(img_dwn.shape)
     img_thr=np.copy(img_dwn)
-    img_mask[ img_dwn < thr ] = 1
-    img_mask = binary_dilation(img_mask, iterations=2).astype(int)
-    img_thr[ img_mask == 1 ] =np.max(img_dwn[img_mask == 0])
-    plt.clf() 
-    plt.subplot(2,1,1)
-    plt.hist(img_dwn.reshape(-1,1), 100)
-    plt.subplot(2,1,2)
-    plt.plot(ar, t)
-    plt.plot(ar[0:-2], dt0)
-    plt.plot(ar[0:-2], dt)
-    print('Histogram:', subject_fn +'hist.jpg')
-    plt.savefig(subject_fn +'hist.jpg' )
-    print("Threshold: ", thr) 
-    print('Thresholded Image:', subject_fn +'thr.jpg')
-    scipy.misc.imsave(subject_fn +'thr.jpg',  img_thr)
+    ar = np.arange(np.min(img_dwn), np.max(img_dwn), np.max(img_dwn)/20)
+    t=[]
+    val, bin_width  = np.histogram(img_dwn.reshape(-1,1), 50)
+    dval = np.diff(val)
+
+    print(dval[0],np.mean(dval[3:10]) - np.std(dval[3:10]) )
+    if dval[0] < np.mean(dval[3:10]) :
+        for thr in ar :
+            temp=clustered
+            temp[img_dwn<thr]=0
+            #plt.imsave("test_"+str(thr)+".png", clustered)
+            t.append( np.sum(curvature(temp)) )
+        t = np.array(t)
+        t = t / t[0]
+        dt1 = np.diff(t)
+        dt2 = np.diff(dt1)
+        dt  = np.copy(dt2)
+        idx = dt < 0.25
+        dt[ idx ] = 0 
+        dt[ ~idx] = 1
+        thr_list = ar[0:-2] * dt
+        thr = min( thr_list[ thr_list > 0 ] )
+
+        img_mask[ img_dwn < thr ] = 1
+        img_mask = binary_dilation(img_mask, iterations=2).astype(int)
+        img_thr[ img_mask == 1 ] =np.max(img_dwn[img_mask == 0])
+        plt.clf() 
+        plt.subplot(2,1,1)
+        plt.plot(bin_width[1:], val)
+        plt.plot(bin_width[2:], dval)
+        plt.subplot(2,1,2)
+        plt.plot(ar, t)
+        plt.plot(ar[0:-2], dt2)
+        plt.plot(ar[0:-1], dt1)
+        plt.plot(ar[0:-2], dt)
+        print('Histogram:', subject_fn +'hist.jpg')
+        plt.savefig(subject_fn +'hist.jpg' )
+        print("Threshold: ", thr) 
+        print('Thresholded Image:', subject_fn +'thr.jpg')
+        scipy.misc.imsave(subject_fn +'thr.jpg',  img_thr)
+        plt.clf()
     return img_mask, img_thr
 
 
@@ -150,7 +162,7 @@ def cluster(img_dwn, subject_fn, nMeans=2):
     labels, nlabels = label(clustered, structure=np.ones([3,3]))
     nlabels += 1
     print('Labels:', subject_fn +'labels.jpg')
-    scipy.misc.imsave(subject_fn +'labels.jpg', labels)
+    plt.imsave(subject_fn +'labels.jpg', labels)
     return img_thr, labels, clustered, nlabels
 
 def get_bounding_boxes(labels, nlabels):
@@ -194,7 +206,6 @@ def concat_bounding_boxes(okay_list, boxes, area):
     for i in range(len(okay_list)) :
         l=okay_list[i]
         for l0 in okay_list[i:] :
-            #if l0 in ignore_list or l0 in maybe_list : continue
             if l0 != l :
                 overlap = np.sum(boxes[l] * boxes[l0] )
                 if overlap != 0 :
@@ -258,19 +269,47 @@ def find_min_max(seg):
     min1 = int(np.min(ar1))
     return min0,max0,min1,max1
 
-def crop(source_files, output_dir, nMeans, clobber=True) :
+def save_qc(img_dwn, img_thr, clustered, labels, boxSum, cropped_dwn,out_fn,manual_check):
+    dim0=img_dwn.shape[0]
+    dim1=img_dwn.shape[1]
+    qc=np.zeros([ dim0*2, dim1*3 ])
+    qc[0:dim0,0:dim1]            = img_dwn / img_dwn.max()
+    qc[0:dim0,(1*dim1):(2*dim1)] = img_thr / img_thr.max()
+    qc[0:dim0,(2*dim1):(3*dim1)] = clustered/clustered.max()
+
+    qc[dim0:(dim0*2),0:(1*dim1) ] = labels/labels.max()
+    qc[dim0:(dim0*2),(1*dim1):(2*dim1) ] = boxSum/boxSum.max()
+    qc[dim0:(dim0*2),(2*dim1):(3*dim1) ]=cropped_dwn/cropped_dwn.max()
+    print("QC :", out_fn)
+    scipy.misc.imsave(out_fn, qc)
+
+    if manual_check :
+        # Create figure and axes
+        plt.clf()
+        fig,ax = plt.subplots(1)
+        # Display the image
+        ax.imshow(qc)
+        plt.show()
+        while True :
+            response = input("Does image pass QC? (y/n)")
+            if response == "y" : return 0
+            elif response == "n" : return 1
+            print("Click and drag with left mouse to draw rectangle.")
+            print("If the 'r' key is pressed, reset the cropping region.")
+            print("If the 'c' key is pressed, break from the loop.")
+
+    return 0
+
+from PIL import Image, ImageDraw
+def crop(source_files, output_dir, clobber=True, manual_check=False) :
     for f in source_files :
         #Set output filename
         fsplit = os.path.splitext(os.path.basename(f))
         qc_dir = output_dir + os.sep + "qc" + os.sep 
-        subject_output_dir = output_dir + os.sep + fsplit[0] + os.sep 
+        subject_output_dir = qc_dir + os.sep + fsplit[0] + os.sep 
         subject_output_base = subject_output_dir+fsplit[0]+'_'
         fout = output_dir + os.sep + fsplit[0]+'_cropped'+fsplit[1]
         if "cropped" in f : continue 
-        #if not "OL#hg#MR1s6#L#musc#6403#32" in f : continue
-        #if not "QY#HG#MR1s2#R#musc#6130#11" in f : continue
-        #if not "QW#HG#MR1s1#R#musc#5640#21" in f : continue
-        #if not  "RE#hg#MR1s4#R#musc#5856" in f : continue
         if not os.path.exists(fout) or clobber :
             print("Input:", f)
             if not os.path.exists(subject_output_dir) : os.makedirs(subject_output_dir)
@@ -283,31 +322,30 @@ def crop(source_files, output_dir, nMeans, clobber=True) :
             img_dwn = downsample(img, subject_output_base, 1, 1)
 
             #Cluster the image with KMeans
-            img_thr, labels, clustered,  nlabels = cluster(img_dwn, subject_output_base, nMeans)
+            img_thr, labels, clustered,  nlabels = cluster(img_dwn, subject_output_base )
             bounding_box_dwn, boxSum = get_bounding_box(labels, nlabels)
 
             bounding_box = scipy.misc.imresize(bounding_box_dwn,size=(img.shape[0],img.shape[1]),interp='nearest' )
             #Crop image
             cropped_dwn = bounding_box_dwn * img_dwn
             cropped = bounding_box * img
-            scipy.misc.imsave(fout, cropped)
             
             #Quality Control
-            dim0=img_dwn.shape[0]
-            dim1=img_dwn.shape[1]
-            qc=np.zeros([ dim0*2, dim1*3 ])
-            qc[0:dim0,0:dim1]            = img_dwn / img_dwn.max()
-            qc[0:dim0,(1*dim1):(2*dim1)] = img_thr / img_thr.max()
-            qc[0:dim0,(2*dim1):(3*dim1)] = clustered/clustered.max()
+            qc_fn =qc_dir+os.sep+fsplit[0]+'_cropped_qc.png'
+            qc_status = save_qc(img_dwn, img_thr, clustered, labels, boxSum, cropped_dwn, qc_fn, manual_check)
+            if qc_status != 0 : #QC Passed
+                refPts = click(subject_output_base+"img_dwn.jpg")
+                x0=refPts[0][0]
+                y0=refPts[0][1]
+                x1=refPts[1][0]
+                y1=refPts[1][1]
+                manual_crop_dwn = np.zeros(img_dwn.shape)
+                manual_crop_dwn[y0:y1,x0:x1] = 1
+                manual_crop = scipy.misc.imresize(manual_crop_dwn,size=(img.shape[0],img.shape[1]),interp='nearest' )
+                cropped = manual_crop * img
 
-            qc[dim0:(dim0*2),0:(1*dim1) ] = labels/labels.max()
-            qc[dim0:(dim0*2),(1*dim1):(2*dim1) ] = boxSum/boxSum.max()
-            qc[dim0:(dim0*2),(2*dim1):(3*dim1) ]=cropped_dwn/cropped_dwn.max()
-            print("QC :", qc_dir+os.sep+fsplit[0]+'_cropped_qc.png',)
-            #plt.imsave(qc_dir+os.sep+fsplit[0]+'_cropped_qc.png', qc)
-            scipy.misc.imsave(qc_dir+os.sep+fsplit[0]+'_cropped_qc.png', qc)
-            
             print("Cropped:", fout,"\n")
+            scipy.misc.imsave(fout, cropped)
 
 
 if __name__ == "__main__":
@@ -315,11 +353,12 @@ if __name__ == "__main__":
     parser.add_argument('--source', dest='source_dir',  help='Directory with raw images')
     parser.add_argument('--output', dest='output_dir',  help='Directory name for outputs')
     parser.add_argument('--ext', dest='ext', default=".tif", help='File extension for input files (default=.tif)')
-    parser.add_argument('--kmeans', dest='nMeans', type=int, default=2, help='Number of means for KMeans (default=2)')
+    parser.add_argument('--manual', dest='manual_check', action='store_true', default=False, help='Do QC and manually crop region if automated method fails')
+    parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
 
     args = parser.parse_args()
     if not os.path.exists(args.output_dir) : 
         os.makedirs(args.output_dir)
     source_files = glob(args.source_dir+os.sep+"*"+args.ext)
-    crop(source_files, args.output_dir, args.nMeans)
+    crop(source_files, args.output_dir, clobber=args.clobber, manual_check=args.manual_check)
 
