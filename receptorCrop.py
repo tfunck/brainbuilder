@@ -146,11 +146,13 @@ def cluster(img_dwn, subject_fn, nMeans=2):
     dim1=img_dwn.shape[1]
     dim0=img_dwn.shape[0]
 
-    clustered_init = get_kmeans_img(img_dwn, nMeans)
-    img_mask, img_thr = threshold_lines(img_dwn, clustered_init, subject_fn)
+    #clustered_init = get_kmeans_img(img_dwn, nMeans)
+    #img_mask, img_thr = threshold_lines(img_dwn, clustered_init, subject_fn)
 
     #Use KMeans clustering with 2 classes
-    clustered = get_kmeans_img(img_thr, nMeans)
+    #clustered = get_kmeans_img(img_thr, nMeans)
+    clustered = get_kmeans_img(img_dwn, nMeans)
+    img_thr=img_dwn
     clustered_original = np.copy(clustered)
     print('Clustering:', subject_fn +'kmeans.jpg')
     scipy.misc.imsave(subject_fn +'kmeans.jpg',  clustered)
@@ -172,91 +174,6 @@ def cluster(img_dwn, subject_fn, nMeans=2):
     plt.imsave(subject_fn +'labels.jpg', labels)
     return img_thr, labels, clustered, nlabels
 
-
-
-'''
-def threshold_lines(img_dwn, subject_fn):
-    img_mask=np.zeros(img_dwn.shape)
-    img_thr=np.copy(img_dwn)
-
-
-    ar = np.arange(np.min(img_dwn), np.max(img_dwn), np.max(img_dwn)/20)
-    t=[]
-    val, bin_width  = np.histogram(img_dwn.reshape(-1,1), 50)
-    dval = np.diff(val)
-
-    print(dval[0],np.mean(dval[3:10]) - np.std(dval[3:10]) )
-    if dval[0] < np.mean(dval[3:10]) - 3 *np.mean(dval[3:10]) : 
-        thr = filters.threshold_otsu(img_dwn)
-        img_mask[ img_dwn < thr ] = np.mean(img_dwn[img_dwn < thr])
-        img_mask = binary_dilation(img_mask, iterations=2).astype(int)
-        img_thr[ img_mask == 1 ] =np.max(img_dwn[img_mask == 0])
-
-        print('Histogram:', subject_fn +'hist.jpg')
-        plt.savefig(subject_fn +'hist.jpg' )
-
-        print("Threshold: ", thr) 
-        print('Thresholded Image:', subject_fn +'thr.jpg')
-        scipy.misc.imsave(subject_fn +'thr.jpg',  img_thr)
-        plt.clf()
-    return img_mask, img_thr
-
-def get_kmeans_img(img_dwn, nMeans):
-
-    INIT=np.percentile(img_dwn,[5,95]).reshape(2,1)
-    db = KMeans(nMeans, init=INIT).fit_predict(img_dwn.reshape(-1,1))
-    clustering = db.reshape(img_dwn.shape)
-    #In order for the "label" function to work, the background
-    #must be equal to 0 in the clustering array. To ensure this,
-    #the following bit of code switches the labeled region with the lowest
-    #mean with that of the 0 labeled region, if the former is lower than the latter
-    pixel_measure = np.mean(img_dwn[ clustering == 0])
-    measure_n=0
-    for n in range(1, nMeans) :
-        cur_pixel_measure = np.mean(img_dwn[ clustering == n])
-        if cur_pixel_measure > pixel_measure :
-            max_pixel_measure = cur_pixel_measure
-            measure_n =n
-
-    if measure_n != 0 :
-        idx0 = clustering == 0
-        idx1 = clustering == measure_n
-        clustering[idx0] = max_pixel_measure
-        clustering[idx1] = 0
-    
-    #Perform erosion and dilation on all values in clustered image
-    for n in range(1, nMeans) :
-        temp = np.zeros(img_dwn.shape)
-        temp[clustering == n ] =1 
-        temp = binary_erosion(temp, iterations=1)
-        temp = binary_dilation(temp, iterations=1)
-        clustering[ clustering == n ] = temp[clustering==n]
-
-    return(clustering)
-
-import matplotlib.pyplot as plt
-def cluster(img_dwn, subject_fn, nMeans=2):
-    dim1=img_dwn.shape[1]
-    dim0=img_dwn.shape[0]
-
-    #clustered_init = get_kmeans_img(img_dwn, nMeans)
-    img_mask, img_thr = threshold_lines(img_dwn, subject_fn)
-
-    #Use KMeans clustering with 2 classes
-    #db = KMeans(2, init=INIT).fit_predict(img_dwn.reshape(-1,1))
-    #clustered = db.reshape(img_dwn.shape)
-    clustered = get_kmeans_img(img_dwn, nMeans)
-    clustered_original = np.copy(clustered)
-    print('Clustering:', subject_fn +'kmeans.png')
-    plt.imsave(subject_fn +'kmeans.png',  clustered)
-    
-    #Separate clusters into labels
-    labels, nlabels = label(clustered, structure=np.ones([3,3]))
-    nlabels += 1
-    print('Labels:', subject_fn +'labels.png')
-    plt.imsave(subject_fn +'labels.png', labels)
-    return img_thr, labels, clustered, nlabels
-'''
 
 def get_bounding_boxes(labels, nlabels):
     temp=np.zeros(labels.shape)
@@ -396,15 +313,15 @@ def save_qc(img_dwn, img_thr, clustered, labels, boxSum, cropped_dwn,out_fn,manu
     if manual_check :
         # Create figure and axes
         plt.clf()
-        fig,ax = plt.subplots()
         # Display the image
-        ax.imshow(qc)
+        plt.imshow(qc)
         plt.show()
         while True :
             response = input("Does image pass QC? (y/n)")
             if response == "y" : return 0
             elif response == "n" : return 1
             print("Click and drag with left mouse to draw rectangle.")
+            print("Warning: can crash if you don't start rectangle from top left corner!")
             print("If the 'r' key is pressed, reset the cropping region.")
             print("If the 'c' key is pressed, break from the loop.")
 
@@ -427,7 +344,8 @@ def crop_gui(subject_output_base, img_dwn, img ):
 
 
 from PIL import Image, ImageDraw
-def crop_source_files(source_files, output_dir, downsample_step=1, clobber=False, manual_check=False) :
+def crop_source_files(source_files, output_dir, downsample_step=1, clobber=False, manual_check=False, manual_only=False) :
+    qc_status=0
     for f in source_files :
         #Set output filename
         fsplit = os.path.splitext(os.path.basename(f))
@@ -435,8 +353,10 @@ def crop_source_files(source_files, output_dir, downsample_step=1, clobber=False
         subject_output_dir = output_dir + os.sep + "detailed" + os.sep + fsplit[0] + os.sep
         subject_output_base = subject_output_dir+fsplit[0]+'_'
         fout = output_dir + os.sep + fsplit[0]+'_cropped'+fsplit[1]
+        qc_fn=qc_dir+os.sep+fsplit[0]+'_cropped_qc.png'
         #if not "RD#HG#MR1s3#R#rx82#5791#04" in f : continue 
-        if not os.path.exists(fout) or clobber :
+        if (not os.path.exists(fout) or not os.path.exists(qc_fn)) or clobber :
+        #if (not os.path.exists(fout) ) or clobber :
             print("Input:", f)
             if not os.path.exists(subject_output_dir) : os.makedirs(subject_output_dir)
             if not os.path.exists(qc_dir) : os.makedirs(qc_dir)
@@ -448,25 +368,27 @@ def crop_source_files(source_files, output_dir, downsample_step=1, clobber=False
             #Downsampled the image to make processing faster
             img_dwn = downsample(img, subject_output_base, downsample_step)
 
-            #Cluster the image with KMeans
-            img_thr, labels, clustered,  nlabels = cluster(img_dwn, subject_output_base )
+            if not manual_only :
+                #Cluster the image with KMeans
+                img_thr,labels,clustered,nlabels=cluster(img_dwn,subject_output_base)
 
-            #Get bounding box
-            bounding_box_dwn, boxSum = get_bounding_box(labels, nlabels)
-            
-            #Crop image
-            cropped, cropped_dwn = crop(img, img_dwn, bounding_box_dwn)
+                #Get bounding box
+                bounding_box_dwn, boxSum = get_bounding_box(labels, nlabels)
+                
+                #Crop image
+                cropped, cropped_dwn = crop(img, img_dwn, bounding_box_dwn)
 
-            #Quality Control
-            qc_status = save_qc(img_dwn, img_thr, clustered, labels, boxSum, cropped_dwn, qc_dir+os.sep+fsplit[0]+'_cropped_qc.png', manual_check)
+                #Quality Control
+                qc_status = save_qc(img_dwn, img_thr, clustered, labels, boxSum, cropped_dwn, qc_fn, manual_check)
 
-            if qc_status != 0 : 
+            if qc_status != 0 or manual_only : 
                 #Automated cropping failed to pass QC, use manual QC
                 cropped, cropped_dwn = crop_gui(subject_output_base, img_dwn, img) 
             
             if cropped != [] :
                 print("Cropped:", fout,"\n")
                 scipy.misc.imsave(fout, cropped)
+                scipy.misc.imsave(qc_fn, cropped)
             else : 
                 print("No cropped image to save")
 
@@ -478,10 +400,11 @@ if __name__ == "__main__":
     parser.add_argument('--ext', dest='ext', default=".tif", help='File extension for input files (default=.tif)')
     parser.add_argument('--step', dest='downsample_step', default="1", type=int, help='File extension for input files (default=.tif)')
     parser.add_argument('--manual', dest='manual_check', action='store_true', default=False, help='Do QC and manually crop region if automated method fails')
+    parser.add_argument('--manual-only', dest='manual_only', action='store_true', default=False, help='Only do manual cropping (default=False)')
     parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
 
     args = parser.parse_args()
     if not os.path.exists(args.output_dir) : os.makedirs(args.output_dir)
-    source_files = glob(args.source_dir+"**"+os.sep+"*"+args.ext)
-    crop_source_files(source_files, args.output_dir, downsample_step=args.downsample_step, clobber=args.clobber, manual_check=args.manual_check)
+    source_files = glob(args.source_dir+os.sep+"*"+args.ext)
+    crop_source_files(source_files, args.output_dir, downsample_step=args.downsample_step, clobber=args.clobber, manual_check=args.manual_check, manual_only=args.manual_only)
 
