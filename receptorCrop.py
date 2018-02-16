@@ -18,12 +18,12 @@ from skimage.restoration import inpaint
 import pandas as pd
 import argparse
 from utils.mouse_click import click
+from utils.utils import *
 from skimage import filters
+from cropp_img import cropp_img
+
 ### Required libraries :
 ### pip3 install --upgrade --user imageio scikit-image opencv-python
-
-
-def rgb2gray(rgb): return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
 
 def curvature(img):
     d0 = np.gradient(img,edge_order=2, axis=0)
@@ -39,10 +39,10 @@ def curvature(img):
     k =np.abs(num/ den)
     return(k)
 
-def downsample(img, subject_fn, step=1):
+def downsample(img, subject_fn, step=0.5):
     #Calculate length of image based on assumption that pixels are 0.02 x 0.02 microns
-    l0 = img.shape[0] * 0.2 
-    l1 = img.shape[1] * 0.2
+    l0 = img.shape[0] * 0.02 
+    l1 = img.shape[1] * 0.02
     #Calculate the length for the downsampled image
     dim0=int(np.ceil(l0 / step))
     dim1=int(np.ceil(l1 / step))
@@ -108,62 +108,6 @@ def adjust_mask_region( thr, img_dwn, clustered, img_mask) :
 
 from skimage.filters import frangi, threshold_otsu, threshold_yen, threshold_li, threshold_minimum, threshold_niblack, threshold_triangle 
 from scipy.signal import argrelextrema
-def threshold_lines(img_dwn, clustered, subject_fn):
-    ar = np.arange(np.min(img_dwn), np.max(img_dwn), np.max(img_dwn)/20)
-    t=[]
-    val, bin_width  = np.histogram(img_dwn.reshape(-1,1), 10)
-    dval = np.diff(val)
-    minima = argrelextrema(val, np.less)[0]
-    if len(minima) > 0 :
-        print(minima)
-        print(len(minima))
-        min_idx = np.min(minima)
-        thr = bin_width[min_idx]
-    else : thr = threshold_li(img_dwn)
-    #thr =  threshold_otsu(img_dwn)
-    #thr =  threshold_li(img_dwn)
-    #f_list=[threshold_otsu, threshold_yen, threshold_li, threshold_minimum,  threshold_triangle]
-    img_mask=np.zeros(clustered.shape)
-    if thr > 0 : img_mask[ img_dwn < thr ] = 1 
-
-    #thr = bin_width[2]
-    img_thr = adjust_mask_region( thr, img_dwn, clustered, img_mask)
-    
-    print("Threshold: ", thr) 
-    print('Thresholded Image:', subject_fn +'thr.jpg')
-    scipy.misc.imsave(subject_fn +'thr.jpg',  img_thr)
-    return img_mask, img_thr, thr
-
-
-import matplotlib.pyplot as plt
-def cluster(img_dwn, subject_fn, nMeans=2, histogram_threshold=False):
-    dim1=img_dwn.shape[1]
-    dim0=img_dwn.shape[0]
-
-    if histogram_threshold :
-        clustered_init = get_kmeans_img(img_dwn, nMeans)
-        img_mask, img_thr, thr = threshold_lines(img_dwn, clustered_init, subject_fn)
-        img_dwn = img_thr
-    else :
-        img_thr=img_dwn
-        mask_dwn = np.zeros(img_dwn.shape)
-        img_mask = np.zeros(img_dwn.shape)
-        thr=0
-    #Use KMeans clustering with 2 classes
-    clustered = get_kmeans_img(img_thr, nMeans)
-    clustered_original = np.copy(clustered)
-    print('Clustering:', subject_fn +'kmeans.jpg')
-    scipy.misc.imsave(subject_fn +'kmeans.jpg',  clustered)
-   
-    bg = np.median(img_dwn[ clustered == 0 ])
-
-    #Separate clusters into labels
-    labels, nlabels = label(clustered, structure=np.ones([3,3]))
-    nlabels += 1
-    print('Labels:', subject_fn +'labels.jpg')
-    plt.imsave(subject_fn +'labels.jpg', labels)
-    return img_thr, labels, clustered, nlabels, img_mask, thr, bg
-
 
 
 def get_bounding_boxes(labels, nlabels, method):
@@ -184,7 +128,13 @@ def get_bounding_boxes(labels, nlabels, method):
         temp *= 0
         temp[ labels == l ]=1
         y0, y1, x0, x1 = find_min_max(temp)
-    
+   
+        y0=min(y0)
+        x0=min(x0)
+        y1=min(y1)
+        x1=min(x1)
+
+
         start_check = x0 > d and y0 > d
         end_check = x1 < (dim1-d) and y1 < (dim0-d)
         if method == "bounding_box" :  area_temp = (x1-x0)*(y1-y0)
@@ -265,79 +215,34 @@ def get_bounding_box(labels, nlabels,method):
     bounding_box= binary_dilation(bounding_box, iterations=2).astype(bounding_box.dtype)
     return bounding_box, boxSum
 
-def crop(img, img_dwn, bounding_box_dwn, mask_dwn, thr=0, bg=0) :
-    mask=None
+def crop(img, img_dwn, bounding_box_dwn, thr=0, bg=0) :
     #Create downsampled cropped image
-    if np.sum(bounding_box_dwn) != 0 :
-        y0, y1, x0, x1 =  find_min_max(bounding_box_dwn)
-    else : 
-        y0=x0=0
-        y1=bounding_box_dwn.shape[0]
-        x1=bounding_box_dwn.shape[1]
-
-    yr = y1 - y0
-    xr = x1 - x0
-    cropped_dwn = np.zeros([yr,xr])   
-    cropped_dwn = img_dwn[y0:y1,x0:x1] * bounding_box_dwn[y0:y1,x0:x1]
-    cropped_dwn[bounding_box_dwn[y0:y1,x0:x1]== 0 ] = bg
+    cropped_dwn = img_dwn * bounding_box_dwn 
+    #cropped_dwn[bounding_box_dwn== 0 ] = bg
     #Create cropped image at full resolution
     bounding_box = scipy.misc.imresize(bounding_box_dwn,size=(img.shape[0],img.shape[1]) )
 
-    if np.sum(bounding_box) != 0 :
-        q0, q1, r0, r1 =  find_min_max(bounding_box)
-    else : 
-        q0=r0=0
-        q1=bounding_box.shape[0]
-        r1=bounding_box.shape[1]
-
-    qr = q1 - q0
-    rr = r1 - r0
-    cropped = np.zeros([qr,rr])   
-    cropped = img[q0:q1,r0:r1] * bounding_box[q0:q1,r0:r1]
-    cropped[bounding_box[q0:q1,r0:r1]== 0 ] = bg
-    if np.sum(mask_dwn) > 0 : 
-        mask = scipy.misc.imresize(mask_dwn,size=(img.shape[0],img.shape[1]), interp="nearest" )
-        mask_cropped = mask[q0:q1,r0:r1]
-        mask_dwn_cropped = mask_dwn[y0:y1,x0:x1]
-        cropped = adjust_mask_region(thr, cropped, np.array(bounding_box[q0:q1,r0:r1]),np.zeros([qr,rr]) )
-        cropped_dwn = adjust_mask_region(thr, cropped_dwn, np.array(bounding_box_dwn[y0:y1,x0:x1]),np.zeros([yr,xr]))
+    cropped = img * bounding_box
+    #cropped[bounding_box== 0 ] = bg
 
     return cropped, cropped_dwn
 
 
-
-def find_min_max(seg):
-    #Flatten series along axis 1
-    sum_series_0 = np.sum(seg, axis=1)
-    #Flatten series along axis 0
-    sum_series_1 = np.sum(seg, axis=0)
-    #Create two arrays that number from 0 to length of the flattened series
-    av0=np.arange(len(sum_series_0))
-    av1=np.arange(len(sum_series_1))
-    #Get the range values that are larger than 0 in flattened series
-    ar0 = av0[ sum_series_0 > 0]
-    ar1 = av1[ sum_series_1 > 0]
-    #Calculate min/max
-    max0 = int(np.max(ar0))
-    min0 = int(np.min(ar0))
-    max1 = int(np.max(ar1))
-    min1 = int(np.min(ar1))
-    return min0,max0,min1,max1
-
-def save_qc(img_dwn, img_thr, clustered, labels, boxSum, cropped_dwn,out_fn,manual_check):
+def save_qc(img_dwn, cropped_dwn,out_fn,manual_check):
     dim0=img_dwn.shape[0]
     dim1=img_dwn.shape[1]
-    qc=np.zeros([ dim0*2, dim1*3 ])
-    qc[0:dim0,0:dim1]            = img_dwn / img_dwn.max()
-    qc[0:dim0,(1*dim1):(2*dim1)] = img_thr / img_thr.max()
-    qc[0:dim0,(2*dim1):(3*dim1)] = clustered/clustered.max()
-
-    qc[dim0:(dim0*2),0:(1*dim1) ] = labels/labels.max()
-    qc[dim0:(dim0*2),(1*dim1):(2*dim1) ] = boxSum/boxSum.max()
+    print(img_dwn.shape)
+    print(cropped_dwn.shape)
+    qc=np.zeros([ dim0, dim1*2 ])
+    plt.Figure()
+    plt.subplot(2,1,1)
+    plt.imshow(img_dwn / img_dwn.max())
     if np.sum(cropped_dwn) != 0 :
-        qc[dim0:(cropped_dwn.shape[0]+dim0),(2*dim1):(2*dim1+cropped_dwn.shape[1]) ]=cropped_dwn/cropped_dwn.max()
+        plt.subplot(2,1,2)
+        plt.imshow(cropped_dwn/cropped_dwn.max())
     print("QC :", out_fn)
-    scipy.misc.imsave(out_fn, qc)
+    plt.savefig(out_fn)
+    plt.show()
 
     if manual_check :
         # Create figure and axes
@@ -374,7 +279,7 @@ def crop_gui(subject_output_base, img_dwn, img, qc_fn ):
 
 
 from PIL import Image, ImageDraw
-def crop_source_files(source_files, output_dir, downsample_step=1, clobber=False, manual_check=False, manual_only=False, histogram_threshold=False, method="bounding_box") :
+def crop_source_files(source_files, output_dir, downsample_step=0.5, clobber=False, manual_check=False, manual_only=False, histogram_threshold=False, method="bounding_box") :
     qc_status=0
     for f in source_files :
         #Set output filename
@@ -399,20 +304,15 @@ def crop_source_files(source_files, output_dir, downsample_step=1, clobber=False
             img_dwn = downsample(img, subject_output_base, downsample_step)
 
             if not manual_only :
-                #Cluster the image with KMeans
-                img_thr,labels,clustered,nlabels,mask_dwn,thr,bg=cluster(img_dwn,subject_output_base, histogram_threshold = histogram_threshold)
+                
+                bounding_box_dwn = cropp_img(img_dwn)
 
-                if method == "bounding_box" :
-                    #Get bounding box
-                   bounding_box_dwn, boxSum = get_bounding_box(labels, nlabels,method)
-                elif method == "largest_region" :
-                   bounding_box_dwn, boxSum = get_largest_region(labels, nlabels,method)
-
+                
                 #Crop image
-                cropped, cropped_dwn = crop(img, img_dwn, bounding_box_dwn, mask_dwn, bg=bg)
+                cropped, cropped_dwn = crop(img, img_dwn, bounding_box_dwn)
 
                 #Quality Control
-                qc_status = save_qc(img_dwn, img_thr, clustered, labels, boxSum, cropped_dwn, qc_fn, manual_check)
+                qc_status = save_qc(img_dwn,  cropped_dwn, qc_fn, manual_check)
 
             if qc_status != 0 or manual_only : 
                 #Automated cropping failed to pass QC, use manual QC
@@ -430,7 +330,7 @@ if __name__ == "__main__":
     parser.add_argument('--source', dest='source_dir',  help='Directory with raw images')
     parser.add_argument('--output', dest='output_dir',  help='Directory name for outputs')
     parser.add_argument('--ext', dest='ext', default=".tif", help='File extension for input files (default=.tif)')
-    parser.add_argument('--step', dest='downsample_step', default="1", type=int, help='File extension for input files (default=.tif)')
+    parser.add_argument('--step', dest='downsample_step', default=0.5, type=float, help='File extension for input files (default=.tif)')
     parser.add_argument('--method', dest='method', default="bounding_box", type=str, help='Method for automated cropping (default = bounding_box). Implemented methods: bounding_box, largest_region')
     parser.add_argument('--manual', dest='manual_check', action='store_true', default=False, help='Do QC and manually crop region if automated method fails')
     parser.add_argument('--manual-only', dest='manual_only', action='store_true', default=False, help='Only do manual cropping (default=False)')

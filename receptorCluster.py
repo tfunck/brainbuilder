@@ -94,6 +94,7 @@ def clustering_stats(df, output_dir):
     row = pd.DataFrame(clusterStats.sum(axis=0)).T
     row.index = ['TracerTotal']
     clusterStats = clusterStats.append(row)
+    print(clusterStats)
     clusterStats.to_csv(output_dir+os.sep+"clusterStats.csv")
     return clusterStats
 
@@ -109,7 +110,7 @@ def get_pca(df, output_dir, N=3) :
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(df_pca[:,0],df_pca[:,1],df_pca[:,2])
-    plt.savefig(output_dir + 'raw_pca.png')
+    plt.savefig(output_dir + os.sep+ 'raw_pca.png')
     return df
     
 def cluster(df, nMeans=3):
