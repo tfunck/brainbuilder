@@ -44,8 +44,7 @@ def imadjust(src, tol=1, vin=[0,255], vout=(0,255)):
             dst[r,c] = vd
     return dst
 
-
-def cropp_img(img):
+def get_connected_regions(img):
     im1 = imadjust(img)
     im2 = cv2.equalizeHist(im1)
     thr = threshold_otsu(im2)
@@ -62,8 +61,12 @@ def cropp_img(img):
     #cc=bwconncomp(im5);
     cc, nlabels = label(im5, structure=np.ones([3,3]))
     nlabels += 1
+    return cc, nlabels
 
-    im6=np.zeros(im5.shape);
+def cropp_img(img):
+    cc, nlabels = get_connected_regions(img)
+
+    im6=np.zeros(img.shape);
 
     #numPixels = cellfun(@numel,cc.PixelIdxList);
     #[biggest,idx] = max(numPixels);

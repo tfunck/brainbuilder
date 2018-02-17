@@ -6,31 +6,49 @@ from sklearn.cluster import spectral_clustering, DBSCAN, KMeans
 from glob import glob
 from sys import exit, argv
 import os
+from os.path import basename
 from scipy.ndimage.filters import gaussian_filter
 import matplotlib.pyplot as plt
 import imageio
 import pandas as pd
 import argparse
+import seaborn as sns
 from mpl_toolkits.mplot3d import Axes3D
+import re
+from statsmodels.formula.api import ols
+from statsmodels.stats.anova import anova_lm
+from skimage.filters import frangi, hessian
+from skimage import feature
+from cropp_img import get_connected_regions
+from sklearn.decomposition import PCA
+import shutil
+
+global measures
+measures = ["nlabels","kurtosis","skew","mean","median", "p20","sd", "cc_size"]
 
 def rgb2gray(rgb): return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
 
-def curvature(img):
-    x, y = np.gradient(img)
-    cg =  np.sqrt(x**2 + y**2)
-    img=cg
-    d0 = np.gradient(img,edge_order=2, axis=0)
-    d00 = np.gradient(d0,edge_order=2, axis=0)
-    d1 = np.gradient(img,edge_order=2, axis=1)
-    d11 = np.gradient(d1,edge_order=2, axis=1)
-    d10 = np.gradient(d1,edge_order=2, axis=0)
 
-    num = (d00*d11**2 + d11*d00**2 - 2*d10*d1*d0) 
-    den = (d0**2 + d1**2)**(3/2)
-    den[den==0]=1
-    num[den==0]=0
-    k =np.abs(num/ den)
-    return(k)
+
+def aggregate_df(df, output_dir) :
+    df = pd.melt(df, id_vars=["a","b","mri","slab","hemisphere","tracer","globalNum","sliceNum","number"] ,  value_vars=["entropy","curvature","kurtosis","skew","mean","median", "20p","sd"] )
+    df_std = df.groupby(["a","b","mri","slab","hemisphere","tracer","variable"])["value"].std()
+    df_mean = df.groupby(["a","b","mri","slab","hemisphere","tracer","variable"])["value"].std()
+
+    df_mean.name = "mean"
+    df_std.name = "std"
+    df2 = pd.DataFrame({"std":df_std, "mean":df_mean})
+    df2.reset_index(inplace=True)
+    return(df2)
+
+def plot_stats(df, output_dir) :
+    plt.clf()
+    grid = sns.FacetGrid(df, col="variable", row="hemisphere", hue="tracer", size=1.5)
+    grid.map(plt.plot, "slab", "mean")
+    plt.savefig(output_dir + os.sep + "plot_pca.jpg")    
+    plt.clf()
+    return 0
+    
 
 def downsample(img, step=0.1):
     #Calculate length of image based on assumption that pixels are 0.02 x 0.02 microns
@@ -48,37 +66,51 @@ def downsample(img, step=0.1):
     img_dwn = scipy.misc.imresize(img_blr,size=(dim0, dim1),interp='cubic' )
     return(img_dwn)
 
-from sklearn.decomposition import PCA
 
-def get_image_stats(source_files) :
+def get_image_stats(source_files, output_dir, clobber=False) :
     pd_list = []
-    col=["file","entropy","curvature","kurtosis","skew","mean","median", "20p","sd"]
+    col=["file", "file_dwn"] + measures
     i=0
+    png_dir = os.getcwd() + os.sep + output_dir + os.sep + "png"
+    if not os.path.exists(png_dir): os.makedirs(png_dir)
+    n=len(source_files)
+    source_files = np.array(source_files)
+    source_files=source_files[np.random.choice(n,n)]
     for f in source_files :
-        print(f)
-        img = rgb2gray(imageio.imread(f))
-        img = downsample(img)
+        f_base = os.path.basename(f)
+        fsplit = os.path.splitext(f_base)
+        f_dwn = png_dir +os.sep+fsplit[0]+"_dwn.png" 
+        print(f_dwn)
+
+        if not os.path.exists(f_dwn) or clobber:
+            img = downsample(rgb2gray(imageio.imread(f)))
+            scipy.misc.imsave(f_dwn, img)
+        else :
+            img = rgb2gray(imageio.imread(f_dwn))
+        
         val, bin_width  = np.histogram(img.reshape(-1,1), 255)
-        e = scipy.stats.entropy(val)
-        K = np.mean(curvature(img))
+        cc, nlabels = get_connected_regions(img)
+        cc_size = np.sum(cc)
         kur = scipy.stats.kurtosis(val)
         ske = scipy.stats.skew(val)
         m0 = np.mean(img)
         m1 = np.median(img)
         s = np.std(img)
         p20, = np.percentile(img, [20])
-        pd_list.append(pd.DataFrame([(f,e, K, kur, ske, m0, m1,p20, s)], columns=col))
+        pd_list.append(pd.DataFrame([(f,f_dwn,nlabels, kur, ske, m0, m1,p20, s, cc_size)], columns=col))
         i+=1
     df=pd.concat(pd_list)
     df.set_index("file", inplace=True)
     return(df)
 
 def split_filename(df):
-    ar=list(map(lambda x: x.split("#"), df.index.values))
-    df0=pd.DataFrame(ar, columns=["a","b","mri","hemisphere","tracer","slice","number"])
-    df0.index=df.index
-    df=pd.concat([df0, df], axis=1)
-    return df
+    dfout=df.copy()
+    dfout.index = dfout.index.map(lambda x : re.sub(r"([0-9])s([0-9])", r"\1#\2", x, flags=re.IGNORECASE))
+    ar=list(map(lambda x: re.split('#|\.|\/',basename(x)), dfout.index.values))
+    df0=pd.DataFrame(ar, columns=["a","b","mri","slab","hemisphere","tracer","globalNum","sliceNum","ext"])
+    df0.index=dfout.index
+    dfout=pd.concat([df0, dfout], axis=1)
+    return dfout
 
 def clustering_stats(df, output_dir):
     df_list=[]
@@ -87,6 +119,7 @@ def clustering_stats(df, output_dir):
         label=names[1]
         per = 1. * df0.shape[0] / df.shape[0]
         df_list.append(pd.DataFrame([(label, tracer, per)], columns=["label","tracer","percent"]))
+
     clusterStats = pd.concat(df_list)
     clusterStats = clusterStats.pivot(index="label", columns='tracer', values='percent')
     clusterStats.fillna(value=0,inplace=True)
@@ -94,28 +127,51 @@ def clustering_stats(df, output_dir):
     row = pd.DataFrame(clusterStats.sum(axis=0)).T
     row.index = ['TracerTotal']
     clusterStats = clusterStats.append(row)
-    print(clusterStats)
     clusterStats.to_csv(output_dir+os.sep+"clusterStats.csv")
     return clusterStats
 
-def get_pca(df, output_dir, N=3) :
+def get_pca(df, output_dir, N=4) :
     pca = PCA(n_components=N, whiten=True)
-    pca.fit(df)
-    df_pca = pca.transform(df)
+    pca.fit(df[measures])
+    print("PCA explained variance:", np.sum(pca.explained_variance_ratio_))
+    df_pca = pca.transform(df[measures])
+
     for i in np.arange(N,dtype=int):
         name = "PC"+str(i)
         df[name]=df_pca[:, i]
-        
-    
+    data = pca.inverse_transform( np.eye(N) )
+    data = np.mean(data, axis=0)
+    plt.scatter(measures , data)
+    plt.savefig(output_dir +os.sep +"feature_contribution.png")
+    plt.clf()
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(df_pca[:,0],df_pca[:,1],df_pca[:,2])
     plt.savefig(output_dir + os.sep+ 'raw_pca.png')
+    plt.clf()
     return df
-    
-def cluster(df, nMeans=3):
-    db = KMeans(nMeans).fit_predict(df.loc[:,["PC0","PC1","PC2"]])
-    df["label"] = db
+
+from sklearn.neighbors import NearestNeighbors
+def cluster(df, output_dir,  method="DBSCAN"):
+    X=df.loc[:,["PC0","PC1","PC2"]]
+    nbrs = NearestNeighbors(n_neighbors=2, algorithm='ball_tree').fit(X)
+    distances, indices = nbrs.kneighbors(X)
+    dist = np.sort(distances[:,-1])
+    dist = np.delete(dist, dist.argmax())
+    dist = gaussian_filter(dist, sigma=len(dist)/200 )
+    ddist = np.gradient(dist)
+    d2dist = np.gradient(ddist)
+    plt.plot(range(len(dist)), dist)
+    plt.savefig(output_dir+os.sep+'nn_plot.png')
+    plt.clf()
+    eps = dist[d2dist.argmax()]
+    print("EPS:", eps)
+    if method == "KMeans" :
+        db = KMeans(nMeans).fit_predict(df.loc[:,["PC0","PC1","PC2"]])
+        df["label"] = db
+    else :
+        db = DBSCAN(eps=eps, min_samples=10).fit(df.loc[:,["PC0","PC1","PC2"]])
+        df["label"] = db.labels_
     return df
 
 def distribute_files(df, output_dir):
@@ -123,31 +179,70 @@ def distribute_files(df, output_dir):
         dir_name=output_dir+os.sep+"labels"+os.sep+str(label)
         if not os.path.exists(dir_name) :
             os.makedirs(dir_name)
-    for name, df0 in df.iterrows() : 
-        source=os.getcwd()+os.sep+name
-        label_dir=os.getcwd()+os.sep+output_dir+os.sep+"labels"+os.sep
-        target=label_dir+str(int(df0["label"]))+os.sep+os.path.basename(source)
-        if not os.path.islink(target) :
-            os.symlink(source, target)
+    
+    label_dir=os.getcwd()+os.sep+output_dir+os.sep+"labels"+os.sep
+    if os.path.exists(label_dir) : shutil.rmtree(label_dir)
+    os.makedirs(label_dir)
 
-def main(source_files, output_dir, nMeans=3, clobber=False) :
+    for label, df1  in df.groupby(["label"]) :
+        
+        target_dir = label_dir+str(label)+os.sep
+        if not os.path.exists(target_dir) : os.makedirs(target_dir)
+
+        for name, df0 in df1.iterrows() :
+            source = df0["file_dwn"]
+            fsplit = os.path.splitext(os.path.basename(source))
+            target= target_dir + os.sep + fsplit[0] + ".png"
+            if not os.path.exists(target) :
+                os.symlink(source, target )
+
+
+
+def slab_tracer_anova(df) :
+    print(df.columns)
+    print(df.tracer.unique())
+    df.rename( index=str, columns={"20p":"twentyPercentile"}, inplace=True )
+    print(df.iloc[0:5,:]) ;
+
+    for measure in measures:
+        if measure == "20p" : measure = "twentyPercentile"
+        formula = measure + ' ~ C(tracer) * C(slab)  '
+        model = ols(formula, df).fit()
+        aov_table = anova_lm(model, typ=2)
+        print(aov_table)
+
+
+def main(source_files, output_dir, clobber=False) :
     df_fn = output_dir + os.sep + "image_stats.csv"
     
     if not os.path.exists(df_fn) or clobber :
-        df = get_image_stats(source_files)
+        df = get_image_stats(source_files, output_dir, clobber=clobber)
         df.to_csv(df_fn)
     else :
         df=pd.read_csv(df_fn,index_col="file")
     
+    #Calculate zscore for all the image metrics
+    dfz = df.copy()
+    dfz[measures] = df[measures].apply(scipy.stats.zscore)
+    #Apply PCA
+    df_pca = get_pca(dfz, output_dir)
+    #Apply clustering to DataFrame
+    df_labeled=cluster(df_pca, output_dir)
+    #Turn filenames into columns (MRI, slab, etc.)
+    df2 = split_filename(df_labeled)
+    #Calculate distribution of labels
+    clustering_stats(df2,output_dir) 
+    #Distribute files by label group
+    distribute_files(df_labeled,output_dir)
 
-    df = df.apply(scipy.stats.zscore)
-    df=get_pca(df, output_dir)
-    df = split_filename(df)
+    #Aggregate by mean and std for MRI, hemisphere and slab
+    dfAgr = aggregate_df(df2, output_dir)
+    #Calculate effect of slab and tracer on measures
+    #slab_tracer_anova(df2) #FIXME : Doesn't work yet
+    #Plot distribution of image statistics
+    plot_stats(dfAgr, output_dir) 
 
-    df=cluster(df, nMeans)
-    distribute_files(df,output_dir)
-    clustering_stats(df,output_dir)
-
+    return(0)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
@@ -155,12 +250,11 @@ if __name__ == "__main__":
     parser.add_argument('--output', dest='output_dir',  help='Directory name for outputs')
     parser.add_argument('--step', dest='downsample_step', default="1", type=int, help='File extension for input files (default=.tif)')
     parser.add_argument('--ext', dest='ext', default=".tif", help='File extension for input files (default=.tif)')
-    parser.add_argument('--nmeans', dest='nMeans', default=3, type=int, help='Number of means for clustering')
     parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
 
     args = parser.parse_args()
     if not os.path.exists(args.output_dir) : os.makedirs(args.output_dir)
     source_files = glob(args.source_dir+"**"+os.sep+"*"+args.ext)
     if source_files != []:
-        main(source_files, args.output_dir, nMeans=args.nMeans, clobber=args.clobber )
+        main(source_files, args.output_dir, clobber=args.clobber )
     else : print("Warning: could not find any files")
