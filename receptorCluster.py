@@ -22,13 +22,10 @@ from skimage import feature
 from cropp_img import get_connected_regions
 from sklearn.decomposition import PCA
 import shutil
-
-global measures
-measures = ["nlabels","kurtosis","skew","mean","median", "p20","sd", "cc_size"]
+from utils.lines import get_lines
+from skimage.filters import threshold_otsu, threshold_yen, threshold_li
 
 def rgb2gray(rgb): return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
-
-
 
 def aggregate_df(df, output_dir) :
     df = pd.melt(df, id_vars=["a","b","mri","slab","hemisphere","tracer","globalNum","sliceNum","number"] ,  value_vars=["entropy","curvature","kurtosis","skew","mean","median", "20p","sd"] )
@@ -66,7 +63,13 @@ def downsample(img, step=0.1):
     img_dwn = scipy.misc.imresize(img_blr,size=(dim0, dim1),interp='cubic' )
     return(img_dwn)
 
+p20 = lambda img : np.percentile(img, [20])
+cc_sum = lambda img :np.sum(get_connected_regions(img)[0])
 
+global measures
+measures = ["entropy","kurtosis","skew","mean","median", "p20", "cc_size","otsu","yen","li","averageLines"]
+flist={"entropy":scipy.stats.entropy,"kurtosis":scipy.stats.kurtosis,"skew":scipy.stats.skew,"mean":np.mean,"median":np.median, "p20":p20, "cc_size":cc_sum,"otsu":threshold_otsu,"yen":threshold_yen,"li":threshold_li, "averageLines":get_lines}
+histogram_methods=["entropy","kurtosis","skew"]
 def get_image_stats(source_files, output_dir, clobber=False) :
     pd_list = []
     col=["file", "file_dwn"] + measures
@@ -75,7 +78,6 @@ def get_image_stats(source_files, output_dir, clobber=False) :
     if not os.path.exists(png_dir): os.makedirs(png_dir)
     n=len(source_files)
     source_files = np.array(source_files)
-    source_files=source_files[np.random.choice(n,n)]
     for f in source_files :
         f_base = os.path.basename(f)
         fsplit = os.path.splitext(f_base)
@@ -89,19 +91,39 @@ def get_image_stats(source_files, output_dir, clobber=False) :
             img = rgb2gray(imageio.imread(f_dwn))
         
         val, bin_width  = np.histogram(img.reshape(-1,1), 255)
-        cc, nlabels = get_connected_regions(img)
-        cc_size = np.sum(cc)
+        otsu = threshold_otsu(img)
+        yen = threshold_yen(img) 
+        li = threshold_li(img)
+        cc_size = cc_sum(img)
+        e = scipy.stats.entropy(val)
         kur = scipy.stats.kurtosis(val)
         ske = scipy.stats.skew(val)
         m0 = np.mean(img)
         m1 = np.median(img)
-        s = np.std(img)
-        p20, = np.percentile(img, [20])
-        pd_list.append(pd.DataFrame([(f,f_dwn,nlabels, kur, ske, m0, m1,p20, s, cc_size)], columns=col))
+        p20, = p20(img)
+        pd_list.append(pd.DataFrame([(f,f_dwn,e, kur, ske, m0, m1,p20, cc_size, otsu, yen, li)], columns=col))
         i+=1
+        print(i)
     df=pd.concat(pd_list)
     df.set_index("file", inplace=True)
     return(df)
+
+def update_df(df, fn):
+    for name, f  in  flist.items() :
+        if not name in df.columns :
+            print("Adding :", name)
+            mlist=[]
+            for filename in df.file_dwn:
+                img = imageio.imread(filename)
+                val, bin_width  = np.histogram(img.reshape(-1,1), 255)
+                if name in histogram_methods :
+                    mlist.append(f(val))
+                else :
+                    mlist.append(f(img))
+            df[name]=mlist
+    df.to_csv(fn)
+    return df        
+
 
 def split_filename(df):
     dfout=df.copy()
@@ -128,20 +150,23 @@ def clustering_stats(df, output_dir):
     row.index = ['TracerTotal']
     clusterStats = clusterStats.append(row)
     clusterStats.to_csv(output_dir+os.sep+"clusterStats.csv")
+    print(clusterStats)
     return clusterStats
 
-def get_pca(df, output_dir, N=4) :
+
+def get_pca(df, output_dir, N=3) :
     pca = PCA(n_components=N, whiten=True)
-    pca.fit(df[measures])
+    pca.fit(df[["skew", "kurtosis", "cc_size", "averageLines"]])
     print("PCA explained variance:", np.sum(pca.explained_variance_ratio_))
-    df_pca = pca.transform(df[measures])
+    df_pca = pca.transform(df[["skew", "kurtosis", "cc_size", "averageLines"]])
 
     for i in np.arange(N,dtype=int):
         name = "PC"+str(i)
         df[name]=df_pca[:, i]
     data = pca.inverse_transform( np.eye(N) )
     data = np.mean(data, axis=0)
-    plt.scatter(measures , data)
+    temp=pd.DataFrame({"measure":["skew", "kurtosis", "cc_size", "averageLines"],"value":data})
+    grid = sns.swarmplot(x="measure", y="value", data=temp)
     plt.savefig(output_dir +os.sep +"feature_contribution.png")
     plt.clf()
     fig = plt.figure()
@@ -153,25 +178,34 @@ def get_pca(df, output_dir, N=4) :
 
 from sklearn.neighbors import NearestNeighbors
 def cluster(df, output_dir,  method="DBSCAN"):
-    X=df.loc[:,["PC0","PC1","PC2"]]
+    #X=df.loc[:,["PC0","PC1","PC2"]]
+    print(df)
+    #X=df.loc[:,["entropy", "skew","median", "kurtosis", "averageLines"]]
+    X=df.loc[:,["entropy", "skew", "kurtosis", "cc_size"]]
+
     nbrs = NearestNeighbors(n_neighbors=2, algorithm='ball_tree').fit(X)
     distances, indices = nbrs.kneighbors(X)
     dist = np.sort(distances[:,-1])
     dist = np.delete(dist, dist.argmax())
-    dist = gaussian_filter(dist, sigma=len(dist)/200 )
+    dist = gaussian_filter(dist, sigma=len(dist)/250 )
     ddist = np.gradient(dist)
     d2dist = np.gradient(ddist)
     plt.plot(range(len(dist)), dist)
+    plt.plot(range(len(dist)), ddist)
+    plt.plot(range(len(dist)), d2dist)
     plt.savefig(output_dir+os.sep+'nn_plot.png')
     plt.clf()
-    eps = dist[d2dist.argmax()]
+    eps = 0.5 # dist[d2dist.argmax()]
     print("EPS:", eps)
+    method="KMeans"
     if method == "KMeans" :
-        db = KMeans(nMeans).fit_predict(df.loc[:,["PC0","PC1","PC2"]])
+        db = KMeans(2).fit_predict(df.loc[:,["averageLines"]])
         df["label"] = db
-    else :
-        db = DBSCAN(eps=eps, min_samples=10).fit(df.loc[:,["PC0","PC1","PC2"]])
-        df["label"] = db.labels_
+    
+        #for i in range(2):
+        #    db = DBSCAN(eps=eps, min_samples=10).fit( X[df["label"]==i ] )
+        #    df.loc[ df["label"]==i, "label"] = i*10 + db.labels_
+        #    print("Labels", np.unique(db.labels_))
     return df
 
 def distribute_files(df, output_dir):
@@ -220,14 +254,17 @@ def main(source_files, output_dir, clobber=False) :
         df.to_csv(df_fn)
     else :
         df=pd.read_csv(df_fn,index_col="file")
-    
+        df=update_df(df, df_fn)
+    #df.loc[:,"averageLines"][ pd.isnull(df["averageLines"])  ]=0
+    #df.to_csv(df_fn)
     #Calculate zscore for all the image metrics
     dfz = df.copy()
     dfz[measures] = df[measures].apply(scipy.stats.zscore)
+    print(dfz)
     #Apply PCA
     df_pca = get_pca(dfz, output_dir)
     #Apply clustering to DataFrame
-    df_labeled=cluster(df_pca, output_dir)
+    df_labeled=cluster(dfz, output_dir)
     #Turn filenames into columns (MRI, slab, etc.)
     df2 = split_filename(df_labeled)
     #Calculate distribution of labels
@@ -246,7 +283,7 @@ def main(source_files, output_dir, clobber=False) :
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('--source', dest='source_dir',  help='Directory with raw images')
+    parser.add_argument('--source', dest='source_dir', default=None,  help='Directory with raw images')
     parser.add_argument('--output', dest='output_dir',  help='Directory name for outputs')
     parser.add_argument('--step', dest='downsample_step', default="1", type=int, help='File extension for input files (default=.tif)')
     parser.add_argument('--ext', dest='ext', default=".tif", help='File extension for input files (default=.tif)')
@@ -254,7 +291,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     if not os.path.exists(args.output_dir) : os.makedirs(args.output_dir)
-    source_files = glob(args.source_dir+"**"+os.sep+"*"+args.ext)
-    if source_files != []:
-        main(source_files, args.output_dir, clobber=args.clobber )
-    else : print("Warning: could not find any files")
+    
+    source_files=[]
+    if args.source_dir != None :
+        source_files = glob(args.source_dir+"**"+os.sep+"*"+args.ext)
+        if source_files == [] : print("Warning: could not find any files")
+
+    main(source_files, args.output_dir, clobber=args.clobber )
+
