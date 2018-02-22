@@ -9,7 +9,6 @@ import os
 import matplotlib.pyplot as plt
 import imageio
 from sklearn.metrics import normalized_mutual_info_score
-from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage import label
 from scipy.ndimage.measurements import center_of_mass
 from scipy.ndimage.morphology import binary_dilation, binary_erosion, binary_fill_holes
@@ -39,23 +38,7 @@ def curvature(img):
     k =np.abs(num/ den)
     return(k)
 
-def downsample(img, subject_fn, step=0.1):
-    #Calculate length of image based on assumption that pixels are 0.02 x 0.02 microns
-    l0 = img.shape[0] * 0.02 
-    l1 = img.shape[1] * 0.02
-    #Calculate the length for the downsampled image
-    dim0=int(np.ceil(l0 / step))
-    dim1=int(np.ceil(l1 / step))
-    #Calculate the standard deviation based on a FWHM (pixel step size) of downsampled image
-    sd0 = step / 2.634 
-    sd1 = step / 2.634 
-    #Gaussian filter
-    img_blr = gaussian_filter(img, sigma=[sd0, sd1])
-    #Downsample
-    img_dwn = scipy.misc.imresize(img_blr,size=(dim0, dim1),interp='cubic' )
-    print("Downsampled:", subject_fn +'img_dwn.jpg')
-    scipy.misc.imsave(subject_fn +'img_dwn.jpg', img_dwn)
-    return(img_dwn)
+
 
 
 def get_kmeans_img(img_dwn, nMeans):
@@ -107,10 +90,12 @@ def adjust_mask_region( thr, img_dwn, clustered, img_mask) :
     return img_thr
 
 
-def crop(img, img_dwn, bounding_box_dwn, thr=0) :
+def crop(img, img_dwn, bounding_box_dwn) :
     #Create downsampled cropped image
     cropped_dwn = img_dwn * bounding_box_dwn 
-    cropped_dwn[bounding_box_dwn==0]=np.median(img_dwn[bounding_box_dwn == 0])
+    #cropped_dwn[(bounding_box_dwn==0) | (mask==1)]=np.median( img_dwn[(bounding_box_dwn == 0) | (mask==1) ])
+    cropped_dwn[(bounding_box_dwn==0) ]=np.median( img_dwn[(bounding_box_dwn == 0) ])
+    
     #Create cropped image at full resolution
     bounding_box=scipy.misc.imresize(bounding_box_dwn,size=(img.shape[0],img.shape[1]),interp="nearest")
     cropped = np.zeros(img.shape)
@@ -119,36 +104,40 @@ def crop(img, img_dwn, bounding_box_dwn, thr=0) :
     return cropped, cropped_dwn
 
 
-def save_qc(img_dwn, im_hist_adjust, im_thr, cc, bb, cropped_dwn,out_fn,manual_check):
+def save_qc(img_dwn, im_hist_adjust,img_lines_removed, im_thr, cc, bb, cropped_dwn,out_fn,manual_check):
     dim0=img_dwn.shape[0]
     dim1=img_dwn.shape[1]
     qc=np.zeros([ dim0, dim1*2 ])
     plt.clf()
     plt.Figure()
     plt.title("Image Downsample")
-    plt.subplot(2,3,1)
+    plt.subplot(2,4,1)
     plt.imshow(img_dwn / img_dwn.max())
     
     print("QC :", out_fn)
-    plt.subplot(2,3,2)
+    plt.subplot(2,4,2)
     plt.title("Histogram Adjust")
     plt.imshow(im_hist_adjust)
 
+    if np.sum(img_lines_removed) != 0 :
+        plt.subplot(2,4,3)
+        plt.title("Lines Removed")
+        plt.imshow(img_lines_removed)
 
-    plt.subplot(2,3,3)
+    plt.subplot(2,4,4)
     plt.title("Thesholded Image")
     plt.imshow(im_thr)
 
-    plt.subplot(2,3,4)
-    plt.title("Bounding Box")
-    plt.imshow(bb)
-
-    plt.subplot(2,3,5)
+    plt.subplot(2,4,5)
     plt.title("Connected Voxels")
     plt.imshow(cc)
 
+    plt.subplot(2,4,6)
+    plt.title("Bounding Box")
+    plt.imshow(bb)
+
     if np.sum(cropped_dwn) != 0 :
-        plt.subplot(2,3,6)
+        plt.subplot(2,4,8)
         plt.title("Cropped Downsample")
         plt.imshow(cropped_dwn/cropped_dwn.max())
     
@@ -172,7 +161,7 @@ def save_qc(img_dwn, im_hist_adjust, im_thr, cc, bb, cropped_dwn,out_fn,manual_c
 
     return 0
 
-def crop_gui(subject_output_base, img_dwn, img, qc_fn ):
+def crop_gui(subject_output_base, img_dwn, img, mask, qc_fn):
     refPts = click(subject_output_base+"img_dwn.jpg")
     try :
         x0=refPts[0][0]
@@ -182,7 +171,8 @@ def crop_gui(subject_output_base, img_dwn, img, qc_fn ):
         manual_crop_dwn = np.zeros(img_dwn.shape)
         manual_crop_dwn[y0:y1,x0:x1] = 1
         #cropped = manual_crop * img
-        cropped, cropped_dwn = crop(img, img_dwn, manual_crop_dwn ) 
+        cropped, cropped_dwn = crop(img, img_dwn, manual_crop_dwn, mask )
+        
         scipy.misc.imsave(qc_fn, cropped_dwn)
     except TypeError :
         return [], []
@@ -190,7 +180,7 @@ def crop_gui(subject_output_base, img_dwn, img, qc_fn ):
 
 
 from PIL import Image, ImageDraw
-def crop_source_files(source_files, output_dir, downsample_step=0.5, clobber=False, manual_check=False, manual_only=False, histogram_threshold=False, method="bounding_box") :
+def crop_source_files(source_files, output_dir, downsample_step=0.5, clobber=False, manual_check=False, manual_only=False, histogram_threshold=False, use_remove_lines=False) :
     qc_status=0
     for f in source_files :
         #Set output filename
@@ -215,19 +205,16 @@ def crop_source_files(source_files, output_dir, downsample_step=0.5, clobber=Fal
             img_dwn = downsample(img, subject_output_base, downsample_step)
 
             if not manual_only :
-                
-                bounding_box_dwn, im_hist_adjust, im_thr, cc = cropp_img(img_dwn)
-
-                
+                bounding_box_dwn, im_hist_adjust, img_lines_removed, im_thr, cc = cropp_img(img_dwn, use_remove_lines)
                 #Crop image
                 cropped, cropped_dwn = crop(img, img_dwn, bounding_box_dwn)
 
                 #Quality Control
-                qc_status = save_qc(img_dwn, im_hist_adjust, im_thr, cc, bounding_box_dwn,  cropped_dwn, qc_fn, manual_check)
+                qc_status = save_qc(img_dwn, im_hist_adjust, img_lines_removed, im_thr, cc, bounding_box_dwn,  cropped_dwn, qc_fn, manual_check)
 
             if qc_status != 0 or manual_only : 
                 #Automated cropping failed to pass QC, use manual QC
-                cropped, cropped_dwn = crop_gui(subject_output_base, img_dwn, img, qc_fn)
+                cropped, cropped_dwn = crop_gui(subject_output_base,img_dwn,img,mask,qc_fn)
             
             if cropped != [] :
                 print("Cropped:", fout,"\n")
@@ -244,6 +231,7 @@ if __name__ == "__main__":
     parser.add_argument('--step', dest='downsample_step', default=0.1, type=float, help='File extension for input files (default=.tif)')
     parser.add_argument('--method', dest='method', default="bounding_box", type=str, help='Method for automated cropping (default = bounding_box). Implemented methods: bounding_box, largest_region')
     parser.add_argument('--manual', dest='manual_check', action='store_true', default=False, help='Do QC and manually crop region if automated method fails')
+    parser.add_argument('--remove-lines', dest='use_remove_lines', action='store_true', default=False, help='Remove lines from image')
     parser.add_argument('--manual-only', dest='manual_only', action='store_true', default=False, help='Only do manual cropping (default=False)')
     parser.add_argument('--histogram-threshold', dest='histogram_threshold', action='store_true', default=False, help='Only do manual cropping (default=False)')
     parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
@@ -252,5 +240,5 @@ if __name__ == "__main__":
     if not os.path.exists(args.output_dir) : os.makedirs(args.output_dir)
     source_files = glob(args.source_dir+"**"+os.sep+"*"+args.ext)
     if source_files == [] : print("Warning: Could not find source files.")
-    crop_source_files(source_files, args.output_dir, downsample_step=args.downsample_step, clobber=args.clobber, manual_check=args.manual_check, manual_only=args.manual_only, histogram_threshold=args.histogram_threshold, method=args.method)
+    crop_source_files(source_files, args.output_dir, downsample_step=args.downsample_step, clobber=args.clobber, manual_check=args.manual_check, manual_only=args.manual_only, histogram_threshold=args.histogram_threshold, use_remove_lines=args.use_remove_lines)
 

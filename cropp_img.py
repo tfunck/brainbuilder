@@ -6,7 +6,7 @@ from utils.utils import *
 import numpy as np
 from scipy.ndimage import label
 from utils.bounding_box import get_bounding_box
-from utils.lines import get_lines, fill_lines
+from utils.lines import  fill_lines
 from skimage.filters import threshold_otsu, threshold_yen, threshold_li
 from scipy.ndimage.filters import gaussian_filter
 
@@ -67,19 +67,13 @@ def binary_mask(im5):
     idx= im6 > 0 
     im6[idx ] = 1
     im6[~idx]=0
+
+    im6 = binary_dilation(im6, iterations=3).astype(int)
+
     return im6
 
 
-def extrema(labels) :
-    xx, yy = np.meshgrid(range(labels.shape[1]), range(labels.shape[0]))
-    xxVals = (xx[labels > 0])
-    yyVals = (yy[labels > 0])
-    y0 = min(yyVals)
-    y1 = max(yyVals) 
-    x0 = min(xxVals)
-    x1 = max(xxVals)
-    return([x0,y0,x1,y1])
-
+from utils.anisotropic_diffusion import *
 def remove_border_regions(cc) :
     border_box = np.zeros(cc.shape)
     border_box[:,cc.shape[1]-1]=1
@@ -87,23 +81,19 @@ def remove_border_regions(cc) :
     border_box[0,:]=1
     border_box[cc.shape[0]-1,:]=1
     border_box = border_box * cc
-    for l in np.unique(cc) :
-        if True in (border_box == l) : 
+
+    cc_unique = np.unique(cc)
+    cc_unique = cc_unique[ cc_unique != 0 ]
+    numPixels = np.array([np.sum(cc == l) for l in cc_unique  ])
+
+    #for c, n in zip(range(len(cc_unique)), numPixels):
+    #    print(c,n)
+
+    for l in cc_unique :
+        if True in (border_box == l) and (l != numPixels.argmax()+1)  : 
             cc[cc == l] = 0
     return cc
 
-'''
-def remove_lines(img,n=100, thr=1) :
-    v, bin_widths = np.histogram(img, n)
-    v = v / np.median(v)
-    med = np.median(v)
-    for i in range(n) :
-        if v[i] < thr*med : 
-            print(bin_widths[i], thr*med )
-            img[ img < bin_widths[i] ] = np.median(img)
-            break
-    return img
-'''
 
 def cropp_img(img, use_remove_lines=False):
     '''
@@ -115,19 +105,18 @@ def cropp_img(img, use_remove_lines=False):
         im5 --  bounding box
         cc0  --  connected labeled regions
     '''
-    img = gaussian_filter(img, sigma=1)
-    use_remove_lines=True
-    if use_remove_lines :
-        lines = get_lines(img)
-        img = fill_lines(lines, img)
-        
+    img = imadjust(img) #cv2.equalizeHist(im1)
+    img_hist_adj = np.copy(img)
 
-    im1 = imadjust(img)
-    im_hist_adj = im1 #cv2.equalizeHist(im1)
-    thr = threshold_li(im_hist_adj)
-    im_thr = np.zeros(img.shape)
-    im_thr[ im_hist_adj < thr] = 1
-    cc, nlabels = label(im_thr, structure=np.ones([3,3]))
+    if use_remove_lines :
+        img, mask = fill_lines(np.copy(img))
+    img_lines_removed=np.copy(img)
+
+    thr = threshold_otsu(img)
+    img_thr = np.zeros(img.shape)
+    img_thr[ img < thr] = 1
+    
+    cc, nlabels = label(img_thr, structure=np.ones([3,3]))
     nlabels += 1
 
     cc = remove_border_regions(cc)
@@ -144,5 +133,5 @@ def cropp_img(img, use_remove_lines=False):
     
     bounding_box = binary_mask(im4)
 
-    return bounding_box, im_hist_adj, im_thr, cc
+    return bounding_box, img_hist_adj, img_lines_removed, img_thr, cc
     
