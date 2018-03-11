@@ -1,7 +1,6 @@
 import cv2
 from skimage.filters import  threshold_otsu
 from scipy.ndimage.morphology import binary_dilation, binary_erosion, binary_fill_holes
-import bisect
 from utils.utils import *
 import numpy as np
 from scipy.ndimage import label
@@ -9,58 +8,66 @@ from utils.bounding_box import get_bounding_box
 from utils.lines import  fill_lines
 from skimage.filters import threshold_otsu, threshold_yen, threshold_li
 from scipy.ndimage.filters import gaussian_filter
-
-def imadjust(src, tol=1, vin=[0,255], vout=(0,255)):
-    # src : input one-layer image (numpy array)
-    # tol : tolerance, from 0 to 100.
-    # vin  : src image bounds
-    # vout : dst image bounds
-    # return : output img
-
-    dst = src.copy()
-    tol = max(0, min(100, tol))
-
-    if tol > 0:
-        # Compute in and out limits
-        # Histogram
-        hist = np.zeros(256, dtype=np.int)
-        for r in range(src.shape[0]):
-            for c in range(src.shape[1]):
-                hist[src[r,c]] += 1
-        # Cumulative histogram
-        cum = hist.copy()
-        for i in range(1, len(hist)):
-            cum[i] = cum[i - 1] + hist[i]
-
-        # Compute bounds
-        total = src.shape[0] * src.shape[1]
-        low_bound = total * tol / 100
-        upp_bound = total * (100 - tol) / 100
-        vin[0] = bisect.bisect_left(cum, low_bound)
-        vin[1] = bisect.bisect_left(cum, upp_bound)
-
-    # Stretching
-    scale = (vout[1] - vout[0]) / (vin[1] - vin[0])
-    for r in range(dst.shape[0]):
-        for c in range(dst.shape[1]):
-            vs = max(src[r,c] - vin[0], 0)
-            vd = min(int(vs * scale + 0.5) + vout[0], vout[1])
-            dst[r,c] = vd
-    return dst
-
-def get_connected_regions(img):
-
-    return cc, nlabels
+from utils.anisotropic_diffusion import *
 import matplotlib.pyplot as plt 
 
+def curvature(img):
+    xx, yy = np.gradient(img, edge_order=2)
+    img = np.sqrt(xx**2 + yy**2)
+    d0 = np.gradient(img,edge_order=2, axis=0)
+    d00 = np.gradient(d0,edge_order=2, axis=0)
+    d1 = np.gradient(img,edge_order=2, axis=1)
+    d11 = np.gradient(d1,edge_order=2, axis=1)
+    d10 = np.gradient(d1,edge_order=2, axis=0)
+
+    num = (d00*d11**2 + d11*d00**2 - 2*d10*d1*d0) 
+    den = (d0**2 + d1**2)**(3/2)
+    den[den==0]=1
+    num[den==0]=0
+    k =np.abs(num/ den)
+    return(k)
+
+def get_kmeans_img(img_dwn, nMeans=3):
+    init=np.percentile(img_dwn, [0.1,0.5,0.99]).reshape(3,1)
+    db = KMeans(nMeans, init=init).fit_predict(img_dwn.reshape(-1,1))
+    clustering = db.reshape(img_dwn.shape)
+    #In order for the "label" function to work, the background
+    #must be equal to 0 in the clustering array. To ensure this,
+    #the following bit of code switches the labeled region with the lowest
+    #mean with that of the 0 labeled region, if the former is lower than the latter
+    pixel_measure = np.mean(img_dwn[ clustering == 0])
+    measure_n=0
+    for n in range(1, nMeans) :
+        cur_pixel_measure = np.mean(img_dwn[ clustering == n])
+        if cur_pixel_measure > pixel_measure :
+            max_pixel_measure = cur_pixel_measure
+            measure_n =n
+
+    if measure_n != 0 :
+        idx0 = clustering == 0
+        idx1 = clustering == measure_n
+        clustering[idx0] = max_pixel_measure
+        clustering[idx1] = 0
+    
+    #Perform erosion and dilation on all values in clustered image
+    for n in range(1, nMeans) :
+        temp = np.zeros(img_dwn.shape)
+        temp[clustering == n ] =1 
+        temp = binary_erosion(temp, iterations=5)
+        temp = binary_dilation(temp, iterations=5)
+        clustering[ temp == 1 ] = 1 #temp[clustering==n]
+
+    return(clustering)
+
+
 def binary_mask(im5):
-    ymin, ymax, xmin, xmax = find_min_max(im5)
+    ymin, ymax, xmin, xmax, yi, xi = find_min_max(im5)
 
     im6 = np.zeros(im5.shape)   
-    for y0, y1, i in zip(ymin, ymax, range(len(xmax)) ) :
+    for y0, y1, i in zip(ymin, ymax, xi ) :
         if y0 != y1 :
             im6[y0:y1,i] = 1
-    for x0, x1, i in zip(xmin, xmax, range(len(ymax)) ) :
+    for x0, x1, i in zip(xmin, xmax, yi ) :
         if x0 != x1 :
             im6[i,x0:x1] += 1
 
@@ -73,7 +80,6 @@ def binary_mask(im5):
     return im6
 
 
-from utils.anisotropic_diffusion import *
 def remove_border_regions(cc) :
     border_box = np.zeros(cc.shape)
     border_box[:,cc.shape[1]-1]=1
@@ -86,16 +92,44 @@ def remove_border_regions(cc) :
     cc_unique = cc_unique[ cc_unique != 0 ]
     numPixels = np.array([np.sum(cc == l) for l in cc_unique  ])
 
+    numPixels_sort=np.sort(numPixels)
+    max_l=cc_unique[numPixels.argmax()]
     #for c, n in zip(range(len(cc_unique)), numPixels):
     #    print(c,n)
-
+    if len(numPixels_sort) > 1 :
+        ratio =   numPixels_sort[-2] / numPixels_sort[-1]
+    else : 
+        ratio=0
+    print(ratio)
     for l in cc_unique :
-        if True in (border_box == l) and (l != numPixels.argmax()+1)  : 
+        if True in (border_box == l) :
+            #print(ratio, l, max_l)
+            if  ratio < 0.05  and (l == max_l )  : continue
             cc[cc == l] = 0
     return cc
 
 
-def cropp_img(img, use_remove_lines=False):
+from sklearn.cluster import spectral_clustering, DBSCAN, KMeans
+import cv2.bgsegm 
+from scipy import ndimage as ndi
+from skimage import morphology
+from skimage import filters
+
+def find_bb_overlap(cc, cc_unique):
+    temp=np.zeros(cc.shape)
+    overlap=np.zeros(cc.shape)
+
+    for i in cc_unique :
+        temp *= 0
+        temp[cc==i]=1
+        ymin, ymax, xmin, xmax, yi, xi = find_min_max(temp)
+        overlap[min(ymin) : max(ymax), min(xmin) : max(xmax)] = 1
+
+    overlap, labels=label(overlap,structure=np.ones([3,3]))
+    return overlap
+
+
+def cropp_img(img):
     '''
     Use histogram thresholding and morphological operations to create a binary image that is equal to 1 for pixels which will be kept after cropping.
 
@@ -105,33 +139,37 @@ def cropp_img(img, use_remove_lines=False):
         im5 --  bounding box
         cc0  --  connected labeled regions
     '''
-    img = imadjust(img) #cv2.equalizeHist(im1)
-    img_hist_adj = np.copy(img)
-
-    if use_remove_lines :
-        img, mask = fill_lines(np.copy(img))
-    img_lines_removed=np.copy(img)
-
-    thr = threshold_otsu(img)
+    #img =cv2.equalizeHist( imadjust(img)) #cv2.equalizeHist(im1)
+    #img = imajust(img)
+    img = anisodiff(img, niter=30, kappa=10) #gaussian_filter(img, sigma=1)
+    img_smoothed = curvature(img)
+    #img_thr = get_kmeans_img(img)
+    t=threshold_otsu(img)
     img_thr = np.zeros(img.shape)
-    img_thr[ img < thr] = 1
-    
+    img_thr[ img < t ] = 1
+
     cc, nlabels = label(img_thr, structure=np.ones([3,3]))
-    nlabels += 1
-
+    
     cc = remove_border_regions(cc)
-
+    
     cc_unique = np.unique(cc)
-    if len(cc_unique) >= 2 :
-        cc_unique = np.delete(cc_unique, 0)
-    numPixels = np.array([np.sum(cc == l) for l in cc_unique  ])
-    min_area = max(numPixels)*0.1
-    idx = cc_unique[numPixels > min_area]#+1
+    if len(cc_unique) >= 2 : cc_unique = np.delete(cc_unique, 0)
+    
+    cc2 = find_bb_overlap(cc, cc_unique)
+    
+    cc2_unique = np.unique(cc2)
+    if len(cc2_unique) >= 2 : cc2_unique = np.delete(cc2_unique, 0)
+    
+
+    numPixels = np.array([np.sum(cc2 == l) for l in cc2_unique  ])
+
+    idx = numPixels.argmax()
     im4=np.zeros(img.shape);
-    for i in idx :
-        im4[ cc == i  ] = 1;
+    im4[ cc2 == cc2_unique[ idx ]  ] = 1;
+    im4 = im4 * cc 
+    im4[ im4 > 0 ] = 1
     
     bounding_box = binary_mask(im4)
 
-    return bounding_box, img_hist_adj, img_lines_removed, img_thr, cc
+    return bounding_box, img_smoothed, img_thr, cc
     

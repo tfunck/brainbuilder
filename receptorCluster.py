@@ -24,7 +24,7 @@ from sklearn.decomposition import PCA
 import shutil
 from utils.lines import get_lines
 from skimage.filters import threshold_otsu, threshold_yen, threshold_li
-
+from sklearn.cluster import spectral_clustering, DBSCAN, KMeans
 def rgb2gray(rgb): return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
 
 def aggregate_df(df, output_dir) :
@@ -82,7 +82,6 @@ def get_image_stats(source_files, output_dir, clobber=False) :
         f_base = os.path.basename(f)
         fsplit = os.path.splitext(f_base)
         f_dwn = png_dir +os.sep+fsplit[0]+"_dwn.png" 
-        print(f_dwn)
 
         if not os.path.exists(f_dwn) or clobber:
             img = downsample(rgb2gray(imageio.imread(f)))
@@ -103,7 +102,6 @@ def get_image_stats(source_files, output_dir, clobber=False) :
         p20, = p20(img)
         pd_list.append(pd.DataFrame([(f,f_dwn,e, kur, ske, m0, m1,p20, cc_size, otsu, yen, li)], columns=col))
         i+=1
-        print(i)
     df=pd.concat(pd_list)
     df.set_index("file", inplace=True)
     return(df)
@@ -150,7 +148,6 @@ def clustering_stats(df, output_dir):
     row.index = ['TracerTotal']
     clusterStats = clusterStats.append(row)
     clusterStats.to_csv(output_dir+os.sep+"clusterStats.csv")
-    print(clusterStats)
     return clusterStats
 
 
@@ -224,26 +221,23 @@ def distribute_files(df, output_dir):
         if not os.path.exists(target_dir) : os.makedirs(target_dir)
 
         for name, df0 in df1.iterrows() :
-            source = df0["file_dwn"]
+            if not  os.path.exists(name) : continue
+            source = os.getcwd() + os.sep + name # df0.index
             fsplit = os.path.splitext(os.path.basename(source))
-            target= target_dir + os.sep + fsplit[0] + ".png"
+            target= target_dir + os.sep + fsplit[0] + ".tif"
             if not os.path.exists(target) :
-                os.symlink(source, target )
+                os.symlink( source, target )
 
 
 
 def slab_tracer_anova(df) :
-    print(df.columns)
-    print(df.tracer.unique())
     df.rename( index=str, columns={"20p":"twentyPercentile"}, inplace=True )
-    print(df.iloc[0:5,:]) ;
 
     for measure in measures:
         if measure == "20p" : measure = "twentyPercentile"
         formula = measure + ' ~ C(tracer) * C(slab)  '
         model = ols(formula, df).fit()
         aov_table = anova_lm(model, typ=2)
-        print(aov_table)
 
 
 def main(source_files, output_dir, clobber=False) :
@@ -260,7 +254,6 @@ def main(source_files, output_dir, clobber=False) :
     #Calculate zscore for all the image metrics
     dfz = df.copy()
     dfz[measures] = df[measures].apply(scipy.stats.zscore)
-    print(dfz)
     #Apply PCA
     df_pca = get_pca(dfz, output_dir)
     #Apply clustering to DataFrame

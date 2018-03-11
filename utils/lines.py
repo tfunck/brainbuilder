@@ -37,6 +37,11 @@ def fill_lines(img, n=5) :
     return img, mask 
 
 
+def get_lines(img) :
+    edges = canny(img, 2)
+    lines = probabilistic_hough_line(edges, line_length=img.shape[0]/5, line_gap=5)
+    return lines
+
 '''def fill_lines(lines, img_dwn) :
     imgf= np.zeros(img_dwn.shape)
     for l in lines :
