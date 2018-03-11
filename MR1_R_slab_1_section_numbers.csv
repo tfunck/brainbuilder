@@ -1,0 +1,1445 @@
+number,name,ligand,repeat,length,TB/UB
+1,lost sectioning,,1,short,
+2,QW#HG#MR1s1#R#kain#5635#01,kain,1,short,tb
+3,QW#HG#MR1s1#R#mk80#5637#01,mk80,1,short,tb
+4,QW#HG#MR1s1#R#musc#5639#01,musc,1,short,tb
+5,QW#HG#MR1s1#R#cgp5#5667#01,cgp5,1,short,tb
+6,QW#HG#MR1S1#R#flum#5669#01,flum,1,short,tb
+7,lost sectioning,,1,short,
+8,cell body stain - section 13,AG,1,short,
+9,lost sectioning,,1,short,
+10,QW#HG#MR1s1#R#oxot#5643#01,oxot,1,short,tb
+11,QW#HG#MR1s1#R#damp#5671#01,damp,1,short,tb
+12,myelin stain - section 20,MS,1,short,
+13,QW#HG#MR1s1#R#epib#5657#01,epib,1,short,tb
+14,QW#HG#MR1s1#R#praz#5649#01,praz,1,short,tb
+15,QW#HG#MR1s1#R#uk14#5651#01,uk14,1,short,tb
+16,lost sectioning,,1,short,
+17,lost sectioning,,1,short,
+18,lost sectioning,,1,short,
+19,lost sectioning,,1,short,
+20,lost sectioning,,1,short,
+21,spare; in freezer,,1,short,
+22,QW#HG#MR1s1#R#dpat#5645#01,dpat,1,short,tb
+23,lost sectioning,,1,short,
+24,lost sectioning,,1,short,
+25,QW#HG#MR1s1#R#sr95#5677#01,sr95,1,short,tb
+26,cell body stain - section 32,AG,1,short,
+27,QW#HG#MR1s1#R#sch2#5655#01,sch2,1,short,tb
+28,lost sectioning,,1,short,
+29,QW#HG#MR1s1#R#rx82#5653#01,rx82,1,short,tb
+30,QW#HG#MR1s1#R#afdx#5673#01,afdx,1,short,tb
+31,lost sectioning,,1,short,
+32,QW#HG#MR1s1#R#dpog#5663#01,dpog,1,short,tb
+33,myelin stain - section 41,MS,1,short,
+34,QW#HG#MR1S1#R#dpmg#5665#01,dpmg,1,short,tb
+35,spare; in freezer,,1,short,
+36,QW#HG#MR1s1#R#ly34#5675#01,ly34,1,short,tb
+37,QW#HG#MR1s1#R#cpog#5659#01,cpog,1,short,tb
+38,QW#HG#MR1s1#R#cpmg#5661#01,cpmg,1,short,tb
+39,QW#HG#MR1s1#R#keta#5647#01,keta,1,short,tb
+40,QW#HG#MR1S1#R#pire#9510#01,pire,1,short,tb
+41,damg; not digitized,,1,short,
+42,QW#HG#MR1S1#R#ampa#9380#01,ampa,1,short,tb
+43,spare; in freezer,,1,short,
+44,dpdp; not digitized,,1,short,
+45,spare; in freezer,,1,short,
+46,spare; in freezer,,1,short,
+47,spare; in freezer,,1,short,
+48,spare; in freezer,,1,short,
+49,spare; in freezer,,1,short,
+50,spare; in freezer,,1,short,
+51,spare; in freezer,,1,short,
+52,lost sectioning,,1,short,
+53,lost sectioning,,1,short,
+54,lost sectioning,,1,short,
+55,lost sectioning,,1,short,
+56,lost sectioning,,1,short,
+57,lost sectioning,,1,short,
+58,lost sectioning,,1,short,
+59,lost sectioning,,1,short,
+60,lost sectioning,,1,short,
+61,lost sectioning,,1,short,
+62,lost sectioning,,1,short,
+63,QW#HG#MR1s1#R#kain#5635#02,kain,2,short,tb
+64,QW#HG#MR1s1#R#mk80#5637#02,mk80,2,short,tb
+65,lost sectioning,,2,short,
+66,lost sectioning,,2,short,
+67,QW#HG#MR1s1#R#musc#5639#02,musc,2,short,tb
+68,lost sectioning,,2,short,
+69,QW#HG#MR1s1#R#cgp5#5667#02,cgp5,2,short,tb
+70,QW#HG#MR1S1#R#flum#5669#02,flum,2,short,tb
+71,cell body stain - section 13,AG,2,short,
+72,lost sectioning,,2,short,
+73,QW#HG#MR1s1#R#oxot#5643#02,oxot,2,short,tb
+74,QW#HG#MR1s1#R#damp#5671#02,damp,2,short,tb
+75,myelin stain - section 20,MS,2,short,
+76,lost sectioning,,2,short,
+77,QW#HG#MR1s1#R#epib#5657#02,epib,2,short,tb
+78,QW#HG#MR1s1#R#praz#5649#02,praz,2,short,tb
+79,lost sectioning,,2,short,
+80,QW#HG#MR1s1#R#uk14#5651#02,uk14,2,short,tb
+81,spare; in freezer,,2,short,
+82,QW#HG#MR1s1#R#dpat#5645#02,dpat,2,short,tb
+83,QW#HG#MR1s1#R#sr95#5677#02,sr95,2,short,tb
+84,cell body stain - section 32,AG,2,short,
+85,QW#HG#MR1s1#R#sch2#5655#02,sch2,2,short,tb
+86,QW#HG#MR1s1#R#rx82#5653#02,rx82,2,short,tb
+87,QW#HG#MR1s1#R#afdx#5673#02,afdx,2,short,tb
+88,QW#HG#MR1s1#R#dpog#5663#02,dpog,2,short,tb
+89,myelin stain - section 41,MS,2,short,
+90,QW#HG#MR1S1#R#dpmg#5665#02,dpmg,2,short,tb
+91,spare; in freezer,,2,short,
+92,lost sectioning,,2,short,
+93,lost sectioning,,2,short,
+94,QW#HG#MR1s1#R#ly34#5675#02,ly34,2,short,tb
+95,QW#HG#MR1s1#R#cpog#5659#02,cpog,2,short,tb
+96,QW#HG#MR1s1#R#cpmg#5661#02,cpmg,2,short,tb
+97,lost sectioning,,2,short,
+98,QW#HG#MR1s1#R#keta#5647#02,keta,2,short,tb
+99,QW#HG#MR1S1#R#pire#9510#02,pire,2,short,tb
+100,damg; not digitized,,2,short,
+101,QW#HG#MR1S1#R#ampa#9380#02,ampa,2,short,tb
+102,dpdp; not digitized,,2,short,
+103,spare; in freezer,,2,short,
+104,spare; in freezer,,2,short,
+105,spare; in freezer,,2,short,
+106,spare; in freezer,,2,short,
+107,spare; in freezer,,2,short,
+108,spare; in freezer,,2,short,
+109,spare; in freezer,,2,short,
+110,spare; in freezer,,2,short,
+111,lost sectioning,,2,short,
+112,lost sectioning,,2,short,
+113,lost sectioning,,2,short,
+114,lost sectioning,,2,short,
+115,lost sectioning,,2,short,
+116,lost sectioning,,2,short,
+117,lost sectioning,,2,short,
+118,lost sectioning,,2,short,
+119,lost sectioning,,2,short,
+120,QW#HG#MR1s1#R#kain#5635#03,kain,3,short,tb
+121,QW#HG#MR1s1#R#mk80#5637#03,mk80,3,short,tb
+122,QW#HG#MR1s1#R#musc#5639#03,musc,3,short,tb
+123,QW#HG#MR1s1#R#cgp5#5667#03,cgp5,3,short,tb
+124,lost sectioning,,3,short,
+125,lost sectioning,,3,short,
+126,QW#HG#MR1S1#R#flum#5669#03,flum,3,short,tb
+127,cell body stain - section 13,AG,3,short,
+128,lost sectioning,,3,short,
+129,QW#HG#MR1s1#R#oxot#5643#03,oxot,3,short,tb
+130,QW#HG#MR1s1#R#damp#5671#03,damp,3,short,tb
+131,lost sectioning,,3,short,
+132,myelin stain - section 20,MS,3,short,
+133,lost sectioning,,3,short,
+134,QW#HG#MR1s1#R#epib#5657#03,epib,3,short,tb
+135,QW#HG#MR1s1#R#praz#5649#03,praz,3,short,tb
+136,QW#HG#MR1s1#R#uk14#5651#03,uk14,3,short,tb
+137,spare; in freezer,,3,short,
+138,QW#HG#MR1s1#R#dpat#5645#03,dpat,3,short,tb
+139,QW#HG#MR1s1#R#sr95#5677#03,sr95,3,short,tb
+140,cell body stain - section 32,AG,3,short,
+141,QW#HG#MR1s1#R#sch2#5655#03,sch2,3,short,tb
+142,lost sectioning,,3,short,
+143,lost sectioning,,3,short,
+144,QW#HG#MR1s1#R#rx82#5653#03,rx82,3,short,tb
+145,QW#HG#MR1s1#R#afdx#5673#03,afdx,3,short,tb
+146,QW#HG#MR1s1#R#dpog#5663#03,dpog,3,short,tb
+147,lost sectioning,,3,short,
+148,myelin stain - section 41,MS,3,short,
+149,QW#HG#MR1S1#R#dpmg#5665#03,dpmg,3,short,tb
+150,spare; in freezer,,3,short,
+151,lost sectioning,,3,short,
+152,lost sectioning,,3,short,
+153,lost sectioning,,3,short,
+154,lost sectioning,,3,short,
+155,lost sectioning,,3,short,
+156,lost sectioning,,3,short,
+157,QW#HG#MR1s1#R#ly34#5675#03,ly34,3,short,tb
+158,lost sectioning,,3,short,
+159,lost sectioning,,3,short,
+160,lost sectioning,,3,short,
+161,lost sectioning,,3,short,
+162,lost sectioning,,3,short,
+163,lost sectioning,,3,short,
+164,lost sectioning,,3,short,
+165,lost sectioning,,3,short,
+166,QW#HG#MR1s1#R#cpog#5659#03,cpog,3,short,tb
+167,QW#HG#MR1s1#R#cpmg#5661#03,cpmg,3,short,tb
+168,lost sectioning,,3,short,
+169,lost sectioning,,3,short,
+170,QW#HG#MR1s1#R#keta#5647#03,keta,3,short,tb
+171,QW#HG#MR1S1#R#pire#9510#03,pire,3,short,tb
+172,damg; not digitized,,3,short,
+173,QW#HG#MR1S1#R#ampa#9380#03,ampa,3,short,tb
+174,dpdp; not digitized,,3,short,
+175,spare; in freezer,,3,short,
+176,spare; in freezer,,3,short,
+177,spare; in freezer,,3,short,
+178,spare; in freezer,,3,short,
+179,spare; in freezer,,3,short,
+180,spare; in freezer,,3,short,
+181,spare; in freezer,,3,short,
+182,spare; in freezer,,3,short,
+183,lost sectioning,,3,short,
+184,lost sectioning,,3,short,
+185,lost sectioning,,3,short,
+186,lost sectioning,,3,short,
+187,lost sectioning,,3,short,
+188,lost sectioning,,3,short,
+189,lost sectioning,,3,short,
+190,lost sectioning,,3,short,
+191,lost sectioning,,3,short,
+192,lost sectioning,,3,short,
+193,lost sectioning,,3,short,
+194,lost sectioning,,3,short,
+195,lost sectioning,,3,short,
+196,lost sectioning,,3,short,
+197,lost sectioning,,3,short,
+198,lost sectioning,,3,short,
+199,lost sectioning,,3,short,
+200,lost sectioning,,3,short,
+201,lost sectioning,,3,short,
+202,QW#HG#MR1s1#R#kain#5635#04,kain,4,short,tb
+203,lost sectioning,,4,short,
+204,QW#HG#MR1s1#R#mk80#5637#04,mk80,4,short,tb
+205,lost sectioning,,4,short,
+206,QW#HG#MR1s1#R#musc#5639#04,musc,4,short,tb
+207,lost sectioning,,4,short,
+208,QW#HG#MR1s1#R#cgp5#5667#04,cgp5,4,short,tb
+209,QW#HG#MR1S1#R#flum#5669#04,flum,4,short,tb
+210,lost sectioning,,4,short,
+211,cell body stain - section 13,AG,4,short,
+212,lost sectioning,,4,short,
+213,QW#HG#MR1s1#R#oxot#5643#04,oxot,4,short,tb
+214,QW#HG#MR1s1#R#damp#5671#04,damp,4,short,tb
+215,myelin stain - section 20,MS,4,short,
+216,QW#HG#MR1s1#R#epib#5657#04,epib,4,short,tb
+217,QW#HG#MR1s1#R#praz#5649#04,praz,4,short,tb
+218,lost sectioning,,4,short,
+219,QW#HG#MR1s1#R#uk14#5651#04,uk14,4,short,tb
+220,spare; in freezer,,4,short,
+221,lost sectioning,,4,short,
+222,cell body stain - section 32,AG,4,short,
+223,QW#HG#MR1s1#R#dpat#5645#04,dpat,4,short,tb
+224,QW#HG#MR1s1#R#sr95#5677#04,sr95,4,short,tb
+225,QW#HG#MR1S1#R#flum#5669#05,flum,4,short,tb
+226,QW#HG#MR1s1#R#sch2#5655#04,sch2,4,short,tb
+227,QW#HG#MR1s1#R#rx82#5653#04,rx82,4,short,tb
+228,QW#HG#MR1s1#R#afdx#5673#04,afdx,4,short,tb
+229,QW#HG#MR1s1#R#dpog#5663#04,dpog,4,short,tb
+230,myelin stain - section 41,MS,4,short,
+231,QW#HG#MR1S1#R#dpmg#5665#04,dpmg,4,short,tb
+232,spare; in freezer,,4,short,
+233,QW#HG#MR1s1#R#ly34#5675#04,ly34,4,short,tb
+234,QW#HG#MR1s1#R#cpog#5659#04,cpog,4,short,tb
+235,QW#HG#MR1s1#R#cpmg#5661#04,cpmg,4,short,tb
+236,QW#HG#MR1s1#R#keta#5647#04,keta,4,short,tb
+237,QW#HG#MR1S1#R#pire#9510#04,pire,4,short,tb
+238,damg; not digitized,,4,short,
+239,QW#HG#MR1S1#R#ampa#9380#04,ampa,4,short,tb
+240,dpdp; not digitized,,4,short,
+241,spare; in freezer,,4,short,
+242,spare; in freezer,,4,short,
+243,spare; in freezer,,4,short,
+244,spare; in freezer,,4,short,
+245,spare; in freezer,,4,short,
+246,spare; in freezer,,4,short,
+247,spare; in freezer,,4,short,
+248,spare; in freezer,,4,short,
+249,QW#HG#MR1s1#R#kain#5635#05,kain,5,short,tb
+250,lost sectioning,,5,short,
+251,lost sectioning,,5,short,
+252,QW#HG#MR1s1#R#mk80#5637#05,mk80,5,short,tb
+253,QW#HG#MR1s1#R#musc#5639#05,musc,5,short,tb
+254,QW#HG#MR1s1#R#cgp5#5667#05,cgp5,5,short,tb
+255,lost sectioning,,5,short,
+256,QW#HG#MR1S1#R#flum#5669#05,flum,5,short,tb
+257,cell body stain - section 13,AG,5,short,
+258,QW#HG#MR1s1#R#oxot#5643#05,oxot,5,short,tb
+259,QW#HG#MR1s1#R#damp#5671#05,damp,5,short,tb
+260,myelin stain - section 20,MS,5,short,
+261,QW#HG#MR1s1#R#epib#5657#05,epib,5,short,tb
+262,QW#HG#MR1s1#R#praz#5649#05,praz,5,short,tb
+263,QW#HG#MR1s1#R#uk14#5651#05,uk14,5,short,tb
+264,spare; in freezer,,5,short,
+265,QW#HG#MR1s1#R#dpat#5645#05,dpat,5,short,tb
+266,QW#HG#MR1s1#R#sr95#5677#05,sr95,5,short,tb
+267,cell body stain - section 32,AG,5,short,
+268,QW#HG#MR1s1#R#sch2#5655#05,sch2,5,short,tb
+269,QW#HG#MR1s1#R#rx82#5653#05,rx82,5,short,tb
+270,QW#HG#MR1s1#R#afdx#5673#05,afdx,5,short,tb
+271,QW#HG#MR1s1#R#dpog#5663#05,dpog,5,short,tb
+272,myelin stain - section 41,MS,5,short,
+273,QW#HG#MR1S1#R#dpmg#5665#05,dpmg,5,short,tb
+274,spare; in freezer,,5,short,
+275,QW#HG#MR1s1#R#ly34#5675#05,ly34,5,short,tb
+276,lost sectioning,,5,short,
+277,QW#HG#MR1s1#R#cpog#5659#05,cpog,5,short,tb
+278,QW#HG#MR1s1#R#cpmg#5661#05,cpmg,5,short,tb
+279,QW#HG#MR1s1#R#keta#5647#05,keta,5,short,tb
+280,QW#HG#MR1S1#R#pire#9510#05,pire,5,short,tb
+281,damg; not digitized,,5,short,
+282,QW#HG#MR1S1#R#ampa#9380#05,ampa,5,short,tb
+283,dpdp; not digitized,,5,short,
+284,lost sectioning,,5,short,
+285,lost sectioning,,5,short,
+286,lost sectioning,,5,short,
+287,lost sectioning,,5,short,
+288,lost sectioning,,5,short,
+289,lost sectioning,,5,short,
+290,lost sectioning,,5,short,
+291,lost sectioning,,5,short,
+292,lost sectioning,,5,short,
+293,lost sectioning,,5,short,
+294,lost sectioning,,5,short,
+295,lost sectioning,,5,short,
+296,lost sectioning,,5,short,
+297,lost sectioning,,5,short,
+298,lost sectioning,,5,short,
+299,lost sectioning,,5,short,
+300,QW#HG#MR1s1#R#kain#5635#06,kain,6,short,tb
+301,QW#HG#MR1s1#R#mk80#5637#06,mk80,6,short,tb
+302,QW#HG#MR1s1#R#musc#5639#06,musc,6,short,tb
+303,QW#HG#MR1s1#R#cgp5#5667#06,cgp5,6,short,tb
+304,QW#HG#MR1S1#R#flum#5669#06,flum,6,short,tb
+305,cell body stain - section 13,AG,6,short,
+306,lost sectioning,,6,short,
+307,QW#HG#MR1s1#R#oxot#5643#06,oxot,6,short,tb
+308,QW#HG#MR1s1#R#damp#5671#06,damp,6,short,tb
+309,lost sectioning,,6,short,
+310,lost sectioning,,6,short,
+311,myelin stain - section 20,MS,6,short,
+312,QW#HG#MR1s1#R#epib#5657#06,epib,6,short,tb
+313,QW#HG#MR1s1#R#praz#5649#06,praz,6,short,tb
+314,QW#HG#MR1s1#R#uk14#5651#06,uk14,6,short,tb
+315,spare; in freezer,,6,short,
+316,QW#HG#MR1s1#R#dpat#5645#06,dpat,6,short,tb
+317,lost sectioning,,6,short,
+318,lost sectioning,,6,short,
+319,lost sectioning,,6,short,
+320,lost sectioning,,6,short,
+321,QW#HG#MR1s1#R#sr95#5677#06,sr95,6,short,tb
+322,cell body stain - section 32,AG,6,short,
+323,lost sectioning,,6,short,
+324,QW#HG#MR1s1#R#rx82#5653#06,rx82,6,short,tb
+325,QW#HG#MR1s1#R#afdx#5673#06,afdx,6,short,tb
+326,QW#HG#MR1s1#R#dpog#5663#06,dpog,6,short,tb
+327,myelin stain - section 41,MS,6,short,
+328,QW#HG#MR1S1#R#dpmg#5665#06,dpmg,6,short,tb
+329,spare; in freezer,,6,short,
+330,lost sectioning,,6,short,
+331,lost sectioning,,6,short,
+332,lost sectioning,,6,short,
+333,lost sectioning,,6,short,
+334,QW#HG#MR1s1#R#ly34#5675#06,ly34,6,short,tb
+335,QW#HG#MR1s1#R#cpog#5659#06,cpog,6,short,tb
+336,QW#HG#MR1s1#R#sch2#5655#06,sch2,6,short,tb
+337,QW#HG#MR1s1#R#cpmg#5661#06,cpmg,6,short,tb
+338,QW#HG#MR1s1#R#keta#5647#06,keta,6,short,tb
+339,QW#HG#MR1S1#R#pire#9510#06,pire,6,short,tb
+340,damg; not digitized,,6,short,
+341,QW#HG#MR1S1#R#ampa#9380#06,ampa,6,short,tb
+342,dpdp; not digitized,,6,short,
+343,spare; in freezer,,6,short,
+344,spare; in freezer,,6,short,
+345,spare; in freezer,,6,short,
+346,spare; in freezer,,6,short,
+347,spare; in freezer,,6,short,
+348,spare; in freezer,,6,short,
+349,spare; in freezer,,6,short,
+350,spare; in freezer,,6,short,
+351,lost sectioning,,6,short,
+352,QW#HG#MR1s1#R#kain#5635#07,kain,7,short,tb
+353,lost sectioning,,7,short,
+354,lost sectioning,,7,short,
+355,lost sectioning,,7,short,
+356,lost sectioning,,7,short,
+357,lost sectioning,,7,short,
+358,lost sectioning,,7,short,
+359,lost sectioning,,7,short,
+360,lost sectioning,,7,short,
+361,QW#HG#MR1s1#R#mk80#5637#07,mk80,7,short,tb
+362,QW#HG#MR1s1#R#musc#5639#07,musc,7,short,tb
+363,QW#HG#MR1s1#R#cgp5#5667#07,cgp5,7,short,tb
+364,QW#HG#MR1S1#R#flum#5669#07,flum,7,short,tb
+365,cell body stain - section 13,AG,7,short,
+366,lost sectioning,,7,short,
+367,QW#HG#MR1s1#R#oxot#5643#07,oxot,7,short,tb
+368,QW#HG#MR1s1#R#damp#5671#07,damp,7,short,tb
+369,myelin stain - section 20,MS,7,short,
+370,QW#HG#MR1s1#R#epib#5657#07,epib,7,short,tb
+371,QW#HG#MR1s1#R#praz#5649#07,praz,7,short,tb
+372,QW#HG#MR1s1#R#uk14#5651#07,uk14,7,short,tb
+373,spare; in freezer,,7,short,
+374,lost sectioning,,7,short,
+375,lost sectioning,,7,short,
+376,lost sectioning,,7,short,
+377,QW#HG#MR1s1#R#dpat#5645#07,dpat,7,short,tb
+378,QW#HG#MR1s1#R#sr95#5677#07,sr95,7,short,tb
+379,cell body stain - section 32,AG,7,short,
+380,QW#HG#MR1s1#R#sch2#5655#07,sch2,7,short,tb
+381,QW#HG#MR1s1#R#rx82#5653#07,rx82,7,short,tb
+382,QW#HG#MR1s1#R#afdx#5673#07,afdx,7,short,tb
+383,QW#HG#MR1s1#R#dpog#5663#07,dpog,7,short,tb
+384,myelin stain - section 41,MS,7,short,
+385,QW#HG#MR1S1#R#dpmg#5665#07,dpmg,7,short,tb
+386,spare; in freezer,,7,short,
+387,lost sectioning,,7,short,
+388,ly34 - section lost,ly34,7,short,tb
+389,QW#HG#MR1s1#R#cpog#5659#07,cpog,7,short,tb
+390,QW#HG#MR1s1#R#cpmg#5661#07,cpmg,7,short,tb
+391,QW#HG#MR1s1#R#keta#5647#07,keta,7,short,tb
+392,QW#HG#MR1S1#R#pire#9510#07,pire,7,short,tb
+393,damg; not digitized,,7,short,
+394,lost sectioning,,7,short,
+395,QW#HG#MR1S1#R#ampa#9380#07,ampa,7,short,tb
+396,dpdp; not digitized,,7,short,
+397,spare; in freezer,,7,short,
+398,spare; in freezer,,7,short,
+399,spare; in freezer,,7,short,
+400,spare; in freezer,,7,short,
+401,spare; in freezer,,7,short,
+402,spare; in freezer,,7,short,
+403,spare; in freezer,,7,short,
+404,spare; in freezer,,7,short,
+405,lost sectioning,,7,short,
+406,QW#HG#MR1s1#R#kain#5635#08,kain,8,short,tb
+407,QW#HG#MR1s1#R#mk80#5637#08,mk80,8,short,tb
+408,QW#HG#MR1s1#R#musc#5639#08,musc,8,short,tb
+409,lost sectioning,,8,short,
+410,lost sectioning,,8,short,
+411,QW#HG#MR1s1#R#cgp5#5667#08,cgp5,8,short,tb
+412,QW#HG#MR1S1#R#flum#5669#08,flum,8,short,tb
+413,cell body stain - section 13,AG,8,short,
+414,lost sectioning,,8,short,
+415,QW#HG#MR1s1#R#oxot#5643#08,oxot,8,short,tb
+416,QW#HG#MR1s1#R#damp#5671#08,damp,8,short,tb
+417,myelin stain - section 20,MS,8,short,
+418,lost sectioning,,8,short,
+419,lost sectioning,,8,short,
+420,lost sectioning,,8,short,
+421,QW#HG#MR1s1#R#epib#5657#08,epib,8,short,tb
+422,lost sectioning,,8,short,
+423,lost sectioning,,8,short,
+424,QW#HG#MR1s1#R#praz#5649#08,praz,8,short,tb
+425,QW#HG#MR1s1#R#uk14#5651#08,uk14,8,short,tb
+426,spare; in freezer,,8,short,
+427,QW#HG#MR1s1#R#dpat#5645#08,dpat,8,short,tb
+428,QW#HG#MR1s1#R#sr95#5677#08,sr95,8,short,tb
+429,cell body stain - section 32,AG,8,short,
+430,lost sectioning,,8,short,
+431,QW#HG#MR1s1#R#sch2#5655#08,sch2,8,short,tb
+432,lost sectioning,,8,short,
+433,QW#HG#MR1s1#R#rx82#5653#08,rx82,8,short,tb
+434,QW#HG#MR1s1#R#afdx#5673#08,afdx,8,short,tb
+435,QW#HG#MR1s1#R#dpog#5663#08,dpog,8,short,tb
+436,lost sectioning,,8,short,
+437,lost sectioning,,8,short,
+438,myelin stain - section 41,MS,8,short,
+439,QW#HG#MR1S1#R#dpmg#5665#08,dpmg,8,short,tb
+440,spare; in freezer,,8,short,
+441,QW#HG#MR1s1#R#ly34#5675#08,ly34,8,short,tb
+442,QW#HG#MR1s1#R#cpog#5659#08,cpog,8,short,tb
+443,QW#HG#MR1s1#R#cpmg#5661#08,cpmg,8,short,tb
+444,lost sectioning,,8,short,
+445,lost sectioning,,8,short,
+446,QW#HG#MR1s1#R#keta#5647#08,keta,8,short,tb
+447,QW#HG#MR1S1#R#pire#9510#08,pire,8,short,tb
+448,damg; not digitized,,8,short,
+449,QW#HG#MR1S1#R#ampa#9380#08,ampa,8,short,tb
+450,spare; in freezer,,8,short,
+451,dpdp; not digitized,,8,short,
+452,spare; in freezer,,8,short,
+453,spare; in freezer,,8,short,
+454,spare; in freezer,,8,short,
+455,spare; in freezer,,8,short,
+456,spare; in freezer,,8,short,
+457,spare; in freezer,,8,short,
+458,spare; in freezer,,8,short,
+459,lost sectioning,,8,short,
+460,lost sectioning,,8,short,
+461,lost sectioning,,8,short,
+462,lost sectioning,,8,short,
+463,lost sectioning,,8,short,
+464,QW#HG#MR1s1#R#kain#5635#09,kain,9,short,tb
+465,QW#HG#MR1s1#R#mk80#5637#09,mk80,9,short,tb
+466,QW#HG#MR1s1#R#musc#5639#09,musc,9,short,tb
+467,lost sectioning,,9,short,
+468,QW#HG#MR1s1#R#cgp5#5667#09,cgp5,9,short,tb
+469,QW#HG#MR1S1#R#flum#5669#09,flum,9,short,tb
+470,cell body stain - section 13,AG,9,short,
+471,lost sectioning,,9,short,
+472,QW#HG#MR1s1#R#oxot#5643#09,oxot,9,short,tb
+473,lost sectioning,,9,short,
+474,QW#HG#MR1s1#R#damp#5671#09,damp,9,short,tb
+475,myelin stain - section 20,MS,9,short,
+476,QW#HG#MR1s1#R#epib#5657#09,epib,9,short,tb
+477,QW#HG#MR1s1#R#praz#5649#09,praz,9,short,tb
+478,QW#HG#MR1s1#R#uk14#5651#09,uk14,9,short,tb
+479,spare; in freezer,,9,short,
+480,QW#HG#MR1s1#R#dpat#5645#09,dpat,9,short,tb
+481,QW#HG#MR1s1#R#sr95#5677#09,sr95,9,short,tb
+482,cell body stain - section 32,AG,9,short,
+483,QW#HG#MR1s1#R#sch2#5655#09,sch2,9,short,tb
+484,QW#HG#MR1s1#R#rx82#5653#09,rx82,9,short,tb
+485,QW#HG#MR1s1#R#afdx#5673#09,afdx,9,short,tb
+486,QW#HG#MR1s1#R#dpog#5663#09,dpog,9,short,tb
+487,myelin stain - section 41,MS,9,short,
+488,QW#HG#MR1S1#R#dpmg#5665#09,dpmg,9,short,tb
+489,spare; in freezer,,9,short,
+490,lost sectioning,,9,short,
+491,lost sectioning,,9,short,
+492,lost sectioning,,9,short,
+493,lost sectioning,,9,short,
+494,lost sectioning,,9,short,
+495,lost sectioning,,9,short,
+496,lost sectioning,,9,short,
+497,spare; in freezer,,9,short,
+498,spare; in freezer,,9,short,
+499,spare; in freezer,,9,short,
+500,QW#HG#MR1s1#R#ly34#5675#09,ly34,9,short,tb
+501,QW#HG#MR1s1#R#cpog#5659#09,cpog,9,short,tb
+502,QW#HG#MR1s1#R#cpmg#5661#09,cpmg,9,short,tb
+503,QW#HG#MR1s1#R#keta#5647#09,keta,9,short,tb
+504,QW#HG#MR1S1#R#pire#9510#09,pire,9,short,tb
+505,damg; not digitized,,9,short,
+506,QW#HG#MR1S1#R#ampa#9380#09,ampa,9,short,tb
+507,dpdp; not digitized,,9,short,
+508,damg; not digitized,,9,short,
+509,spare; in freezer,,9,short,
+510,spare; in freezer,,9,short,
+511,spare; in freezer,,9,short,
+512,QW#HG#MR1s1#R#kain#5635#10,kain,10,long,tb
+513,kain (UB); not digitized,kain,10,long,ub
+514,QW#HG#MR1s1#R#mk80#5637#10,mk80,10,long,tb
+515,QW#HG#MR1s1#R#mk80#5637#UB,mk80,10,long,ub
+516,QW#HG#MR1s1#R#musc#5639#10,musc,10,long,tb
+517,musc (UB); not digitized,musc,10,long,ub
+518,QW#HG#MR1s1#R#cgp5#5667#10,cgp5,10,long,tb
+519,QW#HG#MR1s1#R#cgp5#5667#UB,cgp5,10,long,ub
+520,QW#HG#MR1S1#R#flum#5669#10,flum,10,long,tb
+521,QW#HG#MR1S1#R#flum#5669#UB,flum,10,long,ub
+522,cell body stain - section 13,AG,10,long,
+523,lost sectioning,,10,long,
+524,lost sectioning,,10,long,
+525,QW#HG#MR1s1#R#oxot#5643#10,oxot,10,long,tb
+526,oxot (UB); not digitized,oxot,10,long,ub
+527,QW#HG#MR1s1#R#damp#5671#10,damp,10,long,tb
+528,QW#HG#MR1s1#R#damp#5671#UB,damp,10,long,ub
+529,myelin stain - section 20,MS,10,long,
+530,QW#HG#MR1s1#R#epib#5657#10,epib,10,long,tb
+531,epib (UB); not digitized,epib,10,long,ub
+532,QW#HG#MR1s1#R#praz#5649#10,praz,10,long,tb
+533,QW#HG#MR1s1#R#praz#5649#ub,praz,10,long,ub
+534,QW#HG#MR1s1#R#uk14#5651#10,uk14,10,long,tb
+535,uk14 (UB); not digitized,uk14,10,long,ub
+536,spare; in freezer,,10,long,
+537,spare; in freezer,,10,long,
+538,lost sectioning,,10,long,
+539,lost sectioning,,10,long,
+540,QW#HG#MR1s1#R#dpat#5645#10,dpat,10,long,tb
+541,dpat (UB); not digitized,dpat,10,long,ub
+542,QW#HG#MR1s1#R#sr95#5677#10,sr95,10,long,tb
+543,QW#HG#MR1s1#R#sr95#5677#UB,sr95,10,long,ub
+544,cell body stain - section 32,AG,10,long,
+545,QW#HG#MR1s1#R#sch2#5655#10,sch2,10,long,tb
+546,QW#HG#MR1s1#R#sch2#5655#ub,sch2,10,long,ub
+547,QW#HG#MR1s1#R#rx82#5653#10,rx82,10,long,tb
+548,rx82 (UB); not digitized,rx82,10,long,ub
+549,QW#HG#MR1s1#R#afdx#5673#10,afdx,10,long,tb
+550,afdx (UB); not digitized,afdx,10,long,ub
+551,QW#HG#MR1s1#R#dpog#5663#10,dpog,10,long,tb
+552,lost sectioning,,10,long,
+553,QW#HG#MR1s1#R#dpog#5663#UB,dpog,10,long,ub
+554,myelin stain - section 41,MS,10,long,
+555,QW#HG#MR1S1#R#dpmg#5665#10,dpmg,10,long,tb
+556,QW#HG#MR1S1#R#dpmg#5665#UB,dpmg,10,long,ub
+557,spare; in freezer,,10,long,
+558,QW#HG#MR1s1#R#ly34#5675#10,ly34,10,long,tb
+559,ly34 (UB); not digitized,ly34,10,long,ub
+560,QW#HG#MR1s1#R#cpog#5659#10,cpog,10,long,tb
+561,QW#HG#MR1s1#R#cpog#5659#ub,cpog,10,long,ub
+562,QW#HG#MR1s1#R#cpmg#5661#10,cpmg,10,long,tb
+563,QW#HG#MR1s1#R#cpmg#5661#UB,cpmg,10,long,ub
+564,QW#HG#MR1s1#R#keta#5647#10,keta,10,long,tb
+565,QW#HG#MR1s1#R#keta#5647#UB,keta,10,long,ub
+566,QW#HG#MR1S1#R#pire#9510#10,pire,10,long,tb
+567,QW#HG#MR1S1#R#pire#9510#UB,pire,10,long,ub
+568,spare; in freezer,,10,long,
+569,spare; in freezer,,10,long,
+570,damg; not digitized,,10,long,
+571,damg (UB); not digitized,,10,long,
+572,QW#HG#MR1S1#R#ampa#9380#10,ampa,10,long,tb
+573,QW#HG#MR1S1#R#ampa#9380#UB,ampa,10,long,ub
+574,dpdp; not digitized,,10,long,
+575,dpdp (UB); not digitized,,10,long,ub
+576,spare; in freezer,,10,long,
+577,spare; in freezer,,10,long,
+578,spare; in freezer,,10,long,
+579,spare; in freezer,,10,long,
+580,spare; in freezer,,10,long,
+581,spare; in freezer,,10,long,
+582,spare; in freezer,,10,long,
+583,spare; in freezer,,10,long,
+584,spare; in freezer,,10,long,
+585,spare; in freezer,,10,long,
+586,spare; in freezer,,10,long,
+587,spare; in freezer,,10,long,
+588,spare; in freezer,,10,long,
+589,spare; in freezer,,10,long,
+590,lost sectioning,,10,long,
+591,lost sectioning,,10,long,
+592,lost sectioning,,10,long,
+593,lost sectioning,,10,long,
+594,QW#HG#MR1s1#R#kain#5635#11,kain,11,short,tb
+595,QW#HG#MR1s1#R#mk80#5637#11,mk80,11,short,tb
+596,QW#HG#MR1s1#R#musc#5639#11,musc,11,short,tb
+597,lost sectioning,,11,short,
+598,QW#HG#MR1s1#R#cgp5#5667#11,cgp5,11,short,tb
+599,QW#HG#MR1S1#R#flum#5669#11,flum,11,short,tb
+600,lost sectioning,,11,short,
+601,cell body stain - section 13,AG,11,short,
+602,lost sectioning,,11,short,
+603,QW#HG#MR1s1#R#oxot#5643#11,oxot,11,short,tb
+604,QW#HG#MR1s1#R#damp#5671#11,damp,11,short,tb
+605,myelin stain - section 20,MS,11,short,
+606,QW#HG#MR1s1#R#epib#5657#11,epib,11,short,tb
+607,QW#HG#MR1s1#R#praz#5649#11,praz,11,short,tb
+608,QW#HG#MR1s1#R#uk14#5651#11,uk14,11,short,tb
+609,spare; in freezer,,11,short,
+610,QW#HG#MR1s1#R#dpat#5645#11,dpat,11,short,tb
+611,QW#HG#MR1s1#R#sr95#5677#11,sr95,11,short,tb
+612,cell body stain - section 32,AG,11,short,
+613,lost sectioning,,11,short,
+614,lost sectioning,,11,short,
+615,QW#HG#MR1s1#R#sch2#5655#11,sch2,11,short,tb
+616,QW#HG#MR1s1#R#rx82#5653#11,rx82,11,short,tb
+617,lost sectioning,,11,short,
+618,QW#HG#MR1s1#R#afdx#5673#11,afdx,11,short,tb
+619,QW#HG#MR1s1#R#dpog#5663#11,dpog,11,short,tb
+620,myelin stain - section 41,MS,11,short,
+621,QW#HG#MR1S1#R#dpmg#5665#11,dpmg,11,short,tb
+622,spare; in freezer,,11,short,
+623,QW#HG#MR1s1#R#ly34#5675#11,ly34,11,short,tb
+624,lost sectioning,,11,short,
+625,QW#HG#MR1s1#R#cpog#5659#11,cpog,11,short,tb
+626,QW#HG#MR1s1#R#cpmg#5661#11,cpmg,11,short,tb
+627,QW#HG#MR1s1#R#keta#5647#11,keta,11,short,tb
+628,QW#HG#MR1S1#R#pire#9510#11,pire,11,short,tb
+629,damg; not digitized,,11,short,
+630,QW#HG#MR1S1#R#ampa#9380#11,ampa,11,short,tb
+631,dpdp; not digitized,,11,short,
+632,spare; in freezer,,11,short,
+633,spare; in freezer,,11,short,
+634,spare; in freezer,,11,short,
+635,spare; in freezer,,11,short,
+636,spare; in freezer,,11,short,
+637,spare; in freezer,,11,short,
+638,spare; in freezer,,11,short,
+639,spare; in freezer,,11,short,
+640,lost sectioning,,11,short,
+641,QW#HG#MR1s1#R#kain#5635#12,kain,12,short,tb
+642,QW#HG#MR1s1#R#mk80#5637#12,mk80,12,short,tb
+643,lost sectioning,,12,short,
+644,lost sectioning,,12,short,
+645,QW#HG#MR1s1#R#musc#5639#12,musc,12,short,tb
+646,QW#HG#MR1s1#R#cgp5#5667#12,cgp5,12,short,tb
+647,QW#HG#MR1S1#R#flum#5669#12,flum,12,short,tb
+648,cell body stain - section 13,AG,12,short,
+649,lost sectioning,,12,short,
+650,QW#HG#MR1s1#R#oxot#5643#12,oxot,12,short,tb
+651,QW#HG#MR1s1#R#damp#5671#12,damp,12,short,tb
+652,lost sectioning,,12,short,
+653,lost sectioning,,12,short,
+654,myelin stain - section 20,MS,12,short,
+655,QW#HG#MR1s1#R#epib#5657#12,epib,12,short,tb
+656,QW#HG#MR1s1#R#praz#5649#12,praz,12,short,tb
+657,QW#HG#MR1s1#R#uk14#5651#12,uk14,12,short,tb
+658,spare; in freezer,,12,short,
+659,QW#HG#MR1s1#R#dpat#5645#12,dpat,12,short,tb
+660,QW#HG#MR1s1#R#sr95#5677#12,sr95,12,short,tb
+661,cell body stain - section 32,AG,12,short,
+662,QW#HG#MR1s1#R#sch2#5655#12,sch2,12,short,tb
+663,QW#HG#MR1s1#R#rx82#5653#12,rx82,12,short,tb
+664,lost sectioning,,12,short,
+665,QW#HG#MR1s1#R#afdx#5673#12,afdx,12,short,tb
+666,QW#HG#MR1s1#R#dpog#5663#12,dpog,12,short,tb
+667,myelin stain - section 41,MS,12,short,
+668,QW#HG#MR1S1#R#dpmg#5665#12,dpmg,12,short,tb
+669,spare; in freezer,,12,short,
+670,QW#HG#MR1s1#R#ly34#5675#12,ly34,12,short,tb
+671,lost sectioning,,12,short,
+672,QW#HG#MR1s1#R#cpog#5659#12,cpog,12,short,tb
+673,QW#HG#MR1s1#R#cpmg#5661#12,cpmg,12,short,tb
+674,QW#HG#MR1s1#R#keta#5647#12,keta,12,short,tb
+675,lost sectioning,,12,short,
+676,QW#HG#MR1S1#R#pire#9511#12,pire,12,short,tb
+677,damg; not digitized,,12,short,
+678,lost sectioning,,12,short,
+679,lost sectioning,,12,short,
+680,QW#HG#MR1S1#R#ampa#9381#12,ampa,12,short,tb
+681,dpdp; not digitized,,12,short,
+682,spare; in freezer,,12,short,
+683,spare; in freezer,,12,short,
+684,spare; in freezer,,12,short,
+685,spare; in freezer,,12,short,
+686,spare; in freezer,,12,short,
+687,spare; in freezer,,12,short,
+688,spare; in freezer,,12,short,
+689,spare; in freezer,,12,short,
+690,lost sectioning,,12,short,
+691,lost sectioning,,12,short,
+692,QW#HG#MR1s1#R#kain#5635#13,kain,13,short,tb
+693,QW#HG#MR1s1#R#mk80#5637#13,mk80,13,short,tb
+694,QW#HG#MR1s1#R#musc#5639#13,musc,13,short,tb
+695,QW#HG#MR1s1#R#cgp5#5667#13,cgp5,13,short,tb
+696,QW#HG#MR1S1#R#flum#5669#13,flum,13,short,tb
+697,cell body stain - section 13,AG,13,short,
+698,lost sectioning,,13,short,
+699,QW#HG#MR1s1#R#oxot#5643#13,oxot,13,short,tb
+700,lost sectioning,,13,short,
+701,lost sectioning,,13,short,
+702,QW#HG#MR1s1#R#damp#5671#13,damp,13,short,tb
+703,myelin stain - section 20,MS,13,short,
+704,QW#HG#MR1s1#R#epib#5657#13,epib,13,short,tb
+705,QW#HG#MR1s1#R#praz#5649#13,praz,13,short,tb
+706,QW#HG#MR1s1#R#uk14#5651#13,uk14,13,short,tb
+707,spare; in freezer,,13,short,
+708,lost sectioning,,13,short,
+709,QW#HG#MR1s1#R#dpat#5645#13,dpat,13,short,tb
+710,QW#HG#MR1s1#R#sr95#5677#13,sr95,13,short,tb
+711,cell body stain - section 32,AG,13,short,
+712,QW#HG#MR1s1#R#sch2#5655#13,sch2,13,short,tb
+713,QW#HG#MR1s1#R#rx82#5653#13,rx82,13,short,tb
+714,QW#HG#MR1s1#R#afdx#5673#13,afdx,13,short,tb
+715,QW#HG#MR1s1#R#dpog#5663#13,dpog,13,short,tb
+716,myelin stain - section 41,MS,13,short,
+717,QW#HG#MR1S1#R#dpmg#5665#13,dpmg,13,short,tb
+718,spare; in freezer,,13,short,
+719,lost sectioning,,13,short,
+720,lost sectioning,,13,short,
+721,QW#HG#MR1s1#R#ly34#5675#13,ly34,13,short,tb
+722,lost sectioning,,13,short,
+723,QW#HG#MR1s1#R#cpog#5659#13,cpog,13,short,tb
+724,QW#HG#MR1s1#R#cpmg#5661#13,cpmg,13,short,tb
+725,QW#HG#MR1s1#R#keta#5647#13,keta,13,short,tb
+726,QW#HG#MR1S1#R#pire#9511#13,pire,13,short,tb
+727,damg; not digitized,,13,short,
+728,QW#HG#MR1S1#R#ampa#9381#13,ampa,13,short,tb
+729,dpdp; not digitized,,13,short,
+730,spare; in freezer,,13,short,
+731,spare; in freezer,,13,short,
+732,spare; in freezer,,13,short,
+733,spare; in freezer,,13,short,
+734,spare; in freezer,,13,short,
+735,spare; in freezer,,13,short,
+736,lost sectioning,,13,short,
+737,lost sectioning,,13,short,
+738,lost sectioning,,13,short,
+739,lost sectioning,,13,short,
+740,QW#HG#MR1s1#R#kain#5635#14,kain,14,short,tb
+741,QW#HG#MR1s1#R#mk80#5637#14,mk80,14,short,tb
+742,QW#HG#MR1s1#R#musc#5639#14,musc,14,short,tb
+743,QW#HG#MR1s1#R#cgp5#5667#14,cgp5,14,short,tb
+744,QW#HG#MR1S1#R#flum#5669#14,flum,14,short,tb
+745,lost sectioning,,14,short,
+746,cell body stain - section 13,AG,14,short,
+747,lost sectioning,,14,short,
+748,lost sectioning,,14,short,
+749,QW#HG#MR1s1#R#oxot#5643#14,oxot,14,short,tb
+750,QW#HG#MR1s1#R#damp#5671#14,damp,14,short,tb
+751,myelin stain - section 20,MS,14,short,
+752,QW#HG#MR1s1#R#epib#5657#14,epib,14,short,tb
+753,QW#HG#MR1s1#R#praz#5649#14,praz,14,short,tb
+754,QW#HG#MR1s1#R#uk14#5651#14,uk14,14,short,tb
+755,lost sectioning,,14,short,
+756,spare; in freezer,,14,short,
+757,lost sectioning,,14,short,
+758,lost sectioning,,14,short,
+759,lost sectioning,,14,short,
+760,QW#HG#MR1s1#R#dpat#5645#14,dpat,14,short,tb
+761,QW#HG#MR1s1#R#sr95#5677#14,sr95,14,short,tb
+762,cell body stain - section 32,AG,14,short,
+763,QW#HG#MR1s1#R#sch2#5655#14,sch2,14,short,tb
+764,lost sectioning,,14,short,
+765,QW#HG#MR1s1#R#rx82#5653#14,rx82,14,short,tb
+766,QW#HG#MR1s1#R#afdx#5673#14,afdx,14,short,tb
+767,QW#HG#MR1s1#R#dpog#5663#14,dpog,14,short,tb
+768,myelin stain - section 41,MS,14,short,
+769,QW#HG#MR1S1#R#dpmg#5665#14,dpmg,14,short,tb
+770,spare; in freezer,,14,short,
+771,QW#HG#MR1s1#R#ly34#5675#14,ly34,14,short,tb
+772,QW#HG#MR1s1#R#cpog#5659#14,cpog,14,short,tb
+773,QW#HG#MR1s1#R#cpmg#5661#14,cpmg,14,short,tb
+774,QW#HG#MR1s1#R#keta#5647#14,keta,14,short,tb
+775,QW#HG#MR1S1#R#pire#9511#14,pire,14,short,tb
+776,damg; not digitized,,14,short,
+777,QW#HG#MR1S1#R#ampa#9381#14,ampa,14,short,tb
+778,dpdp; not digitized,,14,short,
+779,spare; in freezer,,14,short,
+780,spare; in freezer,,14,short,
+781,spare; in freezer,,14,short,
+782,spare; in freezer,,14,short,
+783,spare; in freezer,,14,short,
+784,spare; in freezer,,14,short,
+785,lost sectioning,,14,short,
+786,lost sectioning,,14,short,
+787,QW#HG#MR1s1#R#kain#5635#15,kain,15,short,tb
+788,QW#HG#MR1s1#R#mk80#5637#15,mk80,15,short,tb
+789,QW#HG#MR1s1#R#musc#5639#15,musc,15,short,tb
+790,QW#HG#MR1s1#R#cgp5#5667#15,cgp5,15,short,tb
+791,QW#HG#MR1S1#R#flum#5669#15,flum,15,short,tb
+792,lost sectioning,,15,short,
+793,cell body stain - section 13,AG,15,short,
+794,lost sectioning,,15,short,
+795,QW#HG#MR1s1#R#oxot#5643#15,oxot,15,short,tb
+796,QW#HG#MR1s1#R#damp#5671#15,damp,15,short,tb
+797,myelin stain - section 20,MS,15,short,
+798,QW#HG#MR1s1#R#epib#5657#15,epib,15,short,tb
+799,lost sectioning,,15,short,
+800,QW#HG#MR1s1#R#praz#5649#15,praz,15,short,tb
+801,QW#HG#MR1s1#R#uk14#5651#15,uk14,15,short,tb
+802,spare; in freezer,,15,short,
+803,QW#HG#MR1s1#R#dpat#5645#15,dpat,15,short,tb
+804,QW#HG#MR1s1#R#sr95#5677#15,sr95,15,short,tb
+805,cell body stain - section 32,AG,15,short,
+806,QW#HG#MR1s1#R#sch2#5655#15,sch2,15,short,tb
+807,QW#HG#MR1s1#R#rx82#5653#15,rx82,15,short,tb
+808,QW#HG#MR1s1#R#afdx#5673#15,afdx,15,short,tb
+809,QW#HG#MR1s1#R#dpog#5663#15,dpog,15,short,tb
+810,myelin stain - section 41,MS,15,short,
+811,QW#HG#MR1S1#R#dpmg#5665#15,dpmg,15,short,tb
+812,spare; in freezer,,15,short,
+813,QW#HG#MR1s1#R#ly34#5675#15,ly34,15,short,tb
+814,QW#HG#MR1s1#R#cpog#5659#15,cpog,15,short,tb
+815,lost sectioning,,15,short,
+816,QW#HG#MR1s1#R#cpmg#5661#15,cpmg,15,short,tb
+817,QW#HG#MR1s1#R#keta#5647#15,keta,15,short,tb
+818,QW#HG#MR1S1#R#pire#9511#15,pire,15,short,tb
+819,lost sectioning,,15,short,
+820,damg; not digitized,,15,short,
+821,QW#HG#MR1S1#R#ampa#9381#15,ampa,15,short,tb
+822,dpdp; not digitized,,15,short,
+823,spare; in freezer,,15,short,
+824,spare; in freezer,,15,short,
+825,spare; in freezer,,15,short,
+826,spare; in freezer,,15,short,
+827,spare; in freezer,,15,short,
+828,spare; in freezer,,15,short,
+829,spare; in freezer,,15,short,
+830,spare; in freezer,,15,short,
+831,QW#HG#MR1s1#R#kain#5635#16,kain,16,short,tb
+832,QW#HG#MR1s1#R#mk80#5637#16,mk80,16,short,tb
+833,lost sectioning,,16,short,
+834,QW#HG#MR1s1#R#musc#5639#16,musc,16,short,tb
+835,QW#HG#MR1s1#R#cgp5#5667#16,cgp5,16,short,tb
+836,QW#HG#MR1S1#R#flum#5669#16,flum,16,short,tb
+837,cell body stain - section 13,AG,16,short,
+838,lost sectioning,,16,short,
+839,QW#HG#MR1s1#R#oxot#5643#16,oxot,16,short,tb
+840,QW#HG#MR1s1#R#damp#5671#16,damp,16,short,tb
+841,myelin stain - section 20,MS,16,short,
+842,lost sectioning,,16,short,
+843,lost sectioning,,16,short,
+844,QW#HG#MR1s1#R#epib#5657#16,epib,16,short,tb
+845,QW#HG#MR1s1#R#praz#5649#16,praz,16,short,tb
+846,QW#HG#MR1s1#R#uk14#5651#16,uk14,16,short,tb
+847,spare; in freezer,,16,short,
+848,QW#HG#MR1s1#R#dpat#5645#16,dpat,16,short,tb
+849,QW#HG#MR1s1#R#sr95#5677#16,sr95,16,short,tb
+850,cell body stain - section 32,AG,16,short,
+851,QW#HG#MR1s1#R#sch2#5655#16,sch2,16,short,tb
+852,QW#HG#MR1s1#R#rx82#5653#16,rx82,16,short,tb
+853,QW#HG#MR1s1#R#afdx#5673#16,afdx,16,short,tb
+854,QW#HG#MR1s1#R#dpog#5663#16,dpog,16,short,tb
+855,myelin stain - section 41,MS,16,short,
+856,QW#HG#MR1S1#R#dpmg#5665#16,dpmg,16,short,tb
+857,spare; in freezer,,16,short,
+858,QW#HG#MR1s1#R#ly34#5675#16,ly34,16,short,tb
+859,QW#HG#MR1s1#R#cpog#5659#16,cpog,16,short,tb
+860,QW#HG#MR1s1#R#cpmg#5661#16,cpmg,16,short,tb
+861,QW#HG#MR1s1#R#keta#5647#16,keta,16,short,tb
+862,QW#HG#MR1S1#R#pire#9511#16,pire,16,short,tb
+863,damg; not digitized,,16,short,
+864,lost sectioning,,16,short,
+865,QW#HG#MR1S1#R#ampa#9381#16,ampa,16,short,tb
+866,dpdp; not digitized,,16,short,
+867,spare; in freezer,,16,short,
+868,spare; in freezer,,16,short,
+869,spare; in freezer,,16,short,
+870,spare; in freezer,,16,short,
+871,spare; in freezer,,16,short,
+872,spare; in freezer,,16,short,
+873,spare; in freezer,,16,short,
+874,spare; in freezer,,16,short,
+875,QW#HG#MR1s1#R#kain#5635#17,kain,17,short,tb
+876,QW#HG#MR1s1#R#mk80#5637#17,mk80,17,short,tb
+877,QW#HG#MR1s1#R#musc#5639#17,musc,17,short,tb
+878,QW#HG#MR1s1#R#cgp5#5667#17,cgp5,17,short,tb
+879,QW#HG#MR1S1#R#flum#5669#17,flum,17,short,tb
+880,cell body stain - section 13,AG,17,short,
+881,lost sectioning,,17,short,
+882,QW#HG#MR1s1#R#oxot#5643#17,oxot,17,short,tb
+883,QW#HG#MR1s1#R#damp#5671#17,damp,17,short,tb
+884,myelin stain - section 20,MS,17,short,
+885,QW#HG#MR1s1#R#epib#5657#17,epib,17,short,tb
+886,lost sectioning,,17,short,
+887,QW#HG#MR1s1#R#praz#5649#17,praz,17,short,tb
+888,QW#HG#MR1s1#R#uk14#5651#17,uk14,17,short,tb
+889,spare; in freezer,,17,short,
+890,QW#HG#MR1s1#R#dpat#5645#17,dpat,17,short,tb
+891,QW#HG#MR1s1#R#sr95#5677#17,sr95,17,short,tb
+892,lost sectioning,,17,short,
+893,cell body stain - section 32,AG,17,short,
+894,QW#HG#MR1s1#R#sch2#5655#17,sch2,17,short,tb
+895,lost sectioning,,17,short,
+896,QW#HG#MR1s1#R#rx82#5653#17,rx82,17,short,tb
+897,QW#HG#MR1s1#R#afdx#5673#17,afdx,17,short,tb
+898,QW#HG#MR1s1#R#dpog#5663#17,dpog,17,short,tb
+899,myelin stain - section 41,MS,17,short,
+900,lost sectioning,,17,short,
+901,lost sectioning,,17,short,
+902,lost sectioning,,17,short,
+903,QW#HG#MR1S1#R#dpmg#5665#17,dpmg,17,short,tb
+904,spare; in freezer,,17,short,
+905,QW#HG#MR1s1#R#ly34#5675#17,ly34,17,short,tb
+906,QW#HG#MR1s1#R#cpog#5659#17,cpog,17,short,tb
+907,QW#HG#MR1s1#R#cpmg#5661#17,cpmg,17,short,tb
+908,QW#HG#MR1s1#R#keta#5647#17,keta,17,short,tb
+909,QW#HG#MR1S1#R#pire#9511#17,pire,17,short,tb
+910,damg; not digitized,,17,short,
+911,QW#HG#MR1S1#R#ampa#9381#17,ampa,17,short,tb
+912,dpdp; not digitized,,17,short,
+913,spare; in freezer,,17,short,
+914,spare; in freezer,,17,short,
+915,spare; in freezer,,17,short,
+916,spare; in freezer,,17,short,
+917,spare; in freezer,,17,short,
+918,spare; in freezer,,17,short,
+919,spare; in freezer,,17,short,
+920,spare; in freezer,,17,short,
+921,lost sectioning,,17,short,
+922,lost sectioning,,17,short,
+923,lost sectioning,,17,short,
+924,lost sectioning,,17,short,
+925,lost sectioning,,17,short,
+926,QW#HG#MR1s1#R#kain#5635#18,kain,18,short,tb
+927,QW#HG#MR1s1#R#mk80#5637#18,mk80,18,short,tb
+928,QW#HG#MR1s1#R#musc#5639#18,musc,18,short,tb
+929,QW#HG#MR1s1#R#cgp5#5667#18,cgp5,18,short,tb
+930,QW#HG#MR1S1#R#flum#5669#18,flum,18,short,tb
+931,lost sectioning,,18,short,
+932,cell body stain - section 13,AG,18,short,
+933,QW#HG#MR1s1#R#oxot#5643#18,oxot,18,short,tb
+934,QW#HG#MR1s1#R#damp#5671#18,damp,18,short,tb
+935,myelin stain - section 20,MS,18,short,
+936,QW#HG#MR1s1#R#epib#5657#18,epib,18,short,tb
+937,QW#HG#MR1s1#R#praz#5649#18,praz,18,short,tb
+938,QW#HG#MR1s1#R#uk14#5651#18,uk14,18,short,tb
+939,spare; in freezer,,18,short,
+940,QW#HG#MR1s1#R#dpat#5645#18,dpat,18,short,tb
+941,QW#HG#MR1s1#R#sr95#5677#18,sr95,18,short,tb
+942,lost sectioning,,18,short,
+943,cell body stain - section 32,AG,18,short,
+944,QW#HG#MR1s1#R#sch2#5655#18,sch2,18,short,tb
+945,QW#HG#MR1s1#R#rx82#5653#18,rx82,18,short,tb
+946,QW#HG#MR1s1#R#afdx#5673#18,afdx,18,short,tb
+947,QW#HG#MR1s1#R#dpog#5663#18,dpog,18,short,tb
+948,myelin stain - section 41,MS,18,short,
+949,QW#HG#MR1S1#R#dpmg#5665#18,dpmg,18,short,tb
+950,spare; in freezer,,18,short,
+951,QW#HG#MR1s1#R#ly34#5676#18,ly34,18,short,tb
+952,QW#HG#MR1s1#R#cpog#5659#18,cpog,18,short,tb
+953,lost sectioning,,18,short,
+954,lost sectioning,,18,short,
+955,lost sectioning,,18,short,
+956,QW#HG#MR1s1#R#cpmg#5661#18,cpmg,18,short,tb
+957,QW#HG#MR1s1#R#keta#5647#18,keta,18,short,tb
+958,QW#HG#MR1S1#R#pire#9511#18,pire,18,short,tb
+959,damg; not digitized,,18,short,
+960,QW#HG#MR1S1#R#ampa#9381#18,ampa,18,short,tb
+961,lost sectioning,,18,short,
+962,dpdp; not digitized,,18,short,
+963,spare; in freezer,,18,short,
+964,spare; in freezer,,18,short,
+965,spare; in freezer,,18,short,
+966,spare; in freezer,,18,short,
+967,spare; in freezer,,18,short,
+968,spare; in freezer,,18,short,
+969,spare; in freezer,,18,short,
+970,spare; in freezer,,18,short,
+971,QW#HG#MR1S1#R#kain#5636#19,kain,19,short,tb
+972,QW#HG#MR1s1#R#mk80#5638#19,mk80,19,short,tb
+973,QW#HG#MR1s1#R#musc#5640#19,musc,19,short,tb
+974,QW#HG#MR1s1#R#cgp5#5668#19,cgp5,19,short,tb
+975,QW#HG#MR1S1#R#flum#5670#19,flum,19,short,tb
+976,cell body stain - section 13,AG,19,short,
+977,lost sectioning,,19,short,
+978,QW#HG#MR1s1#R#oxot#5644#19,oxot,19,short,tb
+979,QW#HG#MR1s1#R#damp#5672#19,damp,19,short,tb
+980,myelin stain - section 20,MS,19,short,
+981,QW#HG#MR1s1#R#epib#5658#19,epib,19,short,tb
+982,QW#HG#MR1s1#R#praz#5650#19,praz,19,short,tb
+983,QW#HG#MR1s1#R#uk14#5652#19,uk14,19,short,tb
+984,spare; in freezer,,19,short,
+985,QW#HG#MR1s1#R#dpat#5646#19,dpat,19,short,tb
+986,QW#HG#MR1s1#R#sr95#5678#19,sr95,19,short,tb
+987,cell body stain - section 32,AG,19,short,
+988,QW#HG#MR1s1#R#sch2#5656#19,sch2,19,short,tb
+989,QW#HG#MR1s1#R#rx82#5654#19,rx82,19,short,tb
+990,QW#HG#MR1s1#R#afdx#5674#19,afdx,19,short,tb
+991,QW#HG#MR1s1#R#dpog#5664#19,dpog,19,short,tb
+992,lost sectioning,,19,short,
+993,lost sectioning,,19,short,
+994,myelin stain - section 41,MS,19,short,
+995,QW#HG#MR1S1#R#dpmg#5666#19,dpmg,19,short,tb
+996,spare; in freezer,,19,short,
+997,QW#HG#MR1s1#R#ly34#5676#19,ly34,19,short,tb
+998,QW#HG#MR1s1#R#cpog#5660#19,cpog,19,short,tb
+999,QW#HG#MR1S1#R#cpmg#5662#19,cpmg,19,short,tb
+1000,QW#HG#MR1s1#R#keta#5648#19,keta,19,short,tb
+1001,QW#HG#MR1S1#R#pire#9511#19,pire,19,short,tb
+1002,lost sectioning,,19,short,
+1003,lost sectioning,,19,short,
+1004,lost sectioning,,19,short,
+1005,lost sectioning,,19,short,
+1006,damg; not digitized,,19,short,
+1007,QW#HG#MR1S1#R#ampa#9382#19,ampa,19,short,tb
+1008,dpdp; not digitized,,19,short,
+1009,spare; in freezer,,19,short,
+1010,spare; in freezer,,19,short,
+1011,spare; in freezer,,19,short,
+1012,spare; in freezer,,19,short,
+1013,spare; in freezer,,19,short,
+1014,spare; in freezer,,19,short,
+1015,spare; in freezer,,19,short,
+1016,spare; in freezer,,19,short,
+1017,lost sectioning,,19,short,
+1018,QW#HG#MR1S1#R#kain#5636#20,kain,20,long,tb
+1019,QW#HG#MR1S1#R#kain#5636#UB,kain,20,long,ub
+1020,QW#HG#MR1s1#R#mk80#5638#20,mk80,20,long,tb
+1021,QW#HG#MR1s1#R#mk80#5638#UB,mk80,20,long,ub
+1022,QW#HG#MR1s1#R#musc#5640#20,musc,20,long,tb
+1023,musc (UB); not digitized,musc,20,long,ub
+1024,lost sectioning,,20,long,
+1025,QW#HG#MR1s1#R#cgp5#5668#20,cgp5,20,long,tb
+1026,QW#HG#MR1s1#R#cgp5#5668#UB,cgp5,20,long,ub
+1027,QW#HG#MR1S1#R#flum#5670#20,flum,20,long,tb
+1028,QW#HG#MR1S1#R#flum#5670#UB,flum,20,long,ub
+1029,cell body stain - section 13,AG,20,long,
+1030,lost sectioning,,20,long,
+1031,lost sectioning,,20,long,
+1032,QW#HG#MR1s1#R#oxot#5644#20,oxot,20,long,tb
+1033,oxot (UB); not digitized,oxot,20,long,ub
+1034,QW#HG#MR1s1#R#damp#5672#20,damp,20,long,tb
+1035,QW#HG#MR1s1#R#damp#5672#UB,damp,20,long,ub
+1036,myelin stain - section 20,MS,20,long,
+1037,lost sectioning,,20,long,
+1038,QW#HG#MR1s1#R#epib#5658#20,epib,20,long,tb
+1039,epib (UB); not digitized,epib,20,long,ub
+1040,QW#HG#MR1s1#R#praz#5650#20,praz,20,long,tb
+1041,QW#HG#MR1s1#R#praz#5650#UB,praz,20,long,ub
+1042,QW#HG#MR1s1#R#uk14#5652#20,uk14,20,long,tb
+1043,uk14 (UB); not digitized,uk14,20,long,ub
+1044,spare; in freezer,,20,long,
+1045,QW#HG#MR1s1#R#dpat#5646#20,dpat,20,long,tb
+1046,dpat (UB); not digitized,dpat,20,long,ub
+1047,QW#HG#MR1s1#R#sr95#5678#20,sr95,20,long,tb
+1048,QW#HG#MR1s1#R#sr95#5678#UB,sr95,20,long,ub
+1049,cell body stain - section 32,AG,20,long,
+1050,QW#HG#MR1s1#R#sch2#5656#20,sch2,20,long,tb
+1051,QW#HG#MR1s1#R#sch2#5656#ub,sch2,20,long,ub
+1052,lost sectioning,,20,long,
+1053,QW#HG#MR1s1#R#rx82#5654#20,rx82,20,long,tb
+1054,rx82 (UB); not digitized,rx82,20,long,ub
+1055,QW#HG#MR1s1#R#afdx#5674#20,afdx,20,long,tb
+1056,QW#HG#MR1s1#R#afdx#5674#ub,afdx,20,long,ub
+1057,QW#HG#MR1s1#R#dpog#5664#20,dpog,20,long,tb
+1058,lost sectioning,,20,long,
+1059,QW#HG#MR1s1#R#dpog#5664#UB,dpog,20,long,ub
+1060,myelin stain - section 41,MS,20,long,
+1061,QW#HG#MR1S1#R#dpmg#5666#20,dpmg,20,long,tb
+1062,QW#HG#MR1S1#R#dpmg#5666#UB,dpmg,20,long,ub
+1063,spare; in freezer,,20,long,
+1064,QW#HG#MR1s1#R#ly34#5676#20,ly34,20,long,tb
+1065,ly34 (ub); not digitized,ly34,20,long,ub
+1066,QW#HG#MR1s1#R#cpog#5660#20,cpog,20,long,tb
+1067,QW#HG#MR1s1#R#cpog#5660#ub,cpog,20,long,ub
+1068,QW#HG#MR1S1#R#cpmg#5662#20,cpmg,20,long,tb
+1069,QW#HG#MR1S1#R#cpmg#5662#UB,cpmg,20,long,ub
+1070,QW#HG#MR1s1#R#keta#5648#20,keta,20,long,tb
+1071,QW#HG#MR1s1#R#keta#5648#UB,keta,20,long,ub
+1072,QW#HG#MR1S1#R#pire#9512#20,pire,20,long,tb
+1073,QW#HG#MR1S1#R#pire#9512#UB,pire,20,long,ub
+1074,damg; not digitized,,20,long,
+1075,damg (UB); not digitized,,20,long,
+1076,lost sectioning,,20,long,
+1077,QW#HG#MR1S1#R#ampa#9382#20,ampa,20,long,tb
+1078,QW#HG#MR1S1#R#ampa#9382#UB,ampa,20,long,ub
+1079,lost sectioning,,20,long,
+1080,dpdp; not digitized,,20,long,
+1081,dpdp (UB); not digitized,,20,long,ub
+1082,spare; in freezer,,20,long,
+1083,spare; in freezer,,20,long,
+1084,spare; in freezer,,20,long,
+1085,spare; in freezer,,20,long,
+1086,spare; in freezer,,20,long,
+1087,spare; in freezer,,20,long,
+1088,spare; in freezer,,20,long,
+1089,spare; in freezer,,20,long,
+1090,spare; in freezer,,20,long,
+1091,spare; in freezer,,20,long,
+1092,spare; in freezer,,20,long,
+1093,spare; in freezer,,20,long,
+1094,lost sectioning,,20,long,
+1095,lost sectioning,,20,long,
+1096,lost sectioning,,20,long,
+1097,lost sectioning,,20,long,
+1098,lost sectioning,,20,long,
+1099,QW#HG#MR1S1#R#kain#5636#21,kain,21,short,tb
+1100,QW#HG#MR1s1#R#mk80#5638#21,mk80,21,short,tb
+1101,QW#HG#MR1s1#R#musc#5640#21,musc,21,short,tb
+1102,QW#HG#MR1s1#R#cgp5#5668#21,cgp5,21,short,tb
+1103,flum - section lost,flum,21,short,tb
+1104,cell body stain - section 13,AG,21,short,
+1105,lost sectioning,,21,short,
+1106,lost sectioning,,21,short,
+1107,QW#HG#MR1s1#R#oxot#5644#21,oxot,21,short,tb
+1108,QW#HG#MR1s1#R#damp#5672#21,damp,21,short,tb
+1109,myelin stain - section 20,MS,21,short,
+1110,QW#HG#MR1s1#R#epib#5658#21,epib,21,short,tb
+1111,QW#HG#MR1s1#R#praz#5650#21,praz,21,short,tb
+1112,lost sectioning,,21,short,
+1113,lost sectioning,,21,short,
+1114,QW#HG#MR1s1#R#uk14#5652#21,uk14,21,short,tb
+1115,spare; in freezer,,21,short,
+1116,QW#HG#MR1s1#R#dpat#5646#21,dpat,21,short,tb
+1117,QW#HG#MR1s1#R#sr95#5678#21,sr95,21,short,tb
+1118,lost sectioning,,21,short,
+1119,cell body stain - section 32,AG,21,short,
+1120,QW#HG#MR1s1#R#sch2#5656#21,sch2,21,short,tb
+1121,lost sectioning,,21,short,
+1122,lost sectioning,,21,short,
+1123,QW#HG#MR1s1#R#rx82#5654#21,rx82,21,short,tb
+1124,QW#HG#MR1s1#R#afdx#5674#21,afdx,21,short,tb
+1125,QW#HG#MR1s1#R#dpog#5664#21,dpog,21,short,tb
+1126,myelin stain - section 41,MS,21,short,
+1127,QW#HG#MR1S1#R#dpmg#5666#21,dpmg,21,short,tb
+1128,spare; in freezer,,21,short,
+1129,ly34 - section lost,ly34,21,short,tb
+1130,QW#HG#MR1s1#R#cpog#5660#21,cpog,21,short,tb
+1131,QW#HG#MR1S1#R#cpmg#5662#21,cpmg,21,short,tb
+1132,QW#HG#MR1s1#R#keta#5648#21,keta,21,short,tb
+1133,QW#HG#MR1S1#R#pire#9512#21,pire,21,short,tb
+1134,damg; not digitized,,21,short,
+1135,QW#HG#MR1S1#R#ampa#9382#21,ampa,21,short,tb
+1136,dpdp; not digitized,,21,short,
+1137,spare; in freezer,,21,short,
+1138,spare; in freezer,,21,short,
+1139,spare; in freezer,,21,short,
+1140,spare; in freezer,,21,short,
+1141,spare; in freezer,,21,short,
+1142,spare; in freezer,,21,short,
+1143,spare; in freezer,,21,short,
+1144,spare; in freezer,,21,short,
+1145,lost sectioning,,21,short,
+1146,lost sectioning,,21,short,
+1147,lost sectioning,,21,short,
+1148,QW#HG#MR1S1#R#kain#5636#22,kain,22,short,tb
+1149,QW#HG#MR1s1#R#mk80#5638#22,mk80,22,short,tb
+1150,QW#HG#MR1s1#R#musc#5640#22,musc,22,short,tb
+1151,QW#HG#MR1s1#R#cgp5#5668#22,cgp5,22,short,tb
+1152,lost sectioning,,22,short,
+1153,QW#HG#MR1S1#R#flum#5670#22,flum,22,short,tb
+1154,cell body stain - section 13,AG,22,short,
+1155,lost sectioning,,22,short,
+1156,QW#HG#MR1s1#R#oxot#5644#22,oxot,22,short,tb
+1157,QW#HG#MR1s1#R#damp#5672#22,damp,22,short,tb
+1158,myelin stain - section 20,MS,22,short,
+1159,QW#HG#MR1s1#R#epib#5658#22,epib,22,short,tb
+1160,QW#HG#MR1s1#R#praz#5650#22,praz,22,short,tb
+1161,QW#HG#MR1s1#R#uk14#5652#22,uk14,22,short,tb
+1162,spare; in freezer,,22,short,
+1163,QW#HG#MR1s1#R#dpat#5646#22,dpat,22,short,tb
+1164,QW#HG#MR1s1#R#sr95#5678#22,sr95,22,short,tb
+1165,cell body stain - section 32,AG,22,short,
+1166,QW#HG#MR1s1#R#sch2#5656#22,sch2,22,short,tb
+1167,QW#HG#MR1s1#R#rx82#5654#22,rx82,22,short,tb
+1168,QW#HG#MR1s1#R#afdx#5674#22,afdx,22,short,tb
+1169,QW#HG#MR1s1#R#dpog#5664#22,dpog,22,short,tb
+1170,myelin stain - section 41,MS,22,short,
+1171,QW#HG#MR1S1#R#dpmg#5666#22,dpmg,22,short,tb
+1172,spare; in freezer,,22,short,
+1173,ly34 - section lost,ly34,22,short,tb
+1174,QW#HG#MR1s1#R#cpog#5660#22,cpog,22,short,tb
+1175,QW#HG#MR1S1#R#cpmg#5662#22,cpmg,22,short,tb
+1176,QW#HG#MR1s1#R#keta#5648#22,keta,22,short,tb
+1177,QW#HG#MR1S1#R#pire#9512#22,pire,22,short,tb
+1178,damg; not digitized,,22,short,
+1179,QW#HG#MR1S1#R#ampa#9382#22,ampa,22,short,tb
+1180,dpdp; not digitized,,22,short,
+1181,spare; in freezer,,22,short,
+1182,spare; in freezer,,22,short,
+1183,spare; in freezer,,22,short,
+1184,spare; in freezer,,22,short,
+1185,spare; in freezer,,22,short,
+1186,spare; in freezer,,22,short,
+1187,spare; in freezer,,22,short,
+1188,spare; in freezer,,22,short,
+1189,lost sectioning,,22,short,
+1190,lost sectioning,,22,short,
+1191,QW#HG#MR1S1#R#kain#5636#23,kain,23,short,tb
+1192,QW#HG#MR1s1#R#mk80#5638#23,mk80,23,short,tb
+1193,QW#HG#MR1s1#R#musc#5640#23,musc,23,short,tb
+1194,QW#HG#MR1s1#R#cgp5#5668#23,cgp5,23,short,tb
+1195,QW#HG#MR1S1#R#flum#5670#23,flum,23,short,tb
+1196,lost sectioning,,23,short,
+1197,lost sectioning,,23,short,
+1198,cell body stain - section 13,AG,23,short,
+1199,QW#HG#MR1s1#R#oxot#5644#23,oxot,23,short,tb
+1200,QW#HG#MR1s1#R#damp#5672#23,damp,23,short,tb
+1201,myelin stain - section 20,MS,23,short,
+1202,lost sectioning,,23,short,
+1203,lost sectioning,,23,short,
+1204,QW#HG#MR1s1#R#epib#5658#23,epib,23,short,tb
+1205,QW#HG#MR1s1#R#praz#5650#23,praz,23,short,tb
+1206,QW#HG#MR1s1#R#uk14#5652#23,uk14,23,short,tb
+1207,spare; in freezer,,23,short,
+1208,QW#HG#MR1s1#R#dpat#5646#23,dpat,23,short,tb
+1209,QW#HG#MR1s1#R#sr95#5678#23,sr95,23,short,tb
+1210,lost sectioning,,23,short,
+1211,cell body stain - section 32,AG,23,short,
+1212,QW#HG#MR1s1#R#sch2#5656#23,sch2,23,short,tb
+1213,QW#HG#MR1s1#R#rx82#5654#23,rx82,23,short,tb
+1214,QW#HG#MR1s1#R#afdx#5674#23,afdx,23,short,tb
+1215,QW#HG#MR1s1#R#dpog#5664#23,dpog,23,short,tb
+1216,myelin stain - section 41,MS,23,short,
+1217,QW#HG#MR1S1#R#dpmg#5666#23,dpmg,23,short,tb
+1218,spare; in freezer,,23,short,
+1219,ly34 - section lost,ly34,23,short,tb
+1220,QW#HG#MR1s1#R#cpog#5660#23,cpog,23,short,tb
+1221,QW#HG#MR1S1#R#cpmg#5662#23,cpmg,23,short,tb
+1222,QW#HG#MR1s1#R#keta#5648#23,keta,23,short,tb
+1223,QW#HG#MR1S1#R#pire#9512#23,pire,23,short,tb
+1224,damg; not digitized,,23,short,
+1225,QW#HG#MR1S1#R#ampa#9382#23,ampa,23,short,tb
+1226,dpdp; not digitized,,23,short,
+1227,spare; in freezer,,23,short,
+1228,spare; in freezer,,23,short,
+1229,spare; in freezer,,23,short,
+1230,spare; in freezer,,23,short,
+1231,spare; in freezer,,23,short,
+1232,spare; in freezer,,23,short,
+1233,spare; in freezer,,23,short,
+1234,spare; in freezer,,23,short,
+1235,lost sectioning,,23,short,
+1236,lost sectioning,,23,short,
+1237,lost sectioning,,23,short,
+1238,lost sectioning,,23,short,
+1239,lost sectioning,,23,short,
+1240,lost sectioning,,23,short,
+1241,lost sectioning,,23,short,
+1242,lost sectioning,,23,short,
+1243,lost sectioning,,23,short,
+1244,lost sectioning,,23,short,
+1245,lost sectioning,,23,short,
+1246,lost sectioning,,23,short,
+1247,lost sectioning,,23,short,
+1248,lost sectioning,,23,short,
+1249,lost sectioning,,23,short,
+1250,QW#HG#MR1S1#R#kain#5636#24,kain,24,short,tb
+1251,QW#HG#MR1s1#R#mk80#5638#24,mk80,24,short,tb
+1252,lost sectioning,,24,short,
+1253,QW#HG#MR1s1#R#musc#5640#24,musc,24,short,tb
+1254,QW#HG#MR1s1#R#cgp5#5668#24,cgp5,24,short,tb
+1255,QW#HG#MR1S1#R#flum#5670#24,flum,24,short,tb
+1256,cell body stain - section 13,AG,24,short,
+1257,lost sectioning,,24,short,
+1258,lost sectioning,,24,short,
+1259,QW#HG#MR1s1#R#oxot#5644#24,oxot,24,short,tb
+1260,QW#HG#MR1s1#R#damp#5672#24,damp,24,short,tb
+1261,lost sectioning,,24,short,
+1262,myelin stain - section 20,MS,24,short,
+1263,QW#HG#MR1s1#R#epib#5658#24,epib,24,short,tb
+1264,QW#HG#MR1s1#R#praz#5650#24,praz,24,short,tb
+1265,lost sectioning,,24,short,
+1266,QW#HG#MR1s1#R#uk14#5652#24,uk14,24,short,tb
+1267,spare; in freezer,,24,short,
+1268,lost sectioning,,24,short,
+1269,lost sectioning,,24,short,
+1270,QW#HG#MR1s1#R#dpat#5646#24,dpat,24,short,tb
+1271,lost sectioning,,24,short,
+1272,QW#HG#MR1s1#R#sr95#5678#24,sr95,24,short,tb
+1273,cell body stain - section 32,AG,24,short,
+1274,QW#HG#MR1s1#R#sch2#5656#24,sch2,24,short,tb
+1275,lost sectioning,,24,short,
+1276,QW#HG#MR1s1#R#rx82#5654#24,rx82,24,short,tb
+1277,lost sectioning,,24,short,
+1278,QW#HG#MR1s1#R#afdx#5674#24,afdx,24,short,tb
+1279,lost sectioning,,24,short,
+1280,QW#HG#MR1s1#R#dpog#5664#24,dpog,24,short,tb
+1281,lost sectioning,,24,short,
+1282,myelin stain - section 41,MS,24,short,
+1283,lost sectioning,,24,short,
+1284,QW#HG#MR1S1#R#dpmg#5666#24,dpmg,24,short,tb
+1285,lost sectioning,,24,short,
+1286,spare; in freezer,,24,short,
+1287,lost sectioning,,24,short,
+1288,QW#HG#MR1s1#R#ly34#5676#24,ly34,24,short,tb
+1289,QW#HG#MR1s1#R#cpog#5660#24,cpog,24,short,tb
+1290,QW#HG#MR1S1#R#cpmg#5662#24,cpmg,24,short,tb
+1291,QW#HG#MR1s1#R#keta#5648#24,keta,24,short,tb
+1292,QW#HG#MR1S1#R#pire#9512#24,pire,24,short,tb
+1293,damg; not digitized,,24,short,
+1294,AMPA - section lost,ampa,24,short,tb
+1295,dpdp; not digitized,,24,short,
+1296,spare; in freezer,,24,short,
+1297,spare; in freezer,,24,short,
+1298,spare; in freezer,,24,short,
+1299,spare; in freezer,,24,short,
+1300,spare; in freezer,,24,short,
+1301,spare; in freezer,,24,short,
+1302,spare; in freezer,,24,short,
+1303,spare; in freezer,,24,short,
+1304,lost sectioning,,24,short,
+1305,lost sectioning,,24,short,
+1306,lost sectioning,,24,short,
+1307,lost sectioning,,24,short,
+1308,lost sectioning,,24,short,
+1309,lost sectioning,,24,short,
+1310,QW#HG#MR1S1#R#kain#5636#25,kain,25,short,tb
+1311,QW#HG#MR1s1#R#mk80#5638#25,mk80,25,short,tb
+1312,lost sectioning,,25,short,
+1313,QW#HG#MR1s1#R#musc#5640#25,musc,25,short,tb
+1314,QW#HG#MR1s1#R#cgp5#5668#25,cgp5,25,short,tb
+1315,QW#HG#MR1S1#R#flum#5670#25,flum,25,short,tb
+1316,cell body stain - section 13,AG,25,short,
+1317,lost sectioning,,25,short,
+1318,QW#HG#MR1s1#R#oxot#5644#25,oxot,25,short,tb
+1319,QW#HG#MR1s1#R#damp#5672#25,damp,25,short,tb
+1320,myelin stain - section 20,MS,25,short,
+1321,QW#HG#MR1s1#R#epib#5658#25,epib,25,short,tb
+1322,lost sectioning,,25,short,
+1323,QW#HG#MR1s1#R#praz#5650#25,praz,25,short,tb
+1324,QW#HG#MR1s1#R#uk14#5652#25,uk14,25,short,tb
+1325,spare; in freezer,,25,short,
+1326,QW#HG#MR1s1#R#dpat#5646#25,dpat,25,short,tb
+1327,QW#HG#MR1s1#R#sr95#5678#25,sr95,25,short,tb
+1328,cell body stain - section 32,AG,25,short,
+1329,QW#HG#MR1s1#R#sch2#5656#25,sch2,25,short,tb
+1330,QW#HG#MR1s1#R#rx82#5654#25,rx82,25,short,tb
+1331,QW#HG#MR1s1#R#afdx#5674#25,afdx,25,short,tb
+1332,QW#HG#MR1s1#R#dpog#5664#25,dpog,25,short,tb
+1333,myelin stain - section 41,MS,25,short,
+1334,QW#HG#MR1S1#R#dpmg#5666#25,dpmg,25,short,tb
+1335,spare; in freezer,,25,short,
+1336,lost sectioning,,25,short,
+1337,QW#HG#MR1s1#R#ly34#5676#25,ly34,25,short,tb
+1338,QW#HG#MR1s1#R#cpog#5660#25,cpog,25,short,tb
+1339,lost sectioning,,25,short,
+1340,QW#HG#MR1S1#R#cpmg#5662#25,cpmg,25,short,tb
+1341,QW#HG#MR1s1#R#keta#5648#25,keta,25,short,tb
+1342,lost sectioning,,25,short,
+1343,QW#HG#MR1S1#R#pire#9512#25,pire,25,short,tb
+1344,damg; not digitized,,25,short,
+1345,AMPA - section lost,ampa,25,short,tb
+1346,dpdp; not digitized,,25,short,
+1347,spare; in freezer,,25,short,
+1348,spare; in freezer,,25,short,
+1349,spare; in freezer,,25,short,
+1350,spare; in freezer,,25,short,
+1351,spare; in freezer,,25,short,
+1352,spare; in freezer,,25,short,
+1353,spare; in freezer,,25,short,
+1354,spare; in freezer,,25,short,
+1355,lost sectioning,,25,short,
+1356,lost sectioning,,25,short,
+1357,lost sectioning,,25,short,
+1358,lost sectioning,,25,short,
+1359,lost sectioning,,25,short,
+1360,lost sectioning,,25,short,
+1361,QW#HG#MR1S1#R#kain#5636#26,kain,26,short,tb
+1362,QW#HG#MR1s1#R#mk80#5638#26,mk80,26,short,tb
+1363,QW#HG#MR1s1#R#musc#5640#26,musc,26,short,tb
+1364,QW#HG#MR1s1#R#cgp5#5668#26,cgp5,26,short,tb
+1365,QW#HG#MR1S1#R#flum#5670#26,flum,26,short,tb
+1366,lost sectioning,,26,short,
+1367,cell body stain - section 13,AG,26,short,
+1368,lost sectioning,,26,short,
+1369,QW#HG#MR1s1#R#oxot#5644#26,oxot,26,short,tb
+1370,QW#HG#MR1s1#R#damp#5672#26,damp,26,short,tb
+1371,myelin stain - section 20,MS,26,short,
+1372,QW#HG#MR1s1#R#epib#5658#26,epib,26,short,tb
+1373,lost sectioning,,26,short,
+1374,QW#HG#MR1s1#R#praz#5650#26,praz,26,short,tb
+1375,QW#HG#MR1s1#R#uk14#5652#26,uk14,26,short,tb
+1376,spare; in freezer,,26,short,
+1377,lost sectioning,,26,short,
+1378,lost sectioning,,26,short,
+1379,QW#HG#MR1s1#R#dpat#5646#26,dpat,26,short,tb
+1380,QW#HG#MR1s1#R#sr95#5678#26,sr95,26,short,tb
+1381,cell body stain - section 32,AG,26,short,
+1382,QW#HG#MR1s1#R#sch2#5656#26,sch2,26,short,tb
+1383,QW#HG#MR1s1#R#rx82#5654#26,rx82,26,short,tb
+1384,QW#HG#MR1s1#R#afdx#5674#26,afdx,26,short,tb
+1385,QW#HG#MR1s1#R#dpog#5664#26,dpog,26,short,tb
+1386,myelin stain - section 41,MS,26,short,
+1387,QW#HG#MR1S1#R#dpmg#5666#26,dpmg,26,short,tb
+1388,lost sectioning,,26,short,
+1389,lost sectioning,,26,short,
+1390,spare; in freezer,,26,short,
+1391,QW#HG#MR1s1#R#ly34#5676#26,ly34,26,short,tb
+1392,QW#HG#MR1s1#R#cpog#5660#26,cpog,26,short,tb
+1393,QW#HG#MR1S1#R#cpmg#5662#26,cpmg,26,short,tb
+1394,lost sectioning,,26,short,
+1395,QW#HG#MR1s1#R#keta#5648#26,keta,26,short,tb
+1396,QW#HG#MR1S1#R#pire#9512#26,pire,26,short,tb
+1397,damg; not digitized,,26,short,
+1398,AMPA - section lost,ampa,26,short,tb
+1399,lost sectioning,,26,short,
+1400,lost sectioning,,26,short,
+1401,lost sectioning,,26,short,
+1402,dpdp; not digitized,,26,short,
+1403,spare; in freezer,,26,short,
+1404,spare; in freezer,,26,short,
+1405,spare; in freezer,,26,short,
+1406,spare; in freezer,,26,short,
+1407,spare; in freezer,,26,short,
+1408,spare; in freezer,,26,short,
+1409,spare; in freezer,,26,short,
+1410,spare; in freezer,,26,short,
+1411,QW#HG#MR1S1#R#kain#5636#27,kain,27,short,tb
+1412,QW#HG#MR1s1#R#mk80#5638#27,mk80,27,short,tb
+1413,QW#HG#MR1s1#R#musc#5640#27,musc,27,short,tb
+1414,QW#HG#MR1s1#R#cgp5#5668#27,cgp5,27,short,tb
+1415,QW#HG#MR1S1#R#flum#5670#27,flum,27,short,tb
+1416,lost sectioning,,27,short,
+1417,cell body stain - section 13,AG,27,short,
+1418,lost sectioning,,27,short,
+1419,QW#HG#MR1s1#R#oxot#5644#27,oxot,27,short,tb
+1420,lost sectioning,,27,short,
+1421,QW#HG#MR1s1#R#damp#5672#27,damp,27,short,tb
+1422,lost sectioning,,27,short,
+1423,myelin stain - section 20,MS,27,short,
+1424,lost sectioning,,27,short,
+1425,QW#HG#MR1s1#R#epib#5658#27,epib,27,short,tb
+1426,QW#HG#MR1s1#R#praz#5650#27,praz,27,short,tb
+1427,QW#HG#MR1s1#R#uk14#5652#27,uk14,27,short,tb
+1428,spare; in freezer,,27,short,
+1429,lost sectioning,,27,short,
+1430,lost sectioning,,27,short,
+1431,QW#HG#MR1s1#R#dpat#5646#27,dpat,27,short,tb
+1432,QW#HG#MR1s1#R#sr95#5678#27,sr95,27,short,tb
+1433,cell body stain - section 32,AG,27,short,
+1434,lost sectioning,,27,short,
+1435,QW#HG#MR1s1#R#sch2#5656#27,sch2,27,short,tb
+1436,QW#HG#MR1s1#R#rx82#5654#27,rx82,27,short,tb
+1437,lost sectioning,,27,short,
+1438,lost sectioning,,27,short,
+1439,QW#HG#MR1s1#R#afdx#5674#27,afdx,27,short,tb
+1440,QW#HG#MR1s1#R#dpog#5664#27,dpog,27,short,tb
+1441,lost sectioning,,27,short,
+1442,lost sectioning,,27,short,
+1443,myelin stain - section 41,MS,27,short,
+1444,QW#HG#MR1S1#R#dpmg#5666#27,dpmg,27,short,tb
