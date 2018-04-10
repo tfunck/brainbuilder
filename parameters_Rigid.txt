@@ -1,0 +1,43 @@
+
+//(FixedInternalImagePixelType "float")
+//(MovingInternalImagePixelType "float")
+(UseDirectionCosines "false")
+
+(Registration "MultiResolutionRegistration")
+(Interpolator "LinearInterpolator")
+(ResampleInterpolator "FinalBSplineInterpolator")
+(Resampler "DefaultResampler")
+
+(FixedImagePyramid "FixedSmoothingImagePyramid")
+(MovingImagePyramid "MovingSmoothingImagePyramid")
+
+(Optimizer "AdaptiveStochasticGradientDescent")
+(Transform "EulerTransform")
+(Metric "AdvancedMattesMutualInformation")
+
+(AutomaticScalesEstimation "true")
+(AutomaticTransformInitialization "true")
+(HowToCombineTransforms "Compose")
+
+(NumberOfHistogramBins 150)
+
+(NumberOfResolutions 7)
+
+(ImagePyramidSchedule  64 64 32 32 16 16 8 8 4 4 2 2 1 1 )
+
+(MaximumNumberOfIterations 5000)
+
+(MaximumStepLength 300.0)
+
+
+(NumberOfSpatialSamples 5048)
+(NewSamplesEveryIteration "true")
+(ImageSampler "RandomCoordinate")
+//(ImageSampler "Grid")
+
+//(BSplineInterpolationOrder 3)
+
+//(FinalBSplineInterpolationOrder 3)
+
+//Default pixel value for pixels that come from outside the picture:
+(DefaultPixelValue 0)

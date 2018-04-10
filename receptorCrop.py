@@ -26,16 +26,40 @@ from cropp_img import cropp_img
 
 
 def crop(img, img_dwn, bounding_box_dwn) :
-    #Create downsampled cropped image
-    cropped_dwn = img_dwn * bounding_box_dwn 
-    #cropped_dwn[(bounding_box_dwn==0) | (mask==1)]=np.median( img_dwn[(bounding_box_dwn == 0) | (mask==1) ])
-    cropped_dwn[(bounding_box_dwn==0) ]=np.median( img_dwn[(bounding_box_dwn == 0) ])
-    
-    #Create cropped image at full resolution
-    bounding_box=scipy.misc.imresize(bounding_box_dwn,size=(img.shape[0],img.shape[1]),interp="nearest")
-    cropped = np.zeros(img.shape)
-    cropped[bounding_box != 0 ] = img[bounding_box != 0]
-    cropped[bounding_box == 0 ] = np.median(img[bounding_box == 0 ])
+    if np.sum(bounding_box_dwn) > 0 : 
+        #Create downsampled cropped image
+        cropped_dwn = img_dwn * bounding_box_dwn 
+        #cropped_dwn[(bounding_box_dwn==0) | (mask==1)]=np.median( img_dwn[(bounding_box_dwn == 0) | (mask==1) ])
+        #plt.subplot(2,2,1)
+        #plt.imshow(bounding_box_dwn)
+        #plt.show()
+        
+        ymin, ymax, xmin, xmax, yi, xi = find_min_max(bounding_box_dwn)
+        y0=min(ymin)
+        y1=max(ymax)
+        x0=min(xmin) 
+        x1=max(xmax)
+        cropped_dwn = cropped_dwn[y0:y1,x0:x1]
+        
+        #Create cropped image at full resolution
+        bounding_box=scipy.misc.imresize(bounding_box_dwn,size=(img.shape[0],img.shape[1]),interp="nearest")
+        #plt.subplot(2,2,1)
+        #plt.imshow(bounding_box_dwn)
+        #plt.subplot(2,2,2)
+        #plt.imshow(cropped_dwn)
+        #plt.subplot(2,2,3)
+        #plt.imshow(bounding_box)
+        #plt.show()
+        ymin, ymax, xmin, xmax, yi, xi = find_min_max(bounding_box)
+        y0=min(ymin)
+        y1=max(ymax)
+        x0=min(xmin) 
+        x1=max(xmax)
+        cropped = img * bounding_box
+        cropped = cropped[y0:y1,x0:x1]
+    else :
+        cropped = img
+        cropped_dwn = img_dwn
     return cropped, cropped_dwn
 
 

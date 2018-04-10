@@ -24,5 +24,5 @@ if __name__ == "__main__":
     if args.raw_source_dir != '' and args.raw_output_dir != '' and args.train_output_dir != '' :
         apply_model(args.train_output_dir,args.raw_source_dir,args.raw_output_dir,args.step, args.clobber)
     else :
-        print("Skipping apply_model because either --train-output, --raw-source, or --raw--outoutput are not set")
+        print("Skipping apply_model because either --train-output, --raw-source, or --raw-output are not set")
 

@@ -231,7 +231,7 @@ def predict_results(output_dir, model, images_val, masks_val, _use_radon ):
         plt.imshow(X.reshape(ydim,xdim))
         plt.savefig(output_dir+os.sep+str(i)+'.tif')
 
-def train_model(source_dir, output_dir, step, epochs, clobber,ratio=0.8 ) :
+def train_model(source_dir, output_dir, step, epochs, clobber,ratio=0.9 ) :
     model_name=output_dir+os.sep+"model.hdf5"
     
     if not os.path.exists(model_name) or clobber : 
@@ -242,6 +242,12 @@ def train_model(source_dir, output_dir, step, epochs, clobber,ratio=0.8 ) :
         h_list_0 = [ identity, equalize]
         h_list_1 = [ identity] * len(h_list_0)
         n_aug= len(deg_list) * len(stretch_list) * len(h_list_0)
+
+
+        train_str=source_dir+os.sep+'train/*tif'
+        label_str=source_dir+os.sep+'label/*tif'
+        train_list  = [ f for f in glob(train_str) if not 'downsample' in f ]
+        labels_list = [ f for f in glob(label_str) if not 'downsample' in f ]
 
         if not os.path.exists(output_dir+os.sep+'train.npy') or not os.path.exists(output_dir+os.sep+'labels.npy') or clobber  :
             images, masks = fn_to_array(source_dir, output_dir, step, clobber=clobber)
@@ -255,14 +261,17 @@ def train_model(source_dir, output_dir, step, epochs, clobber,ratio=0.8 ) :
             images = np.load(output_dir+os.sep+'train.npy')
             masks = np.load(output_dir+os.sep+'labels.npy')
         
-        n_images= images.shape[0] / n_aug
+        n_images= int(images.shape[0] / n_aug)
         n_train = int(round(ratio * n_images)*n_aug )
-        
-        images_train= images[:n_train,]
-        images_val  = images[n_train:]
+       
+        train_set = np.random.choice(n_images, n_train)
+        val_set = [ i for i in range(n_images) if not i in train_set ]
 
-        masks_train = masks[:n_train,]
-        masks_val   = masks[n_train:]
+        images_train= images[train_set]
+        images_val  = images[val_set]
+
+        masks_train = masks[train_set]
+        masks_val   = masks[val_set]
 
         n=images_val.shape[0]
         m=images_train.shape[0]
