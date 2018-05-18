@@ -7,6 +7,7 @@ import numpy as np
 from scipy.misc import imresize 
 import matplotlib.pyplot as plt
 
+from scipy.ndimage.filters import gaussian_filter
 
 def get_max_model(train_output_dir):
     model_list_str = train_output_dir+os.sep+"model_checkpoint-*hdf5"
@@ -60,7 +61,14 @@ def get_lines(downsample_files,raw_files, max_model,output_dir, clobber) :
     for f in downsample_files :
         line_fn_split = os.path.splitext(os.path.basename(f))
         line_fn=line_dir +os.sep+line_fn_split[0]+'.png'
-        if not os.path.exists(line_fn) or clobber: 
+
+        if not os.path.exists(line_fn) or clobber:
+
+            img=imageio.imread(f)
+            ydim=img.shape[0]
+            xdim=img.shape[1]
+            if ydim > xdim : 
+                img = img.T
             try : #Load keras if has not been loaded yet 
                 keras
             except NameError :
@@ -69,10 +77,8 @@ def get_lines(downsample_files,raw_files, max_model,output_dir, clobber) :
                 keras.metrics.dice = dice
                 model = load_model(max_model )
 
-            img=imageio.imread(f)
-            ydim=img.shape[0]
-            xdim=img.shape[1]
-            img=img.reshape([1,ydim,xdim,1])
+
+            img=img.reshape([1,img.shape[0],img.shape[1],1])
             X = model.predict(img, batch_size=1)
             idx = X > np.max(X) * 0.5
             X[ idx ]  = 1
@@ -88,7 +94,31 @@ def get_lines(downsample_files,raw_files, max_model,output_dir, clobber) :
     return line_files
 
 
-def fill(iraw, iline) :
+def fill(iraw, iline, it=10):
+    iraw_temp = np.copy(iraw)
+    iline_dil = binary_dilation(iline, iterations=it).astype(int)
+    
+    iline_dil = iline_dil - iline
+    #plt.subplot(2,1,1)
+    #plt.imshow(iline_dil)
+
+    border = iraw[iline_dil == 1]
+    border = border.flatten()
+
+    replacement_values = border[np.random.randint(0, len(border) , np.prod(iraw.shape))].reshape(iraw.shape)
+    iraw_temp[ iline == 1 ] = replacement_values[ iline == 1 ] 
+    iraw_temp = gaussian_filter(iraw_temp, 5)
+    iraw[ iline==1 ] = iraw_temp[iline == 1]
+
+    #plt.subplot(2,1,2)
+    #plt.imshow(iraw)
+    #plt.show()
+    return iraw 
+
+    
+
+
+def fill0(iraw, iline) :
 
     m=np.max(iline)
     xx, yy = np.meshgrid(range(iraw.shape[1]), range(iraw.shape[0]))
@@ -160,15 +190,16 @@ def remove_lines(line_files, raw_files, raw_output_dir, clobber) :
         base = os.path.splitext(os.path.basename(raw))[0]
         fout = final_dir + os.sep + base + '.png'
         if not os.path.exists(fout) or clobber : 
+
+            iraw = imageio.imread(raw)
+            if len(iraw.shape) == 3 : iraw = np.mean(iraw, axis=2)
+            if iraw.shape[0] > iraw.shape[1] : 
+                iraw = iraw.T
             lines= [ f  for f in line_files if base in f ]
             if lines != [] : lines=lines[0]
             else : 
                 print("failed at remove_lines"); 
                 exit(1)
-
-            iraw = imageio.imread(raw)
-            if len(iraw.shape) == 3 : iraw = np.mean(iraw, axis=2)
-
             iline = imageio.imread(lines)
             iline=binary_dilation(iline,iterations=3).astype(int)
             iraw=fill(iraw, iline)
@@ -176,16 +207,13 @@ def remove_lines(line_files, raw_files, raw_output_dir, clobber) :
 
     return 0
 
-def apply_model(train_output_dir, raw_source_dir, raw_output_dir, step, clobber):
-
-
-
+def apply_model(train_output_dir, raw_source_dir, raw_output_dir, step, clobber=False):
     max_model=get_max_model(train_output_dir)
     raw_files=get_raw_files(raw_source_dir)  
     print("Got raw file names.")
     downsample_files = downsample_raw(raw_files, raw_output_dir, step, clobber)
     print("Got downsampled files.")
-    line_files = get_lines(downsample_files, raw_files,max_model, raw_output_dir, clobber)
+    line_files = get_lines(downsample_files, raw_files,max_model, raw_output_dir,  clobber)
     print("Loaded line files.")
     remove_lines(line_files, raw_files, raw_output_dir, clobber)
     print("Removed lines from raw files.")

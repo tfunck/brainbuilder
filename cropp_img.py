@@ -10,7 +10,7 @@ from skimage.filters import threshold_otsu, threshold_yen, threshold_li
 from scipy.ndimage.filters import gaussian_filter
 from utils.anisotropic_diffusion import *
 import matplotlib.pyplot as plt 
-
+from skimage.exposure import  equalize_hist
 def curvature(img):
     xx, yy = np.gradient(img, edge_order=2)
     img = np.sqrt(xx**2 + yy**2)
@@ -129,7 +129,7 @@ def find_bb_overlap(cc, cc_unique):
     return overlap
 
 
-def cropp_img(img):
+def cropp_img(img, line, no_frame=False, low_contrast=False, plot=False):
     '''
     Use histogram thresholding and morphological operations to create a binary image that is equal to 1 for pixels which will be kept after cropping.
 
@@ -141,15 +141,34 @@ def cropp_img(img):
     '''
     #img =cv2.equalizeHist( imadjust(img)) #cv2.equalizeHist(im1)
     #img = imajust(img)
-    img = anisodiff(img, niter=30, kappa=10) #gaussian_filter(img, sigma=1)
-    img_smoothed = curvature(img)
-    #img_thr = get_kmeans_img(img)
-    t=threshold_otsu(img)
+    if plot :
+        plt.subplot(2,2,1)
+        plt.imshow(img)
+
+    img = gaussian_filter(img, sigma=1)
+    if low_contrast : 
+        img = equalize_hist(img)
+    if plot :
+        plt.subplot(2,2,2)
+        plt.imshow(img)
+    img_smoothed = img
+    
+    t=threshold_li(img)
     img_thr = np.zeros(img.shape)
     img_thr[ img < t ] = 1
 
+    if no_frame : 
+        img_thr[ line != 0 ] = 1
+    else : 
+        img_thr[ line != 0 ] = 0
+
+    #img_thr = binary_dilation(binary_erosion(img_thr, iterations=5), iterations=5)
     cc, nlabels = label(img_thr, structure=np.ones([3,3]))
-    
+
+    if plot :
+        plt.subplot(2,2,3)
+        plt.imshow(img_thr)
+
     cc = remove_border_regions(cc)
     
     cc_unique = np.unique(cc)
@@ -170,6 +189,11 @@ def cropp_img(img):
     im4[ im4 > 0 ] = 1
     
     bounding_box = binary_mask(im4)
+
+    if plot :
+        plt.subplot(2,2,4)
+        plt.imshow(bounding_box)
+        plt.show()
 
     return bounding_box, img_smoothed, img_thr, cc
     

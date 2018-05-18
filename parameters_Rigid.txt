@@ -19,15 +19,16 @@
 (AutomaticTransformInitialization "true")
 (HowToCombineTransforms "Compose")
 
-(NumberOfHistogramBins 150)
+(NumberOfHistogramBins 255)
 
-(NumberOfResolutions 7)
+(NumberOfResolutions 2)
+(ImagePyramidSchedule 128 128 64 64 )
+//(NumberOfResolutions 10)
+//(ImagePyramidSchedule  128 128 90 90 64 64 32 32 16 16 8 8 4 4 2 2 1 1 )
 
-(ImagePyramidSchedule  64 64 32 32 16 16 8 8 4 4 2 2 1 1 )
-
-(MaximumNumberOfIterations 5000)
-
-(MaximumStepLength 300.0)
+//(MaximumNumberOfIterations 100)
+(MaximumNumberOfIterations 100)
+(MaximumStepLength 10.0)
 
 
 (NumberOfSpatialSamples 5048)
@@ -35,9 +36,9 @@
 (ImageSampler "RandomCoordinate")
 //(ImageSampler "Grid")
 
-//(BSplineInterpolationOrder 3)
+(BSplineInterpolationOrder 1)
 
-//(FinalBSplineInterpolationOrder 3)
+(FinalBSplineInterpolationOrder 3)
 
 //Default pixel value for pixels that come from outside the picture:
 (DefaultPixelValue 0)
