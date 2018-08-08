@@ -193,19 +193,19 @@ def sort_slices(df, slice_order) :
 
 def set_slice_order(slice_order_fn="") :
     slice_order_list=[]
-    for i in range(1,3) : #FIXME : Should not be hardcoded
+    for i in range(1,7) : #FIXME : Should not be hardcoded
         slice_order_fn = "MR1_R_slab_"+str(i)+"_section_numbers.csv"
         if os.path.exists(slice_order_fn) : 
             df0=pd.read_csv(slice_order_fn)
             df0["slab"]= [i] * df0.shape[0]
             slice_order_list.append(df0)
     slice_order = pd.concat(slice_order_list)
-    
-    slice_order["global_order"] = slice_order["number"]
+    slice_order["global_order"] =slice_order["number"].astype(int)
+
     slice_order_unique = np.sort(slice_order["slab"].unique())
     for i in slice_order_unique[1:] :
         prev_slab = i - 1
-        prev_slab_max = slice_order["number"].loc[ slice_order["slab"] == prev_slab ].max() 
+        prev_slab_max = slice_order["global_order"].loc[ slice_order["slab"] == prev_slab ].max() 
         slice_order["global_order"].loc[ slice_order["slab"] == i ] += prev_slab_max
 
     return slice_order
