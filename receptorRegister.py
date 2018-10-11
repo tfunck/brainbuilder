@@ -72,9 +72,6 @@ def create_coregistration_df(slab, df_fn, clobber=True):
         df_top = pd.DataFrame({"i": top, "tier":tier_list_top, "ligand":ligand_list_top, "filenames":filenames_top, "order": order_list_top, "skip":skip_list_top})
         df_bottom=pd.DataFrame({"i": bottom, "tier":tier_list_bottom, "ligand":ligand_list_bottom,"filenames":filenames_bottom, "order": order_list_bottom, "skip":skip_list_bottom })
         
-        #base_row = pd.DataFrame( df_top.loc[ df_top.tier == 1 ].iloc[0,] ).T
-        #base_row.index = [df_top.shape[0] ]
-        #df_top = df_top.append(base_row)
         df = pd.concat([df_top, df_bottom])
 
         df["nmi"] = [0.] * df.shape[0]
@@ -85,41 +82,6 @@ def create_coregistration_df(slab, df_fn, clobber=True):
     else :
         df = pd.read_csv(df_fn)
     return df, m
-
-from sklearn.metrics import normalized_mutual_info_score
-
-def nmi(fixed_fn, rsl_fn):
-    fixed = imageio.imread(fixed_fn).reshape(-1,)
-    rsl = imageio.imread(rsl_fn).reshape(-1,)
-    n = normalized_mutual_info_score(fixed, rsl)
-    #print("NMI: ", n)
-
-    return n
-
-def create_cmap(x):
-    xuni = np.unique(x)
-    xunienum = enumerate(xuni)
-    d=dict(xunienum)
-    e = { v:k for k,v in  d.items() }
-    cmap = np.array([ e[i]  for i in x ])
-    cmap = cmap / np.max(cmap)
-    return cmap
-
-def slice_nmi(df):
-    for i in range(df.shape[0]) :
-        #if you use index to acces the rows, then you will start at the end of the slab
-        row=df.iloc[i,]
-        j=i+1
-        k=j+1
-        if j >=  df.shape[0] : continue
-        fixed=df.filenames.iloc[i,] 
-
-        if df.rsl.iloc[j,] == "" : 
-            moving=df.filenames.iloc[j,]
-        else :
-            moving=df.rsl.iloc[j,]
-        df["nmi"].iloc[ i, ] = nmi(fixed, moving)
-    return df
 
 
 def slice_coregistration(df,resolutions, max_iterations, max_length, output_dir, qc_dir, m, tier, transform_dict, clobber=False) :
@@ -253,7 +215,7 @@ def downsample_slices(source_files, output_dir):
             hemisphere = [ x for x in f.split("#") if x == "R" or x == "L" ][0]
             mr = re.split('s|S', mr_slab)[0]
             slab = re.split('s|S', mr_slab)[1]
-            slab_size = scale[mr][hemisphere][slab]
+            slab_size = scale[mr][hemisphere][slab]["size"]
 
             ### 2. Read Image
             img = imageio.imread(f)
@@ -380,11 +342,6 @@ def slab_align(slab_coreg_pts, i, slab_coreg_qc_dir, transform_dir, clobber ):
     j = moving_slab["direction"] + i
     fixed_slab = slab_coreg_pts[ j] 
   
-    #print("moving slab")
-    #print(moving_slab)
-    #print("fixed slab")
-    #print(fixed_slab)
-
     fixed_side  = moving_slab["side"]["fixed"] 
     moving_side = moving_slab["side"]["moving"]
 
@@ -398,7 +355,6 @@ def slab_align(slab_coreg_pts, i, slab_coreg_qc_dir, transform_dir, clobber ):
     transform_fn = transform_dir + os.sep + "tfm_"+str(i)+"-to-"+str(j)+".txt"
     if not os.path.exists(transform_fn) or clobber :
         qc_fn = slab_coreg_qc_dir + os.sep +"slab_"+ str(i) +"-to-" +str(j)+"_coreg.png"
-        #print("qc", qc_fn)
         register(fixed_fn, moving_fn, transform_fn, resolutions, max_iterations, max_length )
         rsl = resample(moving_fn, fixed_fn, [transform_fn] )
         display_images_with_alpha( 0.5, imageio.imread(fixed_fn), imageio.imread(moving_fn), rsl, qc_fn, fixed_order, moving_order, j, i)
@@ -414,11 +370,8 @@ def slab_registration(i,m, slab_coreg_tfm_dir, slab_coreg_rsl_dir, slab_coreg_pt
     for f in  df["rsl"].loc[ df["slab"] == i ] :
         rsl_fn = slab_coreg_rsl_dir + os.sep + os.path.basename(f)
         rsl_qc_fn = slab_coreg_qc_dir + os.sep + "qc_"+os.path.basename(f)
-        if 'MR1s1' in rsl_fn : print(rsl_fn)
         if not os.path.exists(rsl_fn)  or clobber :
-            #print( not os.path.exists(rsl_fn), not os.path.exists(rsl_qc_fn),  clobber)
             rsl = resample(f, f, transform_list )
-            #print(rsl_fn)
             imageio.imsave(rsl_fn, rsl)
             #plt.subplot(2,1,1)
             #plt.imshow(0.5* rsl + 0.5*imageio.imread(slab_coreg_pts[m]["left"]))
@@ -485,7 +438,6 @@ def receptorRegister(source_dir, output_dir, slice_order_fn, clobber, tiers_str,
     
     df = set_csv(source_files,output_dir, "", exclude_str, slice_order_fn=slice_order_fn, clobber=clobber)
     df = setup_tiers(df, tiers_str)
-    #df["masks"] = df["filename"].apply( lambda x : re.sub("preprocess", "masks", x)) 
     
     if not os.path.exists(df_rsl_fn) or clobber :
         df_rsl = apply_slice_registration(df,output_dir, clobber)
