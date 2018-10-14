@@ -219,8 +219,22 @@ def set_slice_name(source_files, cols, include_str, exclude_str):
         f=re.sub(r"([0-9])s([0-9])", r"\1#\2", f0, flags=re.IGNORECASE)
         ar=re.split('#|\.|\/|\_',basename(f))
         
-        ar=[[f0]+ar]
-        df0=pd.DataFrame(ar, columns=cols)
+        ar=[f0]+ar
+        processing_str=""
+        ar_enum = enumerate(ar)
+        n_cols = len(cols)
+        n_ar = len(ar)
+        if n_ar  > n_cols :
+            k = n_ar - n_cols + 1
+            ar_short = ar[(n_cols-k):(n_ar-1)]
+            #print( (n_cols-k), (n_ar-1))
+            #print(ar_short)
+            
+            processing_string = '-'.join(ar_short)
+
+            ar = ar[0:(len(cols)-k)] + [processing_string] + [ar[-1]]
+
+        df0=pd.DataFrame([ar], columns=cols)
         ligand = df0.ligand[0]
         if not include_str == '': 
             if not ligand in include_list : continue
@@ -263,4 +277,5 @@ def set_csv(source_files, output_dir, include_str, exclude_str, slice_order_fn="
         df = pd.read_csv(output_dir+os.sep+out_fn)
 
     return(df)
+
 
