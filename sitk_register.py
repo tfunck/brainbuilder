@@ -7,6 +7,44 @@ from utils.utils import *
 import cv2
 #matplotlib inline
 
+
+
+
+def receptor_show(img_fn, img2_fn, title=None, margin=0.05, dpi=80, direction="caudal_to_rostral"):
+    img = sitk.ReadImage(img_fn)
+    img2 = sitk.ReadImage(img2_fn)
+    nda = sitk.GetArrayViewFromImage(img)
+    nda2 = sitk.GetArrayViewFromImage(img2)
+    spacing = img.GetSpacing()
+    spacing2 = img.GetSpacing()
+       
+    #nda = np.flip(nda.T, 1)
+    #if direction == "rostral_to_caudal":
+    #    nda = np.flip(nda, 0)
+ 
+    ysize = nda.shape[0]
+    xsize = nda.shape[1]
+
+    ysize2 = nda2.shape[0]
+    xsize2 = nda2.shape[1]
+      
+    figsize = (1 + margin) * ysize / dpi, (1 + margin) * xsize / dpi
+
+    #fig = plt.figure(title, figsize=figsize, dpi=dpi)
+    #ax = fig.add_axes([margin, margin, 1 - 2*margin, 1 - 2*margin])
+    
+    extent = (0, xsize*spacing[1], 0, ysize*spacing[0])
+    plt.subplot(2,1,1)
+    t = plt.imshow(nda, extent=extent, interpolation='hamming', origin='lower')#cmap='gray',
+    plt.subplot(2,1,2)
+    t = plt.imshow(nda2, extent=extent, interpolation='hamming', origin='lower')#cmap='gray',
+    
+    if(title):
+        plt.title(title)
+    plt.show()
+
+
+
 def display_images_with_alpha( alpha, fixed, moving, moving_resampled, fn, order_fixed, order_moving, fixed_tier, moving_tier):
     fixed_npa = fixed #imageio.imread(fixed)
     moving_npa= moving #imageio.imread(moving)
@@ -65,12 +103,16 @@ def pad_images(moving_image, fixed_image):
     moving_image_padded_sitk = sitk.GetImageFromArray(moving_img_padded) 
     return moving_image_padded_sitk, fixed_image_padded_sitk
 
-#def sitk_register(fixed, moving, transform_fn):
-def register(fixed_fn, moving_fn, transform_fn, resolutions, max_iterations, max_length):
+def register(fixed_fn, moving_fn, transform_fn, resolutions, max_iterations, max_length, transform_type="Euler2DTransform"):
     fixedImage = sitk.ReadImage(fixed_fn)
     movingImage = sitk.ReadImage(moving_fn)
+    
+    if transform_type == "AffineTransform" :
+        transform = sitk.AffineTransform(2) 
+    else : 
+        transform = sitk.Euler2DTransform() 
 
-    initial_transform = sitk.CenteredTransformInitializer(fixedImage, movingImage, sitk.Euler2DTransform(), sitk.CenteredTransformInitializerFilter.MOMENTS )
+    initial_transform=sitk.CenteredTransformInitializer(fixedImage, movingImage,transform,sitk.CenteredTransformInitializerFilter.MOMENTS )
     
     registration_method = sitk.ImageRegistrationMethod()
     ## Similarity metric settings.

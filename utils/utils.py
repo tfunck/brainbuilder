@@ -233,7 +233,11 @@ def set_slice_name(source_files, cols, include_str, exclude_str):
             processing_string = '-'.join(ar_short)
 
             ar = ar[0:(len(cols)-k)] + [processing_string] + [ar[-1]]
-
+        
+        if len(ar) != len(cols) : 
+            print("Warning! Skipping :")
+            print(ar)
+            continue    
         df0=pd.DataFrame([ar], columns=cols)
         ligand = df0.ligand[0]
         if not include_str == '': 
@@ -257,22 +261,22 @@ def set_slab_border(df) :
 
     return df
     
-def set_csv(source_files, output_dir, include_str, exclude_str, slice_order_fn="", out_fn="receptor_slices.csv", clobber=False, df_with_order=False):
-
+def set_csv(source_files, output_dir, include_str="", exclude_str="", slice_order_fn="", out_fn="receptor_slices.csv", clobber=False, df_with_order=False):
+    
+    if not os.path.exists(output_dir) : os.makedirs(output_dir)
     if not os.path.exists(output_dir+os.sep+out_fn ) or clobber:
         #Load csv files with order numbers
         cols=["filename", "a","b","mri","slab","hemisphere","ligand","sheet","repeat", "processing","ext"] 
         if df_with_order :
             cols=["filename","order", "a","b","mri","slab","hemisphere","ligand","sheet","repeat", "processing","ext"] 
         slice_order = set_slice_order()
-        print("set_slice_name")
         df = set_slice_name(source_files, cols, include_str, exclude_str)
-        print("sort_slices")
         df = sort_slices(df, slice_order )
         ###df = set_slab_border(df)
         ###if os.path.exists(slice_order_fn)  :
         ###else : df.sort_values(by=["mri","slab","ligand","sheet","repeat"], inplace=True)
-        if output_dir != "" : df.to_csv(output_dir+os.sep+out_fn)
+        if output_dir != "" : 
+            df.to_csv(output_dir+os.sep+out_fn)
     else :
         df = pd.read_csv(output_dir+os.sep+out_fn)
 

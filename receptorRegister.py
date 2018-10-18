@@ -8,7 +8,7 @@ import json
 import numpy as np
 #from sitk_register import register
 #from elastix_register import register, resample, get_param
-from sitk_register import register, resample, display_images_with_alpha
+from sitk_register import register, resample, display_images_with_alpha, myshow
 import scipy.misc
 from utils.utils import *
 from utils.anisotropic_diffusion import anisodiff
