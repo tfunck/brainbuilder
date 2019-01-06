@@ -8,7 +8,7 @@ import json
 import numpy as np
 #from sitk_register import register
 #from elastix_register import register, resample, get_param
-from sitk_register import register, resample, display_images_with_alpha, myshow
+from sitk_register import register, resample, display_images_with_alpha
 import scipy.misc
 from utils.utils import *
 from utils.anisotropic_diffusion import anisodiff
@@ -118,7 +118,7 @@ def slice_coregistration(df,resolutions, max_iterations, max_length, output_dir,
 
             if not os.path.exists(qc_fn) or not os.path.exists(transform_fn) or clobber  :
                 print("Fixed:\t", order_fixed,"\t", fixed)
-                register(fixed, moving, transform_fn, resolutions, max_iterations, max_length )
+                register(fixed, moving, transform_fn, resolutions, max_iterations )
                 print("Moving:\t", order_moving,"\t", moving)
                 print("RSL Transformation :", transform_dict[ order_moving][0])
                 rsl = resample(moving, fixed, [transform_dict[ order_moving][0]] )
@@ -356,7 +356,7 @@ def slab_align(slab_coreg_pts, i, slab_coreg_qc_dir, transform_dir, clobber ):
     if not os.path.exists(transform_fn) or clobber :
         qc_fn = slab_coreg_qc_dir + os.sep +"slab_"+ str(i) +"-to-" +str(j)+"_coreg.png"
         register(fixed_fn, moving_fn, transform_fn, resolutions, max_iterations, max_length )
-        rsl = resample(moving_fn, fixed_fn, [transform_fn] )
+        rsl = resample(moving_fn, [transform_fn] )
         display_images_with_alpha( 0.5, imageio.imread(fixed_fn), imageio.imread(moving_fn), rsl, qc_fn, fixed_order, moving_order, j, i)
 
     

@@ -1,14 +1,43 @@
 import SimpleITK as sitk
 import os
 import numpy as np
+import matplotlib
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import imageio
 from utils.utils import *
-import cv2
 #matplotlib inline
 
+def start_plot():
+    global metric_values, multires_iterations
+    metric_values = []
+    multires_iterations = []
 
+def update_iterations(registration_method):
+    global metric_values, multires_iterations
+    metric=registration_method.GetMetricValue()
+    metric_values.append(metric)                                       
+    return 0
 
+def update_multires_iterations():
+    global metric_values, multires_iterations
+    iteration=len(metric_values)
+    multires_iterations.append(iteration)
+
+# Callback invoked when the EndEvent happens, do cleanup of data and figure.
+# Callback invoked when the IterationEvent happens, update our data and display new figure.    
+def plot_values(out_fn) : #registration_method):
+    global metric_values, multires_iterations
+    
+    # Plot the similarity metric values
+
+    plt.plot(range(len(metric_values)), metric_values, 'r')
+    plt.plot(multires_iterations, [metric_values[index] for index in multires_iterations], 'b*')
+    plt.xlabel('Iteration Number',fontsize=12)
+    plt.ylabel('Metric Value',fontsize=12)
+    plt.savefig(out_fn)
+    plt.close()
+    return 0
 
 def receptor_show(img_fn, img2_fn, title=None, margin=0.05, dpi=80, direction="caudal_to_rostral"):
     img = sitk.ReadImage(img_fn)
@@ -45,40 +74,72 @@ def receptor_show(img_fn, img2_fn, title=None, margin=0.05, dpi=80, direction="c
 
 
 
-def display_images_with_alpha( alpha, fixed, moving, moving_resampled, fn, order_fixed, order_moving, fixed_tier, moving_tier):
-    fixed_npa = fixed #imageio.imread(fixed)
-    moving_npa= moving #imageio.imread(moving)
-    moving_resampled_npa= moving_resampled #imageio.imread(moving_resampled)
-    
+def display_images_with_alpha( alpha, fixed, moving, moving_resampled, fn, order_fixed, order_moving, fixed_tier, moving_tier, metric=0):
+    fixed_npa = (fixed - fixed.min() ) / (fixed.max() - fixed.min())  #imageio.imread(fixed)
+    moving_npa = (moving - moving.min() ) / (moving.max() - moving.min())  #imageio.imread(moving)
+    moving_resampled_npa =(moving_resampled-moving_resampled.min()) / (moving_resampled.max() - moving_resampled.min())  #imageio.imread(moving_resampled)
+    #moving_npa= moving #imageio.imread(moving)
+    #moving_resampled_npa= moving_resampled #imageio.imread(moving_resampled)
+    extent = 0, moving_npa.shape[1], 0, moving_npa.shape[0]
+    if metric != 0 :
+        plt.title("Metric= "+ str(metric) )
+
     plt.subplots(1,3,figsize=(10,8))
     
     # Draw the fixed image in the first subplot.
-    plt.subplot(2,2,1)
+    plt.subplot(2,3,1)
     plt.title( str(fixed_tier)+ ' '+ str(order_fixed))
-    plt.imshow(fixed_npa,cmap=plt.cm.Greys_r);
+    plt.imshow(fixed_npa,cmap=plt.cm.gray);
     plt.axis('off')
     
     # Draw the moving image in the second subplot.
-    plt.subplot(2,2,2)
+    plt.subplot(2,3,2)
     plt.title( str(moving_tier)+ ' '+ str(order_moving))
-    plt.imshow(moving_npa,cmap=plt.cm.Greys_r);
+    plt.imshow(moving_npa,cmap=plt.cm.bone);
     plt.axis('off')
-    
-    plt.subplot(2,2,3)
-    img0 = (1.0 - alpha)*moving_npa + alpha*moving_resampled_npa
-    plt.imshow(img0);
+   
+    plt.subplot(2,3,3)
+    plt.title( str(moving_tier)+ ' '+ str(order_moving))
+    plt.imshow(moving_resampled_npa,cmap=plt.cm.bone);
+    plt.axis('off')
+
+
+    plt.subplot(2,3,4)
+    img1 = (1.0 - alpha)*fixed_npa + alpha*moving_resampled_npa
+    plt.imshow(fixed_npa, cmap=plt.cm.gray, interpolation='bilinear', extent=extent)
+    plt.imshow(moving_npa, cmap=plt.cm.hot, alpha=0.35, interpolation='bilinear', extent=extent)
+   #plt.imshow(img1);
+    plt.title('original moving vs fixed')
+
+    plt.subplot(2,3,5)
+    #plt.imshow(img0);
+    plt.imshow(moving_npa, cmap=plt.cm.bone, interpolation='bilinear', extent=extent)
+    plt.imshow(moving_resampled_npa, cmap=plt.cm.hot, alpha=0.35, interpolation='bilinear', extent=extent)
     plt.title('registered moving vs original moving')
     plt.axis('off')
 
-    plt.subplot(2,2,4)
-    img1 = (1.0 - alpha)*fixed_npa + alpha*moving_resampled_npa
-    plt.imshow(img1);
+    plt.subplot(2,3,6)
+    plt.imshow(fixed_npa, cmap=plt.cm.gray, interpolation='bilinear', extent=extent)
+    plt.imshow(moving_resampled_npa, cmap=plt.cm.hot, alpha=0.35, interpolation='bilinear', extent=extent)
+   #plt.imshow(img1);
     plt.title('registered moving vs fixed')
     plt.axis('off')
-    
+
+
+    plt.axis('off')
+
     plt.savefig(fn)
     #plt.show()
     plt.clf()
+
+from skimage.exposure import  equalize_hist
+def preprocess_img(img):
+
+    ar = sitk.GetArrayViewFromImage(img)
+    ar = equalize_hist(ar) 
+    img = sitk.GetImageFromArray(ar)
+
+    return img
 
 
 
@@ -103,35 +164,63 @@ def pad_images(moving_image, fixed_image):
     moving_image_padded_sitk = sitk.GetImageFromArray(moving_img_padded) 
     return moving_image_padded_sitk, fixed_image_padded_sitk
 
-def register(fixed_fn, moving_fn, transform_fn, resolutions, max_iterations, max_length, transform_type="Euler2DTransform"):
-    fixedImage = sitk.ReadImage(fixed_fn)
-    movingImage = sitk.ReadImage(moving_fn)
-    
+def create_mask(img):
+    from skimage.filters import threshold_li as threshold
+    ar = sitk.GetArrayViewFromImage(img)
+    thr = threshold(ar)
+    #print(ar.min(), ar.mean(), ar.max(), thr)
+    idx = ar > thr
+    mask=np.zeros(ar.shape)
+    mask[idx] = 1
+    #print("Number of pixels in mask: ",np.sum(mask))
+    mask_img = sitk.GetImageFromArray(mask)
+    return mask_img
+
+def register(fixed_fn, moving_fn, transform_fn, resolutions, max_iterations, transform_type="Euler2DTransform", preprocess=False, numberOfHistogramBins=100, fixed_spacing=[0.2, 0.2], moving_spacing=[0.2, 0.2],stepLength=2, valueTolerance=1e-5, stepTolerance=1e-5,  mask=True, invert_transform=False):
+    fixedImage = sitk.ReadImage(fixed_fn,  sitk.sitkFloat32)
+    movingImage = sitk.ReadImage(moving_fn,  sitk.sitkFloat32)
+
+    registration_method = sitk.ImageRegistrationMethod()
+
+    if mask : 
+        fixedImageMask = create_mask(fixedImage)
+        registration_method.SetMetricFixedMask(fixedImageMask)
+        movingImageMask = create_mask(movingImage)
+        registration_method.SetMetricMovingMask(movingImageMask)
+
+    if preprocess :
+        fixedImage = preprocess_img( fixedImage )
+        movingImage = preprocess_img(movingImage)
+  
+    fixedImage.SetSpacing(fixed_spacing)
+    movingImage.SetSpacing(moving_spacing)
+
     if transform_type == "AffineTransform" :
         transform = sitk.AffineTransform(2) 
     else : 
         transform = sitk.Euler2DTransform() 
-
-    initial_transform=sitk.CenteredTransformInitializer(fixedImage, movingImage,transform,sitk.CenteredTransformInitializerFilter.MOMENTS )
     
-    registration_method = sitk.ImageRegistrationMethod()
+    initial_transform=sitk.CenteredTransformInitializer(fixedImage, movingImage,transform,sitk.CenteredTransformInitializerFilter.GEOMETRY ) #MOMENTS )
     ## Similarity metric settings.
     #registration_method.SetMetricAsANTSNeighborhoodCorrelation(5)
-    registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=100)
+    registration_method.SetMetricAsCorrelation()
+    #registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=numberOfHistogramBins)
     #registration_method.SetMetricAsJointHistogramMutualInformation(100)
     registration_method.SetMetricSamplingStrategy(registration_method.REGULAR)
     registration_method.SetMetricSamplingPercentage(1)
     registration_method.SetInterpolator(sitk.sitkLinear)
 
     # Optimizer settings.
-    registration_method.SetOptimizerAsPowell(numberOfIterations=max_iterations, maximumLineIterations=2000, stepTolerance=1e-5, valueTolerance=1e-5, stepLength=2)
+    #registration_method.SetOptimizerAsPowell(numberOfIterations=max_iterations, maximumLineIterations=2000, stepTolerance=stepTolerance, valueTolerance=valueTolerance, stepLength=stepLength)
     #registration_method.SetOptimizerAsOnePlusOneEvolutionary(numberOfIterations=300, initialRadius=100)
-    #registration_method.SeatOptimizerAsConjugateGradientLineSearch(learningRate=0.1, numberOfIterations=300)
+    registration_method.SetOptimizerAsGradientDescent(learningRate=0.01, numberOfIterations=600, convergenceMinimumValue=1e-10, convergenceWindowSize=10 )
     registration_method.SetOptimizerScalesFromPhysicalShift()
 
-    # Setup for the multi-resolution framework.      
+    # Setup for the multi-resolution framework.     
+    resolution_sigmas = resolutions #[ i / 2.355 for i in resolutions ]
+    #resolution_sigmas = [ i / 2.355 for i in resolutions ]
     registration_method.SetShrinkFactorsPerLevel(shrinkFactors = resolutions ) 
-    registration_method.SetSmoothingSigmasPerLevel(smoothingSigmas= resolutions ) #[1] * len(resolutions) )
+    registration_method.SetSmoothingSigmasPerLevel(smoothingSigmas= resolution_sigmas ) #[1] * len(resolutions) )
     registration_method.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
 
     registration_method.SetInitialTransform(initial_transform, inPlace=True)
@@ -139,27 +228,135 @@ def register(fixed_fn, moving_fn, transform_fn, resolutions, max_iterations, max
     registration_method.SetNumberOfThreads(8)
 
     final_transform = registration_method.Execute(sitk.Cast(fixedImage, sitk.sitkFloat32), sitk.Cast(movingImage, sitk.sitkFloat32))
+    #print(final_transform)
+    #print( registration_method.GetOptimizerStopConditionDescription())
+    final_similarity_value = registration_method.MetricEvaluate(fixedImage, movingImage) 
+    iterations = registration_method.GetOptimizerIteration()
+    print("Final metric =", final_similarity_value  )
+    #print("Iterations =", iterations)
+    
     #moving_resampled = sitk.Resample(movingImage, fixedImage, final_transform, sitk.sitkLinear, 0.0, movingImage.GetPixelID())
+    if invert_transform : 
+        final_transform = final_transform.GetInverse()
     sitk.WriteTransform(final_transform, transform_fn)
     del registration_method
     del initial_transform
     del final_transform
     del fixedImage
     del movingImage
+    return final_similarity_value, iterations
 
-def resample(moving_fn, fixed_fn, transform_fn_list, rsl_fn=""):
+
+def register3D(fixed_fn, moving_fn, transform_fn, resolutions, max_iterations, transform_type="Euler2DTransform", preprocess=False, numberOfHistogramBins=100, fixed_spacing=[0.2, 0.2], moving_spacing=[0.2, 0.2],stepLength=2, valueTolerance=1e-5, learningRate=0.1, convergenceWindowSize=10, stepTolerance=1e-5, mask=True, invert_transform=False, optimizer="powell"):
+    if optimizer == "powell" :
+        plot_fn = "coreg_opt-powell_hist-"+str(numberOfHistogramBins)+"_stpLen-"+str(stepLength)+".png"
+    elif optimizer :
+        plot_fn = "coreg_opt-gradDesc_hist-"+str(numberOfHistogramBins)+"_rate-"+str(learningRate)+"_wind-"+str(convergenceWindowSize)+".png"
+    registration_method = sitk.ImageRegistrationMethod()
+    #if preprocess :
+    #    fixedImage = preprocess_img(fixedImage)
+    #    movingImage = preprocess_img(movingImage)
+    moving_reader = sitk.ImageFileReader()
+    #moving_reader.SetImageIO("MINCImageIO")
+    moving_reader.SetFileName(moving_fn)
+    movingImage = moving_reader.Execute();
+
+    fixed_reader = sitk.ImageFileReader()
+    #fixed_reader.SetImageIO("MINCImageIO")
+    fixed_reader.SetFileName(fixed_fn)
+    fixedImage = fixed_reader.Execute();
+
+    fixedImage.SetSpacing(fixed_spacing)
+    movingImage.SetSpacing(moving_spacing)
+
+    if transform_type == "AffineTransform" :
+        transform = sitk.AffineTransform(3) 
+    else : 
+        transform = sitk.Euler2DTransform() 
+    
+    initial_transform=sitk.CenteredTransformInitializer(fixedImage, movingImage,transform,sitk.CenteredTransformInitializerFilter.MOMENTS )
+    ## Similarity metric settings.
+    registration_method.SetMetricAsANTSNeighborhoodCorrelation(5)
+    #registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=numberOfHistogramBins)
+    #registration_method.SetMetricAsJointHistogramMutualInformation(100)
+    registration_method.SetMetricSamplingStrategy(registration_method.REGULAR)
+    registration_method.SetMetricSamplingPercentage(1)
+    registration_method.SetInterpolator(sitk.sitkLinear)
+    
+    #
+    # Optimizer settings.
+    #
+    if optimizer == "powell" :
+        registration_method.SetOptimizerAsPowell(numberOfIterations=max_iterations, maximumLineIterations=2000, stepTolerance=stepTolerance, valueTolerance=valueTolerance, stepLength=stepLength)
+    elif optimizer == "gradient_descent" :
+        registration_method.SetOptimizerAsGradientDescent(learningRate=learningRate, numberOfIterations=max_iterations, convergenceMinimumValue=1e-10, convergenceWindowSize=10 )
+    #registration_method.SetOptimizerAsOnePlusOneEvolutionary(numberOfIterations=300, initialRadius=100)
+    registration_method.SetOptimizerScalesFromPhysicalShift()
+    
+    #
+    # Setup for the multi-resolution framework.     
+    #
+    
+    #registration_method.SetMaximumKernelWidth(64)
+    resolution_sigmas = resolutions #[ i / 2.355 for i in resolutions ]
+    #resolution_sigmas = [ i / 2.355 for i in resolutions ]
+    registration_method.SetShrinkFactorsPerLevel(shrinkFactors = resolutions ) 
+    registration_method.SetSmoothingSigmasPerLevel(smoothingSigmas= resolution_sigmas ) #[1] * len(resolutions) )
+    registration_method.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
+
+    registration_method.SetInitialTransform(initial_transform, inPlace=True)
+    registration_method.SetNumberOfThreads(8)
+
+    #
+    # Set Callbacks
+    #
+    registration_method.AddCommand(sitk.sitkStartEvent, start_plot)
+    registration_method.AddCommand(sitk.sitkMultiResolutionIterationEvent, update_multires_iterations) 
+    registration_method.AddCommand(sitk.sitkIterationEvent, lambda : update_iterations(registration_method)) 
+    registration_method.AddCommand(sitk.sitkEndEvent, lambda : plot_values(plot_fn) )
+
+    final_transform = registration_method.Execute(sitk.Cast(fixedImage, sitk.sitkFloat32), sitk.Cast(movingImage, sitk.sitkFloat32))
+    #print(final_transform)
+    #print( registration_method.GetOptimizerStopConditionDescription())
+    final_similarity_value = registration_method.MetricEvaluate(fixedImage, movingImage) 
+    iterations = registration_method.GetOptimizerIteration()
+    print("Final metric =", final_similarity_value  )
+    #print("Iterations =", iterations)
+    
+    #moving_resampled = sitk.Resample(movingImage, fixedImage, final_transform, sitk.sitkLinear, 0.0, movingImage.GetPixelID())
+    if invert_transform : 
+        final_transform = final_transform.GetInverse()
+    sitk.WriteTransform(final_transform, transform_fn)
+    del registration_method
+    del initial_transform
+    del final_transform
+    del fixedImage
+    del movingImage
+    return final_similarity_value, iterations
+
+
+
+
+def resample(moving_fn, transform_fn_list, rsl_fn="", ndim=2):
     movingImage = sitk.ReadImage(moving_fn)
-    fixedImage = sitk.ReadImage(fixed_fn)
-
-    composite = sitk.Transform(2, sitk.sitkComposite )
+    
+    composite = sitk.Transform(ndim, sitk.sitkComposite )
     for fn in transform_fn_list :
         transform = sitk.ReadTransform(fn)
         composite.AddTransform(transform)
 
     interpolator = sitk.sitkCosineWindowedSinc
     rslImage = sitk.Resample(movingImage, composite, interpolator, 0.)
+    #rslImage=movingImage
     rsl = np.copy(sitk.GetArrayViewFromImage(rslImage))
-    if rsl_fn != "" : imageio.imsave(rsl_fn, rsl)
+    print("Max:", rsl.max(), "Min:", rsl.min() )
+    if ndim == 2 :
+        if rsl_fn != "" : imageio.imsave(rsl_fn, rsl)
+    else :
+        writer = sitk.ImageFileWriter()
+        writer.SetFileName(rsl_fn)
+        writer.Execute(rslImage)
+
     return rsl 
 
 

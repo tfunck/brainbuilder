@@ -8,6 +8,19 @@ from os.path import basename
 import re
 from subprocess import call, Popen, PIPE, STDOUT
 import contextlib
+from sklearn.cluster import KMeans
+
+
+def gm_segment(img):
+    print(img.shape)
+    mid = np.mean(img[img>0])
+    upper=np.max(img)
+    if upper > 0 :
+        init=np.array([0,mid,upper]).reshape(-1,1)
+        cls = KMeans(3, init=init).fit_predict(img.reshape(-1,1)).reshape(img.shape)
+        cls[ cls != 2 ] = 0
+        return cls.astype(float)
+    return img
 
 newlines = ['\n', '\r\n', '\r']
 def unbuffered(proc, stream='stdout'):

@@ -96,15 +96,23 @@ def remove_border_regions(cc) :
     max_l=cc_unique[numPixels.argmax()]
     #for c, n in zip(range(len(cc_unique)), numPixels):
     #    print(c,n)
+    
+    #if there is more than one labelled region
     if len(numPixels_sort) > 1 :
         ratio =   numPixels_sort[-2] / numPixels_sort[-1]
     else : 
         ratio=0
-    print(ratio)
+    print(ratio)a
+    #for each label in the set of labels
     for l in cc_unique :
+        #if there is overlap between the bounding box and the labelled region
         if True in (border_box == l) :
             #print(ratio, l, max_l)
+            #If the current label is that for the largest region
+            #and the next largest region is much smaller than the current region,
+            #then ignore the overlap
             if  ratio < 0.05  and (l == max_l )  : continue
+            #Otherwise set the labelled region to 0
             cc[cc == l] = 0
     return cc
 
@@ -182,8 +190,12 @@ def cropp_img(img, line, no_frame=False, low_contrast=False, plot=False):
 
     numPixels = np.array([np.sum(cc2 == l) for l in cc2_unique  ])
 
+    #Keep only largest bounding box
+
+    #Find index of largest region
     idx = numPixels.argmax()
     im4=np.zeros(img.shape);
+    #Label largest region 1
     im4[ cc2 == cc2_unique[ idx ]  ] = 1;
     im4 = im4 * cc 
     im4[ im4 > 0 ] = 1
