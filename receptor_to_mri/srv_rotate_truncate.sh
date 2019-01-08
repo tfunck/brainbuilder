@@ -53,7 +53,7 @@ downsample() {
         return 0
 }
 
-
+#-72,-126,-90
 base_srv="output/mri1_gm_bg_srv.mnc"
 for i in `seq 1 6`; do
     if [[ ! -f ../MR1/volume/vol_cls_${i}.mnc ]]; then
@@ -61,7 +61,20 @@ for i in `seq 1 6`; do
             exit 0
     fi
 
-    clobber=0
+    ###############
+    # Input files #
+    ###############
+    srv="output/srv/mri1_gm_srv_space-slab-${i}_trunc.mnc"
+    cls="../MR1/volume/vol_cls_${i}_morph_blur_bin.mnc"
+    rec="../MR1/volume/vol_${i}.mnc.gz"
+
+    ################
+    # Output Files # 
+    ################
+    srv_rsl=output/srv/mri1_gm_srv_space-slab-${i}_trunc_blur_rsl.mnc
+    cls_rsl=../MR1/volume/vol_cls_${i}_morph_blur_bin_blur_rsl.mnc
+
+    
     ###############################################
     # Preprocess classified receptor volume (CLS) #
     ###############################################
@@ -83,16 +96,7 @@ for i in `seq 1 6`; do
         gzip -f $mask
     fi
     mask=${mask}.gz
-    #register $mask civet/mri1/final/mri1_t1_final.mnc  
     
-    #if [[ ! -f output/srv/mri1_gm_srv_space-slab-${i}.mnc || "$clobber" == "1" ]]; then
-    #    mincresample -nearest -clobber -transformation tfm_slab_${i}_to_mni.xfm  -step 0.25 0.25 0.25 -invert_transform ../../mri1_gm_bg_srv.mnc  output/srv/mri1_gm_srv_space-slab-${i}.mnc -tfm_input_sampling
-    #fi
-
-    #if [[ ! -f output/srv/mr1_brain_mask_slab_${i}_rsl.mnc.gz  || "$clobber" == "1" ]]; then
-    #    mincresample -nearest -clobber output/truncate/mr1_brain_mask_slab_${i}.mnc.gz -like  output/srv/mri1_gm_srv_space-slab-${i}.mnc output/srv/mr1_brain_mask_slab_${i}_rsl.mnc.gz
-    #fi
-    srv="output/srv/mri1_gm_srv_space-slab-${i}_trunc.mnc"
     if [[ ! -f  $srv  || "$clobber" == "1" ]]; then
         echo "Creating truncated version of super-resolution GM mask"
         mincmath -quiet -clobber -mult $mask $base_srv $srv
@@ -102,9 +106,6 @@ for i in `seq 1 6`; do
     ########################
     # DOWNSAMPLE CLS & SRV #
     ########################
-    cls=../MR1/volume/vol_cls_${i}_morph_blur_bin.mnc
-    srv_rsl=output/srv/mri1_gm_srv_space-slab-${i}_trunc_blur_rsl.mnc
-    cls_rsl=../MR1/volume/vol_cls_${i}_morph_blur_bin_blur_rsl.mnc
     downsample $srv 1 0.5 $clobber
     downsample $cls 1 0.5 $clobber
     echo $srv_rsl
@@ -143,9 +144,7 @@ for i in `seq 1 6`; do
     
     if [[ ! -f $nl_img || "$clobber" == 1 ]]; then
         echo Applying nonlinear transformation
-        mincresample -tricubic -clobber -transformation $final_tfm  -like $cls_rsl $srv_rsl $nl_img
-        mincresample -clobber -coronal output/srv/srv_space-rec-${i}_nl.mnc /tmp/temp.mnc 
-        mv /tmp/temp.mnc $nl_img
+        mincresample -tricubic -clobber -transformation $final_tfm -like $cls_rsl $srv_rsl $nl_img
     fi
 
     cls_slab_space=output/srv/vol_cls_${i}_morph_blur_bin_blur_rsl_space-slab-${i}.mnc
@@ -153,6 +152,11 @@ for i in `seq 1 6`; do
         echo Transforming CLS to SRV
         mincresample -clobber -transformation $final_tfm -invert_transform -like $base_srv  $cls_rsl $cls_slab_space
     fi
+
+    #rec_nl_rsl=output/srv/vol_${i}_in_blur_rsl_space-slab-${i}.mnc
+    #if [[ $rec_nl_rsl  ]]; then
+    #    mincresample -tricubic -clobber -transformation $final_tfm  -tfm_input_sampling $rec $rec_nl_rsl
+    #fi
     #register $cls_rsl output/srv/srv_space-rec-${i}_nl.mnc
 done
 
@@ -163,7 +167,6 @@ for i in `seq 1 6`; do
 done
 mincconcat -clobber -2 -nocheck_dimensions $concat_list output/srv/srv_space-rec_nl.mnc
 
-
 concat_list=""
 for i in `seq 1 6`; do
     mincresample -clobber -coronal output/srv/srv_space-rec-${i}_lin.mnc /tmp/tmp${i}.mnc
@@ -172,18 +175,22 @@ for i in `seq 1 6`; do
 done
 mincconcat -clobber -2 -nocheck_dimensions $concat_list output/srv/srv_space-rec_lin.mnc
 
-
 concat_list=""
 for i in `seq 1 6`; do
     concat_list="$concat_list output/srv/vol_cls_${i}_morph_blur_bin_blur_rsl_space-slab-${i}.mnc "
 done
 minccalc -clobber -expr "sum(A)" $concat_list output/srv/vol_cls_nl.mnc
 
-exit 0
+#concat_list=""
+#for i in `seq 1 6`; do
+#    concat_list="$concat_list output/srv/vol_${i}_in_blur_rsl_space-slab-${i}.mnc"
+#done
+#minccalc -clobber -expr "sum(A)" $concat_list output/srv/vol_nl.mnc
 
+exit 0
 mkdir -p output/coronal output/coronal/qc
 rm /tmp/log.txt
-for i in `seq 1 1`; do
+for i in `seq 1 6`; do
     srv=output/srv/srv_space-rec-${i}.mnc
     cls=../MR1/volume/vol_cls_${i}_morph_blur_bin.mnc
     yspace=`mincinfo -dimlength yspace $cls`
