@@ -4,7 +4,7 @@ import sys
 import re
 import os
 from scipy.interpolate import BSpline, splrep
-
+import numpy as np
 
 def interpolate_missing(img, y_list):
     test = np.sum(img, axis=(0,2))
@@ -37,11 +37,7 @@ def interpolate_missing(img, y_list):
 
     return img
 
-
-
-
 file_list = sys.argv[1]
-print(sys.argv)
 n=len(sys.argv)
 slice_list=[]
 fn_list=[]
@@ -50,11 +46,10 @@ for fn in sys.argv[1:(n-2)] :
     if fn == 'create_volume.py' : continue
     end=fn.split('_')[-1]
     s=int(re.sub('.mnc', '', end))
-    print(fn, s)
     fn_list.append(fn)
     slice_list.append(s)
 
-if os.path.exists(sys.argv[-2]) :
+if not os.path.exists(sys.argv[-2]) :
     vol = volumeLikeFile(sys.argv[-2], sys.argv[-1])
     for fn, s in zip(fn_list, slice_list) :
         mnc=volumeFromFile(fn)
@@ -63,13 +58,12 @@ if os.path.exists(sys.argv[-2]) :
 else :
     vol=volumeFromFile(sys.argv[-1])
 
-out_fn=re.sub('.mnc', '_interp.mnc', out_fn)
-if os.path.exists(out_fn) :
-    vol_int = volumeLikeFile(sys.argv[-2], out_fn)
-else :
-    vol_int = volumeFromFile(out_fn)
+out_fn=re.sub('.mnc', '_interp.mnc', sys.argv[-1])
+
+print("Output file :", out_fn)
 
 
+vol_int = volumeLikeFile(sys.argv[-2], out_fn)
 vol_int.data = interpolate_missing(vol.data, slice_list)
 
 vol_int.writeFile()
