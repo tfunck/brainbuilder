@@ -6,29 +6,6 @@ source ${qdir}init.sh
 fn="../MR1/coregistration/receptor_slices.csv"
 mkdir -p fill
 
-extract(){
-    #1==_y0
-    #2==input filename
-    #3==3D file
-    mincreshape -quiet -clobber -dimrange yspace=${1},1 $3 $2 > /dev/null
-
-    if [[ -f $5 ]]; then
-        mincresample -quiet -clob -transformation $5 -tfm_input_sampling $2 /tmp/tmp.mnc
-    fi
-
-    #minc_modify_header -dinsert yspace:start=0 $2 > /dev/null
-    start=`mincinfo -attvalue yspace:start $3`
-    step=`mincinfo -attvalue yspace:step $3`
-    new_start=`python -c "print($start + $step * $_y0)"`
-    minc_modify_header -dinsert yspace:start=${new_start}  $2
-    ./flipyz.pl $2 > /dev/null
-    if [[ $4 == 1 ]]; then
-        ${qdir}/bin/mincblur -quiet -clobber -no_apodize  -3dfwhm $S $S 0  -dimensions 2 $2 ${2%.*} > /dev/null
-    fi
-
-
-}
-
 align(){
     #Inputs
     #1=base slice number
@@ -41,8 +18,8 @@ align(){
     #Outputs
     xfm="fill/tfm_${1}_${2}.xfm"
 
-    #echo extract ${s} ${3} ${6} 1
-    extract ${s} ${3} ${6} 1
+    #echo extract.sh ${s} ${3} ${6} 1
+    ./extract.sh ${s} ${3} ${6} 1
     #echo
 
     #echo ${qdir}/bin/mincblur -quiet -clobber -3dfwhm $S $S 0  -dimensions 2 ${3} ${3%.*}
@@ -80,12 +57,12 @@ _clobber=$7
     fill=fill/srv_rsl_${_slab}_${_y0}.mnc
     if [[ ! -f $_cls_slice || $_clobber == 1 ]]; then
         echo "Extract Classified Slice"
-        extract $_y0 $_cls_slice $_cls 1
+        ./extract.sh $_y0 $_cls_slice $_cls 1
     fi
 
     if [[ ! -f $_srv_slice || $_clobber == 1  ]]; then
         echo "Extract SRV Slice"
-        extract $_y0 $_srv_slice $_srv 1
+        ./extract.sh $_y0 $_srv_slice $_srv 1
     fi
 
     if [[ "`mincstats -quiet -sum $_srv_slice`" == "0" || "`mincstats -quiet -sum $_srv_slice`" == "0" ]]; then
@@ -162,16 +139,16 @@ for slab in `seq 3 3`; do
         # Extract base slices #
         #######################
         if [[ ! -f  $srv_y0 || $clobber == 1 ]]; then
-            extract $_y0 $srv_y0 $srv 1
+            ./extract.sh $_y0 $srv_y0 $srv 1
         fi
         if [[ ! -f  $srv_y1 || $clobber == 1 ]]; then
-            extract $_y1 $srv_y1 $srv 1
+            ./extract.sh $_y1 $srv_y1 $srv 1
         fi
         if [[ ! -f  $rec_y0 || $clobber == 1 ]]; then
-            extract $_y0 $rec_y0 $rec 0 $tfm_y0
+            ./extract.sh $_y0 $rec_y0 $rec 0 $tfm_y0
         fi
         if [[ ! -f  $srv_y1 || $clobber == 1 ]]; then
-            extract $_y1 $rec_y1 $rec 0  $tfm_y1
+            ./extract.sh $_y1 $rec_y1 $rec 0  $tfm_y1
         fi
 
         step=1
@@ -192,7 +169,7 @@ for slab in `seq 3 3`; do
         for s in ${inv_list[@]}; do
             fill=fill/rec_slice-${_y1}_to_${s}.mnc
             #if [[ ! -f $fill || $clobber == 1 ]]; then
-            #    extract $s $fill $srv
+            #    ./extract.sh $s $fill $srv
             #fi
             if [[ ! -f $fill || $clobber == 1 ]]; then
                 echo $_y1 --> $s

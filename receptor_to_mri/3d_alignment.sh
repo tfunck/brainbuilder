@@ -38,31 +38,30 @@ for i in `seq 1 1`; do
     ####################
     # LINEAR ALIGNMENT #
     ####################
-    register $srv_rsl $cls_rsl
     if [[ ! -f $lin_tfm || "$clobber" -eq "1" ]] ; then
         echo Performing linear alignment of SRV to CLS
         ../bestlinreg_hires.sh $srv $cls $srv_rsl $cls_rsl $lin_tfm  
     fi
-    clobber=1
+    clobber=1 
     if [[ ! -f $lin_img || "$clobber" == 1 ]]; then
         echo Applying linear transformation
-        mincresample -nearest -clobber -transformation $lin_tfm -like $cls_rsl $srv $lin_img
+        mincresample -nearest -clobber -transformation $lin_tfm -like $cls $srv $lin_img
     fi
+    clobber=0
       
     if [[ ! -f $cls_slab_space || "$clobber" == "1" ]]; then
         echo Transforming CLS to SRV
         mincresample -clobber -transformation $lin_tfm -invert_transform -like $base_srv $cls_rsl $cls_slab_space
     fi
-    clobber=1
 done
 
 concat_list=""
 for i in `seq 1 6`; do
-    mincresample -clobber -coronal output/srv/srv_space-rec-${i}_lin.mnc /tmp/tmp${i}.mnc
+    mincresample -clobber -coronal output/${ITR}/srv_itr-${itr}_space-rec-${i}_lin.mnc /tmp/tmp${i}.mnc
     minc_modify_header -dinsert yspace:step=-1 /tmp/tmp${i}.mnc
     concat_list="$concat_list /tmp/tmp${i}.mnc "
 done
-mincconcat -clobber -2 -nocheck_dimensions $concat_list output/srv/srv_space-rec_lin.mnc
+mincconcat -clobber -2 -nocheck_dimensions $concat_list output/${ITR}/srv${ITR}_space-rec_lin.mnc
 
 exit 0
 
