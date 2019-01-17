@@ -1,4 +1,4 @@
-iterations=4 #${1:-0}
+iterations=10 #${1:-0}
 clobber=${2:-0}
 out_base_dir="output-v2"
 acc_all_fn="${out_base_dir}/acc.txt"
@@ -65,12 +65,10 @@ for slab in `seq 1 1`; do
         # Calculate Dice of cls_2d_rsl compared to previous iteration #
         ###############################################################
         # Outputs 
-        acc_change_fn=${out_dir}/acc_slab-${slab}_itr-${itr}_change.txt
-        acc_accuracy_fn=${out_dir}/acc_slab-${slab}_itr-${itr}_accuracy.txt
-        clobber=1
-        ./calc_acc.sh $cls00 $cls_2d_rsl $slab $itr "Change"  $acc_change_fn $acc_all_fn $clobber 
-        ./calc_acc.sh $srv_lin $cls_2d_rsl $slab $itr "Accuracy" $acc_accuracy_fn $acc_all_fn $clobber 
-        clobber=0
+        acc_2d_accuracy_fn=${out_dir}/acc_slab-${slab}_itr-${itr}_accuracy_2d.txt
+        acc_3d_accuracy_fn=${out_dir}/acc_slab-${slab}_itr-${itr}_accuracy_3d.txt
+        ./calc_acc.sh $srv_lin $cls0 $slab $itr "3D" $acc_3d_accuracy_fn $acc_all_fn $clobber 
+        ./calc_acc.sh $srv_lin $cls_2d_rsl $slab $itr "2D" $acc_2d_accuracy_fn $acc_all_fn $clobber 
         cls0=$cls_2d_rsl
     done
 done

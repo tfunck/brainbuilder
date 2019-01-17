@@ -7,6 +7,7 @@ acc_fn=$6
 acc_all_fn=$7
 clobber=$8
 
+
 if [[ ! -f $acc_fn || $clobber == 1 ]]; then
     if [[ "${ii1##*.}" == "gz" ]]; then
         gunzip -kf $ii1
@@ -16,13 +17,13 @@ if [[ ! -f $acc_fn || $clobber == 1 ]]; then
     fi
 
     if [[ "${ii2##*.}" == "gz" ]]; then
-        gunzip -kf $ii1
+        gunzip -kf $ii2
         vol2=${ii2%.*}
     else 
         vol2=$ii2
     fi
 
-    printf "\t\tCalculate $s Categorical Accuracy\n" "$label"
+    printf "\t\tCalculate Categorical Accuracy %s\n" "$label"
     acc=`python acc.py $vol1 $vol2`
     printf "%d,%d,%s,%f\n" "${slab}" "$itr" "$label" "$acc" > $acc_fn
     if [[ "$vol1" != "$ii1" ]]; then

@@ -24,6 +24,6 @@ vol2 = safe_h5py_open(argv[2])
 ar1=np.array(vol1['minc-2.0/']['image']['0']['image'])
 ar2=np.array(vol2['minc-2.0/']['image']['0']['image'])
 ar3=ar1+ar2
-print( np.sum(ar1 * ar2).astype(float) / np.sum(ar3 >= 1))
+print( np.sum( ar3 > 1  ).astype(float) / np.sum(ar3 >= 1))
 
 
