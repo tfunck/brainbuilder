@@ -10,8 +10,9 @@ scale_factors_fn=$5
 
 if [[ ! -f  $srv  || "$clobber" == "1" ]]; then
     printf "\t\tCreating truncated version of super-resolution GM mask..."
-    python3 slab_borders.py $receptor_fn $scale_factors_fn $slab $base_srv $srv  &>> /tmp/log.txt
-    crop_from_mask $srv $srv $srv  &>> /tmp/log.txt
+    python3 slab_borders.py $receptor_fn $scale_factors_fn $slab $base_srv ${srv%.*}  &>> /tmp/log.txt
+    crop_from_mask ${srv%.*} ${srv%.*} ${srv%.*}  &>> /tmp/log.txt
+	gzip ${srv%.*}
     printf "\tDone.\n"
 fi
 

@@ -11,6 +11,7 @@ from scipy.ndimage.filters import gaussian_filter
 from utils.anisotropic_diffusion import *
 import matplotlib.pyplot as plt 
 from skimage.exposure import  equalize_hist
+from scipy.ndimage.morphology import binary_closing
 def curvature(img):
     xx, yy = np.gradient(img, edge_order=2)
     img = np.sqrt(xx**2 + yy**2)

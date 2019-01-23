@@ -9,7 +9,7 @@ set_valid_slices(){
             cls_max=`mincstats -quiet -max /tmp/cls_slice.mnc` 
             if [[  $cls_max !=  "0" ]]; then
                 echo $_y >> $valid_slices
-                cp /tmp/cls_slice.mnc "output/${ITR}/${_y}_"`basename $_cls0`
+                cp /tmp/cls_slice.mnc "${out_dir}/${_y}_"`basename $_cls0`
                 #Display  "output/${ITR}/${_y}_"`basename $_cls0`
                 echo  "${out_dir}/${_y}_"`basename $_cls0`
 
@@ -48,7 +48,7 @@ if [[ ! -f $cls_rsl || $clobber == 1 ]]; then
     #yspace=`mincheader $cls0 | grep yspace:length | awk '{split($0,ar," "); print ar[3]}'`
     out_dir=${out_dir}"/2D"
     mkdir -p ${out_dir}
-    #set_valid_slices $valid_slices $yspace $cls0  $clobber
+    set_valid_slices $valid_slices $yspace $cls0  $clobber
     concat_list=""
     clobber=0
     for y in `seq 0 $yspace`; do
@@ -82,15 +82,15 @@ if [[ ! -f $cls_rsl || $clobber == 1 ]]; then
         fi
 
         gzip -f $out
-        if [[ -f $out.gz ]]; then
-            concat_list="$concat_list $out.gz"
+        if [[ -f ${out}.gz ]]; then
+            concat_list="$concat_list ${out}.gz"
         fi
         #if [[ $y == 234 ]] ; then
         #    exit 1
         #    break
         #fi
     done
-
+	echo Concatenating
     python2 concat.py $cls0 $concat_list $cls_rsl #> ./tmp.txt
 fi
 
