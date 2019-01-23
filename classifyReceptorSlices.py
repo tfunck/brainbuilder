@@ -1,4 +1,5 @@
 from sys import argv
+import argparse
 import numpy as np
 import h5py
 import os
@@ -25,6 +26,9 @@ def compress(ii, oo) :
     print("Gzip compression from ", ii, 'to', oo)
     with open(ii, 'rb') as f_in, gzip.open(oo, 'wb') as f_out:
         shutil.copyfileobj(f_in, f_out)
+    
+    if os.path.exists(oo) : 
+        os.remove(ii)
     return 0
 
 def denoise(s) :
@@ -60,6 +64,7 @@ def safe_h5py_open(filename, mode='r+'):
 
 def classifyReceptorSlices(in_fn, out_dir, out_fn, morph_iterations=5, clobber=False) :
     qc_dir=out_dir+os.sep+"qc"
+    out_fn = out_dir +os.sep+out_fn
     if os.path.splitext(out_fn)[1] == ".gz" :
         out_fn=os.path.splitext(out_fn)[0]
 
@@ -104,7 +109,6 @@ def classifyReceptorSlices(in_fn, out_dir, out_fn, morph_iterations=5, clobber=F
         else :
             invalid_slices.append(i)
 
-
     #
     # Perform QC by identifying slices with large sums
     #
@@ -148,9 +152,9 @@ def classifyReceptorSlices(in_fn, out_dir, out_fn, morph_iterations=5, clobber=F
     #
     # Perform morphological operations to denoise image
     #
-    img_cls.data = binary_erosion(img_cls.data, structure=struct, iterations=morph_iterations )
-    img_cls.data = binary_dilation(img_cls.data, structure=struct, iterations=morph_iterations )
-    img_cls.data = binary_closing(img_cls.data, iterations=1 )
+    #img_cls.data = binary_erosion(img_cls.data, structure=struct, iterations=morph_iterations )
+    #img_cls.data = binary_dilation(img_cls.data, structure=struct, iterations=morph_iterations )
+    #img_cls.data = binary_closing(img_cls.data, iterations=1 )
     
     #
     # Save output volume
