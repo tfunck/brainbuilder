@@ -6,11 +6,8 @@ import pandas as pd
 import cv2
 import json
 import numpy as np
-#from sitk_register import register
-#from elastix_register import register, resample, get_param
 from skimage.filters import try_all_threshold, threshold_mean
 from scipy.ndimage.morphology import binary_dilation, binary_erosion, binary_fill_holes
-from sitk_register import register, resample, display_images_with_alpha
 import scipy.misc
 from utils.utils import *
 from utils.anisotropic_diffusion import anisodiff
@@ -24,6 +21,48 @@ import matplotlib.pyplot as plt
 from shutil import copy
 from math import ceil
 
+def resample(moving_fn, transform_fn_list, rsl_fn="", ndim=2):
+    movingImage = sitk.ReadImage(moving_fn)
+    composite = sitk.Transform(ndim, sitk.sitkComposite )
+    for fn in transform_fn_list :
+        transform = sitk.ReadTransform(fn)
+        composite.AddTransform(transform)
+
+    interpolator = sitk.sitkCosineWindowedSinc
+    rslImage = sitk.Resample(movingImage, composite, interpolator, 0.)
+    #rslImage=movingImage
+    rsl = np.copy(sitk.GetArrayViewFromImage(rslImage))
+    print("Max:", rsl.max(), "Min:", rsl.min() )
+    if ndim == 2 :
+        if rsl_fn != "" : imageio.imsave(rsl_fn, rsl)
+    else :
+        writer = sitk.ImageFileWriter()
+        writer.SetFileName(rsl_fn)
+        writer.Execute(rslImage)
+
+    return rsl 
+
+def display_images_with_alpha( alpha, fixed, moving, moving_resampled, fn, order_fixed, order_moving, fixed_tier, moving_tier, metric=0):
+    fixed_npa = (fixed - fixed.min() ) / (fixed.max() - fixed.min())  #imageio.imread(fixed)
+    moving_npa = (moving - moving.min() ) / (moving.max() - moving.min())  #imageio.imread(moving)
+    moving_resampled_npa =(moving_resampled-moving_resampled.min()) / (moving_resampled.max() - moving_resampled.min())  #imageio.imread(moving_resampled)
+    #moving_npa= moving #imageio.imread(moving)
+    #moving_resampled_npa= moving_resampled #imageio.imread(moving_resampled)
+    extent = 0, moving_npa.shape[1], 0, moving_npa.shape[0]
+    
+    plt.title( 'moving:'+str(moving_tier)+ ' fixed'+ str(order_moving))
+    plt.imshow(fixed_npa, cmap=plt.cm.gray, interpolation='bilinear', extent=extent)
+    plt.imshow(moving_resampled_npa, cmap=plt.cm.hot, alpha=0.35, interpolation='bilinear', extent=extent)
+    plt.title('rsl moving vs fixed')
+    plt.axis('off')
+
+
+    plt.axis('off')
+    plt.tight_layout()
+
+    plt.savefig(fn, dpi=200,bbox_inches="tight" )
+    plt.clf()
+    return 0 
 
 def get_z_x_max(source_files, output_dir):
     out_fn=output_dir + os.sep + "z_x_max.txt"

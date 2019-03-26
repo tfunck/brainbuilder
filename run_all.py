@@ -1,13 +1,9 @@
-from utils.utils import shell
 import os
+from utils.utils import shell
 from sys import exit
 from re import sub
 from receptorRegister import receptorRegister
-from receptorQC import receptorQC
-from transform_to_mri import transform_to_mri
 from glob import glob
-from sitk_register import *
-from receptor_mri_2d import receptor_mri_2d
 from classifyReceptorSlices import classifyReceptorSlices
 from slices2vol import slices2vol
 from utils.utils import downsample_y
