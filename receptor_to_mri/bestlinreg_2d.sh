@@ -21,20 +21,23 @@ tfm3=/tmp/tfm3.xfm
 base="-clobber $weights -source_mask $src -model_mask $tgt"
 
 # 0
-mincblur -quiet -clobber  -3dfwhm $s0 -dimensions 2 $src /tmp/src
-mincblur -quiet -clobber  -3dfwhm $s0 -dimensions 2 $tgt /tmp/tgt
-minctracc  $base -identity $step0 -simplex 4 -lsq12  /tmp/src_blur.mnc /tmp/tgt_blur.mnc $tfm0
+echo 4
+mincblur -quiet -clobber  -3dfwhm $s0 -dimensions 2 $src /tmp/src &> /dev/null
+mincblur -quiet -clobber  -3dfwhm $s0 -dimensions 2 $tgt /tmp/tgt &> /dev/null
+minctracc  $base -identity $step0 -simplex 4 -lsq7  /tmp/src_blur.mnc /tmp/tgt_blur.mnc $tfm0
 
 # 1
-mincblur -quiet -clobber  -3dfwhm $s1 -dimensions 2 $src /tmp/src
-mincblur -quiet -clobber  -3dfwhm $s1 -dimensions 2 $tgt /tmp/tgt
-minctracc  $base  -transformation $tfm0 -identity $step1 -simplex 2 -lsq12  /tmp/src_blur.mnc /tmp/tgt_blur.mnc $tfm1
+echo 2
+mincblur -quiet -clobber  -3dfwhm $s1 -dimensions 2 $src /tmp/src &> /dev/null
+mincblur -quiet -clobber  -3dfwhm $s1 -dimensions 2 $tgt /tmp/tgt &> /dev/null
+minctracc  $base  -transformation $tfm0 -identity $step1 -simplex 2 -lsq9  /tmp/src_blur.mnc /tmp/tgt_blur.mnc $tfm1
 
 # 2
-mincblur -quiet -clobber  -3dfwhm $s2 -dimensions 2 $src /tmp/src
-mincblur -quiet -clobber  -3dfwhm $s2 -dimensions 2 $tgt /tmp/tgt
+echo 1
+mincblur -quiet -clobber  -3dfwhm $s2 -dimensions 2 $src /tmp/src &> /dev/null
+mincblur -quiet -clobber  -3dfwhm $s2 -dimensions 2 $tgt /tmp/tgt &> /dev/null
 minctracc  $base -transformation $tfm1 $step2 -simplex 1 -lsq12  /tmp/src_blur.mnc /tmp/tgt_blur.mnc $tfm2
-
+echo
 cp $tfm2 $tfm
 #3
 #mincblur -quiet -clobber  -3dfwhm $s3 -dimensions 2 $src /tmp/src

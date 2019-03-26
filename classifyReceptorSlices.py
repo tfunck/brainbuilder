@@ -1,20 +1,19 @@
-from sys import argv
 import argparse
 import numpy as np
 import h5py
 import os
 import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans
-from scipy.ndimage import label
-from scipy.ndimage.morphology import binary_dilation, binary_erosion, binary_closing
 import scipy
 import os
 import imageio
-from pyminc.volumes.factory import *
-from scipy.signal import find_peaks
+import nibabel as nib
 import gzip
 import shutil
-
+from sklearn.cluster import KMeans
+from scipy.ndimage import label
+from scipy.ndimage.morphology import binary_dilation, binary_erosion, binary_closing
+from scipy.signal import find_peaks
+from sys import argv
 #
 # Purpose:
 # Performs GM classification on neurotransmitter receptor autoradiography sections using K-Means.
@@ -32,16 +31,22 @@ def compress(ii, oo) :
     return 0
 
 def denoise(s) :
-    cc, nlabels = label(s, structure=np.ones([3,3]))
+    cc, nlabels = label(s, structure=np.ones([3,3,3]))
     cc_unique = np.unique(cc)
-    cc_unique = cc_unique[ cc_unique != 0 ]
-    numPixels = np.array([np.sum(cc == l) for l in cc_unique  ])
+    numPixels = np.bincount(cc.reshape(-1,))
 
-    for s, i in zip(numPixels, cc_unique) :
-        if s < 0.01 * max(numPixels) : 
-            cc[ cc == i ] = 0
-    cc[ cc != 0 ] = 1
-    return cc
+    numPixels = numPixels[1:]
+    cc_unique = cc_unique[1:]
+    
+    idx = numPixels < (np.max(numPixels) * 0.01)
+    labels_to_remove = cc_unique[ idx ]
+    labels_to_keep = cc_unique[ ~ idx ]
+    
+    out = np.zeros(cc.shape)
+    for i in labels_to_keep :
+        out[ cc == i ] = 1
+    
+    return out
 
 def myKMeansOriginal(s):
     upper=np.max(s)
@@ -65,110 +70,102 @@ def safe_h5py_open(filename, mode='r+'):
 def classifyReceptorSlices(in_fn, out_dir, out_fn, morph_iterations=5, clobber=False) :
     qc_dir=out_dir+os.sep+"qc"
     out_fn = out_dir +os.sep+out_fn
-    if os.path.splitext(out_fn)[1] == ".gz" :
-        out_fn=os.path.splitext(out_fn)[0]
+    if not os.path.exists(out_fn) or clobber :
+        #
+        # Check Inputs
+        #
+        if not os.path.exists(in_fn):
+            print("Error: could not find ", in_fn)
+            exit(1)
 
-    #
-    # Check Inputs
-    #
-    if not os.path.exists(in_fn):
-        print("Error: could not find ", in_fn)
-        exit(1)
+        if not os.path.exists(qc_dir) :
+            os.makedirs(qc_dir)
 
-    if not os.path.exists(qc_dir) :
-        os.makedirs(qc_dir)
+        #
+        # Read Input HDF5 Minc File and create output volume
+        #
+        vol1 = nib.load(in_fn)
+        ar1 = vol1.get_data()
 
-    #
-    # Read Input HDF5 Minc File and create output volume
-    #
-    vol1 = safe_h5py_open(in_fn, "r+")
-    ar1=np.array(vol1['minc-2.0/']['image']['0']['image'])
+        slab_ymin=-126
 
-    slab_ymin=-126
-    img_cls = volumeFromDescription(out_fn, dimnames=("zspace","yspace","xspace"), sizes=ar1.shape, starts=(-90,slab_ymin,-72),steps=(0.2, 0.02, 0.2),volumeType="ushort")
+        data=np.zeros(ar1.shape)
 
-
-    #
-    # Perform K-means clustering on coronal sections in MINC volume
-    #
-    valid_slices=[]
-    invalid_slices=[]
-    qc=[]
-    for i in range(0, ar1.shape[1]) : #
-        s0 = ar1[:, i, :]
-        if np.max(s0) > 0 :
-            if (clobber or not os.path.exists(qc_dir+os.sep+'/tmp_'+str(i)+'.png')) :
-                cls0=myKMeansOriginal(s0)
-                cls2=denoise(cls0)
-                scipy.misc.imsave(qc_dir+'/tmp_'+str(i)+'.png', cls2)
-            else :
-                cls2= imageio.imread(qc_dir+os.sep+'/tmp_'+str(i)+'.png') / 255
-            img_cls.data[:,i,:] = cls2
-            valid_slices.append(i)
-            qc.append(np.sum(cls2))
-        else :
-            invalid_slices.append(i)
-
-    #
-    # Perform QC by identifying slices with large sums
-    #
-    minProminence=0.1*cls2.shape[0]*cls2.shape[1]
-    qc_peaks, qc_peaks_dict=find_peaks(qc, prominence=minProminence)
-    plt.plot(valid_slices, qc)
-    plt.scatter(np.array(valid_slices)[qc_peaks], np.array(qc)[qc_peaks] )
-    plt.savefig(qc_dir+os.sep+"qc_plot.png")
-
-    #
-    # Rerun bad K-Means slices with threshold at 90th percentile  
-    #
-    for i in np.array(valid_slices)[qc_peaks]:
-        if not os.path.exists(qc_dir+'/tmp_'+str(i)+'_post-qc.png' ) or clobber :
-            print("Updating Slice:", i)
+        #
+        # Perform K-means clustering on coronal sections in volume
+        #
+        valid_slices=[]
+        invalid_slices=[]
+        qc=[]
+        for i in range(0, ar1.shape[1]) : #
             s0 = ar1[:, i, :]
-            cls2=np.zeros_like(s0)
-            cls2[ s0 >= np.percentile(s0, 90) ] = 1
-            cls2 = binary_dilation(denoise(cls2), iterations=2).astype(int)
-            scipy.misc.imsave(qc_dir+'/tmp_'+str(i)+'_post-qc.png', cls2)
-        else : 
-            cls2 = imageio.imread(qc_dir+'/tmp_'+str(i)+'_post-qc.png') / 255
-        img_cls.data[:,i,:] = cls2
-        valid_slices.remove(i)
+            if np.max(s0) > 0 :
+                cls0=myKMeansOriginal(s0)
+                cls2=cls0 #
 
-    del ar1
-    del cls2
-    
-    #
-    # Fill in missing slices using nearest neighbour interpolation
-    #
-    valid_slices = np.array(valid_slices) 
-    for i in invalid_slices :
-        dif = np.absolute(valid_slices - i)
-        ii=valid_slices[np.argmin(dif)]
-        img_cls.data[:,i,:] = img_cls.data[:,ii,:]
+                #if (clobber or not os.path.exists(qc_dir+os.sep+'/tmp_'+str(i)+'.png')) :
+                          #print( "1", cls2.shape)
+                    #scipy.misc.imsave(qc_dir+'/tmp_'+str(i)+'.png', cls2)
+                #else :
+                #    cls2= imageio.imread(qc_dir+os.sep+'/tmp_'+str(i)+'.png') / 255
+                #    #cls2 = cls2.T
+                #    #print("2", cls2.shape)
+                data[:,i,:] = cls2
+                valid_slices.append(i)
+                qc.append(np.sum(cls2))
+            else :
+                invalid_slices.append(i)
 
-    struct=np.zeros([3,3,3])
-    struct[1, :, 1] = 1
+        #
+        # Perform QC by identifying slices with large sums
+        #
+        minProminence=0.1*cls2.shape[0]*cls2.shape[1]
+        qc_peaks, qc_peaks_dict=find_peaks(qc, prominence=minProminence)
+        plt.plot(valid_slices, qc)
+        plt.scatter(np.array(valid_slices)[qc_peaks], np.array(qc)[qc_peaks] )
+        plt.savefig(qc_dir+os.sep+"qc_plot.png")
 
-    #
-    # Perform morphological operations to denoise image
-    #
-    #img_cls.data = binary_erosion(img_cls.data, structure=struct, iterations=morph_iterations )
-    #img_cls.data = binary_dilation(img_cls.data, structure=struct, iterations=morph_iterations )
-    #img_cls.data = binary_closing(img_cls.data, iterations=1 )
-    
-    #
-    # Save output volume
-    #   
-    print("Writing output to", out_fn)
-    img_cls.writeFile()
-    img_cls.closeVolume()
-          
-    #
-    # Compress output with gzip
-    #
-    compress(out_fn, out_fn+'.gz')
+        #
+        # Rerun bad K-Means slices with threshold at 90th percentile  
+        #
+        #for i in np.array(valid_slices)[qc_peaks]:
+        #    #if not os.path.exists(qc_dir+'/tmp_'+str(i)+'_post-qc.png' ) or clobber :
+        #    print("Updating Slice:", i)
+        #    s0 = ar1[:, i, :]
+        #    cls2=np.zeros_like(s0)
+        #    cls2[ s0 >= np.percentile(s0, 80) ] = 1
+        #    cls2 = binary_dilation(denoise(cls2), iterations=2).astype(int)
+        #    scipy.misc.imsave(qc_dir+'/tmp_'+str(i)+'_post-qc.png', cls2)
+        #    #else : 
+        #    #    cls2 = imageio.imread(qc_dir+'/tmp_'+str(i)+'_post-qc.png') / 255
+        #    data[:,i,:] = cls2
+        #    valid_slices.remove(i)
 
-    return 0
+        del ar1
+        del cls2
+       
+        #
+        # Fill in missing slices using nearest neighbour interpolation
+        #
+        valid_slices = np.array(valid_slices) 
+        print("num of invalid slices:", len(valid_slices))
+        for i in invalid_slices :
+            dif = np.absolute(valid_slices - i)
+            ii=valid_slices[np.argmin(dif)]
+            data[:,i,:] = data[:,ii,:]
+
+        #Denoise data
+        data=denoise(data)
+        
+        #
+        # Save output volume
+        #   
+        print("Writing output to", out_fn)
+
+        img_cls = nib.Nifti1Image(data, vol1.get_affine() )     
+        img_cls.to_filename(out_fn)
+
+        return 0
 
 if __name__ == "__main__":
     #

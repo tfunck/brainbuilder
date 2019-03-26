@@ -1,14 +1,18 @@
 import numpy as np
 import bisect
-from scipy.ndimage.filters import gaussian_filter
+import contextlib
+import re
 import scipy
 import os
 import pandas as pd
+import nibabel as nib
+from nibabel.processing import resample_to_output
 from os.path import basename
-import re
+from scipy.ndimage.filters import gaussian_filter
 from subprocess import call, Popen, PIPE, STDOUT
-import contextlib
 from sklearn.cluster import KMeans
+
+
 
 
 def gm_segment(img):
@@ -80,16 +84,37 @@ def get_z_x_max(source_files):
         if z > zmax : zmax=z 
         source_files[i] = fn
 
+from scipy.ndimage import zoom
+from nibabel.processing import resample_to_output
+
+def downsample_y(img_fn, out_fn, step=0.2 ):
+    sd = 2  #step #/ 2.634 
+    img = nib.load(img_fn)
+    img_data = img.get_data()
+    shape = img_data.shape
+    img_blr = nib.Nifti1Image( gaussian_filter( img_data, sigma=[0,sd,0]), img.affine  )
+    print(out_fn)
+    del img_data
+ 
+    img_dwn = resample_to_output(img_blr, step )
+    del img_blr
+    img_dwn.to_filename(out_fn)
+    del img_dwn
+
 def downsample(img, subject_fn="", step=0.1, interp='cubic'):
     #Calculate length of image based on assumption that pixels are 0.02 x 0.02 microns
     l0 = img.shape[0] * 0.02 
     l1 = img.shape[1] * 0.02
+
+
     #Calculate the length for the downsampled image
     dim0=int(np.ceil(l0 / step))
     dim1=int(np.ceil(l1 / step))
+
     #Calculate the standard deviation based on a FWHM (pixel step size) of downsampled image
     sd0 = step / 2.634 
     sd1 = step / 2.634 
+
     #Gaussian filter
     img_blr = gaussian_filter(img, sigma=[sd0, sd1])
     #Downsample

@@ -189,14 +189,9 @@ def crop_source_files(source_files, lines_files, output_dir, downsample_step=0.5
                 print("Cropped:", fout,"\n")
                 scipy.misc.imsave(fout, cropped)
                 scipy.misc.imsave(bounding_box_fn, bounding_box)
-                #if os.path.exists(fout_mnc) : 
-                #    os.remove(fout_mnc)
-                #    slices2mnc(fout, fout_mnc)
             else : 
                 print("No cropped image to save")
 
-        #if not os.path.exists(fout_mnc) or clobber :
-        #        slices2mnc(fout, fout_mnc)
 
 
 if __name__ == "__main__":

@@ -17,7 +17,9 @@ extract(){
     new_start=`python -c "print($start + $step * $1)"`
     
     minc_modify_header -dinsert yspace:start=${new_start}  $2
-    ./flipyz.pl $2 > /dev/null
+    #./flipyz.pl $2 > /dev/null
+    mincreshape -clobber -dimrange yspace=0,0 $2 /tmp/tmp.mnc
+    mv /tmp/tmp.mnc $2
     if [[ $4 == 1 ]]; then
         ${qdir}/bin/mincblur -quiet -clobber -no_apodize  -3dfwhm $S $S 0  -dimensions 2 $2 ${2%.*} > /dev/null
     fi

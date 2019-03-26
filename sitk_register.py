@@ -81,6 +81,21 @@ def display_images_with_alpha( alpha, fixed, moving, moving_resampled, fn, order
     #moving_npa= moving #imageio.imread(moving)
     #moving_resampled_npa= moving_resampled #imageio.imread(moving_resampled)
     extent = 0, moving_npa.shape[1], 0, moving_npa.shape[0]
+    
+    plt.title( 'moving:'+str(moving_tier)+ ' fixed'+ str(order_moving))
+    plt.imshow(fixed_npa, cmap=plt.cm.gray, interpolation='bilinear', extent=extent)
+    plt.imshow(moving_resampled_npa, cmap=plt.cm.hot, alpha=0.35, interpolation='bilinear', extent=extent)
+    plt.title('rsl moving vs fixed')
+    plt.axis('off')
+
+
+    plt.axis('off')
+    plt.tight_layout()
+
+    plt.savefig(fn, dpi=200,bbox_inches="tight" )
+    plt.clf()
+    return 0 
+    
     if metric != 0 :
         plt.title("Metric= "+ str(metric) )
 
@@ -88,18 +103,18 @@ def display_images_with_alpha( alpha, fixed, moving, moving_resampled, fn, order
     
     # Draw the fixed image in the first subplot.
     plt.subplot(2,3,1)
-    plt.title( str(fixed_tier)+ ' '+ str(order_fixed))
+    plt.title( 'fixed:'+str(fixed_tier)+ ' '+ str(order_fixed))
     plt.imshow(fixed_npa,cmap=plt.cm.gray);
     plt.axis('off')
     
     # Draw the moving image in the second subplot.
     plt.subplot(2,3,2)
-    plt.title( str(moving_tier)+ ' '+ str(order_moving))
+    plt.title( 'moving:'+str(moving_tier)+ ' '+ str(order_moving))
     plt.imshow(moving_npa,cmap=plt.cm.bone);
     plt.axis('off')
    
     plt.subplot(2,3,3)
-    plt.title( str(moving_tier)+ ' '+ str(order_moving))
+    plt.title( 'rsl moving:'+str(moving_tier)+ ' '+ str(order_moving))
     plt.imshow(moving_resampled_npa,cmap=plt.cm.bone);
     plt.axis('off')
 
@@ -108,27 +123,25 @@ def display_images_with_alpha( alpha, fixed, moving, moving_resampled, fn, order
     img1 = (1.0 - alpha)*fixed_npa + alpha*moving_resampled_npa
     plt.imshow(fixed_npa, cmap=plt.cm.gray, interpolation='bilinear', extent=extent)
     plt.imshow(moving_npa, cmap=plt.cm.hot, alpha=0.35, interpolation='bilinear', extent=extent)
-   #plt.imshow(img1);
     plt.title('original moving vs fixed')
 
     plt.subplot(2,3,5)
-    #plt.imshow(img0);
     plt.imshow(moving_npa, cmap=plt.cm.bone, interpolation='bilinear', extent=extent)
     plt.imshow(moving_resampled_npa, cmap=plt.cm.hot, alpha=0.35, interpolation='bilinear', extent=extent)
-    plt.title('registered moving vs original moving')
+    plt.title('rsl moving vs original moving')
     plt.axis('off')
 
     plt.subplot(2,3,6)
     plt.imshow(fixed_npa, cmap=plt.cm.gray, interpolation='bilinear', extent=extent)
     plt.imshow(moving_resampled_npa, cmap=plt.cm.hot, alpha=0.35, interpolation='bilinear', extent=extent)
-   #plt.imshow(img1);
-    plt.title('registered moving vs fixed')
+    plt.title('rsl moving vs fixed')
     plt.axis('off')
 
 
     plt.axis('off')
+    plt.tight_layout()
 
-    plt.savefig(fn)
+    plt.savefig(fn, dpi=200,bbox_inches="tight" )
     #plt.show()
     plt.clf()
 
@@ -339,7 +352,6 @@ def register3D(fixed_fn, moving_fn, transform_fn, resolutions, max_iterations, t
 
 def resample(moving_fn, transform_fn_list, rsl_fn="", ndim=2):
     movingImage = sitk.ReadImage(moving_fn)
-    
     composite = sitk.Transform(ndim, sitk.sitkComposite )
     for fn in transform_fn_list :
         transform = sitk.ReadTransform(fn)

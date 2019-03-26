@@ -12,54 +12,6 @@ from utils.anisotropic_diffusion import *
 import matplotlib.pyplot as plt 
 from skimage.exposure import  equalize_hist
 from scipy.ndimage.morphology import binary_closing
-def curvature(img):
-    xx, yy = np.gradient(img, edge_order=2)
-    img = np.sqrt(xx**2 + yy**2)
-    d0 = np.gradient(img,edge_order=2, axis=0)
-    d00 = np.gradient(d0,edge_order=2, axis=0)
-    d1 = np.gradient(img,edge_order=2, axis=1)
-    d11 = np.gradient(d1,edge_order=2, axis=1)
-    d10 = np.gradient(d1,edge_order=2, axis=0)
-
-    num = (d00*d11**2 + d11*d00**2 - 2*d10*d1*d0) 
-    den = (d0**2 + d1**2)**(3/2)
-    den[den==0]=1
-    num[den==0]=0
-    k =np.abs(num/ den)
-    return(k)
-
-def get_kmeans_img(img_dwn, nMeans=3):
-    init=np.percentile(img_dwn, [0.1,0.5,0.99]).reshape(3,1)
-    db = KMeans(nMeans, init=init).fit_predict(img_dwn.reshape(-1,1))
-    clustering = db.reshape(img_dwn.shape)
-    #In order for the "label" function to work, the background
-    #must be equal to 0 in the clustering array. To ensure this,
-    #the following bit of code switches the labeled region with the lowest
-    #mean with that of the 0 labeled region, if the former is lower than the latter
-    pixel_measure = np.mean(img_dwn[ clustering == 0])
-    measure_n=0
-    for n in range(1, nMeans) :
-        cur_pixel_measure = np.mean(img_dwn[ clustering == n])
-        if cur_pixel_measure > pixel_measure :
-            max_pixel_measure = cur_pixel_measure
-            measure_n =n
-
-    if measure_n != 0 :
-        idx0 = clustering == 0
-        idx1 = clustering == measure_n
-        clustering[idx0] = max_pixel_measure
-        clustering[idx1] = 0
-    
-    #Perform erosion and dilation on all values in clustered image
-    for n in range(1, nMeans) :
-        temp = np.zeros(img_dwn.shape)
-        temp[clustering == n ] =1 
-        temp = binary_erosion(temp, iterations=5)
-        temp = binary_dilation(temp, iterations=5)
-        clustering[ temp == 1 ] = 1 #temp[clustering==n]
-
-    return(clustering)
-
 
 def binary_mask(im5):
     ymin, ymax, xmin, xmax, yi, xi = find_min_max(im5)
