@@ -303,7 +303,6 @@ def crop_source_files(source_files, lines_files, output_dir, downsample_step=0.5
         subject_output_dir = output_dir + os.sep + "detailed" + os.sep + fsplit[0] + os.sep
         subject_output_base = subject_output_dir+fsplit[0]+'_'
         fout = output_dir + os.sep + fsplit[0]+'_cropped'+fsplit[1]
-        fout_mnc = output_dir + os.sep + fsplit[0]+'_cropped'+'.mnc'
         qc_fn=qc_dir+os.sep+fsplit[0]+'_cropped_qc.png'
         bounding_box_fn=subject_output_base + 'bounding_box.png' 
         if (not os.path.exists(fout) or not os.path.exists(qc_fn)) or clobber :

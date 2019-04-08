@@ -11,7 +11,7 @@ import h5py
 import json
 
 
-def init_volume(slab_fn,slab_img_fn, source_dir, zmax, ymax, xmax, df, scale, cur_slab, clobber=False, align=True):
+def init_volume(slab_img_fn, source_dir, zmax, ymax, xmax, df, scale, cur_slab,ext=".png", clobber=False, align=True):
     n=1
     if not os.path.exists( slab_img_fn ) or clobber :
         order_max=df["order"].max()
@@ -22,9 +22,21 @@ def init_volume(slab_fn,slab_img_fn, source_dir, zmax, ymax, xmax, df, scale, cu
         y=0
         for i, row in df.iterrows() :
             forder = row["order"]
-            f=glob(source_dir+os.sep+str(forder)+"_*png")
+            _file = row["filename"] 
+
+            file_root_list = [i for i in os.path.basename(_file).split('_')  if "#" in i ]
+            #print(file_root_list)
+            if len(file_root_list) > 0 : 
+                file_root = file_root_list[0]
+            else :
+                continue
+            #print(file_root)
+
+            f=glob(source_dir+os.sep+"*"+file_root+"*"+ext)
+
             if len(f) == 0 :
                 continue
+            #print(f)
             f=f[0]
             slab = row["slab"]
             hemi = row["hemisphere"]
@@ -93,9 +105,8 @@ def slices2vol(receptor_fn, source_dir, output_dir,  slabs_to_run=[], clobber=Fa
     for cur_slab in slabs_to_run :
         print('\tCurrent slab:', cur_slab)
         slab=df.loc[ df.slab == cur_slab ]
-        slab_fn = output_dir+os.sep+"vol_"+str(cur_slab)+".hdf5"
         slab_img_fn= output_dir+os.sep+"vol_"+str(cur_slab)+".nii.gz"
-        init_volume(slab_fn,slab_img_fn, source_dir, zmax, ymax, xmax, slab, scale, cur_slab, clobber)
+        init_volume(slab_img_fn, source_dir, zmax, ymax, xmax, slab, scale, cur_slab, ext=ext, clobber=clobber)
         
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
