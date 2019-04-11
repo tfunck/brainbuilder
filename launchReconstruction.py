@@ -42,7 +42,7 @@ for mr in mr_list :
     for h in hemisphere_list :
         for i in slabs :
             slab=i
-            dd = mr+os.sep+h+"_"+str(slab)+os.sep
+            dd = mr+os.sep+h+"_slab_"+str(slab)+os.sep
             source_lin_dir = 'lin'+os.sep+h+'_slab_'+str(i)
             lin_dir=mr+os.sep+'lin'+os.sep+h+'_slab_'+str(i) + os.sep
 
@@ -62,15 +62,15 @@ for mr in mr_list :
             ###################################
             ### Step 1 : Apply line removal ###
             ###################################
-            #shell("python3 detectLines.py --step "+str(0.2)+" --train-source \"test/\" --train-output line_detection_model/  --raw-source "+ raw_source+os.sep+h+"_"+slab+" --raw-output "+dd +"lines_removed")
-
+            shell("python3 detectLines.py --step "+str(0.2)+"  --train-output line_detection_model/  --raw-source "+ raw_source+os.sep+h+"_slab_"+str(slab)+" --lin-source "+ lin_source+os.sep+h+"_slab_"+str(slab) +" --raw-output "+dd +"lines_removed_lin --ext .TIF") #--train-source \"test/\"
+            exit(0)
             ##################################
             ### Step 2: Automatic Cropping ###
             ##################################
             noframe=""
             #if dd in dont_remove_lines :
             #    noframe="--no-frame"
-            #shell("python3 receptorCrop.py  "+noframe+" --source "+dd+"lines_removed/ --output "+dd+"/crop --step "+str(0.2)+" --ext \".png\" ")
+            shell("python3 receptorCrop.py  "+noframe+" --source "+dd+"lines_removed/ --output "+dd+"/crop --step "+str(0.2)+" --ext \".png\" ")
         
             ##################################
             ### Step 3 : Receptor Register ###

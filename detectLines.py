@@ -38,8 +38,8 @@ def get_max_model(train_output_dir):
     max_model = model_list[max_model_idx]
     return max_model
 
-def get_raw_files(raw_source_dir):
-    raw_files_str = raw_source_dir +  os.sep + "*.tif"
+def get_raw_files(raw_source_dir, ext):
+    raw_files_str = raw_source_dir +  os.sep + "*"+ext
     raw_files = glob(raw_files_str)
     if raw_files == [] :
         print("Could not find any files in: ", raw_files_str)
@@ -95,17 +95,19 @@ def get_lines(downsample_files,raw_files, max_model,output_dir, clobber) :
                 keras.metrics.dice = dice
                 model = load_model(max_model )
 
-
+            # Apply neural network model to downsampled image
             img=img.reshape([1,img.shape[0],img.shape[1],1])
             X = model.predict(img, batch_size=1)
             idx = X > np.max(X) * 0.5
             X[ idx ]  = 1
             X[ ~idx ] = 0
-
+            
+            # Resample to full resolution
             X=X.reshape(ydim,xdim)
             X2 = imresize(X, (y0,x0), interp='nearest')
             X2=X2.reshape(y0,x0)
             
+            # Save output image
             imageio.imsave(line_fn, X2)
         line_files += [line_fn]
 
@@ -205,18 +207,19 @@ def remove_lines(line_files, raw_files, raw_output_dir, clobber) :
     if not os.path.exists(final_dir) : os.makedirs(final_dir)
 
     for raw in raw_files :
-        base = os.path.splitext(os.path.basename(raw))[0]
-        fout = final_dir + os.sep + base + '.png'
+        base =re.sub('#L', '', os.path.splitext(os.path.basename(raw))[0])
+
+        fout = final_dir + os.sep + base + '.TIF'
         if not os.path.exists(fout) or clobber : 
 
             iraw = imageio.imread(raw)
             if len(iraw.shape) == 3 : iraw = np.mean(iraw, axis=2)
             if iraw.shape[0] > iraw.shape[1] : 
                 iraw = iraw.T
-            lines= [ f  for f in line_files if base in f ]
+            lines= [ f for f in line_files if base in f ]
             if lines != [] : lines=lines[0]
             else : 
-                print("failed at remove_lines"); 
+                print("Failed at remove_lines for :", raw); 
                 exit(1)
             iline = imageio.imread(lines)
             iline=binary_dilation(iline,iterations=3).astype(int)
@@ -225,15 +228,16 @@ def remove_lines(line_files, raw_files, raw_output_dir, clobber) :
 
     return 0
 
-def apply_model(train_output_dir, raw_source_dir, raw_output_dir, step, clobber=False):
+def apply_model(train_output_dir, raw_source_dir, lin_source_dir, raw_output_dir, step, ext='.TIF', clobber=False):
     max_model=get_max_model(train_output_dir)
-    raw_files=get_raw_files(raw_source_dir)  
-    print("Got raw file names.")
+    raw_files=get_raw_files(raw_source_dir, '.tif')  
+    lin_files=get_raw_files(lin_source_dir, ext)  
+    #print("Got raw file names.")
     downsample_files = downsample_raw(raw_files, raw_output_dir, step, clobber)
     print("Got downsampled files.")
     line_files = get_lines(downsample_files, raw_files,max_model, raw_output_dir,  clobber)
     print("Loaded line files.")
-    remove_lines(line_files, raw_files, raw_output_dir, clobber)
+    remove_lines(line_files, lin_files, raw_output_dir, clobber)
     print("Removed lines from raw files.")
 
 
@@ -444,10 +448,10 @@ def predict_results(source_dir, output_dir, model, images_val, masks_val, _use_r
 
 
 
-def main(source_dir, output_dir, step, epochs, clobber) :
-	train_dir=source_dir+os.sep+'train'
-	label_dir=source_dir+os.sep+'labels'
-    generate_models(source_dir, output_dir, step, epochs, clobber)
+def train_model(source_dir, output_dir, step, epochs, clobber) :
+    train_dir=source_dir+os.sep+'train'
+    label_dir=source_dir+os.sep+'labels'
+    #generate_models(source_dir, output_dir, step, epochs, clobber)
     
     deg_list = [0]
     stretch_list = [1]
@@ -488,34 +492,34 @@ def main(source_dir, output_dir, step, epochs, clobber) :
     checkpoint_fn = os.path.splitext(model_name)[0]+"_checkpoint-{epoch:02d}-{dice:.2f}.hdf5"
     checkpoint = ModelCheckpoint(checkpoint_fn, monitor='val_dice', verbose=0, save_best_only=True, mode='max')
 
-	batch_size = 16
+    batch_size = 16
 
-	# this is the augmentation configuration we will use for training
-	train_datagen = ImageDataGenerator(
-			rescale=1./255,
-			shear_range=0.2,
-			zoom_range=0.2,
-			horizontal_flip=True)
+    # this is the augmentation configuration we will use for training
+    train_datagen = ImageDataGenerator(
+                    rescale=1./255,
+                    shear_range=0.2,
+                    zoom_range=0.2,
+                    horizontal_flip=True)
 
-	# this is the augmentation configuration we will use for testing:
-	# only rescaling
-	test_datagen = ImageDataGenerator(rescale=1./255)
+    # this is the augmentation configuration we will use for testing:
+    # only rescaling
+    test_datagen = ImageDataGenerator(rescale=1./255)
 
-	# this is a generator that will read pictures found in
-	# subfolers of 'data/train', and indefinitely generate
-	# batches of augmented image data
-	train_generator = train_datagen.flow_from_directory(
-			'data/train',  # this is the target directory
-			target_size=(150, 150),  # all images will be resized to 150x150
-			batch_size=batch_size,
-			class_mode='binary')  # since we use binary_crossentropy loss, we need binary labels
+    # this is a generator that will read pictures found in
+    # subfolers of 'data/train', and indefinitely generate
+    # batches of augmented image data
+    train_generator = train_datagen.flow_from_directory(
+                    'data/train',  # this is the target directory
+                    target_size=(150, 150),  # all images will be resized to 150x150
+                    batch_size=batch_size,
+                    class_mode='binary')  # since we use binary_crossentropy loss, we need binary labels
 
-	# this is a similar generator, for validation data
-	validation_generator = test_datagen.flow_from_directory(
-			'data/validation',
-			target_size=(150, 150),
-			batch_size=batch_size,
-			class_mode='binary')
+    # this is a similar generator, for validation data
+    validation_generator = test_datagen.flow_from_directory(
+                    'data/validation',
+                    target_size=(150, 150),
+                    batch_size=batch_size,
+                    class_mode='binary')
 
 
     history = model.fit_generator( gen(images_train, masks_train, batch_size), 
@@ -535,16 +539,16 @@ def main(source_dir, output_dir, step, epochs, clobber) :
     return 0
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('--source',dest='source_dir', default='test/', help='Directory with raw images')
-    parser.add_argument('--output',dest='output_dir', default='test/results',  help='Directory name for outputs')
-    parser.add_argument('--step',dest='step', default=0.5, type=float, help='File extension for input files (default=.tif)')
-    parser.add_argument('--epochs',dest='epochs', default=1, type=int, help='Number of epochs')
-    parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
+#if __name__ == "__main__":
+#    parser = argparse.ArgumentParser(description='Process some integers.')
+#    parser.add_argument('--source',dest='source_dir', default='test/', help='Directory with raw images')
+#    parser.add_argument('--output',dest='output_dir', default='test/results',  help='Directory name for outputs')
+#    parser.add_argument('--step',dest='step', default=0.5, type=float, help='File extension for input files (default=.tif)')
+#    parser.add_argument('--epochs',dest='epochs', default=1, type=int, help='Number of epochs')
+#    parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
 
-    args = parser.parse_args()
-    main(args.source_dir, args.output_dir, step=args.step, epochs=args.epochs, clobber=args.clobber)
+#    args = parser.parse_args()
+#    main(args.source_dir, args.output_dir, step=args.step, epochs=args.epochs, clobber=args.clobber)
 
 
 
@@ -553,7 +557,9 @@ if __name__ == "__main__":
     parser.add_argument('--train-source',dest='train_source_dir', default='', help='Directory with raw images')
     parser.add_argument('--train-output',dest='train_output_dir', default='',  help='Directory name for outputs')
     parser.add_argument('--raw-source',dest='raw_source_dir', default='', help='Directory with raw images')
+    parser.add_argument('--lin-source',dest='lin_source_dir', default='', help='Directory with raw images')
     parser.add_argument('--raw-output',dest='raw_output_dir', default='',  help='Directory name for outputs')
+    parser.add_argument('--ext',dest='ext', default='.TIF',  help='Directory name for outputs')
     parser.add_argument('--step',dest='step', default=0.1, type=float, help='File extension for input files (default=.tif)')
     parser.add_argument('--epochs',dest='epochs', default=1, type=int, help='Number of epochs')
     parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
@@ -565,7 +571,7 @@ if __name__ == "__main__":
         print("Skipping train_model because either --train-source or --train-output is not set")
     
     if args.raw_source_dir != '' and args.raw_output_dir != '' and args.train_output_dir != '' :
-        apply_model(args.train_output_dir,args.raw_source_dir,args.raw_output_dir,args.step, args.clobber)
+        apply_model(args.train_output_dir,args.raw_source_dir,args.lin_source_dir,args.raw_output_dir,args.step,args.ext, args.clobber)
     else :
         print("Skipping apply_model because either --train-output, --raw-source, or --raw-output are not set")
 
