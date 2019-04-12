@@ -6,6 +6,7 @@ import numpy as np
 import cv2
 import os
 import json
+import h5py
 from time import time
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage.morphology import binary_dilation, binary_erosion
@@ -76,7 +77,6 @@ def generate_training_data(source_dir, qc_dir, tissue_dir, label_dir,  n_samples
             
             #Skip patches with less than 20% labels == 1
             if np.sum(thr_subset) / (xstep*zstep) < 0.2  : continue
-            
             
             plt.clf()
             plt.subplot(2,2,1)
@@ -150,15 +150,19 @@ def add_padding(img, zmax, xmax):
     img_pad = np.pad(img, (z_pad,x_pad), 'minimum')
     return img_pad
 
-def get_batch_size(train_x, val_x, limit=10) :
-    n=val_x.shape[0]
-    m=train_x.shape[0]
-    batch_size_list = np.array([  i for i in range(1,min(n,m)+1) if n % i == 0 and m % i == 0 ])
+def get_batch_size(train_fn, val_fn, limit=300) :
+    train_x = h5py.File(train_fn, 'r')
+    val_x = h5py.File(val_fn, 'r')
+    
+    n=val_x["x"].shape[0]
+    m=train_x["x"].shape[0]
+    batch_size_list = np.array([  i for i in range(1,m+1) if m % i == 0 ])
     batch_size = max(batch_size_list[batch_size_list < limit])
-    batch_size=1
+    batch_size=5
+    #batch_size=1
     steps=int(np.floor(m/batch_size))
     val_steps=int(np.floor(n/batch_size))
-    return batch_size, steps, val_steps
+    return batch_size, steps, val_steps 
 
 def get_image_filenames(tissue_dir, label_dir):
     ###Load Images
@@ -172,86 +176,67 @@ def get_image_filenames(tissue_dir, label_dir):
     y = y[idx]
     return x, y
 
-def read_format_images(start_idx, end_idx, xstep, zstep, x,y, use_augmentation=False  ):
-    from keras.utils import to_categorical
+def read_format_images(fn, start_idx, end_idx, xstep, zstep, x,y, use_augmentation=False  ):
     identity = lambda x : x
-    train_x_list=[] #np.zeros([(end_idx-start_idx)*n_augment,xstep,zstep])
-    train_y_list=[] #np.zeros([(end_idx-start_idx)*n_augment,xstep,zstep])
+   
+    n=end_idx - start_idx
+
+    data = h5py.File(fn, "w")
+    data.create_dataset("x", (n, xstep, zstep), dtype='float16')
+    data.create_dataset("y", (n, xstep, zstep), dtype='float16')
 
     for i, files in enumerate(zip(x[start_idx:end_idx], y[start_idx:end_idx])):
+        img = imread(files[0])
+        label = imread(files[1])
         
-        img_orig = imread(files[0])
-        label_orig = imread(files[1])
+        img = (img - np.min(img)) / (np.max(img) - np.min(img))
         
-        augmentations= [identity]
-        if np.max(label_orig) == 0 : 
-            continue
-            augmentations= [identity]
-        else :
-            if use_augmentation :
-                augmentations= [identity, np.fliplr]
-            else :
-                augmentations= [identity]
-        n_augment = len(augmentations)
+        if np.max(img) != 0 and np.max(img) != np.min(img) : 
+            img = (img - np.min(img)) / (np.max(img)- np.min(img))
 
-        for f in augmentations :
-            img = f(img_orig)
-            label = f(label_orig)
-            img = (img - np.min(img)) / (np.max(img) - np.min(img))
-            if img.shape != (300,300) : continue
-            if np.max(img) != 0 and np.max(img) != np.min(img) : 
-                img = (img - np.min(img)) / (np.max(img)- np.min(img))
-            if np.max(label) != 0 : 
-                label = label / np.max(label)
-            #train_x_list.append(img.reshape(1,*img.shape))
-            #noise = np.random.normal(0, 1, (1,*label.shape))
-            train_x_list.append(img.reshape(1,*label.shape))
-            train_y_list.append(label.reshape(1,*label.shape))
-    train_y = np.concatenate(train_y_list, axis=0)
-    train_x = np.concatenate(train_x_list, axis=0)
-    n_samples = train_x.shape[0]
+        if np.max(label) != 0 : 
+            label = label / np.max(label)
 
-    print("Label 0 :", 100. * np.sum(train_y==0) / np.product(train_y.shape), "; 1 :", 100. * np.sum(train_y==1) / np.product(train_y.shape) )
-    train_y = to_categorical(train_y).reshape(n_samples, xstep*zstep*2)
-    
-    return train_x.reshape([*train_x.shape,1]) , train_y
+        data["x"][i] = img.reshape(1,*label.shape)
+        data["y"][i] = label.reshape(1,*label.shape)
 
-def create_train_val_data(x, y, train_ratio, val_ratio,tissue_dir, label_dir, xstep=300, zstep=300):
+    return 0
+
+def save_h5(fn, data) :
+    f = h5py.File(fn, "w")
+    X = f.create_dataset("image", *data.shape, dtype='float16')
+    X = data
+
+def create_train_val_data(train_fn, val_fn, x, y, train_ratio, val_ratio,tissue_dir, label_dir, xstep=300, zstep=300):
     ### Create Training and Validation sets
     train_idx = int(len(x) * train_ratio)
     val_idx = int(train_idx + len(x) * val_ratio)
+    new_class_weights=False
 
-    if not os.path.exists(tissue_dir+"/train_x.npy") or not os.path.exists(label_dir+"/train_y.npy") : 
-        train_x, train_y = read_format_images(0, train_idx, xstep, zstep, x, y )
-        np.save(tissue_dir+"/train_x", train_x)
-        np.save(label_dir+"/train_y", train_y)
-    else : 
-        train_x = np.load(tissue_dir+"/train_x.npy")
-        train_y = np.load(label_dir+"/train_y.npy")
-   
-    if not os.path.exists(tissue_dir+"/val_x.npy") or not os.path.exists(label_dir+"/val_y.npy") : 
-        val_x, val_y = read_format_images(train_idx, val_idx, xstep, zstep, x , y)
-        np.save(tissue_dir+"/val_x", val_x)
-        np.save(label_dir+"/val_y", val_y)
-    else :
-        val_x = np.load(tissue_dir+"/val_x.npy")
-        val_y = np.load(label_dir+"/val_y.npy")
+    if not os.path.exists(train_fn)  : 
+        read_format_images(train_fn, 0, train_idx, xstep, zstep, x, y )
+        new_class_weights=True
 
-    train_y_rsl = train_y.reshape(train_y.shape[0],xstep*zstep,2)
-    class_weights = compute_class_weight('balanced',[0,1],np.argmax(train_y_rsl,axis=2).flatten()) 
-    print("Class Weights", class_weights)
-    return train_x, train_y, val_x, val_y, class_weights
+    if not os.path.exists(val_fn) :
+        read_format_images(val_fn, train_idx, val_idx, xstep, zstep, x , y)
 
-def gen(X,Y,batch_size=1,xdim=300,zdim=300):
+    return new_class_weights
+
+def gen(fn, batch_size=1,xdim=300,zdim=300):
+    from keras.utils import to_categorical
+    data = h5py.File(fn, 'r')
+    n=data["x"].shape[0]
     while True :
-        for i in range(0,X.shape[0],batch_size) :
-            x=X[i:(i+batch_size)]
-            y=Y[i:(i+batch_size)]
-            y=y.reshape( batch_size,xdim*zdim*2 )
+        for i in range(0,n,batch_size) :
+            batch_size_0 = batch_size if i+batch_size < n else n - i
+            x=data["x"][i:(i+batch_size_0), :, :]
+            y=to_categorical(data["y"][i:(i+batch_size_0), :, :], 2)
+            x=x.reshape( *x.shape, 1)
+            y=y.reshape( batch_size, xdim*zdim*2 )
             yield x, y 
 
 
-def make_compile_model(train_x, batch_size, xdim=300,zdim=300 ) :
+def make_compile_model(train_x_shape, batch_size, xdim=300,zdim=300 ) :
     import keras
     from keras.models import Model
     from keras.engine.topology import Input
@@ -260,20 +245,17 @@ def make_compile_model(train_x, batch_size, xdim=300,zdim=300 ) :
     from keras.layers.core import Dropout, Dense, Flatten, Reshape
     from keras.layers import LeakyReLU, MaxPooling2D, concatenate
     from keras.activations import relu
-    
-    IN = Input(shape=( *train_x.shape[1:-1], batch_size))
+    print(train_x_shape[1:]) 
+    IN = Input(shape=(  *train_x_shape[1:],1  ))
     DO=0.2
 
     ks=3
-    nk=32
+    nk=64
     #1 --> 300
     CONV1A=Dropout(DO)(Conv2D( nk, kernel_size=[ks,ks],activation='relu',padding='same')(IN))
     CONV1B=Dropout(DO)(Conv2D( nk, kernel_size=[ks,ks],activation='relu',padding='same')(CONV1A))
     CONV1C=Dropout(DO)(Conv2D( nk, kernel_size=[ks,ks],activation='relu',padding='same')(CONV1B))
-    CONV1D=Dropout(DO)(Conv2D( nk, kernel_size=[ks,ks],activation='relu',padding='same')(CONV1C))
-    CONV1E=Dropout(DO)(Conv2D( nk, kernel_size=[ks,ks],activation='relu',padding='same')(CONV1D))
-    CONV1F=Dropout(DO)(Conv2D( nk, kernel_size=[ks,ks],activation='relu',padding='same')(CONV1E))
-    CONV5B=CONV1F
+    CONV5B=CONV1C
     #POOL1 = MaxPooling2D(pool_size=(2,2),padding='same')(CONV1B)
     #2 --> 150
     #CONV2A=Dropout(0.2)(Conv2D( nk, kernel_size=[ks,ks],activation='relu',padding='same')(POOL1))
@@ -304,38 +286,50 @@ def make_compile_model(train_x, batch_size, xdim=300,zdim=300 ) :
 def to_2D(x, xstep=300,zstep=300):
     return np.argmax(x.reshape(xstep,zstep,2),axis=2).reshape(xstep,zstep)
 
-def get_class_weights(x):
-    flat = x.flatten() 
-    p0 = 1.* np.sum(flat == 0 ) / len(flat)
-    p1 = 1. - p0 
-    w0 = 0.5 / p0
-    w1 = 0.5 / p1
-    class_weights={0:w1, 1:w2}
+
+def get_class_weights(train_fn, class_weights_fn, clobber=False ):
+    if not os.path.exists(class_weights_fn) or clobber :
+        train_y=h5py.File(train_fn, 'r')["y"]
+        train_y_shape=train_y.shape
+        class_weights = compute_class_weight("balanced", np.array([0,1]), np.array(train_y).flatten())
+        class_weights_dict = {"0":str(class_weights[0]), "1":str(class_weights[1])}
+        json.dump(class_weights_dict, open(class_weights_fn, 'w'))
+    else :
+        class_weights_str = json.load(open(class_weights_fn, 'r'))
+        class_weights={ 0:float(class_weights_str["0"]), 1:float(class_weights_str["1"])} 
+    print("Class Weights:", class_weights)
     return class_weights
 
 def train_model( model_fn, tissue_dir,label_dir, train_ratio=0.75,val_ratio=0.25, epochs=50):
     from keras.callbacks import History, ModelCheckpoint
 
+    train_fn = tissue_dir+"/train.h5"
+    val_fn = tissue_dir+"/val.h5"
     x, y = get_image_filenames(tissue_dir, label_dir)
-    train_x, train_y, val_x, val_y, class_weights = create_train_val_data(x, y, train_ratio, val_ratio,tissue_dir, label_dir  )
+    new_class_weights = create_train_val_data(train_fn, val_fn, x, y, train_ratio, val_ratio,tissue_dir, label_dir)
 
     ### Calculate batch size
-    batch_size, steps, val_steps = get_batch_size(train_x, train_y, limit=10)
-    checkpoint_fn = "tissue_subset/checkpoint-{epoch:02d}-{acc:.2f}.hdf5"
-    checkpoint = ModelCheckpoint(checkpoint_fn, monitor='acc', verbose=0, save_best_only=True, mode='max')
+    batch_size, steps, val_steps = get_batch_size(train_fn, val_fn, limit=10)
     
+    ### Get Class Weights
+    class_weights = get_class_weights(train_fn, label_dir + '/class_weights.json', new_class_weights)
+
+    ### Get shape of data
+    train_x_shape=h5py.File(train_fn, 'r')["x"].shape
+
     ### Make Model
-    model = make_compile_model(train_x, batch_size, xdim=300,zdim=300)
+    model = make_compile_model(train_x_shape, batch_size, xdim=300,zdim=300)
     print("Batch Size:", batch_size)
-    print('Data Points:', train_x.shape[0], val_x.shape[0])
+    #print('Data Points:', train_x_shape, val_x.shape[0])
+
 
     ### Fit Model
-    history = model.fit_generator( gen(train_x, train_y, batch_size=batch_size), 
+    history = model.fit_generator( gen(train_fn,  batch_size=batch_size), 
                 steps_per_epoch=steps, 
-                validation_data=(val_x, val_y ), 
+                validation_data=gen(val_fn), 
                 validation_steps=val_steps, 
                 epochs=epochs,
-                class_weight=class_weights#, 
+                class_weight=class_weights
                 )
     model.save(model_fn)
 
