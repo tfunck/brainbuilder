@@ -212,11 +212,9 @@ def read_format_images(start_idx, end_idx, xstep, zstep, x,y, use_augmentation=F
     n_samples = train_x.shape[0]
 
     print("Label 0 :", 100. * np.sum(train_y==0) / np.product(train_y.shape), "; 1 :", 100. * np.sum(train_y==1) / np.product(train_y.shape) )
-    class_weights = compute_class_weight('balanced',[0,1],train_y.flatten()) 
-    print("Class Weights", class_weights)
     train_y = to_categorical(train_y).reshape(n_samples, xstep*zstep*2)
     
-    return train_x.reshape([*train_x.shape,1]) , train_y, class_weights
+    return train_x.reshape([*train_x.shape,1]) , train_y
 
 def create_train_val_data(x, y, train_ratio, val_ratio,tissue_dir, label_dir, xstep=300, zstep=300):
     ### Create Training and Validation sets
@@ -224,21 +222,24 @@ def create_train_val_data(x, y, train_ratio, val_ratio,tissue_dir, label_dir, xs
     val_idx = int(train_idx + len(x) * val_ratio)
 
     if not os.path.exists(tissue_dir+"/train_x.npy") or not os.path.exists(label_dir+"/train_y.npy") : 
-        train_x, train_y, class_weights = read_format_images(0, train_idx, xstep, zstep, x, y )
+        train_x, train_y = read_format_images(0, train_idx, xstep, zstep, x, y )
         np.save(tissue_dir+"/train_x", train_x)
         np.save(label_dir+"/train_y", train_y)
     else : 
         train_x = np.load(tissue_dir+"/train_x.npy")
         train_y = np.load(label_dir+"/train_y.npy")
    
-    if not os.path.exists(tissue_dir+"/train_x.npy") or not os.path.exists(label_dir+"/train_y.npy") : 
-        val_x, val_y, class_weights_val = read_format_images(train_idx, val_idx, xstep, zstep, x , y)
+    if not os.path.exists(tissue_dir+"/val_x.npy") or not os.path.exists(label_dir+"/val_y.npy") : 
+        val_x, val_y = read_format_images(train_idx, val_idx, xstep, zstep, x , y)
         np.save(tissue_dir+"/val_x", val_x)
         np.save(label_dir+"/val_y", val_y)
     else :
         val_x = np.load(tissue_dir+"/val_x.npy")
         val_y = np.load(label_dir+"/val_y.npy")
 
+    train_y_rsl = train_y.reshape(train_y.shape[0],xstep*zstep,2)
+    class_weights = compute_class_weight('balanced',[0,1],np.argmax(train_y_rsl,axis=2).flatten()) 
+    print("Class Weights", class_weights)
     return train_x, train_y, val_x, val_y, class_weights
 
 def gen(X,Y,batch_size=1,xdim=300,zdim=300):
