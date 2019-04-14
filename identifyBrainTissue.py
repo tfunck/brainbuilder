@@ -18,6 +18,18 @@ from sklearn.cluster import KMeans
 from skimage.filters import threshold_otsu, threshold_yen
 from sklearn.utils.class_weight import compute_class_weight
 
+def local_kmeans(img,step, stride):
+    out = np.zeros(img.shape)
+    n = np.zeros(img.shape)
+    for x in range(0, img.shape[0], stride):
+        for z in range(0, img.shape[1], stride) :
+            out[x:(x+step),z:(z+step)] += myKMeans(img[x:(x+step),z:(z+step)])
+            n[x:(x+step),z:(z+step)] += 1.
+    out = out / n 
+    out[ out < 0.5 ] = 0
+    out[ out >= 0.5 ] = 1
+    return out
+
 
 def gen_rand_locations(dim,step,n_samples):
     values=np.arange(0,dim-step,step,dtype=int)
@@ -39,8 +51,10 @@ def generate_training_data(source_dir, qc_dir, tissue_dir, label_dir,  n_samples
         if not os.path.exists(d) :
             os.makedirs(d)
     
-    source_files=glob(source_dir+"/*")
-    
+    #source_files=glob(source_dir+"/*")
+    source_files=[]
+    for ligand in ["oxot", "epib", "ampa", "uk14", "mk80", "pire" ] :
+        source_files+=glob(source_dir+"/*"+ligand+"*")
     np.random.shuffle(source_files)
     idx=0
 
@@ -50,19 +64,14 @@ def generate_training_data(source_dir, qc_dir, tissue_dir, label_dir,  n_samples
         im_orig = np.max(imread(f), axis=2)
 
         im = im_orig
-        #if True in [ True for i in  ["oxot", "epib", "ampa", "uk14", "mk80", "pire" ] if i in f ] :
-        #    im = equalize_hist(im)
+        if True in [ True for i in  ["oxot", "epib", "ampa", "uk14", "mk80", "pire" ] if i in f ] :
+            im = equalize_hist(im)
         
-        im2 = gaussian_filter(im, 1)
+        im2 = gaussian_filter(im, 10)
         
         if np.max(im2) == np.min(im2) : continue
 
-        thr1 = apply_threshold(threshold_otsu, im2)
-        thr2 = apply_threshold(threshold_yen, im2)
-        thr3 = myKMeans(im2)
-        thr = (thr1 + thr2 + thr3 ) / 3.
-        thr[thr < 0.5] = 0
-        thr[thr > 0.5] = 1
+        thr = local_kmeans(im2,500,250)
 
         z_values = gen_rand_locations(im.shape[1],zstep,n_samples)
         x_values = gen_rand_locations(im.shape[0],xstep,n_samples)
