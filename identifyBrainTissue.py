@@ -117,8 +117,6 @@ def generate_training_data(source_dir, qc_dir, tissue_dir, label_dir,  n_samples
             label_fn =label_dir + os.sep + splitf[0] + '.png'
             imwrite(label_fn, thr_subset)
 
-    
-
 def pad_size(d):
     if d % 2 == 0 :
         pad = (int(d/2), int(d/2))
@@ -488,7 +486,7 @@ def validate_data( qc_dir, label_dir, tissue_dir, source_dir ):
     qc_basenames = func( qc_files  )
     label_basenames = func( label_files )
     tissue_basenames = func(tissue_files)
-
+    
     for f, base in zip(label_files, label_basenames) :
         if not base in qc_basenames or not base in tissue_basenames: os.remove(f)
         if np.max(imread(f)) == 0 : 
@@ -508,6 +506,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--clobber', dest='clobber', type=int, default=0, help='Clobber results')
     parser.add_argument('--apply-model', dest='apply_model', action='store_true', default=False, help='Clobber results')
+    parser.add_argument('--source-dir', dest='source_dir', type=str, default="img_orig/*/", help='Source directory for tissue files')
     parser.add_argument('--create-init-data', dest='create_init_data', type=int,  default=0, help='Clobber results')
     parser.add_argument('--generate-new-data', dest='generate_data_from_model', type=int, default=0, help='Clobber results')
     parser.add_argument('--ratios', dest='ratios', nargs='+', default=[0.7,0.3], help='Clobber results')
@@ -526,7 +525,7 @@ if __name__ == "__main__":
     label_dir='tissue_subset/cls/label/'
     qc_dir='tissue_subset/cls/qc'
     test_qc_dir='tissue_subset/cls/test_qc'
-    source_dir = "img_orig/R_slab_*/"
+    source_dir = args.source_dir
 
 
     if create_init_data :
