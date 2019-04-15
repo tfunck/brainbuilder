@@ -418,6 +418,7 @@ def myKMeans(s):
     s = np.max(s) - s 
     upper=np.max(s)
     mid = np.median(s[s>0])
+    if np.isnan(mid) : return np.zeros(s.shape)
     init=np.array([0, mid, upper]).reshape(-1,1)
     cls = KMeans(3, init=init).fit_predict(s.reshape(-1,1)).reshape(s.shape)
     cls[ cls != 2 ] = 0
@@ -509,7 +510,7 @@ if __name__ == "__main__":
 
 
     if create_init_data :
-        generate_training_data(source_dir, test_qc_dir, tissue_dir, label_dir,  total=create_init_data)
+        generate_training_data(source_dir, test_qc_dir, tissue_dir, label_dir, n_samples=50,  total=create_init_data)
     
     #Get Model
     model_fn = "tissue_subset/model.h5"
