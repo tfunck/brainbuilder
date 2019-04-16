@@ -20,7 +20,10 @@ from sklearn.cluster import KMeans
 from skimage.filters import threshold_otsu, threshold_yen
 from sklearn.utils.class_weight import compute_class_weight
 
-def local_kmeans(img,step, stride):
+def local_kmeans(img,step, stride, sd=10, hist=False, threshold=True):
+    if hist == True :
+        img = equalize_hist(img)
+    img = gaussian_filter(img, sd)
     out = np.zeros(img.shape)
     n = np.zeros(img.shape)
     for x in range(0, img.shape[0], stride):
@@ -28,8 +31,9 @@ def local_kmeans(img,step, stride):
             out[x:(x+step),z:(z+step)] += myKMeans(img[x:(x+step),z:(z+step)])
             n[x:(x+step),z:(z+step)] += 1.
     out = out / n 
-    out[ out < 0.5 ] = 0
-    out[ out >= 0.5 ] = 1
+    if threshold :
+        out[ out < 0.5 ] = 0
+        out[ out >= 0.5 ] = 1
     return out
 
 
@@ -56,32 +60,33 @@ def threshold(im2) :
     thr[thr > 0.5] = 1
     return thr 
 
-def generate_training_data(source_dir, qc_dir, tissue_dir, label_dir,  n_samples=10, xstep=300, zstep=300, total=3000, clobber=0, model=None ) :
-    for d in [qc_dir, tissue_dir, label_dir] :
-        if not os.path.exists(d) :
-            os.makedirs(d)
-    
-    #source_files=glob(source_dir+"/*")
-    source_files=[]
-    for ligand in ["oxot", "epib", "ampa", "uk14", "mk80", "pire" ] :
-        source_files+=glob(source_dir+"/*"+ligand+"*")
-    np.random.shuffle(source_files)
-    idx=0
 
-    for i in range(total) :
+def create_patches(source_files,out_dir, total=3000, n_samples=10, xstep=300, zstep=300, clobber=0,model=None, manual=False):
+    tissue_dir= out_dir + '/tissue'
+    label_dir = out_dir + '/label/'
+    qc_dir    = out_dir + '/qc'
+
+    for d in [qc_dir, tissue_dir, label_dir] :
+        if not os.path.exists(d) : os.makedirs(d)
+    i=0
+    while i < total :
         idx = np.random.choice(range(len(source_files)), 1 )[0]
         f = source_files[idx]
         im_orig = np.max(imread(f), axis=2)
 
         im = im_orig
+        hist=False
         if True in [ True for i in  ["oxot", "epib", "ampa", "uk14", "mk80", "pire" ] if i in f ] :
-            im = equalize_hist(im)
+            hist=True
         
-        im2 = gaussian_filter(im, 10)
-        
-        if np.max(im2) == np.min(im2) : continue
+        if np.max(im) == np.min(im) : continue
 
-        thr = local_kmeans(im2,500,250)
+        if not manual : 
+            thr = local_kmeans(im,500,250,hist=hist)
+        else : 
+            full_label_fn = out_dir + os.sep + os.path.basename( re.sub(".tif","_label.png",f) ) 
+            thr = np.max(imread(full_label_fn), axis=2)
+            thr[ thr != 0 ] = 255
 
         z_values = gen_rand_locations(im.shape[1],zstep,n_samples)
         x_values = gen_rand_locations(im.shape[0],xstep,n_samples)
@@ -95,27 +100,44 @@ def generate_training_data(source_dir, qc_dir, tissue_dir, label_dir,  n_samples
             thr_subset = thr[x:x1, z:z1 ]
             
             #Skip patches with less than 20% labels == 1
-            if np.sum(thr_subset) / (xstep*zstep) < 0.2  : continue
+            tissue_percentage = np.sum(thr_subset) / (xstep*zstep) 
+            if tissue_percentage < 0.2 : continue
             
             plt.clf()
             plt.subplot(2,2,1)
-            plt.imshow(im2 / (1+np.max(im2)) )
+            plt.imshow(im / (1+np.max(im)) )
             plt.plot([z,z,z1,z1,z],[x,x1,x1,x,x], c='r', linewidth=1)
             plt.subplot(2,2,2)
             plt.imshow(thr)
             plt.plot([z,z,z1,z1,z],[x,x1,x1,x,x], c='r', linewidth=1)
             plt.subplot(2,2,3)
+            plt.title("Tissue Percentage: "+str(tissue_percentage))
             plt.imshow(im_subset / np.max(im_subset))
             plt.subplot(2,2,4)
             plt.imshow(im_subset * thr_subset / np.max(im_subset))
             qc_fn = qc_dir + os.sep + splitf[0] +'_'+str(x)+'_'+str(z)+'.png'
+            plt.tight_layout()
             plt.savefig(qc_fn, figsize=(40,40), dpi=300)
 
-            img_fn = tissue_dir + os.sep + splitf[0] + '.tif'
+            img_fn = tissue_dir + os.sep + splitf[0] +'_'+str(x)+'_'+str(z)+'.tif'
             imwrite(img_fn, im_subset)
             
-            label_fn =label_dir + os.sep + splitf[0] + '.png'
+            label_fn = label_dir + os.sep + splitf[0] +'_'+str(x)+'_'+str(z)+'.png'
             imwrite(label_fn, thr_subset)
+
+            i+=1
+            print(i, label_fn)
+
+
+def generate_training_data(source_dir, out_dir, n_samples=10, total=3000, xstep=300, zstep=300, clobber=0, model=None, manual=False) :
+
+    source_files=glob(source_dir+"/*")
+    #source_files=[]
+    #for ligand in ["oxot", "epib", "ampa", "uk14", "mk80", "pire" ] :
+    #    source_files+=glob(source_dir+"/*"+ligand+"*")
+    np.random.shuffle(source_files)
+
+    create_patches(source_files=source_files,out_dir=out_dir, total=total, n_samples=n_samples, xstep=xstep, zstep=zstep, clobber=clobber, model=model, manual=manual)
 
 def pad_size(d):
     if d % 2 == 0 :
@@ -506,11 +528,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--clobber', dest='clobber', type=int, default=0, help='Clobber results')
     parser.add_argument('--apply-model', dest='apply_model', action='store_true', default=False, help='Clobber results')
+    parser.add_argument('--manual', dest='manual', action='store_true', default=False, help='Manual')
     parser.add_argument('--source-dir', dest='source_dir', type=str, default="img_orig/*/", help='Source directory for tissue files')
     parser.add_argument('--create-init-data', dest='create_init_data', type=int,  default=0, help='Clobber results')
     parser.add_argument('--generate-new-data', dest='generate_data_from_model', type=int, default=0, help='Clobber results')
     parser.add_argument('--ratios', dest='ratios', nargs='+', default=[0.7,0.3], help='Clobber results')
     parser.add_argument('--epochs', dest='epochs', type=int, default=10, help='Clobber results')
+    parser.add_argument('--samples-per-image', dest='n_samples', type=int, default=15, help='Clobber results')
 
     args = parser.parse_args()
 
@@ -521,16 +545,22 @@ if __name__ == "__main__":
     clobber= args.clobber
     
     #Base Options
-    tissue_dir='tissue_subset/cls/tissue'
-    label_dir='tissue_subset/cls/label/'
-    qc_dir='tissue_subset/cls/qc'
+    out_dir='tissue_subset/cls/'
+    tissue_dir = out_dir+'/tissue'
+    label_dir = out_dir+'/label/'
+    qc_dir = out_dir + '/qc'
     test_qc_dir='tissue_subset/cls/test_qc'
     source_dir = args.source_dir
 
-
     if create_init_data :
-        generate_training_data(source_dir, test_qc_dir, tissue_dir, label_dir, n_samples=50,  total=create_init_data)
-    
+        if args.manual :
+            print("Creating training data from manual segmetnations")
+            source_files = glob(out_dir+"/manual/*.tif")
+            create_patches(source_files,out_dir+'/manual/', n_samples=args.n_samples, total=create_init_data, clobber=clobber, manual=True)
+        else :
+            generate_training_data(source_dir, n_samples=args.n_samples, total=create_init_data)
+   
+
     #Get Model
     model_fn = "tissue_subset/model.h5"
     if not os.path.exists(model_fn) or clobber > 0 :
