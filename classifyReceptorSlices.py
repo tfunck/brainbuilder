@@ -9,6 +9,8 @@ import imageio
 import nibabel as nib
 import gzip
 import shutil
+from skimage.filters import threshold_otsu, threshold_li
+from scipy.ndimage.filters import gaussian_filter
 from sklearn.cluster import KMeans
 from scipy.ndimage import label
 from scipy.ndimage.morphology import binary_dilation, binary_erosion, binary_closing
@@ -20,6 +22,34 @@ from sys import argv
 # If K-means does not work, uses simple thresholding based on 90th percentile of values in image. 
 # Reads in a 3D volume with aligned 2D autoradiographs and outputs a 3D GM classification volume.
 #
+def myKMeans(s):
+    upper=np.max(s)
+    mid = np.median(s[s>0])
+    if np.isnan(mid) : return np.zeros(s.shape)
+    init=np.array([0, mid, upper]).reshape(-1,1)
+    cls = KMeans(3, init=init).fit_predict(s.reshape(-1,1)).reshape(s.shape)
+    cls[ cls != 2 ] = 0
+    cls[cls == 2] = 1
+    return cls
+
+def local_kmeans(img,step, stride, sd=10, hist=False, threshold=True):
+    #plt.imshow(img); plt.show()
+    if hist == True :
+        img = equalize_hist(img)
+    img = gaussian_filter(img, sd)
+    out = np.zeros(img.shape)
+    out[ img > threshold_li(img[img>0]) ] = 1
+    #plt.imshow(out); plt.show()
+    #n = np.zeros(img.shape)
+    #for x in range(0, img.shape[0], stride):
+    #    for z in range(0, img.shape[1], stride) :
+    #        out[x:(x+step),z:(z+step)] += myKMeans(img[x:(x+step),z:(z+step)])
+    #        n[x:(x+step),z:(z+step)] += 1.
+    #out = out / n 
+    #if threshold :
+    #    out[ out < 0.5 ] = 0
+    #    out[ out >= 0.5 ] = 1
+    return out
 
 def compress(ii, oo) :
     print("Gzip compression from ", ii, 'to', oo)
@@ -49,6 +79,7 @@ def denoise(s) :
     return out
 
 def myKMeansOriginal(s):
+    s = np.max(s) - s
     upper=np.max(s)
     mid = np.median(s[s>0])
     #lower = np.min(s[s>0])
@@ -68,7 +99,6 @@ def safe_h5py_open(filename, mode='r+'):
 
 
 def classifyReceptorSlices(in_fn, out_dir, out_fn, morph_iterations=5, clobber=False) :
-    qc_dir=out_dir+os.sep+"qc"
     out_fn = out_dir +os.sep+out_fn
     if not os.path.exists(out_fn) or clobber :
         #
@@ -78,16 +108,11 @@ def classifyReceptorSlices(in_fn, out_dir, out_fn, morph_iterations=5, clobber=F
             print("Error: could not find ", in_fn)
             exit(1)
 
-        if not os.path.exists(qc_dir) :
-            os.makedirs(qc_dir)
-
         #
         # Read Input HDF5 Minc File and create output volume
         #
         vol1 = nib.load(in_fn)
         ar1 = vol1.get_data()
-
-        slab_ymin=-126
 
         data=np.zeros(ar1.shape)
 
@@ -100,9 +125,18 @@ def classifyReceptorSlices(in_fn, out_dir, out_fn, morph_iterations=5, clobber=F
         for i in range(0, ar1.shape[1]) : #
             s0 = ar1[:, i, :]
             if np.max(s0) > 0 :
-                cls0=myKMeansOriginal(s0)
-                cls2=cls0 #
-
+                #cls0=local_kmeans(s0, 100,25, sd=0) #myKMeansOriginal(s0)
+                cls=local_kmeans(s0, 100,25, sd=1) #myKMeansOriginal(s0)
+                #cls2=local_kmeans(s0, 100,25, sd=2) #myKMeansOriginal(s0)
+                #cls3=local_kmeans(s0, 100,25, sd=3) #myKMeansOriginal(s0)
+                #cls4=local_kmeans(s0, 100,25, sd=4) #myKMeansOriginal(s0)
+                #cls= (cls0 + cls1 + cls2 ) / 3. #
+                #cls_1=np.zeros(s0.shape)
+                #cls_1[ s0 > threshold_li(s0[s0>0]) ] = 1
+                #plt.subplot(3,1,1); plt.imshow(s0)
+                #plt.subplot(3,1,2); plt.imshow(cls_1)
+                #plt.subplot(3,1,3); plt.imshow(cls)
+                #plt.show()
                 #if (clobber or not os.path.exists(qc_dir+os.sep+'/tmp_'+str(i)+'.png')) :
                           #print( "1", cls2.shape)
                     #scipy.misc.imsave(qc_dir+'/tmp_'+str(i)+'.png', cls2)
@@ -110,39 +144,13 @@ def classifyReceptorSlices(in_fn, out_dir, out_fn, morph_iterations=5, clobber=F
                 #    cls2= imageio.imread(qc_dir+os.sep+'/tmp_'+str(i)+'.png') / 255
                 #    #cls2 = cls2.T
                 #    #print("2", cls2.shape)
-                data[:,i,:] = cls2
+                data[:,i,:] = cls
                 valid_slices.append(i)
-                qc.append(np.sum(cls2))
+                #qc.append(np.sum(cls2))
             else :
                 invalid_slices.append(i)
 
-        #
-        # Perform QC by identifying slices with large sums
-        #
-        minProminence=0.1*cls2.shape[0]*cls2.shape[1]
-        qc_peaks, qc_peaks_dict=find_peaks(qc, prominence=minProminence)
-        plt.plot(valid_slices, qc)
-        plt.scatter(np.array(valid_slices)[qc_peaks], np.array(qc)[qc_peaks] )
-        plt.savefig(qc_dir+os.sep+"qc_plot.png")
-
-        #
-        # Rerun bad K-Means slices with threshold at 90th percentile  
-        #
-        #for i in np.array(valid_slices)[qc_peaks]:
-        #    #if not os.path.exists(qc_dir+'/tmp_'+str(i)+'_post-qc.png' ) or clobber :
-        #    print("Updating Slice:", i)
-        #    s0 = ar1[:, i, :]
-        #    cls2=np.zeros_like(s0)
-        #    cls2[ s0 >= np.percentile(s0, 80) ] = 1
-        #    cls2 = binary_dilation(denoise(cls2), iterations=2).astype(int)
-        #    scipy.misc.imsave(qc_dir+'/tmp_'+str(i)+'_post-qc.png', cls2)
-        #    #else : 
-        #    #    cls2 = imageio.imread(qc_dir+'/tmp_'+str(i)+'_post-qc.png') / 255
-        #    data[:,i,:] = cls2
-        #    valid_slices.remove(i)
-
         del ar1
-        del cls2
        
         #
         # Fill in missing slices using nearest neighbour interpolation

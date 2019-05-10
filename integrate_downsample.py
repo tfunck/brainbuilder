@@ -1,14 +1,20 @@
 from utils.utils import shell
 from scipy.integrate import simps
+from scipy.integrate import simps
+from scipy.interpolate import interp2d, griddata
+from glob import glob
+from re import sub
+from os.path import basename, splitext
+import json
+import re
+import os
 import nibabel as nib
 import numpy as np
 import imageio
 import matplotlib.pyplot as plt
-from scipy.integrate import simps
-from scipy.interpolate import interp2d, griddata
 
-def integrate_downsample_tif(in_image, step, affine, out_image):
-    img = imageio.imread(in_image)
+
+def integrate_downsample_tif(img, step, affine, out_image):
     xstep = affine[0,0] 
     zstep = affine[2,2] 
     xmax=xstep * img.shape[0]
@@ -34,7 +40,6 @@ def integrate_downsample_tif(in_image, step, affine, out_image):
             xi1 += 1
 
         for z0, z_int in zip(zlo, zlo_int ):
-
             zi0 = int(np.round(z0 / zstep))
             z1 = z0 
             zi1 = zi0 
@@ -43,12 +48,36 @@ def integrate_downsample_tif(in_image, step, affine, out_image):
                 z1 += zstep
                 zi1 += 1
             dwn_img[x_int,z_int] += np.sum(img[ xi0:xi1,  zi0:zi1 ])
-
-    imageio.imsave(out_image, dwn_img)
-    #print(np.sum(img), np.sum(dwn_img))
     
-    #plt.subplot(2,1,1); plt.imshow(img)
-    #plt.subplot(2,1,2); plt.imshow(dwn_img)
-    #plt.show()
-    
+    #imageio.imwrite(out_image, dwn_img)
+    nib.Nifti1Image(dwn_img, affine).to_filename(out_image)
 
+    
+def downsample_and_crop(source_lin_dir, lin_dwn_dir,crop_dir, affine, step=0.2, clobber=False):
+
+    for f in glob(source_lin_dir+"/*.TIF") :
+        dwn_fn = lin_dwn_dir + splitext(basename(f))[0] + '.nii.gz'
+        if not os.path.exists(dwn_fn) or clobber :
+            try :
+                base=sub('#L','',basename(splitext(f)[0]))
+                path_string=crop_dir+"/detailed/**/"+base+"_bounding_box.png"
+                print("path:", path_string)
+
+                crop_fn = glob(path_string)[0]
+            except IndexError :
+                print("\t\tDownsample & Crop : Skipping ", f)
+                continue
+            print(crop_fn)
+            print(f)
+            img = imageio.imread(f)
+            #plt.imshow(img); plt.show()
+            if len(img.shape) == 3 : img = np.mean(img,axis=2)
+
+            bounding_box = imageio.imread(crop_fn) 
+            if np.max(bounding_box) == 0 : 
+                bounding_box = np.ones(img.shape)
+            else : 
+                bounding_box = bounding_box / np.max(bounding_box)
+            img = img * bounding_box 
+            #plt.imshow(img); plt.show()
+            integrate_downsample_tif(img, step, affine, dwn_fn)

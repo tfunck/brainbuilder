@@ -5,6 +5,7 @@ import re
 import scipy
 import os
 import pandas as pd
+import imageio
 import nibabel as nib
 from nibabel.processing import resample_to_output
 from os.path import basename
@@ -12,7 +13,44 @@ from scipy.ndimage.filters import gaussian_filter
 from subprocess import call, Popen, PIPE, STDOUT
 from sklearn.cluster import KMeans
 
+def splitext(s):
+    try :
+        ssplit = os.path.basename(s).split('.')
+        ext='.'+'.'.join(ssplit[1:])
+        basepath= re.sub(ext,'',s)
+        return [basepath, ext]
+    except TypeError :  
+        return s
+def setup_tiers(df, tiers_str):
+    tiers_list = [ j.split(",") for j in tiers_str.split(";")]
+    i=1
+    df["tier"]=[0] * df.shape[0]
+    if tiers_str != '' :
+        for tier in tiers_list :
+            for ligand in tier :
+                df["tier"].loc[ df.ligand == ligand ] = i
+            
+            i += 1
+        df=df.loc[df["tier"] != 0 ]
+    return(df)
 
+def pad_size(d):
+    if d % 2 == 0 :
+        pad = (int(d/2), int(d/2))
+    else :
+        pad = ( int((d-1)/2), int((d+1)/2))
+    return(pad)
+    
+
+def add_padding(img, zmax, xmax):
+    z=img.shape[0]
+    x=img.shape[1]
+    dz = zmax - z
+    dx = xmax - x
+    z_pad = pad_size(dz)
+    x_pad = pad_size(dx)
+    img_pad = np.pad(img, (z_pad,x_pad), 'minimum')
+    return img_pad
 
 
 def gm_segment(img):
@@ -101,6 +139,7 @@ def downsample_y(img_fn, out_fn, step=0.2 ):
     img_dwn.to_filename(out_fn)
     del img_dwn
 
+import matplotlib.pyplot as plt
 def downsample(img, subject_fn="", step=0.1, interp='cubic'):
     #Calculate length of image based on assumption that pixels are 0.02 x 0.02 microns
     l0 = img.shape[0] * 0.02 
@@ -121,7 +160,9 @@ def downsample(img, subject_fn="", step=0.1, interp='cubic'):
     img_dwn = scipy.misc.imresize(img_blr,size=(dim0, dim1),interp=interp )
     if subject_fn != "" : 
         print("Downsampled:", subject_fn )
-        scipy.misc.imsave(subject_fn, img_dwn)
+        plt.subplot(2,1,1); plt.imshow(img)
+        plt.subplot(2,1,2); plt.imshow(img_dwn); plt.show()
+        imageio.imwrite(subject_fn, img_dwn)
     return(img_dwn)
 
 #def rgb2gray(rgb): return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])

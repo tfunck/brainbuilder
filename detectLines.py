@@ -4,6 +4,8 @@ import numpy as np
 import keras
 import imageio
 import matplotlib.pyplot as plt
+import cv2
+from scipy.ndimage.morphology import binary_dilation, binary_erosion
 from keras.layers.convolutional import Conv1D, Conv2D, Conv3D, Convolution2D
 from keras.preprocessing.image import ImageDataGenerator
 from keras.layers.convolutional import ZeroPadding3D, ZeroPadding2D, ZeroPadding1D, UpSampling2D
@@ -81,8 +83,8 @@ def get_lines(downsample_files,raw_files, max_model,output_dir, clobber) :
         line_fn=line_dir +os.sep+line_fn_split[0]+'.png'
 
         if not os.path.exists(line_fn) or clobber:
-
             img=imageio.imread(f)
+            img0=img
             ydim=img.shape[0]
             xdim=img.shape[1]
             if ydim > xdim : 
@@ -96,6 +98,7 @@ def get_lines(downsample_files,raw_files, max_model,output_dir, clobber) :
                 model = load_model(max_model )
 
             # Apply neural network model to downsampled image
+            #plt.subplot(2,1,1); plt.imshow(img); 
             img=img.reshape([1,img.shape[0],img.shape[1],1])
             X = model.predict(img, batch_size=1)
             idx = X > np.max(X) * 0.5
@@ -103,24 +106,30 @@ def get_lines(downsample_files,raw_files, max_model,output_dir, clobber) :
             X[ ~idx ] = 0
             
             # Resample to full resolution
-            X=X.reshape(ydim,xdim)
+            X=X.reshape(X.shape[1],X.shape[2])
             X2 = imresize(X, (y0,x0), interp='nearest')
             X2=X2.reshape(y0,x0)
             
+            if ydim > xdim : 
+                X2 = X2.T
+                print("Transposed to dim ", X2.shape, line_fn)
             # Save output image
             imageio.imsave(line_fn, X2)
         line_files += [line_fn]
-
+    print("# of line files :", len(line_files))
     return line_files
 
 
 def fill(iraw, iline, it=10):
+    transpose=False
+    if iraw.T.shape == iline.shape : 
+        transpose=True
+        iraw = iraw.T
+    
     iraw_temp = np.copy(iraw)
     iline_dil = binary_dilation(iline, iterations=it).astype(int)
     
     iline_dil = iline_dil - iline
-    #plt.subplot(2,1,1)
-    #plt.imshow(iline_dil)
 
     border = iraw[iline_dil == 1]
     border = border.flatten()
@@ -130,78 +139,13 @@ def fill(iraw, iline, it=10):
     iraw_temp = gaussian_filter(iraw_temp, 5)
     iraw[ iline==1 ] = iraw_temp[iline == 1]
 
-    #plt.subplot(2,1,2)
-    #plt.imshow(iraw)
-    #plt.show()
+    if transpose :
+        iraw = iraw.T
     return iraw 
 
     
 
 
-def fill0(iraw, iline) :
-
-    m=np.max(iline)
-    xx, yy = np.meshgrid(range(iraw.shape[1]), range(iraw.shape[0]))
-    xx=xx.reshape(-1)
-    yy=yy.reshape(-1)
-    iraw_vtr = iraw.reshape(-1)
-    iline_vtr = iline.reshape(-1)
-
-    idx0=np.zeros(xx.shape).astype(bool)
-    idx1=np.zeros(xx.shape).astype(bool)
-    idx2=np.zeros(xx.shape).astype(bool)
-    idx3=np.zeros(xx.shape).astype(bool)
-    span=8
-    while np.sum(iline) > 0 : 
-
-
-        print(np.sum(iline))
-        y0 = yy - span
-        y0[y0 < 0] = 0
-
-        x0 = xx - span
-        x0[x0 < 0] = 0
-        
-        y1=yy+span
-        y1[y1 >= iraw.shape[0]] = iraw.shape[0]-1
-        
-        x1=xx+span
-        x1[x1 >= iraw.shape[1]] = iraw.shape[1]-1
-        
-        idx0[:]=False
-        idx1[:]=False
-        idx2[:]=False
-        idx3[:]=False
-        inside=iline[yy,xx] == m
-        idx0[(iline[ y0, xx ]  < m ) & inside  ] =True
-        idx1[(iline[ y1, xx ]  < m ) & inside ] =True
-        idx2[(iline[ yy, x0 ]  < m ) & inside ] =True
-        idx3[(iline[ yy, x1 ]  < m ) & inside ] =True
-
-        n = idx0.astype(int) +  idx1.astype(int) + idx2.astype(int) + idx3.astype(int)
-        
-        i = n == 0
-        
-        iline[~i.reshape(iraw.shape)]=0
-        
-        n[~i]= n[~i].astype(float)
-        n[i]=1
-        iraw[yy[~i],xx[~i]]=0
-        temp=np.copy(iraw)
-
-        temp[yy[idx0],xx[idx0]] += iraw[y0[idx0], xx[idx0]]   
-        temp[yy[idx1],xx[idx1]] += iraw[y1[idx1], xx[idx1]]   
-        temp[yy[idx2],xx[idx2]] += iraw[yy[idx2], x0[idx2]]   
-        temp[yy[idx3],xx[idx3]] += iraw[yy[idx3], x1[idx3]] 
-
-        temp /= n.reshape(iraw.shape)
-        iraw=temp
-        span *= 2
-
-    return iraw
-
-
-from scipy.ndimage.morphology import binary_dilation, binary_erosion
 def remove_lines(line_files, raw_files, raw_output_dir, clobber) :
     final_dir=raw_output_dir + os.sep + 'final'
     if not os.path.exists(final_dir) : os.makedirs(final_dir)
@@ -209,22 +153,20 @@ def remove_lines(line_files, raw_files, raw_output_dir, clobber) :
     for raw in raw_files :
         base =re.sub('#L', '', os.path.splitext(os.path.basename(raw))[0])
 
-        fout = final_dir + os.sep + base + '.TIF'
+        fout = final_dir + os.sep + base + '.png'
         if not os.path.exists(fout) or clobber : 
-
+            print(raw)
             iraw = imageio.imread(raw)
             if len(iraw.shape) == 3 : iraw = np.mean(iraw, axis=2)
-            if iraw.shape[0] > iraw.shape[1] : 
-                iraw = iraw.T
             lines= [ f for f in line_files if base in f ]
             if lines != [] : lines=lines[0]
             else : 
                 print("Failed at remove_lines for :", raw); 
-                exit(1)
+                continue
             iline = imageio.imread(lines)
             iline=binary_dilation(iline,iterations=3).astype(int)
-            iraw=fill(iraw, iline)
-            imageio.imsave(fout, iraw)
+            ifill=fill(iraw, iline)
+            imageio.imsave(fout, ifill)
 
     return 0
 
@@ -239,9 +181,8 @@ def apply_model(train_output_dir, raw_source_dir, lin_source_dir, raw_output_dir
     print("Loaded line files.")
     remove_lines(line_files, lin_files, raw_output_dir, clobber)
     print("Removed lines from raw files.")
-
-
     return 0
+
 def gen(X,Y,batch_size=1):
     i=0
     while True :
@@ -282,8 +223,6 @@ def load_image(fn, step, clobber, interp='cubic') :
             #print(np.sum(idx), np.sum(~idx))
             #if np.max(img) == 0 :
             #plt.subplot(1,3,3)
-                #plt.imshow(img)
-                #plt.show()
         imageio.imsave(fn2, img)
     else :
         img = imageio.imread(fn2)
@@ -418,8 +357,6 @@ def make_compile_model(masks) :
 
     model = Model(inputs=[image], outputs=OUT)
 
-
-
     ada = keras.optimizers.Adam(0.0001)
     model.compile(loss = 'binary_crossentropy', optimizer=ada,metrics=[dice] )
     print(model.summary())
@@ -442,11 +379,6 @@ def predict_results(source_dir, output_dir, model, images_val, masks_val, _use_r
         plt.subplot(1,3,3)
         plt.imshow(X.reshape(ydim,xdim))
         plt.savefig(output_dir+os.sep+str(i)+'.tif')
-
-
-
-
-
 
 def train_model(source_dir, output_dir, step, epochs, clobber) :
     train_dir=source_dir+os.sep+'train'

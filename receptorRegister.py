@@ -1,38 +1,39 @@
 from glob import glob
 from sys import argv, exit
 from os.path import basename
+from skimage.filters import try_all_threshold, threshold_mean
+from scipy.ndimage.morphology import binary_dilation, binary_erosion, binary_fill_holes
+from utils.utils import *
+from utils.anisotropic_diffusion import anisodiff
+from re import sub
+from skimage.exposure import  equalize_hist
+from skimage.transform import resize 
+from utils.utils import imadjust, shell
+from shutil import copy
+from math import ceil
 import os
 import pandas as pd
 import cv2
 import json
 import numpy as np
-from skimage.filters import try_all_threshold, threshold_mean
-from scipy.ndimage.morphology import binary_dilation, binary_erosion, binary_fill_holes
-import scipy.misc
-from utils.utils import *
-from utils.anisotropic_diffusion import anisodiff
 import imageio
 import argparse
-from re import sub
-from skimage.exposure import  equalize_hist
-from skimage.transform import resize 
-from utils.utils import imadjust, shell
+import SimpleITK as sitk
+import scipy.misc
 import matplotlib.pyplot as plt
-from shutil import copy
-from math import ceil
 
-def resample(moving_fn, transform_fn_list, rsl_fn="", ndim=2):
+
+def resample(moving_fn, transform_fn_list,  rsl_fn="" , ndim=2):
     movingImage = sitk.ReadImage(moving_fn)
     composite = sitk.Transform(ndim, sitk.sitkComposite )
     for fn in transform_fn_list :
         transform = sitk.ReadTransform(fn)
         composite.AddTransform(transform)
-
+   
     interpolator = sitk.sitkCosineWindowedSinc
     rslImage = sitk.Resample(movingImage, composite, interpolator, 0.)
-    #rslImage=movingImage
     rsl = np.copy(sitk.GetArrayViewFromImage(rslImage))
-    print("Max:", rsl.max(), "Min:", rsl.min() )
+
     if ndim == 2 :
         if rsl_fn != "" : imageio.imsave(rsl_fn, rsl)
     else :
@@ -44,11 +45,8 @@ def resample(moving_fn, transform_fn_list, rsl_fn="", ndim=2):
 
 def display_images_with_alpha( alpha, fixed, moving, moving_resampled, fn, order_fixed, order_moving, fixed_tier, moving_tier, metric=0):
     fixed_npa = (fixed - fixed.min() ) / (fixed.max() - fixed.min())  #imageio.imread(fixed)
-    moving_npa = (moving - moving.min() ) / (moving.max() - moving.min())  #imageio.imread(moving)
     moving_resampled_npa =(moving_resampled-moving_resampled.min()) / (moving_resampled.max() - moving_resampled.min())  #imageio.imread(moving_resampled)
-    #moving_npa= moving #imageio.imread(moving)
-    #moving_resampled_npa= moving_resampled #imageio.imread(moving_resampled)
-    extent = 0, moving_npa.shape[1], 0, moving_npa.shape[0]
+    extent = 0, fixed_npa.shape[1], 0, fixed_npa.shape[0]
     
     plt.title( 'moving:'+str(moving_tier)+ ' fixed'+ str(order_moving))
     plt.imshow(fixed_npa, cmap=plt.cm.gray, interpolation='bilinear', extent=extent)
@@ -64,7 +62,7 @@ def display_images_with_alpha( alpha, fixed, moving, moving_resampled, fn, order
     plt.clf()
     return 0 
 
-def get_z_x_max(source_files, output_dir):
+def get_z_x_max(source_files, output_dir, clobber=False):
     out_fn=output_dir + os.sep + "z_x_max.txt"
     zmax=xmax=0
     if not os.path.exists(out_fn) :
@@ -130,6 +128,7 @@ def slice_coregistration(df, output_dir, qc_dir, m, tier, transform_dict, clobbe
     resample_dir = output_dir + os.sep + "resample"
     if not os.path.exists(transform_dir) : os.makedirs(transform_dir)
     if not os.path.exists(resample_dir) : os.makedirs(resample_dir)
+
     params = []
     transform_fn_list = []
 
@@ -159,12 +158,9 @@ def slice_coregistration(df, output_dir, qc_dir, m, tier, transform_dict, clobbe
         if row["tier"] == tier :
             transform_dict[ order_moving  ] = [ transform_fn ] + transform_dict[ order_fixed ] 
             #transform_dict[ order_moving  ] =  transform_dict[ order_fixed ] + [ transform_fn ] 
-            #mass.append((np.sum(imageio.imread(moving))+np.sum(imageio.imread(moving)))/2.)
             if not os.path.exists(qc_fn) or not os.path.exists(transform_fn) or clobber  :
                 print("Fixed:\t", order_fixed,"\t", fixed)
-                #register(fixed, moving, transform_fn, resolutions, max_iterations )
                 print('Moving', moving)
-                #plt.scatter(range(len(mass)), mass); plt.show()
                 
                 moving_image_mask = mask(moving)
                 fixed_image_mask = mask(fixed)
@@ -175,13 +171,27 @@ def slice_coregistration(df, output_dir, qc_dir, m, tier, transform_dict, clobbe
                 print("Transform:", transform_dict[ order_moving][0])
                 rsl = resample(moving,  [transform_dict[ order_moving][0]] )
                 display_images_with_alpha( 0.5, imageio.imread(fixed), imageio.imread(moving), rsl, qc_fn,  order_fixed, order_moving, fixed_tier, moving_tier)
+                print(transform_dict[order_moving])
+                rsl = resample(moving,  [transform_dict[ order_moving][0]] )
+                fixed_ar=imageio.imread(fixed)
+                moving_ar=imageio.imread(moving)
+                plt.subplot(2,2,1)
+                plt.imshow(fixed_ar)
+                plt.subplot(2,2,2)
+                plt.imshow(moving_ar)
+                plt.subplot(2,2,3)
+                plt.imshow(moving_ar + rsl)
+                plt.subplot(2,2,4)
+                plt.imshow(fixed_ar + rsl)
+                plt.show()
 
-
+            rsl = resample(moving,  [transform_dict[ order_moving][0]] )
             if not os.path.exists(rsl_fn) or clobber :
                 resample(moving, transform_dict[ order_moving ], rsl_fn)
                 
-        
         df["rsl"].loc[ df.filenames == moving] = rsl_fn
+   
+    
     return df
 
 #def slab_coregistration(slab, df_master, output_dir, qc_dir, start_tier, clobber=False):
@@ -192,23 +202,27 @@ def apply_slice_registration(df, output_dir,slabs_to_run=[], clobber=False):
     qc_dir = output_dir + os.sep + "qc"
     if not os.path.exists(qc_dir) : os.makedirs(qc_dir)
     tiers = np.sort(np.unique(df["tier"].values))
-
+    
     transform_dict = {}
     for o in df.order : transform_dict[ o ] = []
 
     for slab, df0 in df.groupby(["slab"]) :
         if not slab in slabs_to_run and slabs_to_run != [] : continue
-
         for t in tiers :
             print("Slab: ", slab, "Tier :", t)
             df1 = df0.loc[ df0["tier"] <= t ].copy()
             df2, m = create_coregistration_df(df1, output_dir+os.sep+str(slab)+"_coregistration_df.csv")
-            
+            print(df2.iloc[m,:])
+            print(m); exit(0) 
             df2.to_csv(output_dir+os.sep+"slab-"+str(slab) +"_tier-"+str(t)+"_df.csv") 
 
             df_rsl = slice_coregistration(df2,output_dir,qc_dir,m, t, transform_dict, clobber=clobber)
             for f in df_rsl.filenames :
                 df["rsl"].loc[ df.filename == f ] = df_rsl["rsl"].loc[ df_rsl.filenames == f ].values[0]
+
+    
+    composite_transform_fn = output_dir+'/composite_transforms.json'
+    json.dump(transform_dict, open(composite_transform_fn, 'w')) 
     return df
 
 
@@ -227,23 +241,7 @@ def setup_tiers(df, tiers_str):
         df=df.loc[df["tier"] != 0 ]
     return(df)
 
-def pad_size(d):
-    if d % 2 == 0 :
-        pad = (int(d/2), int(d/2))
-    else :
-        pad = ( int((d-1)/2), int((d+1)/2))
-    return(pad)
-    
 
-def add_padding(img, zmax, xmax):
-    z=img.shape[0]
-    x=img.shape[1]
-    dz = zmax - z
-    dx = xmax - x
-    z_pad = pad_size(dz)
-    x_pad = pad_size(dx)
-    img_pad = np.pad(img, (z_pad,x_pad), 'minimum')
-    return img_pad
 
 def downsample_slices(source_files, output_dir):
     common_step = 0.2
@@ -252,8 +250,9 @@ def downsample_slices(source_files, output_dir):
     with open("scale_factors.json") as f : scale=json.load(f)
     temp_fn_list = []
     for f in source_files :
+        print(f)
         f2 = output_dir + os.sep +"preprocess"+ os.sep + os.path.basename(f)
-        temp_fn = output_dir + os.sep +"preprocess"+os.sep+"downsample"+ os.sep + os.path.basename(f)
+        temp_fn = output_dir + os.sep +"preprocess"+os.sep+"downsample"+ os.sep + os.path.splitext(os.path.basename(f))[0] + '.png'
         temp_fn_list.append(temp_fn)
 
         dim0_list = dim1_list = []
@@ -280,7 +279,7 @@ def downsample_slices(source_files, output_dir):
             imageio.imsave(temp_fn, img_dwn)
     return temp_fn_list
 
-def hist_and_pad(temp_fn_list, output_dir, zmax, xmax):
+def hist_and_pad(temp_fn_list, output_dir, zmax, xmax, clobber=False):
     prep_files = []
     ######################################################
     # Load downsampled images, adjust histogram and pad  #
@@ -289,13 +288,14 @@ def hist_and_pad(temp_fn_list, output_dir, zmax, xmax):
     for f in temp_fn_list :
         f2 = output_dir + os.sep +"preprocess"+ os.sep + os.path.basename(f)
             
-        if not os.path.exists(f2) :
+        if not os.path.exists(f2) or clobber:
             ### 1. Read Image
             img = imageio.imread(f)
             if len(img.shape) > 2 : img = np.mean(img, axis=2)
-
-            img = imadjust(img)
-            img = add_padding(img, zmax, xmax)
+            #if True in [ True for i in low_contrast_ligands if i in f ] : 
+            #    idx = img > 0
+            #    img[idx] = equalize_hist(img[idx])
+            #img = add_padding(img, zmax, xmax)
             imageio.imsave(f2, img)
             ii = imageio.imread(f2)
             prep_files.append(f2)
@@ -313,13 +313,13 @@ def mask(fn):
         imageio.imsave(out_fn, seg)
     return out_fn
 
-def preprocess(source_files,  output_dir, step=0.2, ystep=0.02):
+def preprocess(source_files,  output_dir, step=0.2, ystep=0.02,clobber=False):
     if not os.path.exists(output_dir + os.sep +"preprocess"+os.sep+"downsample") :
         os.makedirs(output_dir + os.sep +"preprocess"+os.sep+"downsample")
     temp_fn_list = downsample_slices(source_files, output_dir)
 
-    zmax, xmax = get_z_x_max(temp_fn_list, output_dir)
-    prep_files = hist_and_pad(temp_fn_list, output_dir, zmax, xmax)
+    zmax, xmax = get_z_x_max(temp_fn_list, output_dir, clobber)
+    prep_files = hist_and_pad(temp_fn_list, output_dir, zmax, xmax, clobber)
     return prep_files
 
 
@@ -327,8 +327,8 @@ def receptorRegister(source_dir, output_dir, slice_order_fn, clobber, tiers_str,
     if not os.path.exists(output_dir) : 
         os.makedirs(output_dir)
 
-    source_files=glob(source_dir+os.sep+ "**" + os.sep + "crop/*" + ext)
-    source_files = preprocess(source_files, output_dir)
+    source_files=glob(source_dir+os.sep+ "*" + ext)
+    source_files = preprocess(source_files, output_dir,clobber)
     df_rsl_fn = output_dir + os.sep + "df_rsl.csv"
     
     if source_files == []:
