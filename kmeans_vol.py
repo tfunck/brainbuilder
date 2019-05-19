@@ -9,7 +9,7 @@ import os
 import pandas as pd
 
 
-def kmeans_vol(ii_fn,n , oo_fn):
+def kmeans_vol(ii_fn,n , dat_fn, oo_fn):
     vol0 = nib.load(ii_fn)
     vol0_data = vol0.get_data()
 
@@ -32,9 +32,9 @@ def kmeans_vol(ii_fn,n , oo_fn):
         print(i, km)
     del vol1_data
     df=pd.concat(m)
-    df.to_csv(splitext(oo_fn)[0]+'.csv', sep=' ', index=False, header=False)
-
+    df.to_csv(dat_fn, sep=' ', index=False, header=False)
+    print("Writing .dat :", dat_fn)
     oo2_fn=splitext(oo_fn)[0]+'_values.nii.gz'
-    print("Writing volume.")
+    print("Writing values ", oo2_fn)
     vol2 = nib.Nifti1Image(vol2_data, vol0.affine)
     vol2.to_filename(oo2_fn)

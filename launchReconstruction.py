@@ -12,8 +12,7 @@ from classifyReceptorSlices import classifyReceptorSlices
 from receptorCrop import crop_source_files
 from slicesToVolume import slices2vol
 from utils.utils import downsample_y
-from receptorInterpolate import receptorInterpolate
-from integrate_downsample import downsample_and_crop #integrate_downsample_tif
+from receptorInterpolate import receptorInterpolate, receptorSliceIndicator
 from receptorAdjustAlignment import receptorRegister
 from detectLines import apply_model
 
@@ -147,12 +146,14 @@ for mr in mr_list :
                 ligand_dir = dd + os.sep + "ligand" + os.sep + ligand + os.sep + 'slab-'+str(i)
                 print("\tLigand:",ligand)
                 receptorVolume = ligand_dir + os.sep + ligand + ".nii.gz"
-                
+                rec_slice_fn = ligand_dir + os.sep + ligand + "_slice_indicator.nii.gz"
                 # lin --> lin_dwn --> crop --> 2D rigid (T1) --> 3D non-linear (T2) --> 2D non-linear (T3) [--> 2D non-linear (T4)]
                 # lin_mri_space =  T2^-1 x [T4 x] T3 x T1 x lin_dwn 
                 if not os.path.exists(receptorVolume) or clobber : 
                     receptorInterpolate(i,rec_fn, srv_rsl, cls_fn, ligand_dir, ligand, rec_df_fn, transforms_fn, clobber=False)
-               
+                
+                if not os.path.exists( rec_slice_fn  ) or clobber :
+                    receptorSliceIndicator( rec_df_fn, ligand, receptorVolume, 3, rec_slice_fn )
                 
                 ######################################################
                 ### 9. Transform Linearized tif files to MRI space ###
@@ -167,7 +168,7 @@ for mr in mr_list :
                     shell(cmdline)
 
                 #receptorVolumeRsl = final_dir + os.sep + ligand + "_space-mni_500um.nii.gz"
-                size=0.25
+                size=0.5
                 final_base_fn = ligand + "_space-mni_"+str(size)+"mm"
                 receptorVolumeRsl = final_dir + os.sep +final_base_fn+ ".nii.gz"
                 if not os.path.exists(receptorVolumeRsl) or clobber : 
@@ -175,11 +176,10 @@ for mr in mr_list :
                     nib.processing.resample_to_output(nib.Nifti1Image(img.get_data(), img.affine), size, order=5).to_filename(receptorVolumeRsl)
 
                 receptorVolume_final_kmeans = final_dir + os.sep + final_base_fn+"_segmented.nii.gz"
+                receptorVolume_final_dat = final_dir + os.sep + final_base_fn+"_segmented.dat"
                 receptorVolume_final_kmeans_anlz = final_dir + os.sep + final_base_fn + "_segmented.img"
-                
-                if not os.path.exists( receptorVolume_final_kmeans ) or clobber :
-                    kmeans_vol(receptorVolumeRsl, 20, receptorVolume_final_kmeans)                
-                    #kmeans_vol(receptorVolumeRsl, 100, receptorVolume_final_kmeans)                
+                if not os.path.exists( receptorVolume_final_kmeans ) or not os.path.exists(receptorVolume_final_dat) or clobber :
+                    kmeans_vol(receptorVolumeRsl, 100,receptorVolume_final_dat, receptorVolume_final_kmeans)                
                 shell("medcon -w -c anlz -f "+ receptorVolume_final_kmeans + ' -o '+receptorVolume_final_kmeans_anlz)
 
         exit(0)

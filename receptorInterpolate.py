@@ -5,9 +5,24 @@ import os
 import json
 import re
 import matplotlib.pyplot as plt
-
 import pandas as pd
 from ants import registration, image_read, apply_transforms, from_numpy
+
+def receptorSliceIndicator(rec_df_fn, ligand, receptor_volume_fn, offset, rec_slice_fn) :
+    img = nib.load(receptor_volume_fn)
+    vol = np.zeros( img.get_data().shape )
+
+    df = pd.read_csv(rec_df_fn)
+    df = df.loc[ df["ligand"] == ligand ]
+
+    for i, row in df.iterrows() :
+        _y0 = row["volume_order"]
+        vol[:,(_y0-offset):(_y0+offset),:]=2
+    
+    nib.Nifti1Image(vol, img.affine).to_filename(rec_slice_fn)
+    return 0
+
+
 
 def alignLigandToSRV(df, slab , ligand, srv_fn, cls_fn, output_dir,  clobber=False):
     print("\t\tNonlinear alignment of coronal sections for ligand", ligand, "for slab", int(slab))

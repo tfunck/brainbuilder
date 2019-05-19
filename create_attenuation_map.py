@@ -62,7 +62,7 @@ if not os.path.exists("skull.nii.gz") :
     for y in range(skull.shape[1]) : skull_out[:,y,:]+=skeletonize(skull[:,y,:])
     for x in range(skull.shape[0]) : skull_out[x,:,:]+=skeletonize(skull[x,:,:])
     skull_out = gaussian_filter(skull_out, 5)
-    idx = skull_out > 0.06
+    idx = skull_out > 0.10
     skull_out[ idx ] = 1
     skull_out[ ~idx ] = 0
     nib.Nifti1Image(skull_out, skull_img.affine).to_filename("skull.nii.gz")
@@ -84,7 +84,10 @@ out[  (cls==1 ) & (mask==1) ] = 3
 #print(max_index)
 #out[ out != max_index ] = 0 
 #out[ out > 0 ] = 1 
-
-nib.Nifti1Image(out, mri_img.affine).to_filename("mr1_attenuation_map.nii.gz")
+hdr1 = nib.Nifti1Header()  
+hdr1.set_dim_info(0,1,2)
+out = np.swapaxes(out, 0,2)
+nib.AnalyzeImage(out, mri_img.affine, hdr1).to_filename("mr1_attenuation_map.img")
+#nib.Nifti1Image(out, mri_img.affine, hdr1).to_filename("mr1_attenuation_map.nii")
 
 
