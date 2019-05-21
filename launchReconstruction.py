@@ -37,7 +37,6 @@ with open("scale_factors.json") as f : scale=json.load(f)
 for mr in mr_list :
     #Setup Output Dir
     source_dir = mr
-
     for h in hemisphere_list :
         for i in slabs :
             slab=i
@@ -104,6 +103,12 @@ for mr in mr_list :
             cls_iso_dwn_fn = classify_dir + os.sep + "vol_cls_"+str(i)+"_250um.nii.gz"
             if not os.path.exists(cls_iso_dwn_fn):
                 downsample_y(cls_fn, cls_iso_dwn_fn, 0.25 )
+
+
+            ###########################################################
+            # 6.5 Find MRI slab corresponding to receptor volume slab #
+            ###########################################################
+             
 
 
             ###############################################
