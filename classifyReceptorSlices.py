@@ -108,6 +108,9 @@ def classifyReceptorSlices(in_fn, out_dir, out_fn, morph_iterations=5, clobber=F
             print("Error: could not find ", in_fn)
             exit(1)
 
+        if not os.path.exists(out_dir) :
+            os.makedirs(out_dir)
+
         #
         # Read Input HDF5 Minc File and create output volume
         #

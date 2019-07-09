@@ -7,6 +7,8 @@ import os
 import pandas as pd
 import imageio
 import nibabel as nib
+from glob import glob
+from re import sub
 from nibabel.processing import resample_to_output
 from os.path import basename
 from scipy.ndimage.filters import gaussian_filter
@@ -45,11 +47,16 @@ def pad_size(d):
 def add_padding(img, zmax, xmax):
     z=img.shape[0]
     x=img.shape[1]
+    
     dz = zmax - z
     dx = xmax - x
+    
     z_pad = pad_size(dz)
     x_pad = pad_size(dx)
+    
     img_pad = np.pad(img, (z_pad,x_pad), 'minimum')
+    #img_pad = np.zeros([zmax,xmax])
+    #img_pad[z_pad[0]:, x_pad[0]: ] = img
     return img_pad
 
 
@@ -160,10 +167,37 @@ def downsample(img, subject_fn="", step=0.1, interp='cubic'):
     img_dwn = scipy.misc.imresize(img_blr,size=(dim0, dim1),interp=interp )
     if subject_fn != "" : 
         print("Downsampled:", subject_fn )
-        plt.subplot(2,1,1); plt.imshow(img)
-        plt.subplot(2,1,2); plt.imshow(img_dwn); plt.show()
+        #plt.subplot(2,1,1); plt.imshow(img)
+        #plt.subplot(2,1,2); plt.imshow(img_dwn); plt.show()
         imageio.imwrite(subject_fn, img_dwn)
     return(img_dwn)
+
+
+
+def downsample_and_crop(source_lin_dir, lin_dwn_dir,crop_dir, affine, step=0.2, clobber=False):
+
+    for f in glob(source_lin_dir+"/*.TIF") :
+        dwn_fn = lin_dwn_dir + splitext(basename(f))[0] + '.nii.gz'
+        if not os.path.exists(dwn_fn) or clobber :
+            try :
+                base=sub('#L','',basename(splitext(f)[0]))
+                path_string=crop_dir+"/detailed/**/"+base+"_bounding_box.png"
+                print("path:", path_string)
+
+                crop_fn = glob(path_string)[0]
+            except IndexError :
+                print("\t\tDownsample & Crop : Skipping ", f)
+                continue
+            img = imageio.imread(f)
+            if len(img.shape) == 3 : img = np.mean(img,axis=2)
+
+            bounding_box = imageio.imread(crop_fn) 
+            if np.max(bounding_box) == 0 : 
+                bounding_box = np.ones(img.shape)
+            else : 
+                bounding_box = bounding_box / np.max(bounding_box)
+            img = img * bounding_box 
+            nib.processing.resample_to_output(nib.Nifti1Image(img, affine), step, order=5).to_filename(dwn_fn)
 
 #def rgb2gray(rgb): return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
 def rgb2gray(rgb): return np.mean(rgb, axis=2)

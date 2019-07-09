@@ -70,7 +70,6 @@ def downsample_and_crop(source_lin_dir, lin_dwn_dir,crop_dir, affine, step=0.2, 
             print(crop_fn)
             print(f)
             img = imageio.imread(f)
-            #plt.imshow(img); plt.show()
             if len(img.shape) == 3 : img = np.mean(img,axis=2)
 
             bounding_box = imageio.imread(crop_fn) 
@@ -79,5 +78,5 @@ def downsample_and_crop(source_lin_dir, lin_dwn_dir,crop_dir, affine, step=0.2, 
             else : 
                 bounding_box = bounding_box / np.max(bounding_box)
             img = img * bounding_box 
-            #plt.imshow(img); plt.show()
             integrate_downsample_tif(img, step, affine, dwn_fn)
+            nib.processing.resample_to_output(nib.Nifti1Image(img, affine), step, order=5).to_filename(dwn_fn)

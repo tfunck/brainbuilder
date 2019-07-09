@@ -69,7 +69,6 @@ def downsample_raw(raw_files, output_dir, step, clobber) :
 def get_lines(downsample_files,raw_files, max_model,output_dir, clobber) :
 
     print("Using model located in:", max_model) 
-   
     line_dir=output_dir + os.sep + 'lines'
     if not os.path.exists(line_dir) : os.makedirs(line_dir)
     line_files=[]
@@ -143,16 +142,12 @@ def fill(iraw, iline, it=10):
         iraw = iraw.T
     return iraw 
 
-    
-
-
 def remove_lines(line_files, raw_files, raw_output_dir, clobber) :
     final_dir=raw_output_dir + os.sep + 'final'
     if not os.path.exists(final_dir) : os.makedirs(final_dir)
 
     for raw in raw_files :
         base =re.sub('#L', '', os.path.splitext(os.path.basename(raw))[0])
-
         fout = final_dir + os.sep + base + '.png'
         if not os.path.exists(fout) or clobber : 
             print(raw)

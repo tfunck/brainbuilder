@@ -7,7 +7,7 @@ import json
 import shutil
 from glob import glob
 from utils.utils import set_csv, add_padding, setup_tiers
-from ants import registration, image_read, apply_transforms, image_mutual_information, from_numpy, image_similarity
+from ants import registration, apply_transforms, image_mutual_information, from_numpy, image_similarity
 
 
 def find_next_slice( i , step, df):
@@ -88,7 +88,7 @@ def receptorAdjustAlignment(df, vol_fn, output_dir, clobber=False):
 
     y_idx = df['volume_order'].values 
     mid = np.rint(y_idx.shape[0] / 2.).astype(int)
-    n_epochs=10
+    n_epochs=4
     epochs=np.arange(0,n_epochs).astype(int)+1
     mi_list=[]
     #Init dict with initial transforms
@@ -115,10 +115,12 @@ def receptorAdjustAlignment(df, vol_fn, output_dir, clobber=False):
     with open(output_dir+os.sep+'transforms.json', 'w+') as fp : 
         json.dump(initial_transforms_mod, fp )
 
-def init_volume(slab_img_fn,  df, scale, ext=".png", clobber=False, align=True):
+def init_volume(slab_img_fn,  df, scale, ext=".nii.gz", clobber=False, align=True):
     example_fn=df["filename"].values[0]
     print(example_fn)
-    xmax, zmax = nib.load(example_fn).get_data().shape
+    shape = nib.load(example_fn).get_shape()
+    xmax = shape[0] 
+    zmax = shape[1]
     order_max=df["order"].max()
     order_min=df["order"].min()  
     slab_ymax=order_max-order_min + 1
@@ -135,15 +137,29 @@ def init_volume(slab_img_fn,  df, scale, ext=".png", clobber=False, align=True):
         mr = row["mri"]
         direction = scale[mr][hemi][str(slab)]["direction"]
         temp =  nib.load(_file).get_data()
+        temp = temp.reshape(*temp.shape[0:2])
+        #print(direction)
+        #plt.subplot(3,1,1)
+        #plt.imshow(temp)
         if direction == "rostral_to_caudal":
             temp = np.flip(temp, 0)
-        temp = np.flip(temp, 1)
+            #plt.subplot(3,1,2)
+            #plt.imshow(temp)
+            temp = np.flip(temp, 1)
+        elif direction == "caudal_to_rostral":
+            temp = np.flip(temp, 0)
+        #plt.subplot(3,1,3)
+        #plt.imshow(temp)
+        #plt.show()
 
         temp = add_padding(temp, 500,500) 
 
         vol[ : , vorder , : ] = temp
 
 
+    #if direction == "caudal_to_rostral":
+    #    vol = np.flip(vol, 1)
+    
     print("\tWriting",slab_img_fn)
     slab_ymin=-126+df["order"].min()*0.02
     affine=np.array([[0.2, 0, 0, -72],
@@ -161,14 +177,14 @@ def add_y_position(df):
         df["volume_order"].loc[ row["order"] == df["order"]] = order_max - row["order"]
     return df
 
-def receptorRegister(source_dir, output_dir, tiers_string, receptor_df_fn, ext=".png", scale_factors_json="scale_factors.json", clobber=False):
+def receptorRegister(source_dir, output_dir, tiers_string, receptor_df_fn, ext=".nii.gz", scale_factors_json="data/scale_factors.json", clobber=False):
     if not os.path.exists(output_dir) :
         os.makedirs(output_dir)
     
     with open(scale_factors_json) as f : scale=json.load(f)
 
     source_files=glob(source_dir+os.sep+ "*" + ext)
-
+    print(source_dir+os.sep +"*"+ext)
     df = set_csv(source_files, output_dir, clobber=clobber)
     df = setup_tiers(df, tiers_string) 
     df = add_y_position(df)
@@ -178,7 +194,7 @@ def receptorRegister(source_dir, output_dir, tiers_string, receptor_df_fn, ext="
 
     slab_img_fn = output_dir + os.sep + 'vol_0.nii.gz'
     if not os.path.exists(slab_img_fn) or clobber :
-        init_volume(slab_img_fn,  df, scale, ext=".png", clobber=clobber)
+        init_volume(slab_img_fn,  df, scale, ext=".nii.gz", clobber=clobber)
 
     receptorAdjustAlignment(df, slab_img_fn, output_dir, clobber=clobber)
 
