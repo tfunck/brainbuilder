@@ -81,14 +81,14 @@ def adjust_alignment(df, vol, epoch, y_idx, mid, initial_transforms, step, outpu
 
     return mi_list, vol 
 
-def receptorAdjustAlignment(df, vol_fn, output_dir, clobber=False):
+def receptorAdjustAlignment(df, vol_fn, output_dir, n_epochs=3, clobber=False):
+    
     vol_nii = nib.load(vol_fn)
     vol = vol_nii.get_data()
     mi_fn = output_dir + os.sep + 'mi.csv'
 
     y_idx = df['volume_order'].values 
     mid = np.rint(y_idx.shape[0] / 2.).astype(int)
-    n_epochs=4
     epochs=np.arange(0,n_epochs).astype(int)+1
     mi_list=[]
     #Init dict with initial transforms
@@ -124,7 +124,14 @@ def init_volume(slab_img_fn,  df, scale, ext=".nii.gz", clobber=False, align=Tru
     order_max=df["order"].max()
     order_min=df["order"].min()  
     slab_ymax=order_max-order_min + 1
-    vol = np.zeros( [500,slab_ymax,500])
+
+    z0=x0=0
+    for i, row in df.iterrows() :
+        shape =  nib.load(row["filename"]).get_data().shape
+        x0 = max([x0,shape[0]])
+        z0 = max([z0,shape[1]])
+
+    vol = np.zeros( [x0,slab_ymax,z0])
 
     for i, row in df.iterrows() :
         vorder = row["volume_order"]
@@ -138,21 +145,12 @@ def init_volume(slab_img_fn,  df, scale, ext=".nii.gz", clobber=False, align=Tru
         direction = scale[mr][hemi][str(slab)]["direction"]
         temp =  nib.load(_file).get_data()
         temp = temp.reshape(*temp.shape[0:2])
-        #print(direction)
-        #plt.subplot(3,1,1)
-        #plt.imshow(temp)
         if direction == "rostral_to_caudal":
             temp = np.flip(temp, 0)
-            #plt.subplot(3,1,2)
-            #plt.imshow(temp)
             temp = np.flip(temp, 1)
         elif direction == "caudal_to_rostral":
             temp = np.flip(temp, 0)
-        #plt.subplot(3,1,3)
-        #plt.imshow(temp)
-        #plt.show()
-
-        temp = add_padding(temp, 500,500) 
+        temp = add_padding(temp, x0,z0) 
 
         vol[ : , vorder , : ] = temp
 
@@ -177,7 +175,7 @@ def add_y_position(df):
         df["volume_order"].loc[ row["order"] == df["order"]] = order_max - row["order"]
     return df
 
-def receptorRegister(source_dir, output_dir, tiers_string, receptor_df_fn, ext=".nii.gz", scale_factors_json="data/scale_factors.json", clobber=False):
+def receptorRegister(source_dir, output_dir, tiers_string, receptor_df_fn, ext=".nii.gz", scale_factors_json="data/scale_factors.json", n_epochs=3, clobber=False):
     if not os.path.exists(output_dir) :
         os.makedirs(output_dir)
     
@@ -196,5 +194,5 @@ def receptorRegister(source_dir, output_dir, tiers_string, receptor_df_fn, ext="
     if not os.path.exists(slab_img_fn) or clobber :
         init_volume(slab_img_fn,  df, scale, ext=".nii.gz", clobber=clobber)
 
-    receptorAdjustAlignment(df, slab_img_fn, output_dir, clobber=clobber)
+    receptorAdjustAlignment(df, slab_img_fn, output_dir, n_epochs=n_epochs, clobber=clobber)
 

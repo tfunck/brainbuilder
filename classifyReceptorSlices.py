@@ -125,28 +125,14 @@ def classifyReceptorSlices(in_fn, out_dir, out_fn, morph_iterations=5, clobber=F
         valid_slices=[]
         invalid_slices=[]
         qc=[]
+
+        from skimage.segmentation import (morphological_chan_vese, checkerboard_level_set)
+
         for i in range(0, ar1.shape[1]) : #
             s0 = ar1[:, i, :]
             if np.max(s0) > 0 :
-                #cls0=local_kmeans(s0, 100,25, sd=0) #myKMeansOriginal(s0)
                 cls=local_kmeans(s0, 100,25, sd=1) #myKMeansOriginal(s0)
-                #cls2=local_kmeans(s0, 100,25, sd=2) #myKMeansOriginal(s0)
-                #cls3=local_kmeans(s0, 100,25, sd=3) #myKMeansOriginal(s0)
-                #cls4=local_kmeans(s0, 100,25, sd=4) #myKMeansOriginal(s0)
-                #cls= (cls0 + cls1 + cls2 ) / 3. #
-                #cls_1=np.zeros(s0.shape)
-                #cls_1[ s0 > threshold_li(s0[s0>0]) ] = 1
-                #plt.subplot(3,1,1); plt.imshow(s0)
-                #plt.subplot(3,1,2); plt.imshow(cls_1)
-                #plt.subplot(3,1,3); plt.imshow(cls)
-                #plt.show()
-                #if (clobber or not os.path.exists(qc_dir+os.sep+'/tmp_'+str(i)+'.png')) :
-                          #print( "1", cls2.shape)
-                    #scipy.misc.imsave(qc_dir+'/tmp_'+str(i)+'.png', cls2)
-                #else :
-                #    cls2= imageio.imread(qc_dir+os.sep+'/tmp_'+str(i)+'.png') / 255
-                #    #cls2 = cls2.T
-                #    #print("2", cls2.shape)
+        
                 data[:,i,:] = cls
                 valid_slices.append(i)
                 #qc.append(np.sum(cls2))

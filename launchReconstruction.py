@@ -9,13 +9,12 @@ from sys import exit
 from re import sub
 from kmeans_vol import kmeans_vol
 from glob import glob
-from classifyReceptorSlices import classifyReceptorSlices
 from receptorCrop import crop_source_files
 from utils.utils import downsample_y
 from receptorInterpolate import receptorInterpolate, receptorSliceIndicator
 from receptorAdjustAlignment import receptorRegister
 from detectLines import apply_model
-from findMRIslab import createSRV
+from findMRIslab import align_slabs, AlignSlabsArgs
 from slab import Slab
 
 '''
@@ -51,8 +50,8 @@ class Autoradiographs():
         self.hemispheres_to_run = args.hemispheres_to_run
         self.slabs_to_run = args.slabs_to_run
         self.output = args.output
+        self.clobber = args.clobber
         self.brain={}
-
         
         self.brains={}
          
@@ -89,18 +88,24 @@ class Autoradiographs():
         for brain_id, brain in self.brain.items() :
             print(brain, brain_id)
             for hemi_id, hemi in brain.hemispheres.items() :
-                hemi._generate_mri_gm_mask()
+                srv_slabs_dict = hemi._generate_mri_gm_mask( args, brain_id, hemi_id,clobber=self.clobber)
 
     def reconstruct(self,args) :
         print(self.brain)
         for brain_id, brain in self.brain.items() :
-            print(brain, brain_id)
             for hemi_id, hemi in brain.hemispheres.items() :
-                hemi._generate_mri_gm_mask()
                 for slab_id, slab in hemi.slabs.items() :
                     print("Brain:", brain_id, "Hemisphere:", hemi_id, "Slab:", slab_id)
-                    slab._reconstruct(args)
+                    slab._init_reconstruct(args)
 
+
+        for brain_id, brain in self.brain.items() :
+            for hemi_id, hemi in brain.hemispheres.items() :
+                if args.run_mri_to_receptor or args.run_receptor_interpolate :
+                    srv_slabs_dict = hemi._generate_mri_gm_mask( args, brain_id, hemi_id, clobber=False)
+                    for slab_id, slab in hemi.slabs.items() :
+                        print("Brain:", brain_id, "Hemisphere:", hemi_id, "Slab:", slab_id)
+                        slab._global_reconstruct(args, srv_slabs_dict)
 
 class Brain():
     def __init__ (self, brain_id, autoInstance, args):
@@ -145,7 +150,7 @@ class Hemisphere():
                 print("Error : Incorrectly formatted path to autoradiograph slab. Directory should have format <hemisphere>_slab_<slab>, e.g., R_slab_1. Instead received :\n\t", dir_path )
                 exit(ERROR_FILENOTFOUND)
 
-            lin_path = [ f for f in slab_lin_paths if slab_id in f ] 
+            lin_path = [ f for f in slab_lin_paths if slab_id in os.path.basename(f) ] 
             
             try :
                 lin_path[0]
@@ -153,13 +158,18 @@ class Hemisphere():
                 print("Error : could not find corresponding path for linearized autoradiograph directory for raw autoradiograph directory :", raw_path, slab_id)
             if args.slabs_to_run == [] or slab_id in args.slabs_to_run :
                 print("Adding slab:", slab_id)
+                #print(raw_path)
+                #print(lin_path[0])
+                #print(slab_id)
                 self.slabs[slab_id] = Slab( raw_path, lin_path[0], slab_id, brainInstance.brain_id, self.hemi, args )
 
-    def _generate_mri_gm_mask(self):
+    def _generate_mri_gm_mask(self, args, brain_id, hemi_id, clobber):
         print("Generating MRI GM mask")
-        gm_mask_paths = [ False for slab in self.slabs.keys() if not os.path.exists("srv/mri1_gm_bg_srv_slab-"+str(slab)+".nii.gz") ]
-        if False in gm_mask_paths or args.clobber:
-            createSRV(self.brain_id, self.hemi, srv_fn = "srv/mri1_gm_bg_srv.nii.gz" ) #FIXME will need to be changed when using other MRI/hemi
+        align_slabs_args = AlignSlabsArgs(args.slabs_to_run,args.output+os.sep+brain_id+os.sep+hemi_id+os.sep)
+        if clobber :
+            align_slabs_args.clobber=1
+
+        return align_slabs( align_slabs_args )
 
 '''
     Command line argument parsing
@@ -170,16 +180,25 @@ if __name__ == "__main__":
     parser.add_argument('--output','-o', dest='output', default='output/', help='Directory name for outputs')
     parser.add_argument('--brains','-b', dest='brains_to_run', type=str, nargs='+', default=[],help='Brains to reconstruct. Default = run all.')
     parser.add_argument('--hemispheres', '-m', dest='hemispheres_to_run',type=str, nargs='+', default=[], help='Brains to reconstruct. Default = reconstruct all hemispheres.')
+    parser.add_argument('--tfm-type-2d', '-t', dest='tfm_type_2d',type=str, default="SyNAggro", help='Type of transformation to use to transform 2D receptor section to 3D MRI volume')
     parser.add_argument('--slabs','-s', dest='slabs_to_run', type=str,nargs='+', default=[],  help='Slabs to reconstruct. Default = reconstruct all slabs.')
+    parser.add_argument('--init-align-epochs', dest='init_align_epochs', type=int, default=3,  help='Number of iterations for initial rigid 2D alignment of autoradiographs.')
     parser.add_argument('--ligands','-l', dest='ligands_to_run', type=str,nargs='+', default=["flum"],  help='Ligands to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--mri-gm-mask', dest='generate_mri_gm_mask', action='store_true', default=False, help='Only generate GM masks from donor MRI')
-    parser.add_argument('--preprocess', dest='run_preprocess', action='store_true', default=False, help='Only run preprocessing in reconstruction')
-    parser.add_argument('--init-alignment', dest='run_init_alignment', action='store_true', default=False, help='Only run initial alignment in reconstruction')
-    parser.add_argument('--mri-to-receptor', dest='run_mri_to_receptor', action='store_true', default=False, help='Only run alignment of mri to receptor in reconstruction')
+    parser.add_argument('--preprocess', dest='run_preprocess', action='store_true', default=False, help='Only run reconstruction up to preprocessing')
+    parser.add_argument('--init-alignment', dest='run_init_alignment', action='store_true', default=False, help='Only run reconstruction up to initial alignment ')
+    parser.add_argument('--mri-to-receptor', dest='run_mri_to_receptor', action='store_true', default=False, help='Only run reconstruction up to alignment of mri to receptor')
     parser.add_argument('--receptor-interpolate', dest='run_receptor_interpolate', action='store_true', default=False, help='Only run receptor interpolation to receptor in reconstruction')
+    parser.add_argument('--validation', dest='validation', action='store_true', default=False, help='Run validation for receptor interpolation.')
     parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
+    parser.add_argument('--scale-factors', dest='scale_factors_json', type=str, default='data/scale_factors.json', help='.json file with scale factors for autoradiographs')
 
     args = parser.parse_args()
+    if args.run_preprocess == False and args.run_init_alignment == False and args.run_mri_to_receptor == False :
+        args.run_receptor_interpolate = True
+    else : 
+        args.run_receptor_interpolate = False
+
     data = Autoradiographs( args )
 
     if args.generate_mri_gm_mask :
