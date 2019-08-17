@@ -72,12 +72,18 @@ def registration(outDir, start,end,srv,tfm_prefix, moving_fn,fixed_fn, moving_rs
         exit(1)
 
 
+    ### Extract fixed image from MRI GM Classification SRV and adjust start location along y axis
     fixed = srv[:, start:end, :]
-    
+
+    affine =np.copy( srvRsl.affine)
+    print(affine)
+    affine[1,3] = affine[1,3] + affine[1,1] * start
     if not os.path.exists(fixed_fn) or clobber > 0 :
-        nib.Nifti1Image( fixed, srvRsl.affine ).to_filename(fixed_fn)
-
-
+        print("Writing fixed ", fixed_fn)
+        print(start, end, affine[1,:])
+        nib.Nifti1Image( fixed, affine  ).to_filename(fixed_fn)
+    
+    
     ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, iterations=args.iterations, metric=args.metric, nbins=args.nbins, rate=args.rate, verbose=args.verbose, clobber=args.clobber) 
     
     nmi=0
@@ -113,14 +119,13 @@ def load_srv_image(srv_fn, outDir, step, clobber=0) :
 def get_slab_image(cls_fn, moving_fn, outDir, step, clobber=0) :
     if not os.path.exists(moving_fn) or clobber > 2:
         slabImg = nib.load(cls_fn)
-        vol = gaussian_filter1d(slabImg.get_data(), 20, axis=(1) )
-        slabRsl = resample_to_output(nib.Nifti2Image(vol,slabImg.affine), [step,step,step], order=2)
+        vol = gaussian_filter1d(slabImg.get_data(), 3, axis=(1) )
+        slabRsl = resample_to_output(nib.Nifti2Image(vol,slabImg.affine), [step,step,step], order=0)
         del slabImg
         slab = slabRsl.get_data()
         nib.Nifti1Image( slab, slabRsl.affine ).to_filename(moving_fn)
     else : 
         slabRsl = nib.load(moving_fn)
-    
     return slabRsl
 
 def get_cls_fn(i,cls_base_fn) :
@@ -140,7 +145,7 @@ def calculate_prior_distribution(cls_base_fn, srvMin, srvMax, nSlabs, srv_ymax,s
     for i in range(1,nSlabs+1) : 
         moving_fn = outDir+os.sep+'orig_'+str(i)+'.nii.gz'
         cls_fn = get_cls_fn(i, cls_base_fn)
-        slabRsl = get_slab_image(cls_fn, moving_fn, outDir, step, clobber=0)    
+        slabRsl = get_slab_image(cls_fn, moving_fn, outDir, step, clobber=2)    
         slab = slabRsl.get_data()
         slabShape.append( slab.shape[1] )
     
@@ -171,42 +176,9 @@ def calculate_prior_distribution(cls_base_fn, srvMin, srvMax, nSlabs, srv_ymax,s
 
 def update_df(slab_df, best_df, df, out, srv_fn, metric="nmi_p") :
     idx = slab_df["MetricValue"].loc[ slab_df["Metric"]==metric ].idxmax()
-    
-    moving_rsl_fn = slab_df["moving_rsl"].iloc[idx,]
-    fixed_fn =  slab_df["fixed"].iloc[idx,]
-
-    print("\tBest Alignment", slab_df["y"].iloc[idx,], slab_df["y_end"].iloc[idx,], slab_df["Metric"].iloc[idx,],fixed_fn, moving_rsl_fn)
-
-
-    srvImgLoRes = nib.load(moving_rsl_fn)
-    srvImgHiRes = nib.load(srv_fn)
-
-    yLoStep  = srvImgLoRes.affine[1,1]
-    yLoStart = srvImgLoRes.affine[1,3]
-
-    yHiStep  = srvImgHiRes.affine[1,1]
-    yHiStart = srvImgHiRes.affine[1,3]
-    print(slab_df)
-    y0 = slab_df["y"].iloc[idx,]
-    y1 = slab_df["y_end"].iloc[idx,]
-
-    y0High = np.rint( ((yLoStart + yLoStep * y0) - yHiStart ) / yHiStep).astype(int)
-    y1High = np.rint( ((yLoStart + yLoStep * y1) - yHiStart ) / yHiStep).astype(int)
-   
-    srv = srvImgHiRes.get_data() 
-    outVol = srv[ :, y0High : y1High , : ]
-
-    out_fn = out.outDirLabelFinal + os.sep + os.path.basename( fixed_fn  )
-
-    nib.Nifti1Image(outVol, srvImgHiRes.affine ).to_filename( out_fn )
-    
-    slab_df['fixed'].iloc[idx,] = out_fn
-
     best_df =  best_df.append( slab_df.iloc[idx,] )
     df = df.append(slab_df)
     df.to_csv(out.csv_fn)
-    
-
     return slab_df, best_df, df
 
 def update_srv(i,slab_df, srv, affine, outDir, metric) :
@@ -216,13 +188,62 @@ def update_srv(i,slab_df, srv, affine, outDir, metric) :
 
     temp=np.copy(srv)
     temp[:, slab_y0:slab_y1 , :] = temp[:, slab_y0:slab_y1 , :] * int(i)
+    
+    
     if int(i) in [1,2,3] : 
         srv[:, slab_y0: , :] = 0
     else :
         srv[:, 0 : slab_y1, :] = 0
-    #plt.imshow(srv[ :, :, int(srv.shape[2]/2)]); plt.show()
-    nib.Nifti1Image(temp, affine).to_filename(outDir+os.sep+"srv_removed_section_"+str(i)+".nii.gz")
+    
     return srv
+
+def save_best_alignments(i, best_df, srv_fn, metric,out):
+
+    moving_rsl_fn = best_df["moving_rsl"].loc[ best_df["slab"] == i , ].values[0]
+    fixed_fn =  best_df["fixed"].loc[ best_df["slab"] == i ,   ].values[0]
+
+    movingRslImg = nib.load(moving_rsl_fn)
+
+    srvImgLoRes = nib.load(fixed_fn)
+    srvImgHiRes = nib.load(srv_fn)
+
+    yLoStep  = srvImgLoRes.affine[1,1]
+    yLoStart = srvImgLoRes.affine[1,3]
+
+    yHiStep  = srvImgHiRes.affine[1,1]
+    yHiStart = srvImgHiRes.affine[1,3]
+
+    y0 = best_df["y"].loc[ best_df["slab"] == i , ].values[0]
+    y1 = best_df["y_end"].loc[ best_df["slab"] == i , ].values[0]
+
+    #y0High = np.rint( ( (yLoStart + yLoStep * y0) - yHiStart ) / yHiStep).astype(int)
+    #y1High = np.rint( ( (yLoStart + yLoStep * y1) - yHiStart ) / yHiStep).astype(int)
+  
+    y0High = np.rint( (  yLoStep * y0 ) / yHiStep).astype(int)
+    y1High = np.rint( (  yLoStep * y1 ) / yHiStep).astype(int)
+    print(srvImgHiRes.shape)
+    print(y0, y1)
+    print( y0High , y1High)
+    srv = srvImgHiRes.get_data() 
+
+    #outVol = np.zeros([ srv.shape[0], y1High - y0High, srv.shape[2] ] )
+    outVol = srv[ : , y0High : y1High , : ]
+
+    out_fn = out.outDirLabelFinal + os.sep + os.path.basename( fixed_fn  )
+    out_moving_rsl_fn = out.outDirLabelFinal + os.sep + os.path.basename( moving_rsl_fn  )
+    shutil.copy( moving_rsl_fn, out_moving_rsl_fn) 
+
+    aff = srvImgHiRes.affine
+    aff[1,3] = srvImgHiRes.affine[1,3] + srvImgLoRes.affine[1,1] * y0
+    print(aff)
+    print(srv_fn)
+    print(out_fn)
+    print(outVol.shape)
+    nib.Nifti1Image(outVol, aff ).to_filename( out_fn )
+
+    fixed_fn =  best_df["fixed"].loc[ best_df["slab"] == i ,] = out_fn
+
+    return best_df
 
 def align_single_slab(srv_fn, cls_fn, i, args, srv, srvRsl, slab_position_prior_prob, df, best_df, out) :
     moving_fn = args.outDir+os.sep+'orig_'+str(i)+'.nii.gz'
@@ -237,15 +258,15 @@ def align_single_slab(srv_fn, cls_fn, i, args, srv, srvRsl, slab_position_prior_
     for y in range(srvMin, srvMax, args.slab_shift_width) : 
         start, mid, end = get_slab_start_end(i, y, slab.shape[1], srvRsl.shape[1],args.slab_offset_ratio)
         print(y, start, mid, end)
-        fixed_fn = out.outDirLabel+os.sep+'fixed_'+str(i)+'_'+str( start )+'_'+str( end )+'.nii.gz'
-        moving_rsl_fn = out.outDirLabel+os.sep+'moving_rsl_'+str(i)+'_'+str(start)+'_'+str(end)+'.nii.gz'
-        moving_rsl_fn_inverse = out.outDirLabel+os.sep+'fixed_rsl_'+str(i)+'_'+str(start)+'_'+str(end)+'.nii.gz'
+        fixed_fn = out.outDirLabel+os.sep+'srv_fixed_'+str(i)+'_'+str( start )+'_'+str( end )+'.nii.gz'
+        moving_rsl_fn = out.outDirLabel+os.sep+'cls_moving_rsl_'+str(i)+'_'+str(start)+'_'+str(end)+'.nii.gz'
+        moving_rsl_fn_inverse = out.outDirLabel+os.sep+'srv_fixed_rsl_'+str(i)+'_'+str(start)+'_'+str(end)+'.nii.gz'
         
         tfm_prefix = out.outDirLabel + os.sep+'affine_'+str(i)+'_'+str(start)+"_"+str(end)+"_"
-        tfm_fn = tfm_prefix + '0GenericAffine.mat'
+        tfm_fn = tfm_prefix + 'Composite.h5'
 
         p = slab_position_prior_prob[int(i)]['function'](mid) / slab_position_prior_prob[int(i)]['max']
-        if p  < 0.5 :
+        if p  < 0.9 :
             print("Break : low probability threshold reached :", p )
             break
 
@@ -264,11 +285,13 @@ def align_single_slab(srv_fn, cls_fn, i, args, srv, srvRsl, slab_position_prior_
                 "Offset":[args.slab_offset_ratio]*3,
                 "RegSchedule":[ '_'.join(args.iterations) ]*3
                 }
+        
 
         row = pd.DataFrame(row_dict)
         slab_df = slab_df.append(row, ignore_index=True)
         print("Slab:", i, "start :", start,"end:", end, "Mattes", -metric_val*p, "p :", p )
     slab_df, best_df, df =  update_df(slab_df, best_df, df, out, srv_fn, metric=args.metric+'_p')
+
     srv = update_srv(i,slab_df, srv, srvRsl.affine, out.outDirLabel, args.metric+'_p') 
 
     return df, best_df, srv
@@ -341,7 +364,7 @@ def align_slabs( args, cls_base_fn="output/MR1/R_slab_<slab>/classify/vol_cls_<s
     if not os.path.exists(args.outDir) :
         os.makedirs(args.outDir)
 
-    if not os.path.exists(out.best_csv_fn) or args.clobber > 0: 
+    if not os.path.exists(out.best_csv_fn) or args.clobber > 0 : 
         print('Generate :', out.best_csv_fn)
         #Load SRV MRI GM mask
         srvRsl = load_srv_image(srv_fn,args.outDir,args.step, args.clobber)
@@ -358,6 +381,8 @@ def align_slabs( args, cls_base_fn="output/MR1/R_slab_<slab>/classify/vol_cls_<s
         for i in args.slab_fn_list : 
             cls_fn=get_cls_fn(i, cls_base_fn)
             df, best_df, srv = align_single_slab(srv_fn, cls_fn, i, args, srv, srvRsl, slab_position_prior_prob, df, best_df, out)
+            best_df = save_best_alignments(i, best_df, srv_fn, args.metric, out)
+
         best_df.to_csv(out.best_csv_fn)
     else : 
         print("File already exists: ", out.best_csv_fn)

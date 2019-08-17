@@ -57,8 +57,8 @@ class Slab():
         self.cls_fn = self.classify_dir + os.sep + "vol_cls_"+str(slab)+".nii.gz"
         
         self.srv2cls_prefix=self.nonlinear_dir+os.sep+"transform_"+str(slab)+"_"
-        self.srv2cls = self.srv2cls_prefix + '1Warp.nii.gz'
-        self.cls2srv = self.srv2cls_prefix + '1InverseWarp.nii.gz'
+        self.srv2cls = self.srv2cls_prefix + 'Composite.h5'
+        self.cls2srv = self.srv2cls_prefix + 'InverseComposite.h5'
 
     def _init_reconstruct(self, args) :
         if args.run_preprocess : #or args.run_init_alignment or args.run_mri_to_receptor or args.run_receptor_interpolate :
@@ -184,14 +184,13 @@ class Slab():
 
         cls_iso_dwn_fn = self.classify_dir + os.sep + "vol_cls_"+str(slab)+"_250um.nii.gz"
         
-
         def srv2cls(outDir, tfm_prefix, tfm_fn, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, out_fn, init_tfm ) :
             print("\nANTs Command Line")
             if not os.path.exists(moving_rsl_fn_inverse) or not os.path.exists(moving_rsl_fn) or clobber : 
                 if not os.path.exists(self.nonlinear_dir):
                     os.makedirs(self.nonlinear_dir)
              
-                ANTs(outDir, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, iterations=['1000x500x300','1000x5x2'],tfm_type=['Affine','SyN'], base_shrink_factor=2, radius=64, metric="GC", init_tfm=init_tfm, init_inverse=True, verbose=1, clobber=1)
+                ANTs(outDir, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, iterations=['500x250x100x10', '1000x500x300','1000x200x100'], base_shrink_factor=2, radius=64, metric="GC", verbose=1, clobber=1, init_tfm=self.init_tfm, init_inverse=True,  exit_on_failure=True)
 
             if (not os.path.exists(out_fn) or clobber ) and moving_rsl_fn != None:
                 img = nib.load(moving_rsl_fn)
@@ -204,6 +203,10 @@ class Slab():
         moving_rsl_fn = self.nonlinear_dir+os.sep+"syn_"+str(slab)+".nii.gz"
         moving_rsl_fn_inverse = self.nonlinear_dir+os.sep+"syn_inverse_"+str(slab)+".nii.gz"
         out_fn = cls_iso_dwn_fn
+
+        print("fixed", fixed_fn)
+        print("moving_rsl", moving_rsl_fn)
+        print("moving", moving_fn)
         srv2cls(self.nonlinear_dir, self.srv2cls_prefix, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, self.srv_rsl , self.init_tfm )
 
     def _receptor_interpolate(self,args):
@@ -261,7 +264,6 @@ class Slab():
                 cmdline=" ".join(["antsApplyTransforms -d 3 -n BSpline[3] -i",receptorVolume,"-r",self.srv,"-t",self.cls2srv,"-o",receptorVolume_mni_space])
                 print(cmdline)
                 shell(cmdline)
-            exit(0)
 
             receptorVolumeRsl = final_dir + os.sep + ligand + "_space-mni_500um.nii.gz"
             size=0.5

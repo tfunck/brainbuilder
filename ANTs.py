@@ -1,8 +1,7 @@
 import os
 from utils.utils import shell
 
-def ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, iterations, metric='GC', nbins=64, tfm_type=["Rigid","Affine","SyN"], rate=[0.05,0.05,0.05], base_shrink_factor=1, radius=64, init_tfm=None,init_inverse=False, sampling=1, verbose=0, clobber=0) :
-    print(tfm_type, tfm_type[-1])
+def ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, iterations, metric='GC', nbins=64, tfm_type=["Rigid","Affine","SyN"], rate=[0.05,0.05,0.05], base_shrink_factor=1, radius=64, init_tfm=None,init_inverse=False, sampling=1, verbose=0, clobber=0, exit_on_failure=False) :
     if tfm_type[-1] == 'SyN' :
         tfm_fn = tfm_prefix + 'warp.h5'
     else : 
@@ -35,7 +34,7 @@ def ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_i
 
             ### Set tranform parameters for level
             cmdline += " --transform "+tfm_type[level]+"[ "+str(rate[level])+" ] " 
-            cmdline += " --metric "+metric+"[ "+fixed_fn+", "+moving_fn+", 1,"
+            cmdline += " --metric "+metric+"["+fixed_fn+", "+moving_fn+", 1,"
             if metric == "Mattes" :
                 cmdline += " "+nbins+", "
             else :
@@ -53,5 +52,8 @@ def ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_i
             #Run command line
             shell(cmdline)
         except RuntimeError :
-            pass
+            if exit_on_failure :
+                exit(1)
+            else :
+                pass
     return tfm_fn
