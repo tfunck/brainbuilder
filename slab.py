@@ -190,7 +190,7 @@ class Slab():
                 if not os.path.exists(self.nonlinear_dir):
                     os.makedirs(self.nonlinear_dir)
              
-                ANTs(outDir, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, iterations=['500x250x100x10', '1000x500x300','1000x200x100'], base_shrink_factor=2, radius=64, metric="GC", verbose=1, clobber=1, init_tfm=self.init_tfm, init_inverse=True,  exit_on_failure=True)
+                ANTs(outDir, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, iterations=['500x250x100x10', '1000x500x300','3000x2000x1000x500x100'], base_shrink_factor=1, radius=64, metric="GC", verbose=1, clobber=1, init_tfm=self.init_tfm, init_inverse=True,  exit_on_failure=True)
 
             if (not os.path.exists(out_fn) or clobber ) and moving_rsl_fn != None:
                 img = nib.load(moving_rsl_fn)
@@ -216,7 +216,7 @@ class Slab():
         print("Step 8. Interpolate missing slices for each receptor type")
         ligands=["flum,musc,sr95,cgp5,afdx,uk20,pire,praz,keta,dpmg,sch2,dpat,rx82,kain,ly34,damp,mk80,ampa,uk18,oxot,epib"]
 
-        def write_ligand_volume(df_fn, rec_fn, out_fn) :
+        def write_ligand_volume(ligand, df_fn, rec_fn, out_fn, w=0) :
             df = pd.read_csv(df_fn)
             df = df.loc[ df["ligand"] == ligand ]
             rec = nib.load(rec_fn)
@@ -224,7 +224,12 @@ class Slab():
             outVolume=np.zeros(rec.shape)
             for i, row in df.iterrows() :
                 y = row["volume_order"]
+
                 outVolume[:,int(y),:] = recVolume[ :, int(y), : ]
+
+                for j in range( max(0, y-w), min(y+w, recVolume.shape[1]) ) :
+                    outVolume[ :, j, : ] = outVolume[ :, int(y), : ]
+
             nib.Nifti1Image(outVolume, rec.affine).to_filename(out_fn)
 
         unaligned_rec_fn =self.reg_output_dir +os.sep+"/vol_0.nii.gz"
@@ -246,8 +251,8 @@ class Slab():
             if not os.path.exists(receptorVolume) or self.args.clobber or self.args.validation : 
                 receptorInterpolate(self.slab,ligand_interp_fn,rec_fn, self.srv_rsl, self.cls_fn, ligand_dir, ligand, rec_df_fn, transforms_fn, tfm_type_2d=args.tfm_type_2d, clobber=self.args.clobber)
             
-            write_ligand_volume(rec_df_fn, ligand_interp_fn, ligand_init_ligand_fn)
-            write_ligand_volume(rec_df_fn, rec_fn, ligand_no_interp_fn)
+            write_ligand_volume(ligand, rec_df_fn, ligand_interp_fn,ligand_no_interp_fn , 10 )
+            write_ligand_volume(ligand, rec_df_fn, rec_fn, ligand_init_ligand_fn )
 
             if not os.path.exists( rec_slice_fn  ) or self.args.clobber :
                 receptorSliceIndicator( rec_df_fn, ligand, receptorVolume, 3, rec_slice_fn )
@@ -259,6 +264,13 @@ class Slab():
             final_dir = self.slab_output_path + os.sep + "final"
             if not os.path.exists(self.slab_output_path+'/final') : os.makedirs(self.slab_output_path+'/final')
             receptorVolume_mni_space = final_dir + os.sep + ligand + "_space-mni.nii.gz"
+            receptorVolume_no_interp_mni_space = final_dir + os.sep + ligand + "_no-interp_space-mni.nii.gz"
+
+            if not os.path.exists(receptorVolume_no_interp_mni_space) or self.args.clobber :
+                cmdline=" ".join(["antsApplyTransforms -d 3 -n BSpline[3] -i",ligand_no_interp_fn,"-r",self.srv,"-t",self.cls2srv,"-o",receptorVolume_no_interp_mni_space])
+                print(cmdline)
+                shell(cmdline)
+
             print( receptorVolume_mni_space )
             if not os.path.exists(receptorVolume_mni_space) or self.args.clobber :
                 cmdline=" ".join(["antsApplyTransforms -d 3 -n BSpline[3] -i",receptorVolume,"-r",self.srv,"-t",self.cls2srv,"-o",receptorVolume_mni_space])

@@ -298,13 +298,12 @@ def align_single_slab(srv_fn, cls_fn, i, args, srv, srvRsl, slab_position_prior_
 
 
 
-def save_plot(csv_fn,out, args) :
+def save_plot(csv_fn, out_fn,  out, args) :
             
     df = pd.read_csv(csv_fn)
     
     rate_str = '-'.join([str(i) for i in args.rate ])
     itr_str = '-'.join(args.iterations)
-    out_fn = args.outDir+os.sep+"slab_position_"+ out.label+".png"
     
     #df = pd.melt(df, id_vars=["slab", "y","y_end"], value_vars=[args.metric,"p",args.metric+"_p" ]) 
     g = sns.FacetGrid(df, row="slab",col="Metric", hue="slab",sharey=False,sharex=True)
@@ -313,7 +312,7 @@ def save_plot(csv_fn,out, args) :
                                                     # important to add this before setting titles
     g.set_titles(row_template = '{row_name}', col_template = '{col_name}')
     g.fig.suptitle(" ".join(["metric :", args.metric, "rate :", rate_str, "itr :", itr_str,"offset :", str(args.slab_offset_ratio)]), y=1, fontsize=8)
-    print("Writing to", out_fn)
+    print("Writing plot to", out_fn)
     plt.savefig(out_fn)
 
 def adjust_slab_list(ll) :
@@ -387,8 +386,9 @@ def align_slabs( args, cls_base_fn="output/MR1/R_slab_<slab>/classify/vol_cls_<s
     else : 
         print("File already exists: ", out.best_csv_fn)
     
-    if not os.path.exists(out.csv_fn) :
-        save_plot(out.csv_fn, out, args)
+    plot_fn = args.outDir+os.sep+"slab_position_"+ out.label+".png"
+    if not os.path.exists(out.csv_fn) or not os.path.exists(plot_fn) :
+        save_plot(out.csv_fn, plot_fn, out, args)
 
     best_df = pd.read_csv(out.best_csv_fn)
 

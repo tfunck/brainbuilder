@@ -1,0 +1,194 @@
+\documentclass[12pt]{article}
+\topmargin 0.0cm
+\oddsidemargin 0.2cm
+\textwidth 16cm 
+\textheight 21cm
+\footskip 1.0cm
+
+\title{Reconstructing 20 3D high-resolution 20$\mu$m neurotransmitter receptor atlases from autoradiography} 
+
+
+\author{Thomas Funck,$^{1\ast}$ Nicola Palomero-Gallagher,$^{1}$ Claude Lepage$^{2}$\\
+\\
+\normalsize{$^{1}$Department of Chemistry, University of Wherever,}\\
+\normalsize{An Unknown Address, Wherever, ST 00000, USA}\\
+\normalsize{$^{2}$Another Unknown Address, Palookaville, ST 99999, USA}\\
+\\
+\normalsize{$^\ast$Author for corespondance; E-mail:  thomas.funck@mail.mcgill.ca.}
+}
+
+% Include the date command, but leave its argument blank.
+
+\date{}
+
+
+
+%%%%%%%%%%%%%%%%% END OF PREAMBLE %%%%%%%%%%%%%%%%
+\begin{document} 
+
+\baselineskip24pt
+\maketitle 
+
+
+\section{Introduction}
+
+Three dimensional digital brain atlases are both important for characterizing standard properties of the brain withing a given population and are also an essential tool in the analysis of brain image
+\cite{Toga2006}. As yet high resolution atlases of human neurotransmitter receptors have not been available. The lack of neurotransmitter receptor atlases is particularly unfortunate given that neurotransmitters and their corresponding receptors underpin all synaptic transmission and hence all information processing in the brain. We have developed a 3D neurotransmitter receptor atlas at 20micron that includes binding densities for 20 different neurotransmitter receptors. 
+
+We demonstrate a method for creating a 50um neurotransmitter receptor atlas for 20 different neurotransmitter receptors.
+
+\subsection{In vivo neurotransmitter receptor mapping}
+Two approaches exist to measuring neurotransmitter receptors: in vivo and ex vivo imaging. In vivo imaging of neurotransitter receptors can be accomplished with positron emission tomograph (PET). PET uses a radiotracer composed of a radioisotope attached to a ligand to quantify the binding of the radiotracer to a target receptor. While PET has the advantage of being applicable in vivo and produces 3D images, it suffers from relatively poor spatial resolution and non-specific or off-target binding by the radiotracer. This limits the accuracy with which neurotrasmitter receptors can be quantified with PET.
+
+Despite the limitations of PET, significant work has been performed to create atlases of standard neurotransmitter receptor distributions \cite{Savli2012,Beliveau2017}. Beliveau, et al. have published an in vivo atlases of 4 of the serotonin 5-HT receptor subtypes using from 8-59 subjects, depending on the particular receptor \cite{Beliveau2017}. 
+
+\subsection{3D Reconstruction to 2D post-mortem brain sections}
+The second approach to neurotransmitter receptor binding is using in vitro autoradiography. This technique also uses a radiotracer to bind to neurotransmitter receptors, but is perfomed on 2D sections of brain tissue that have been extracted from a brain post-mortem. Autoradiography has the advantage over PET with respect to the spatial resolution of the resultant images. Whereas PET images have a spatial resolution on the order of millimeters, autoradiographs have a resolution of up to approximately 50 microns. 
+
+Thorough literautre reviews have already been written by Dubois \cite{Dubois2007} and Pichat et al \cite{Pichat2018}. We will therefore only briefly describe previous techniques for 3D reconstruction histologic and autoradiographic data to better how these relate to the autoradiographic data described in our work. Several categorizations of 3D reconstruction techniques have been proposed. Daguet? et al \cite{CITATION} divide the types of artefacts encountered in 3D reconstruction between primary and secondary artefacts. Primary artefacts occur prior to sectioning and apply to the brain as a whole or at least locally to 3D portions of the brain. Secondary aretefacts are those which are produced as a result of sectioning or subsequent processing of brain sections and vary on a slice by slice basis. Reconstruction methods can therefore be divided between those that correct only for secondary artefacts, e.g. \cite{Charkarboty2006}, or both secondary and primary artefacts.
+
+Another way to subdivide 3D reconcstruction algorithms for 2D brain sections is between those that use landmark or geometric features to perform reconstruction and those that use image intensities \cite{Pichat2018}.
+
+
+Reconstruction of autoradiographs depends on target receptor and size of the brain, i.e., the phylogenic species, because this determines the type of embedding or freezing that is possible. This will determine many of the artefacts present in the autoradiographs.
+
+Naturally, autoradiographs are limited compared to PET because they cannot be performed in vivo and produce only 2D sections. The 2D autoradiographs can be particularly problematic if the brain is sectioned at an angle that is not orthogonal to the folding of the cortical mantle, as this will misrepresent the laminar distribution of neurotransmitter receptor density. To avoid such sectioning artefacts, it is important to reconstruct autoradiographs into 3D. 
+
+To highlight the particularities and difficulties of reconstructing the autoradiographs described in this article, we first briefly recapitulate previous attempts at performing 3D reconstruction from 2D autoradioraphy and histology.
+
+The introduction of the technique of autoradiography \cite{Sokoloff1977,Young1979} was soon followed by methods for reconstructing these images in 3D. While the earliest methods for performing reconstruction depended on manual intervention \cite{Hammer1983, Isseroff1983, Stein1984} more automatic methods were soon introduced. 
+
+Many of these methods were semi-automated and required some form of manual intervention. 3D reconstruction with fiducial markers requires the insertion of the markers but subsequent alignment can then be automated \cite{Toga1985, Toga1986, Toga1987}. 
+
+Reconstruction can be performed with only autoradiograph images themselves using principal-axes transforms\cite{Hibbard1984}, intensity or frequency-based cross-correlation \cite{Hibbard1988, Toga1993}, sum of squared error \cite{Andreasen1992}, discrepency matching optical flow \cite{Zhao1993}, edge-based point matching \cite{Rangarajan1997}. This limits the artefacts which can be corrected for. 
+
+An important development was the use of mutual information as a metric for optimization \cite{Kim1997}, because mutual information is very robust for multi-modal registration. Moreover, they introduced the use of non-linear warping to correct autoragradiographs with respect to block face images. However, their method required manual intervention to select control points for spline-based warping.
+
+Oureselin proposed a multi-resolution block-matching algorithm for reconstructing 3D histologic volumes, but did not include correction for non-linear distortions \cite{Ourselin2001}.
+\begin{center}
+\begin{tabular}{ | c | c | c | c | c | }
+   \hline
+  \textbf{Authors} & \textbf{Method} & \textbf{Automated} & \textbf{Blockface} & \textbf{3D reference} \\ \hline
+  Hibbard \cite{Hibbard1984} & Autoradiography & No & No & No \\
+  Ourselin, et al \cite{Ourselin2001} & Histology & No & No & No  \\
+  Chakravarty, et al. \cite{Chakravarty2006} & Histology & No & No & No \\ \hline
+\end{tabular}
+\end{center}
+
+An import limitation of the aforementioned reconstruction techniques is that registration errors will be compounded because alignment is performed between neighbouring sections. 
+
+Autoradiographic and histologic reconstructions are frequently corrected for non-linear deformations versus an MR image acquired for the same brain. One such methods was proposed by \cite{Schormann1993} for histologic reconstruction. Schormann proposed a landmark-based technique for aligning 2D histological images to 3D MRI that could correct for local nonlinear deformations in the histologic sections \cite{Shormann1995}. 
+
+A combination of Ref. \cite{Ourselin2001} with 3D alignment to MRI was first introduced by \cite{Malandain2004}. They used 2D block matching followed by a) 3D alignment of the MRI volume to the autoradiograph volume and b) a 2D alignment of the autoradiographs to the corresponding section of the MRI. This process was repeated iteratively to improve alignment. Their method was still limited by the use of only affine transforms. 
+
+Chakravarty, et al. \cite{Chakravarty2003,Chakravarty2005} implemented a novel 3D alignment algorithm departed from previous methods by non-linearly aligned a central section to its 2 immediate neighbours and applied the average of the 2 deformations to the central section. The non-linear deformations allowed for the correction of warping artefacts in individual sections without using a reference image, e.g., block-face image, or volume, e.g., donor MRI. 
+
+Whereas other 3D reconstruction methods have Daguet et al. develo
+
+Having reviewed the existing 3D reconstruction algorithms, it is clear that there are wide variety of choices available depending on the particularities of the 2D sections and on the availability of intermediate images, e.g., blockface images, and additional 3D structural imaging of the brain, e.g., MRI or CT. Yet none of these methods are quite adapted for the reconstruction of the data presented here.
+
+Geometric landmark-based methods may at first appear to be well suited to reconstructing data with different pixel intensities, but in fact are difficult to apply in our context for the following reasons. Autoradioraphs targetting different receptors can exhibit extreme differences in overall image contrast. There can be significant differences in receptor densities such that very different features may exist in adjacent slices. Finally the distance between acquired autoradiographs is highly variable such that anatomic structures present in one autoradiograph may be absent in its nearest neighbour.
+
+The absense of blockface imaging or fiducial markers rules out the use of these for reconstructing our autoradiographs.
+
+Another limiting criteria is that we wish to have the entire automate the entire reconstruction process, including preprocessing. This is advantageous not merely to eliminate subjective user biases in reconstruction, but also to facillitates long term iterative improvements in the reconstruction. That is, any portion of the reconstruction pipeline described here could be modified or replaced with an alternate algorithm and the whole pipeline rerun without the need for manual intervention.
+
+
+\subsection{Challenges}
+
+The 3D autoradiograph data set from Zilles et al \cite{Zilles2002} combines many of the aforementioned challenges as well as several unique ones. We briefly describe these challenges to motivate the approach we here propose to reconstruct these into 3D. 
+
+\subsubsection{Non-orthogonal slabs}
+
+The brains were subsectioned into slabs prior to freezing and sectioning. The slabs were not sectioned along an orthogonal plane. This means that each slab has a different plane of sectioning and as such the different slabs cannot be aggregated together. Hence the 3D reconstruction pipeline must be applied separately for each slab. 
+
+An additional problem is that the sections cut straight through the tissue, but rather followed anatomic boundaries (CHECK WITH NICOLA). This means that the ends of the slabs were not flat and therefore the 2D sections acquired from the ends of the slabs frequently do not contain a full coronal section of brain tissue. This makes reconstruction difficult because it is difficult to align these small sections of brain tissue to larger sections. 
+
+\subsubsection{3D non-linear warping}
+
+Significant non-linear warping resulted from the brain not being fixed prior to removal from the cranial cavity and sectioning into slabs. These non-linear deformities included compression and expansion both in and out of plane of sectioning. Warping could also result from collapse of ventricles. These warping artefacts cannot be corrected without use of external reference. 
+
+\subsubsection{Missing sections within slabs}
+
+Ideally sections for a particular type of neurotransmitter would be acquired once every 20 sections or 400$\mu$m. Unfortunately there many sections are missing due to manual problems in the production of the sections. Missing sections for a given neurotransmitter receptor are missing for a given coronal position, but were successfully produced at the in the next successfully acquired section.
+
+Another problem is that there is significant space between the subsectioned slabs and hence the sections between the slabs are missing.
+
+\subsubsection{Variability in neurotransmitter receptor intensity}
+
+One of the most import obstacles for 3D reconstruction of the present data is the degree of variability in the distributions of neurotransmitter receptors. This is clearly illustrated in FigXXX where dopamine, epib, and flumazenil clearly have very different anatomic distribution and overall image contrast. The hetereogeity in neurotransmitter receptor distributions means that very robust methods must be used.
+
+\subsubsection{Variability in autoradiograph acquisition protocol }
+
+Finally, there are two major obstacles. One challenge was that multiple brain sections were placed onto the same sheet such that the raw autoradiographs contain multiple pieces of tissue. The difficulty is compounded by the fact that the target piece of brain tissue is frequently not in the center of the autoradiograph. Automated processing is required to identiy the target tissue and remove extraneous pieces of brain tissue from the image. 
+
+A second source of artefacts in the autoradiographs is that visual cues, such as frames and arrows, were placed on the sheets prior to the acquisition of the autoradiographs. These visual cues must be removed so that they do not interfere with the reconstruction process. 
+
+\subsection{Reconstruction pipeline overview}
+Previous methods have typically focused on reconstructing a single type of 2D image or at most reconstructing volumes from up to X different types of 2D images (CITATION). Those methods that have attempted to reconstruct multiple types of sections into 3D have benefitted from... BLOCKFACE?. The data set of autoradiographs acquired by Zilles, et al \cite{Zilles2004} presents many unique challanges to reconstruction. To address these challenges we have developed a fully automated pipeline that systematically accounts for each of these and successfully reconstructs all of the acquired neurotransmitter receptors into a 3D volume. This methods begins by automatically cropping the autoradiographs and performing rigid 2D alignments between the autoradiographs of each slab, respectively. The regions corresponding each of the slabs is located in the donor's MRI and nonlinearly aligned in 3D to the initial alignment of the autoradiographs. Each 2D section in the alignment is then nonlinearly warped in 2D to the corresponding section in the transformed MRI. The missing sections for each type of autoradiograph are filled in using a distance weighted interpolation scheme. Finally, each reconstructed neurotransmitter receptor volume is transformed back into the space of the donor's MRI.
+
+\section{Methods}
+\subsection{Data Aquisition} 
+
+A T1w MRI was acquired for each donor after they were declared deceased by the attending physician. The MRI was acquired on a X scanner with <acquisition parameters >. 
+
+Three brains were acquired at autopsy from donors (45-77 years, 3 male) who had had given written consent pre-mortem or were enrolled as part of the body donor program of the Department of Anatomy, University of Dusseldorf, Germany. Brains were acquired 8-13h post-mortem without chemical fixation.
+
+The brains were then cut into slabs of tissue of approximately 2-3cm. This was done to facilitate the even freezing of the brain tissue. Each slab was shock frozen between -40 and -50 C in N-methylbutane. 
+
+Slabs were sectioned at -20C into 20mu thick pieces of brain tissue with a X cryostat microtome and placed on a gelatin-coated glass slide. Sections were freeze dryed for overnight prior to incubation. Sections were first preincubated to rehydrate them and eliminate any endogenous substances that bind to the target receptor. Brain sections were then incubated in 1 of 2 ways for between 40-60min, depending on the radioligand. For sections imaged for specific binding of the ligand to the target receptor, sections were incubated in a solution containing the titrated radiolabelled ligand. Alteratively, some (how many) sections were imaged for non-specific binding by  incubating the sections in a solution containing the radioligand as well as an an unlabelled displacer.  that binds to 1 of 20 neurotransmitter receptors. Detais of the incubation procedure can be found in Ref.\cite{Zilles2002quantiative}. Sections were incubated sequentially for with a specific radioligand such that there are at least 19 sections of brain tissue between any two sections incubated with the same radioligand. Lastly, the sections were rinsed to remove excess radioligand and stop additional binding.  
+
+Plastic titrated standards (Microscales®, Amersham) with known radioactivity concentrations were also placed on the sheets alongside the brain sections and were co-exposed along with them. These standards allow pixel intensities to be converted to actual radioactivity concentrations.  
+
+Incubated sections were exposed to a Beta sensitive film (Hyperfilm, Amersham, Braunschweig, Germany).  The autoradiographs were digitized with a CCD-camera and the image acquisition and Axiovision (Zeiss, Germany) processing system .
+
+Radioactivity concentrations are calculated using standards. The pixel intensities of the standards are plotted against their respective radioactivity concentrations and a calibration curve is fit to these points. Radioactivity concentrations of pixel intensities of the are interpolated from the calibration curve.
+
+Finally, binding densities, $C_b$ (fmol/mg protein), are calculated by multiplying the radioactivity concentrations by multiplying multiple scaling factors according to :
+            \begin{equation}
+                C_b = \frac{R}{ E B W_b S_a} \times \frac{K_D + L}{L}
+            \end{equation}
+where $R$ is the measured radioactivity concentration interpolated from the calibration curve, $E$ is the efficiency of the scintillation detector, $B$ is a constant for the ammount of radioactivity decays per unit time (Ci/min), $W_b$ is the protein weight of a standard (mg), and $S_a$ is the specific activity of of the ligand (Ci/mmol), $Kd$ is the dissociation constant (nM) and $L$ is the free concentration of ligand during incubation (nM).
+
+
+\subsection(Autoradiograph preprocessing)
+    The first preprocessing step was to downsample the autoradiograph resolution to 200x200$\mu$m. Many of the autoradiographs were acquired with visual cues, including frames, arrows, and triangles, that were used to indicate the orientation of the slice or the target tissue within the raw image. These visual cues were removed using a deep convolutional neural network based on the U-Net architecture. Training data were created by manually thresholding the raw autoradiographs to isolate the frames and then using manual correction to remove any thresholded pixels that were not part of the visual cues. The visual cues were removed by replacing pixels within the visual element and by random intensity values sampled with replacement from the pixel intensities within 3 pixels of the visual element. 
+
+    The Li histogram thresholding method was used to separate the autoradiographs into background and foreground. Pixels in the foreground that formed a connected region were labelled. Labelled regions that overlapped with the border of the image were discarded.  Rectangular regions, called bounding boxes, were then created around the remaining connected regions. The bounding boxes with the largest overlapping area were combined into a single region and used to identify the target brain slice within the raw autoradiograph. 
+
+\subsection{Initial autoradiograph alignment}
+    The initial step of 3D reconstruction consisted in aligning the cropped autoradiographs to one another using a 2D rigid body transformation. Autoradiographs were aligned to their nearest neighbours regardless of the type of autoradiograph. Due to the gap between the slabs and the different plane of sectioning for each slab, 2D autoradiograph alignment was only performed within each slab. In addition, because the sections at the ends of the slabs were often incomplete, the sections were aligned to the central section of the slab.  Once the autoradiographs were aligned to one another, they were reconstructed into an initial 3D receptor volume for each slab, respectively, and downsampled to 200μm. 
+
+
+\subsection{ 3D alignment of MRI to receptor volume }
+    Coregistration of the receptor volume to the donor's postmortem MRI was used to correct for deformations in the autoradiographs that resulted from the brains not being fixed prior to sectioning and freezing. Coregistration was performed independently for each receptor volume slab. 
+    
+    GM masks were extracted from both the receptor volumes and the donor's MRI be able to align autoradiographs with different binding densities with the same algorithm. An MRI Binary gray-matter (GM) images, i.e., masks, was extracted from the donor's MRI using cortical surface meshes were extracted from the MRI using the CIVET pipeline [3] and a super-resolution GM mask at 250um was derived from these cortical surface meshes [4]. A GM binary mask was generated for the initial receptor volume was generated for each slab using a 3-class K-means clustering to segment each 2D autoradiograph into background, white matter, and GM (Fig.1.3, column 2). The original GM receptor volume was downsampled from a voxel resolution of 200x20x200$\mu$m to 250$\mu$m isotropic resolution with an order 5 spline interpolation. Using GM masks instead of the neurotransmitter density images obviates the need to identify an specific algorithm or a particular set parameters for a given algorithm that that can align each of the autoaradiographs. 
+    
+    To accurately align the receptor volume to the donor's MRI it is necessary to first identity which portion of the identify the portion of the MRI that corresponds to the brain region defined in the receptor volume. This was accomplished by the following algorithm. The width of the brain slab, i.e., its extent along the coronal axis, was calculated based on the acquired autoradiograph sections in each slab. The expected location of the slabs was calculated assuming that the equal spacing between the slabs and based on the width of each slab. A prior pseudo-probability distribution for the position of each slab in the coronal axis was calculated by convolving the a function equal to 1 at the prior position for the slab by a gaussian function with a standard deviation equal to  1.5 times the width of the slab. Each slab was subsequently aligned to sections of equivalent width along the coronal axis of the GM MRI volume at 5mm increments. Alignment was performed with ANTs using rigid and affine transformations (CITATION). The criss correlation was calculated for each position across the coronal axis and weighted by the prior probability of that slab for that position. The position with the highest weighted probability was selected as the best candidate region in the donor's MRI corresponding to a specific slice. 
+    
+    The affine transformation from the GM receptor mask to the MRI GM mask is used to initialize a further alignment of the MRI GM mask to the receptor volume GM mask. This alignment was again performed with ANTs and proceeded hierachichally with rigid, affine, and non-linear transformations. The alignment yielded the MRI GM mask aligned to the receptor GM mask and in the same space as the receptor volume. The transformed MRI GM mask was resampled to 200x20x200$\mu$m resolution so that the coronal section of the transformed MRI GM mask corresponded to the coronal section of the receptor volume. 
+    
+    Finally, the coronal sections of the GM receptor volume were were non-linearly deformed to corresponding coronal sections of the 200x20x200$\mu$m transformed MRI GM volume.
+    
+\subsection{Interpolation of missing autoradiographs}
+
+Autoradiographs for a specific neurotransmitter receptor are acquired with a minimum, and frequently greater, gap of 400$\mu$m between acquired slices. This means that ligand binding densities must be estimated for positions between autoradiographs acquired for a particular target neurotransmitter receptor type. The autoradiographs in the receptor volume are mapped to the missing position in the transformed MRI GM mask is defined by 2 transformations. The first transformation is the 2D non-linear transformation from the receptor GM mask to the transformed MRI GM mask. Next, the MRI-derived GM sections corresponding to the acquired autoradiograph were then non-linearly warped to adjacent MRI-derived GM sections for which no autoradiograph was acquired for the target neurotransmitter receptor type. This composite transformation is performed from the nearest acquired autoradiograh anterior and posterior to the missing section. Missing sections were estimated by taking the distance-weighted average of the transformation of the nearest acquired autoradiographs to the position of the missing section. 
+
+The pipeline for 3D reconstruction has so far only been applied on the basis of individual slabs. The multiple slabs that compose a brain hemisphere are combined by applying the inverse of the transformation from the MRI GM mask to the GM receptor volume for each slab, respectively. All slabs are therefore mapped onto the donor MRI and are summed together to create a single volume. 
+
+As a proof-of-principle for the efficacy of our reconstruction pipeline, a single volume of flumazenil binding was reconstructed for the right hemisphere of 1 of the 3 donor brains. 
+
+\section{Results}
+
+
+
+\Discussion{}
+
+
+\bibliographystyle{ieeetr}
+\bibliography{receptor_volume_references}
+
+\end{document}
+
+
