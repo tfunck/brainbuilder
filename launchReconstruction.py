@@ -35,7 +35,7 @@ def check_file(fn):
         Verify that a file exists. If it does not return with error, otherwise return path.
     '''
     if not os.path.exists(fn) :
-        print("Error could not find path for", self.raw_source)
+        print("Error could not find path for", fn)
         exit(ERROR_FILENOTFOUND)
     return fn
 
