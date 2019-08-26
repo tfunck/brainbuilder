@@ -81,7 +81,7 @@ def adjust_alignment(df, vol, epoch, y_idx, mid, initial_transforms, step, outpu
 
     return mi_list, vol 
 
-def receptorAdjustAlignment(df, vol_fn, output_dir, n_epochs=3, clobber=False):
+def receptorAdjustAlignment(df, vol_fn, output_dir, n_epochs=3, write_each_iteration=False, clobber=False):
     
     vol_nii = nib.load(vol_fn)
     vol = vol_nii.get_data()
@@ -101,7 +101,9 @@ def receptorAdjustAlignment(df, vol_fn, output_dir, n_epochs=3, clobber=False):
         mi = 0
         mi_list_0, vol = adjust_alignment(df, vol, epoch, y_idx, mid, initial_transforms, -1, output_dir,clobber=clobber)
         mi_list_1, vol = adjust_alignment(df, vol, epoch, y_idx, mid, initial_transforms,  1, output_dir,clobber=clobber)
-        nib.Nifti1Image(vol, vol_nii.affine ).to_filename(output_dir+os.sep+'vol_'+str(epoch)+'.nii.gz')
+        if write_each_iteration :
+            nib.Nifti1Image(vol, vol_nii.affine ).to_filename(output_dir+os.sep+'vol_'+str(epoch)+'.nii.gz')
+    
         mi_list.append(sum(mi_list_0+mi_list_1))
         plt.clf()
         plt.plot(range(1,len(mi_list)+1), mi_list)
@@ -175,7 +177,7 @@ def add_y_position(df):
         df["volume_order"].loc[ row["order"] == df["order"]] = order_max - row["order"]
     return df
 
-def receptorRegister(source_dir, output_dir, tiers_string, receptor_df_fn, ext=".nii.gz", scale_factors_json="data/scale_factors.json", n_epochs=3, clobber=False):
+def receptorRegister(source_dir, output_dir, tiers_string, receptor_df_fn, ext=".nii.gz", scale_factors_json="data/scale_factors.json", n_epochs=3, write_each_iteration=False, clobber=False):
     if not os.path.exists(output_dir) :
         os.makedirs(output_dir)
     
@@ -194,5 +196,5 @@ def receptorRegister(source_dir, output_dir, tiers_string, receptor_df_fn, ext="
     if not os.path.exists(slab_img_fn) or clobber :
         init_volume(slab_img_fn,  df, scale, ext=".nii.gz", clobber=clobber)
 
-    receptorAdjustAlignment(df, slab_img_fn, output_dir, n_epochs=n_epochs, clobber=clobber)
+    receptorAdjustAlignment(df, slab_img_fn, output_dir, n_epochs=n_epochs, write_each_iteration=write_each_itertion, clobber=clobber)
 

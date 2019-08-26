@@ -43,20 +43,21 @@ class Slab():
         self.crop_output_dir = self.slab_output_path+"/crop" 
         self.reg_output_dir = self.slab_output_path + os.sep + "coregistration"
         self.classify_dir = self.slab_output_path +os.sep+"/classify/"
-        self.nonlinear_dir = self.slab_output_path+os.sep+"nonlinear/"
-        self.lin_dwn_dir = self.slab_output_path+os.sep+'lin_dwn'+os.sep
-        self.rec_fn =self.reg_output_dir +os.sep+"/vol_final.nii.gz"
+        self.mri_to_receptor_dir = self.slab_output_path+os.sep+"mri_to_receptor/"
+        self.downsampled_dir = self.slab_output_path+os.sep+'downsampled'+os.sep
+        self.rec_fn = self.reg_output_dir +os.sep+"/vol_final.nii.gz"
 
         with open(args.scale_factors_json) as f : scale=json.load(f)
         z_mm = scale[self.brain_id][self.hemi][str(self.slab)]["size"]
         self.auto_affine = np.array([[z_mm/4164.,0,0,0],[0.0,z_mm/4164.,0,0],[0,0,1.0,0],[0,0,0,1]])
 
-        self.srv_rigid_rsl=self.nonlinear_dir+os.sep+"srv_space-rec-"+str(self.slab)+"_rigid_rsl.nii.gz"
-        self.srv_affine_rsl=self.nonlinear_dir+os.sep+"srv_space-rec-"+str(self.slab)+"_affine_rsl.nii.gz"
-        self.srv_rsl=self.nonlinear_dir+os.sep+"srv_space-rec-"+str(self.slab)+"_nl_rsl.nii.gz"
+        self.srv_rigid_rsl=self.mri_to_receptor_dir+os.sep+"srv_space-rec-"+str(self.slab)+"_rigid_rsl.nii.gz"
+        self.srv_affine_rsl=self.mri_to_receptor_dir+os.sep+"srv_space-rec-"+str(self.slab)+"_affine_rsl.nii.gz"
+        self.srv_rsl=self.mri_to_receptor_dir+os.sep+"srv_space-rec-"+str(self.slab)+"_nl_rsl.nii.gz"
+        self.srv2cls_prefix=self.mri_to_receptor_dir+os.sep+"transform_"+str(slab)+"_"
+
         self.cls_fn = self.classify_dir + os.sep + "vol_cls_"+str(slab)+".nii.gz"
         
-        self.srv2cls_prefix=self.nonlinear_dir+os.sep+"transform_"+str(slab)+"_"
         self.srv2cls = self.srv2cls_prefix + 'Composite.h5'
         self.cls2srv = self.srv2cls_prefix + 'InverseComposite.h5'
 
@@ -115,9 +116,9 @@ class Slab():
         #scale_factors_json = check_file(args.source + os.sep + "scale_factors.json")
         scale_factors_json = self.args.source + os.sep + "scale_factors.json"
         
-        if not os.path.exists(self.lin_dwn_dir) : os.makedirs(self.lin_dwn_dir)
-        print(self.source_lin_dir, self.lin_dwn_dir)
-        downsample_and_crop(self.source_lin_dir, self.lin_dwn_dir, self.crop_output_dir, self.auto_affine, clobber=self.args.clobber)
+        if not os.path.exists(self.downsampled_dir) : os.makedirs(self.downsampled_dir)
+        print(self.source_lin_dir, self.downsampled_dir)
+        downsample_and_crop(self.source_lin_dir, self.downsampled_dir, self.crop_output_dir, self.auto_affine, clobber=self.args.clobber)
 
 
     def _initial_alignment(self) : 
@@ -140,7 +141,7 @@ class Slab():
         rec_df_fn=self.reg_output_dir +os.sep+"/autoradiograph_info.csv"
         transforms_fn=self.reg_output_dir +os.sep+"/transforms.json"
         if not os.path.exists(rec_fn) or self.args.clobber :
-            receptorRegister(self.lin_dwn_dir, self.reg_output_dir, tiers_str, rec_df_fn, ext=".nii.gz", n_epochs=self.args.init_align_epochs, clobber=self.args.clobber)
+            receptorRegister(self.downsampled_dir, self.reg_output_dir, tiers_str, rec_df_fn, ext=".nii.gz", n_epochs=self.args.init_align_epochs, clobber=self.args.clobber)
 
         ####################################
         # Step 5. Classify receptor volume #
@@ -176,19 +177,19 @@ class Slab():
         ###############################################
         print("Step 7: Transform MRI to receptor space")
 
-        syn_file=self.nonlinear_dir+os.sep+"srv_syn_space-rec_"+str(slab)+".nii.gz"
-        syn_file_inverse=self.nonlinear_dir+os.sep+"cls_syn_space-mni_"+str(slab)+".nii.gz"
+        syn_file=self.mri_to_receptor_dir+os.sep+"srv_syn_space-rec_"+str(slab)+".nii.gz"
+        syn_file_inverse=self.mri_to_receptor_dir+os.sep+"cls_syn_space-mni_"+str(slab)+".nii.gz"
         
-        affine_file=self.nonlinear_dir+os.sep+"affine_"+str(slab)+".nii.gz"
-        affine_file_inverse=self.nonlinear_dir+os.sep+"affine_inverse_"+str(slab)+".nii.gz"
+        affine_file=self.mri_to_receptor_dir+os.sep+"affine_"+str(slab)+".nii.gz"
+        affine_file_inverse=self.mri_to_receptor_dir+os.sep+"affine_inverse_"+str(slab)+".nii.gz"
 
         cls_iso_dwn_fn = self.classify_dir + os.sep + "vol_cls_"+str(slab)+"_250um.nii.gz"
         
         def srv2cls(outDir, tfm_prefix, tfm_fn, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, out_fn, init_tfm ) :
             print("\nANTs Command Line")
             if not os.path.exists(moving_rsl_fn_inverse) or not os.path.exists(moving_rsl_fn) or clobber : 
-                if not os.path.exists(self.nonlinear_dir):
-                    os.makedirs(self.nonlinear_dir)
+                if not os.path.exists(self.mri_to_receptor_dir):
+                    os.makedirs(self.mri_to_receptor_dir)
              
                 ANTs(outDir, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, iterations=['500x250x100x10', '1000x500x300','3000x2000x1000x500x100'], base_shrink_factor=1, radius=64, metric="GC", verbose=1, clobber=1, init_tfm=self.init_tfm, init_inverse=True,  exit_on_failure=True)
 
@@ -200,14 +201,14 @@ class Slab():
         
         fixed_fn = cls_iso_dwn_fn
         moving_fn = self.srv
-        moving_rsl_fn = self.nonlinear_dir+os.sep+"syn_"+str(slab)+".nii.gz"
-        moving_rsl_fn_inverse = self.nonlinear_dir+os.sep+"syn_inverse_"+str(slab)+".nii.gz"
+        moving_rsl_fn = self.mri_to_receptor_dir+os.sep+"syn_"+str(slab)+".nii.gz"
+        moving_rsl_fn_inverse = self.mri_to_receptor_dir+os.sep+"syn_inverse_"+str(slab)+".nii.gz"
         out_fn = cls_iso_dwn_fn
 
         print("fixed", fixed_fn)
         print("moving_rsl", moving_rsl_fn)
         print("moving", moving_fn)
-        srv2cls(self.nonlinear_dir, self.srv2cls_prefix, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, self.srv_rsl , self.init_tfm )
+        srv2cls(self.mri_to_receptor_dir, self.srv2cls_prefix, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, self.srv_rsl , self.init_tfm )
 
     def _receptor_interpolate(self,args):
         ############################################################
@@ -245,8 +246,8 @@ class Slab():
             ligand_interp_fn = ligand_dir+os.sep+ligand+".nii.gz"
             ligand_no_interp_fn = ligand_dir+os.sep+ligand+"_no_interp.nii.gz"
             ligand_init_ligand_fn = ligand_dir+os.sep+ligand+"_init.nii.gz"
-            # lin --> lin_dwn --> crop --> 2D rigid (T1) --> 3D non-linear (T2) --> 2D non-linear (T3) [--> 2D non-linear (T4)]
-            # lin_mri_space =  T2^-1 x [T4 x] T3 x T1 x lin_dwn 
+            # lin --> downsampled --> crop --> 2D rigid (T1) --> 3D non-linear (T2) --> 2D non-linear (T3) [--> 2D non-linear (T4)]
+            # lin_mri_space =  T2^-1 x [T4 x] T3 x T1 x downsampled 
             print(receptorVolume)
             if not os.path.exists(receptorVolume) or self.args.clobber or self.args.validation : 
                 receptorInterpolate(self.slab,ligand_interp_fn,rec_fn, self.srv_rsl, self.cls_fn, ligand_dir, ligand, rec_df_fn, transforms_fn, tfm_type_2d=args.tfm_type_2d, clobber=self.args.clobber)

@@ -42,6 +42,10 @@ def check_file(fn):
 '''
     Classes for reconstruction
 '''
+
+#
+# Autoradiographs --> Brain --> Hemisphere --> Slabs
+#
 class Autoradiographs():
     def __init__ (self, args):
         self.raw_source=check_file(args.source+os.sep+'raw')
@@ -53,8 +57,6 @@ class Autoradiographs():
         self.clobber = args.clobber
         self.brain={}
         
-        self.brains={}
-         
         # Find list of autoradiograph brains
         brain_list = self._get_brain_list()
         print(brain_list)
@@ -84,28 +86,29 @@ class Autoradiographs():
         return brain_list
 
 
-    def generate_mri_gm_mask(self) :
+    def generate_mri_gm_mask(self, args) :
         for brain_id, brain in self.brain.items() :
-            print(brain, brain_id)
             for hemi_id, hemi in brain.hemispheres.items() :
                 srv_slabs_dict = hemi._generate_mri_gm_mask( args, brain_id, hemi_id,clobber=self.clobber)
 
-    def reconstruct(self,args) :
-        print(self.brain)
+    def init_reconstruct(self,args) :
         for brain_id, brain in self.brain.items() :
             for hemi_id, hemi in brain.hemispheres.items() :
                 for slab_id, slab in hemi.slabs.items() :
                     print("Brain:", brain_id, "Hemisphere:", hemi_id, "Slab:", slab_id)
                     slab._init_reconstruct(args)
 
+    def reconstruct(self,args) :
+        self.init_reconstruct(args)
+        srv_slabs_dict = self.generate_mri_gm_mask(args)
 
         for brain_id, brain in self.brain.items() :
             for hemi_id, hemi in brain.hemispheres.items() :
-                if args.run_mri_to_receptor or args.run_receptor_interpolate :
-                    srv_slabs_dict = hemi._generate_mri_gm_mask( args, brain_id, hemi_id, clobber=False)
-                    for slab_id, slab in hemi.slabs.items() :
-                        print("Brain:", brain_id, "Hemisphere:", hemi_id, "Slab:", slab_id)
-                        slab._global_reconstruct(args, srv_slabs_dict)
+                #if args.run_mri_to_receptor or args.run_receptor_interpolate :
+                #    srv_slabs_dict = hemi._generate_mri_gm_mask( args, brain_id, hemi_id, clobber=False)
+                for slab_id, slab in hemi.slabs.items() :
+                    print("Brain:", brain_id, "Hemisphere:", hemi_id, "Slab:", slab_id)
+                    slab._global_reconstruct(args, srv_slabs_dict)
 
 class Brain():
     def __init__ (self, brain_id, autoInstance, args):
@@ -194,10 +197,6 @@ if __name__ == "__main__":
     parser.add_argument('--scale-factors', dest='scale_factors_json', type=str, default='data/scale_factors.json', help='.json file with scale factors for autoradiographs')
 
     args = parser.parse_args()
-    if args.run_preprocess == False and args.run_init_alignment == False and args.run_mri_to_receptor == False :
-        args.run_receptor_interpolate = True
-    else : 
-        args.run_receptor_interpolate = False
 
     data = Autoradiographs( args )
 

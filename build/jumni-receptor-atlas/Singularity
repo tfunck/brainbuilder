@@ -1,0 +1,14 @@
+Bootstrap: localimage
+From: base.simg
+
+%post
+
+cd /opt
+git clone https://40dfc4ecd9e2e820e5c52dd694805956e95a8b83@github.com/tfunck/julich-receptor-atlas 
+
+%environment
+%export LC_ALL=C
+%export PATH=/usr/games:$PATH
+
+%runscript
+
