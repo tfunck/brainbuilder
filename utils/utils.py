@@ -7,6 +7,7 @@ import os
 import pandas as pd
 import imageio
 import nibabel as nib
+import PIL
 from glob import glob
 from re import sub
 from nibabel.processing import resample_to_output
@@ -14,6 +15,16 @@ from os.path import basename
 from scipy.ndimage.filters import gaussian_filter
 from subprocess import call, Popen, PIPE, STDOUT
 from sklearn.cluster import KMeans
+from scipy.ndimage import zoom
+
+def imresize(X, dims, interp=3):
+    factor = [ j/i for i,j in zip(X.shape, dims)   ]
+
+    X = zoom(X, factor, interp)
+
+    return X
+    
+
 
 def splitext(s):
     try :

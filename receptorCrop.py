@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import scipy.signal
 from glob import glob
+from utils.utils import imresize
 from sklearn.feature_extraction import image
 from sys import exit, argv
 from utils.mouse_click import click
@@ -178,7 +179,7 @@ def crop(img, img_dwn, bounding_box_dwn) :
         #cropped_dwn = cropped_dwn[y0:y1,x0:x1]
         
         #Create cropped image at full resolution
-        bounding_box=scipy.misc.imresize(bounding_box_dwn,size=(img.shape[0],img.shape[1]),interp="nearest")
+        bounding_box=imresize(bounding_box_dwn,size=(img.shape[0],img.shape[1]),interp="nearest")
         bounding_box = bounding_box /  np.max(bounding_box)
         ymin, ymax, xmin, xmax, yi, xi = find_min_max(bounding_box)
         y0=min(ymin)
