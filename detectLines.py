@@ -106,7 +106,7 @@ def get_lines(downsample_files,raw_files, max_model,output_dir, clobber) :
             
             # Resample to full resolution
             X=X.reshape(X.shape[1],X.shape[2])
-            X2 = imresize(X, (y0,x0), interp='nearest')
+            X2 = imresize(X, (y0,x0), interp=0)
             X2=X2.reshape(y0,x0)
             
             if ydim > xdim : 

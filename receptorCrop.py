@@ -179,7 +179,7 @@ def crop(img, img_dwn, bounding_box_dwn) :
         #cropped_dwn = cropped_dwn[y0:y1,x0:x1]
         
         #Create cropped image at full resolution
-        bounding_box=imresize(bounding_box_dwn,size=(img.shape[0],img.shape[1]),interp="nearest")
+        bounding_box=imresize(bounding_box_dwn,size=(img.shape[0],img.shape[1]),interp=0)
         bounding_box = bounding_box /  np.max(bounding_box)
         ymin, ymax, xmin, xmax, yi, xi = find_min_max(bounding_box)
         y0=min(ymin)
