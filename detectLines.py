@@ -26,7 +26,7 @@ from keras.preprocessing.image import ImageDataGenerator
 from glob import glob
 from utils.utils import downsample
 from train_model import dice
-from scipy.misc import imresize 
+from scipy.interpolate import imresize 
 from scipy.ndimage.filters import gaussian_filter
 
 def get_max_model(train_output_dir):
