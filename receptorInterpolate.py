@@ -150,7 +150,7 @@ def alignLigandToSRV(df, slab , ligand, srv_fn, cls_fn, output_dir,  tfm_type_2d
             section2Nii( cls[ :, int(_y0), : ], _y0, cls_img.affine, cls_slice_fn, clobber)
             
             #reg = registration(fixed=srv_slice, moving=cls_slice, type_of_transform=tfm_type_2d,reg_iterations=(500,250,125), outprefix=prefix, syn_metric="mattes"  )
-            ANTs(prefix, prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, iterations=['1500x1000x500x250x200', '500x250x100', '3000x200x1500x750x500x250'], tolerance=1e-09, base_shrink_factor=2, radius=64, metric="GC", dim=2, verbose=0, clobber=clobber,  exit_on_failure=1, fix_header=True)
+            ANTs(prefix, prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, iterations=['1500x1000x500x250x200', '1500x1000x1000x500x250', '3000x200x1500x750x500x250'], tolerance=1e-09, base_shrink_factor=1, radius=64, metric="GC", dim=2, verbose=0, clobber=clobber,  exit_on_failure=1, fix_header=True)
         #'500x250x100', '500x500x300','1000x500x500'
         if not os.path.exists(tfm_fn) : 
             print("Error: could not find transformation file", tfm_fn)
@@ -191,7 +191,7 @@ def get_2d_srv_tfm(srv,  slab, ligand, output_dir,  _y, s, tfm, affine, clobber=
 
         #print( _y, s , prev_tfm, tfm[str(_y)][str(prev_tfm)] )
         start = time.time()
-        ANTs(prefix, prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, iterations=['100x50'], tfm_type=['SyN'], tolerance=1e-07,base_shrink_factor=2, radius=32, metric="GC", dim=2, verbose=0, clobber=clobber, init_tfm=init_tfm,  exit_on_failure=1, fix_header=True)
+        ANTs(prefix, prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, iterations=['2000x1000x500x250x100'], tfm_type=['SyN'], tolerance=1e-07,base_shrink_factor=2, radius=32, metric="GC", dim=2, verbose=0, clobber=clobber, init_tfm=init_tfm,  exit_on_failure=1, fix_header=True)
         end = time.time()
 
         #   '200x150x100','500x250x100'
