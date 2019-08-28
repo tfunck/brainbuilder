@@ -87,9 +87,12 @@ class Autoradiographs():
 
 
     def generate_mri_gm_mask(self, args) :
+        srv_slabs_dict={}
         for brain_id, brain in self.brain.items() :
+            srv_slabs_dict[brain_id]={}
             for hemi_id, hemi in brain.hemispheres.items() :
-                srv_slabs_dict = hemi._generate_mri_gm_mask( args, brain_id, hemi_id,clobber=self.clobber)
+                srv_slabs_dict[brain_id][hemi_id] = hemi._generate_mri_gm_mask( args, brain_id, hemi_id,clobber=self.clobber)
+        return srv_slabs_dict
 
     def init_reconstruct(self,args) :
         for brain_id, brain in self.brain.items() :
@@ -99,16 +102,20 @@ class Autoradiographs():
                     slab._init_reconstruct(args)
 
     def reconstruct(self,args) :
+        print("init recosntruct")
         self.init_reconstruct(args)
+        print("generate mri gm")
         srv_slabs_dict = self.generate_mri_gm_mask(args)
-
+        
         for brain_id, brain in self.brain.items() :
+            print(brain_id)
             for hemi_id, hemi in brain.hemispheres.items() :
+                print(hemi_id)
                 #if args.run_mri_to_receptor or args.run_receptor_interpolate :
                 #    srv_slabs_dict = hemi._generate_mri_gm_mask( args, brain_id, hemi_id, clobber=False)
                 for slab_id, slab in hemi.slabs.items() :
                     print("Brain:", brain_id, "Hemisphere:", hemi_id, "Slab:", slab_id)
-                    slab._global_reconstruct(args, srv_slabs_dict)
+                    slab._global_reconstruct(args, srv_slabs_dict[brain_id][hemi_id])
 
 class Brain():
     def __init__ (self, brain_id, autoInstance, args):
@@ -197,11 +204,13 @@ if __name__ == "__main__":
     parser.add_argument('--scale-factors', dest='scale_factors_json', type=str, default='data/scale_factors.json', help='.json file with scale factors for autoradiographs')
 
     args = parser.parse_args()
-
+    print("args")
     data = Autoradiographs( args )
+    print("data")
 
     if args.generate_mri_gm_mask :
         data.generate_mri_gm_mask()
     else :    
+        print("reconstruct")
         data.reconstruct(args)
 
