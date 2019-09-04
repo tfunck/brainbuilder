@@ -68,10 +68,16 @@ Oureselin proposed a multi-resolution block-matching algorithm for reconstructin
 \begin{center}
 \begin{tabular}{ | c | c | c | c | c | }
    \hline
-  \textbf{Authors} & \textbf{Method} & \textbf{Automated} & \textbf{Blockface} & \textbf{3D reference} \\ \hline
-  Hibbard \cite{Hibbard1984} & Autoradiography & No & No & No \\
-  Ourselin, et al \cite{Ourselin2001} & Histology & No & No & No  \\
-  Chakravarty, et al. \cite{Chakravarty2006} & Histology & No & No & No \\ \hline
+    \textbf{Authors} & \textbf{Modality} & Multiple stains/ligands & \textbf{Fully Automated} & \textbf{Blockface} & \textbf{3D reference} \\ \textbf{Species} \\ \hline
+    Hibbard \cite{Hibbard1984} & Autoradiography & ? & No & No & No &  Species \\
+    Ourselin, et al \cite{Ourselin2001} & Histology & ? & No & No & No &  Species \\
+    Maladain, et al \cite{Maladain2004} & Autoradiography & ? & Yes & No & Yes &  Rhesus Monkeys \\
+    Krauth, et al \cite{Krauth2010} & Histology & Multiple stains & ? & ? & Partial & Human (Subcortical GM)
+    Chakravarty, et al. \cite{Chakravarty2006} & ? & Histology & No & No & No & Species\\ 
+    Cifor, et al. \cite{Cifor2011} & ? & Histology & No & No &  & Species\\ 
+    Yang, et al. \cite{Yang2012} & ? & Histology & Yes & No & Yes & Mouse \\ 
+    \hline
+    
 \end{tabular}
 \end{center}
 
@@ -79,9 +85,24 @@ An import limitation of the aforementioned reconstruction techniques is that reg
 
 Autoradiographic and histologic reconstructions are frequently corrected for non-linear deformations versus an MR image acquired for the same brain. One such methods was proposed by \cite{Schormann1993} for histologic reconstruction. Schormann proposed a landmark-based technique for aligning 2D histological images to 3D MRI that could correct for local nonlinear deformations in the histologic sections \cite{Shormann1995}. 
 
-A combination of Ref. \cite{Ourselin2001} with 3D alignment to MRI was first introduced by \cite{Malandain2004}. They used 2D block matching followed by a) 3D alignment of the MRI volume to the autoradiograph volume and b) a 2D alignment of the autoradiographs to the corresponding section of the MRI. This process was repeated iteratively to improve alignment. Their method was still limited by the use of only affine transforms. 
+A combination of Ref. \cite{Ourselin2001} with 3D alignment to MRI was first introduced by \cite{Malandain2004}. They used 2D block matching followed by a) 3D alignment of the MRI volume to the autoradiograph volume and b) a 2D alignment of the autoradiographs to the corresponding section of the MRI. This process was repeated iteratively to improve alignment. Their method was still limited by the use of only affine transforms and is not quite fully automated because it requires the selection of a reference section
+
+Malandain et. al \cite{Malndain2004} build on the work of Ourselin et al \cite{Ourselin2001} by incorporating an iterative algorithm to progressively align autoradiograph sections to corresponding MRI sections and produce progressively better reconstructed autoradiograph volumes. Autoradiograph sections are aligned with 2D rigid and affine transformations to the MRI, producing a aligned autoradiograph volume. The MR image is aligned again in 3D to the autoradiograph volume and the autoradiographs are once again aligned to corresponding sections in the MRI.
 
 Chakravarty, et al. \cite{Chakravarty2003,Chakravarty2005} implemented a novel 3D alignment algorithm departed from previous methods by non-linearly aligned a central section to its 2 immediate neighbours and applied the average of the 2 deformations to the central section. The non-linear deformations allowed for the correction of warping artefacts in individual sections without using a reference image, e.g., block-face image, or volume, e.g., donor MRI. 
+
+Dauget2007
+
+
+While not a full algorithm for performing 3D reconstruction from 2D sections, Krauth et al \cite{krauth2010} used an iterative surface-based algorithm to combine multiple histological stains. This involved aligning surfaces for subcortical GM structures to a temporary reference surface that was updated based subsequently better alignments of the indivudal surfaces to the reference. 
+
+
+Cifor et al \cite{Cifor2011} devised an approach that attempts to maximize the smoothness of reconstructed histologic volumes, but this approach seems to be limited to cases where similar anatomic structures can be identified across adjacent sections.  
+
+
+Yang et al 2012 \cite{Yang2012} propose a method for automatically reconstructing rat brain using corresponding MRI. Their approach centers on first finding the corresponding region of the MRI for a given stack of histological images by rigidly aligning the a portion of the histological volume to series of different locations along the coronal section of the MRI. The location where the rigid alignment produces the maximum mutual information is considered to be the correct MRI section corresponding to the histological volume. Piecewise rigid alignments are then calculated to match discrete tissue regions in the histological sections to their corresponding section in the MRI. 
+
+
 
 Whereas other 3D reconstruction methods have Daguet et al. develo
 
@@ -89,7 +110,7 @@ Having reviewed the existing 3D reconstruction algorithms, it is clear that ther
 
 Geometric landmark-based methods may at first appear to be well suited to reconstructing data with different pixel intensities, but in fact are difficult to apply in our context for the following reasons. Autoradioraphs targetting different receptors can exhibit extreme differences in overall image contrast. There can be significant differences in receptor densities such that very different features may exist in adjacent slices. Finally the distance between acquired autoradiographs is highly variable such that anatomic structures present in one autoradiograph may be absent in its nearest neighbour.
 
-The absense of blockface imaging or fiducial markers rules out the use of these for reconstructing our autoradiographs.
+The absence of blockface imaging or fiducial markers rules out the use of these for reconstructing our autoradiographs.
 
 Another limiting criteria is that we wish to have the entire automate the entire reconstruction process, including preprocessing. This is advantageous not merely to eliminate subjective user biases in reconstruction, but also to facillitates long term iterative improvements in the reconstruction. That is, any portion of the reconstruction pipeline described here could be modified or replaced with an alternate algorithm and the whole pipeline rerun without the need for manual intervention.
 
