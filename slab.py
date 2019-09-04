@@ -163,6 +163,7 @@ class Slab():
         '''                 
             Transform MRI to Receptor Volume 
         '''
+        print("\nMRI to Receptor Volume\n")
         # Setup input variables
         brain = self.brain_id
         hemi = self.hemi
