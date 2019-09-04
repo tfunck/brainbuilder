@@ -199,8 +199,8 @@ class Slab():
         moving_rsl_fn_inverse = self.mri_to_receptor_dir+os.sep+"receptor_to_mri_"+str(slab)
 
         out_fn = cls_iso_dwn_fn
-        #iterations=['1000x500x250','1000x500x250', '3000x2000x1000x500x100']
-        iterations=['10','10', '10']
+        iterations=['1000x500x250','1000x500x250', '3000x2000x1000x500x100']
+        #iterations=['10','10', '10']
         tfm_syn, moving_rsl_fn = ANTs(self.mri_to_receptor_dir, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations=iterations, tfm_type=['Rigid','Affine','SyN'], base_shrink_factor=3, radius=64, metric="GC", verbose=1, clobber=1, init_tfm=self.init_tfm, init_inverse=True, exit_on_failure=True)
 
         if (not os.path.exists(out_fn) or clobber ) and moving_rsl_fn != None:
