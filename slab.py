@@ -54,7 +54,7 @@ class Slab():
         self.srv_rigid_rsl=self.mri_to_receptor_dir+os.sep+"srv_space-rec-"+str(self.slab)+"_rigid_rsl.nii.gz"
         self.srv_affine_rsl=self.mri_to_receptor_dir+os.sep+"srv_space-rec-"+str(self.slab)+"_affine_rsl.nii.gz"
         self.srv_rsl=self.mri_to_receptor_dir+os.sep+"srv_space-rec-"+str(self.slab)+"_nl_rsl.nii.gz"
-        self.srv2cls_prefix=self.mri_to_receptor_dir+os.sep+"transform_"+str(slab)+"_"
+        self.srv2cls_prefix=self.mri_to_receptor_dir+os.sep+"mri_to_receptor_"+str(slab)+"_"
 
         self.cls_fn = self.classify_dir + os.sep + "vol_cls_"+str(slab)+".nii.gz"
         
@@ -186,30 +186,33 @@ class Slab():
 
         cls_iso_dwn_fn = self.classify_dir + os.sep + "vol_cls_"+str(slab)+"_250um.nii.gz"
         
-        def srv2cls(outDir, tfm_prefix, tfm_fn, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, out_fn, init_tfm ) :
+        def srv2cls(outDir, tfm_prefix, tfm_fn, fixed_fn, moving_fn, moving_rsl_prefix, moving_rsl_fn_inverse, out_fn, init_tfm ) :
             print("\nANTs Command Line")
             if not os.path.exists(moving_rsl_fn_inverse) or not os.path.exists(moving_rsl_fn) or clobber : 
                 if not os.path.exists(self.mri_to_receptor_dir):
                     os.makedirs(self.mri_to_receptor_dir)
              
-                ANTs(outDir, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, iterations=['500x250x100x10', '1000x500x300','3000x2000x1000x500x100'], base_shrink_factor=1, radius=64, metric="GC", verbose=1, clobber=1, init_tfm=self.init_tfm, init_inverse=True,  exit_on_failure=True)
-
-            if (not os.path.exists(out_fn) or clobber ) and moving_rsl_fn != None:
-                img = nib.load(moving_rsl_fn)
-                rsl = nib.load(self.cls_fn)
-                resample_from_to(img, rsl, order=0).to_filename(out_fn)
-                print("Wrote:", out_fn)
-        
+             
         fixed_fn = cls_iso_dwn_fn
         moving_fn = self.srv
-        moving_rsl_fn = self.mri_to_receptor_dir+os.sep+"syn_"+str(slab)+".nii.gz"
-        moving_rsl_fn_inverse = self.mri_to_receptor_dir+os.sep+"syn_inverse_"+str(slab)+".nii.gz"
-        out_fn = cls_iso_dwn_fn
 
-        print("fixed", fixed_fn)
-        print("moving_rsl", moving_rsl_fn)
-        print("moving", moving_fn)
-        srv2cls(self.mri_to_receptor_dir, self.srv2cls_prefix, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, self.srv_rsl , self.init_tfm )
+        moving_rsl_prefix = self.mri_to_receptor_dir+os.sep+"mri_to_receptor_"+str(slab)
+        moving_rsl_fn_inverse = self.mri_to_receptor_dir+os.sep+"receptor_to_mri_"+str(slab)
+
+        out_fn = cls_iso_dwn_fn
+        iterations=['1000x500x250','1000x500x250', '3000x2000x1000x500x100']
+        #iterations=['10','10', '10']
+        tfm_syn, moving_rsl_fn = ANTs(self.mri_to_receptor_dir, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations=iterations, tfm_type=['Rigid','Affine','SyN'], base_shrink_factor=3, radius=64, metric="GC", verbose=1, clobber=1, init_tfm=self.init_tfm, init_inverse=True, exit_on_failure=True)
+
+        if (not os.path.exists(out_fn) or clobber ) and moving_rsl_fn != None:
+            img = nib.load(moving_rsl_fn)
+            rsl = nib.load(self.cls_fn)
+            resample_from_to(img, rsl, order=0).to_filename(out_fn)
+            print("Wrote:", out_fn)
+            print("fixed", fixed_fn)
+            print("moving_rsl", moving_rsl_fn)
+            print("moving", moving_fn)
+            #srv2cls(, self.srv2cls_prefix, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_prefix, moving_rsl_fn_inverse, self.srv_rsl , self.init_tfm )
 
     def _receptor_interpolate(self,args):
         ############################################################
