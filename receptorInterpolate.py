@@ -8,7 +8,7 @@ import re
 import matplotlib.pyplot as plt
 import pandas as pd
 import time
-from ants import registration, image_read, apply_transforms, from_numpy
+from ants import  apply_transforms, from_numpy
 from ANTs import ANTs
 from utils.utils import splitext
 
