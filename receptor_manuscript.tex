@@ -68,14 +68,16 @@ Oureselin proposed a multi-resolution block-matching algorithm for reconstructin
 \begin{center}
 \begin{tabular}{ | c | c | c | c | c | }
    \hline
-    \textbf{Authors} & \textbf{Modality} & Multiple stains/ligands & \textbf{Fully Automated} & \textbf{Blockface} & \textbf{3D reference} \\ \textbf{Species} \\ \hline
-    Hibbard \cite{Hibbard1984} & Autoradiography & ? & No & No & No &  Species \\
-    Ourselin, et al \cite{Ourselin2001} & Histology & ? & No & No & No &  Species \\
-    Maladain, et al \cite{Maladain2004} & Autoradiography & ? & Yes & No & Yes &  Rhesus Monkeys \\
-    Krauth, et al \cite{Krauth2010} & Histology & Multiple stains & ? & ? & Partial & Human (Subcortical GM)
-    Chakravarty, et al. \cite{Chakravarty2006} & ? & Histology & No & No & No & Species\\ 
-    Cifor, et al. \cite{Cifor2011} & ? & Histology & No & No &  & Species\\ 
-    Yang, et al. \cite{Yang2012} & ? & Histology & Yes & No & Yes & Mouse \\ 
+    \textbf{Authors} & \textbf{Modality} & \textbf{Fully Automated} & \textbf{Blockface} & \textbf{3D reference} \\ \textbf{Species} \\ \hline
+    Hibbard \cite{Hibbard1984} & AR & No & No & No &  Species \\
+    Ourselin, et al \cite{Ourselin2001} & H  & No & No & No &  Species \\
+    Maladain, et al \cite{Maladain2004} & AR  & Yes & No & Yes &  Rhesus Monkeys \\
+    Dauget, et al \cite{Dauget2007} & H  & ? & Yes  & Yes  & Yes & Baboon \\
+    Chakravarty, et al. \cite{Chakravarty2006} &  H & No & No & No & Species\\ 
+    Cifor, et al. \cite{Cifor2011} &  H & No & No &  & Species\\ 
+    Yang, et al. \cite{Yang2012} &  H & Yes & No & Yes & Mouse \\ 
+    Schubert, et al. \cite{Schubert2016} & AR/H/PLI & Yes & No & Yes & MRI & Rat \\
+    Iglesias, et al. \cite{Iglesias2018} & H & No & MRI & Human \\ 
     \hline
     
 \end{tabular}
@@ -87,14 +89,13 @@ Autoradiographic and histologic reconstructions are frequently corrected for non
 
 A combination of Ref. \cite{Ourselin2001} with 3D alignment to MRI was first introduced by \cite{Malandain2004}. They used 2D block matching followed by a) 3D alignment of the MRI volume to the autoradiograph volume and b) a 2D alignment of the autoradiographs to the corresponding section of the MRI. This process was repeated iteratively to improve alignment. Their method was still limited by the use of only affine transforms and is not quite fully automated because it requires the selection of a reference section
 
-Malandain et. al \cite{Malndain2004} build on the work of Ourselin et al \cite{Ourselin2001} by incorporating an iterative algorithm to progressively align autoradiograph sections to corresponding MRI sections and produce progressively better reconstructed autoradiograph volumes. Autoradiograph sections are aligned with 2D rigid and affine transformations to the MRI, producing a aligned autoradiograph volume. The MR image is aligned again in 3D to the autoradiograph volume and the autoradiographs are once again aligned to corresponding sections in the MRI.
+Malandain et. al \cite{Malandain2004} build on the work of Ourselin et al \cite{Ourselin2001} by incorporating an iterative algorithm to progressively align autoradiograph sections to corresponding MRI sections and produce progressively better reconstructed autoradiograph volumes. Autoradiograph sections are aligned with 2D rigid and affine transformations to the MRI, producing a aligned autoradiograph volume. The MR image is aligned again in 3D to the autoradiograph volume and the autoradiographs are once again aligned to corresponding sections in the MRI.
 
 Chakravarty, et al. \cite{Chakravarty2003,Chakravarty2005} implemented a novel 3D alignment algorithm departed from previous methods by non-linearly aligned a central section to its 2 immediate neighbours and applied the average of the 2 deformations to the central section. The non-linear deformations allowed for the correction of warping artefacts in individual sections without using a reference image, e.g., block-face image, or volume, e.g., donor MRI. 
 
-Dauget2007
+Dauget et al \cite{Dauget2007} developed a reconstruction pipeline aimed at histological sections containing both brain hemispheres. They created a "hemi-rigid" alignment to align the histological sections to blockface images and then used nonlinear transformations to align the blockface volume to the MRI. 
 
 
-While not a full algorithm for performing 3D reconstruction from 2D sections, Krauth et al \cite{krauth2010} used an iterative surface-based algorithm to combine multiple histological stains. This involved aligning surfaces for subcortical GM structures to a temporary reference surface that was updated based subsequently better alignments of the indivudal surfaces to the reference. 
 
 
 Cifor et al \cite{Cifor2011} devised an approach that attempts to maximize the smoothness of reconstructed histologic volumes, but this approach seems to be limited to cases where similar anatomic structures can be identified across adjacent sections.  
@@ -102,7 +103,9 @@ Cifor et al \cite{Cifor2011} devised an approach that attempts to maximize the s
 
 Yang et al 2012 \cite{Yang2012} propose a method for automatically reconstructing rat brain using corresponding MRI. Their approach centers on first finding the corresponding region of the MRI for a given stack of histological images by rigidly aligning the a portion of the histological volume to series of different locations along the coronal section of the MRI. The location where the rigid alignment produces the maximum mutual information is considered to be the correct MRI section corresponding to the histological volume. Piecewise rigid alignments are then calculated to match discrete tissue regions in the histological sections to their corresponding section in the MRI. 
 
+Schubert et al. \cite{Schubert2018} reconstructed multi-modal 2D autoradiograph, PLI and histological images from 2 rat brains into a 3D atlas. Blockface images were acquired for both rats and served as an intermediate step for aligning the 2D sections to the MRI of the rats. 
 
+Iglesias et al. \cite{Iglesias2018} note that alignment of histology and MR images works better when the images are transformed into an intermediate or synthetic modality than when an using metrics based on information theory to align histology to MRI. They create a probabilistic model that simultaneously performs image alignment and synthesisand outperforms mutual informaation for image alignment. 
 
 Whereas other 3D reconstruction methods have Daguet et al. develo
 
@@ -205,6 +208,11 @@ As a proof-of-principle for the efficacy of our reconstruction pipeline, a singl
 
 
 \Discussion{}
+\subsection{Atlas generation}
+
+Krauth, et al \cite{Krauth2010} & Histology & Multiple stains & ? & ? & Partial & Human (Subcortical GM)
+While not a full algorithm for performing 3D reconstruction from 2D sections, Krauth et al \cite{krauth2010} used an iterative surface-based algorithm to combine multiple histological stains. This involved aligning surfaces for subcortical GM structures to a temporary reference surface that was updated based subsequently better alignments of the indivudal surfaces to the reference. 
+
 
 
 \bibliographystyle{ieeetr}
