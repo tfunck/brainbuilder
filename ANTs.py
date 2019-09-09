@@ -3,7 +3,7 @@ import nibabel as nib
 from nibabel.processing import resample_from_to
 from utils.utils import shell
 
-def ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolerance=1e-08, metrics=None, nbins=64, tfm_type=["Rigid","Affine","SyN"], rate=[0.05,0.05,0.05], shrink_factors=None,smoothing_sigmas=None, radius=64, init_tfm=None,init_inverse=False, sampling=1, dim=3, verbose=0, clobber=0, exit_on_failure=0, fix_header=False) :
+def ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolerance=1e-08, metrics=None, nbins=64, tfm_type=["Rigid","Affine","SyN"], rate=[0.05,0.05,0.05], shrink_factors=None,smoothing_sigmas=None, radius=4, init_tfm=None,init_inverse=False, sampling=1, dim=3, verbose=0, clobber=0, exit_on_failure=0, fix_header=False) :
 
     nLevels = len(iterations)
 
@@ -35,7 +35,7 @@ def ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations,
 
 
             ### Inputs
-            cmdline =  "antsRegistration --verbose "+str(verbose)
+            cmdline =  "time antsRegistration --verbose "+str(verbose)
             cmdline += " --write-composite-transform 1 --float --collapse-output-transforms 1 --dimensionality "+str(dim) +" "
 
             if init_tfm == None : 
