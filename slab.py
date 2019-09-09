@@ -204,7 +204,7 @@ class Slab():
         smoothing_sigmas=['2.0x1.0x0.5mm', '2.0x1.5x1.0x0.5mm', '2.0x1.5x1.0mm', '0.50x0.25mm']
         metrics=['CC', 'CC', 'CC', 'GC']
         tfm_types=['Rigid','Affine','SyN','SyN']
-        tfm_syn, moving_rsl_fn = ANTs(self.mri_to_receptor_dir, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations=iterations, tfm_type=tfm_types, shrink_factors=shrink_factors, smoothing_sigmas=smoothing_sigma, radius=64, metrics="Mattes", verbose=1, clobber=1, init_tfm=self.init_tfm, init_inverse=True, exit_on_failure=True)
+        tfm_syn, moving_rsl_fn = ANTs(self.mri_to_receptor_dir, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations=iterations, tfm_type=tfm_types, shrink_factors=shrink_factors, smoothing_sigmas=smoothing_sigmas, radius=64, metrics="Mattes", verbose=1, clobber=1, init_tfm=self.init_tfm, init_inverse=True, exit_on_failure=True)
 
         if (not os.path.exists(out_fn) or clobber ) and moving_rsl_fn != None:
             img = nib.load(moving_rsl_fn)
