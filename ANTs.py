@@ -3,23 +3,28 @@ import nibabel as nib
 from nibabel.processing import resample_from_to
 from utils.utils import shell
 
-def ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolerance=1e-08, metric='GC', nbins=64, tfm_type=["Rigid","Affine","SyN"], rate=[0.05,0.05,0.05], base_shrink_factor=1, radius=64, init_tfm=None,init_inverse=False, sampling=1, dim=3, verbose=0, clobber=0, exit_on_failure=0, fix_header=False) :
+def ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolerance=1e-08, metric='Mattes', nbins=64, tfm_type=["Rigid","Affine","SyN"], rate=[0.05,0.05,0.05], shrink_factors=None,smoothing_sigmas=None, radius=64, init_tfm=None,init_inverse=False, sampling=1, dim=3, verbose=0, clobber=0, exit_on_failure=0, fix_header=False) :
 
+    moving_rsl_prefix += '_' + metric
+    tfm_prefix += '_' + metric
 
     moving_rsl_fn = moving_rsl_prefix + '_' + tfm_type[-1] + 'nii.gz'
-    #if tfm_type[-1] == 'SyN' :
-    #    tfm_fn = tfm_prefix + tfm_type[-1] + 'warp.h5'
-    #else : 
-    #    tfm_fn = tfm_prefix + tfm_type[-1] + '0GenericAffine.mat'   
+    
+    nLevels = len(iterations)
 
-    registration_level = len(iterations)
-    for level in range(registration_level) :
-        tfm_fn = tfm_prefix + tfm_type[-1] + '_Composite.h5'
-        moving_rsl_fn = moving_rsl_prefix + '_' + tfm_type[level] + '.nii.gz'
+    if shrink_factors == None :
+        shrink_factors=['4x2x1vox'] * nLevels
+        smoothing_sigmas = ['4.0x2.0x1.0vox'] * nLevels
 
-        if not os.path.exists(moving_rsl_fn) or not os.path.exists(tfm_fn) or clobber > 0 :
+    for level in range(nLevel) :
+        final_tfm_fn = tfm_prefix + tfm_type[-1] + '_Composite.h5'
+        moving_rsl_fn = moving_rsl_prefix + '_level-'+str(level)+'_'+ tfm_type[level] + '.nii.gz'
+
+        config_file = moving_rsl_prefix + '_level-'+str(level)+'_'+ tfm_type[level] + '_parameters.txt'
+
+        if not os.path.exists(moving_rsl_fn) or not os.path.exists(final_tfm_fn) or clobber > 0 :
             # Set tfm file name
-            tfm_level_prefix = tfm_prefix + tfm_type[level] + '_'
+            tfm_level_prefix = tfm_prefix + '_level-'+str(level)+ '_' + tfm_type[level] + '_'
             tfm_fn = tfm_level_prefix + 'Composite.h5'
 
             moving_rsl_fn_inverse = moving_rsl_prefix + '_inverse_' + tfm_type[level] + '.nii.gz'
@@ -40,17 +45,14 @@ def ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations,
             cmdline += " --initialize-transforms-per-stage 0 --interpolation Linear "
         
             #Set up smooth sigmas and shrink factors
-            temp = [ str(i+base_shrink_factor) for i,x in enumerate(iterations[level].split('x'))]
-            temp.reverse()
-            temp_float = [ str(i)+'.0'  for i in temp]
-            smooth_sigma = 'x'.join(temp_float)
-            shrink_factor = 'x'.join(temp)
+            smooth_sigma = smoothing_sigmas[level]
+            shrink_factor = shrink_factors[level] 
 
             ### Set tranform parameters for level
             cmdline += " --transform "+tfm_type[level]+"[ "+str(rate[level])+" ] " 
             cmdline += " --metric "+metric+"["+fixed_fn+", "+moving_fn+", 1,"
             if metric == "Mattes" :
-                cmdline += " "+nbins+", "
+                cmdline += " "+str(nbins)+", "
             else :
                 cmdline += " "+str(radius)+", "
             cmdline += " Regular, "+str(sampling)+" ] "
@@ -71,7 +73,10 @@ def ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations,
                     exit(1)
                 elif exit_on_failure == 1 :
                     return(1)
-
+            
+            with open(config_file, 'w+') as f :
+                f.write(cmdline)
+            
             #update init_tfm
             init_tfm = tfm_fn
             init_inverse=False
