@@ -66,18 +66,23 @@ An important development was the use of mutual information as a metric for optim
 
 Oureselin proposed a multi-resolution block-matching algorithm for reconstructing 3D histologic volumes, but did not include correction for non-linear distortions \cite{Ourselin2001}.
 \begin{center}
-\begin{tabular}{ | c | c | c | c | c | }
+\begin{tabular}{ | c | c | c | c | c | c | c | }
    \hline
-    \textbf{Authors} & \textbf{Modality} & \textbf{Fully Automated} & \textbf{Blockface} & \textbf{3D reference} \\ \textbf{Species} \\ \hline
-    Hibbard \cite{Hibbard1984} & AR & No & No & No &  Species \\
-    Ourselin, et al \cite{Ourselin2001} & H  & No & No & No &  Species \\
-    Maladain, et al \cite{Maladain2004} & AR  & Yes & No & Yes &  Rhesus Monkeys \\
-    Dauget, et al \cite{Dauget2007} & H  & ? & Yes  & Yes  & Yes & Baboon \\
-    Chakravarty, et al. \cite{Chakravarty2006} &  H & No & No & No & Species\\ 
-    Cifor, et al. \cite{Cifor2011} &  H & No & No &  & Species\\ 
-    Yang, et al. \cite{Yang2012} &  H & Yes & No & Yes & Mouse \\ 
-    Schubert, et al. \cite{Schubert2016} & AR/H/PLI & Yes & No & Yes & MRI & Rat \\
-    Iglesias, et al. \cite{Iglesias2018} & H & No & MRI & Human \\ 
+    \textbf{Authors} & \textbf{Summary} & \textbf{Modality} & \textbf{Fully Automated} & \textbf{Blockface} & \textbf{3D reference} \\ \textbf{Species} \\ \hline
+    Hibbard \cite{Hibbard1984} & First use of CC for 3D reconstruction & AR & No & No & No & Rat \\
+    Toga et al \cite{Toga1993} \cite{Toga1997} & Fiducial markers used for 3D reconstruction & H & Yes & No & Rat, Human \\  
+    Kim et al \cite{Kim1997} & First use of mutual information for 3D reconstruction & AR & Yes & Yes & No & Rat \\
+    Schormann and Zilles \cite{Schormann1999} & Piecewise nonlinear deformation of cortical landmarks & H & Yes & No & Yes & Human  \\
+    Ourselin, et al \cite{Ourselin2001} & Block-matching alignment for reconstruction of 2D sections & H  & No & No & No &  Rat and Rhesus Monkey \\
+    Malandain, et al \cite{Maladain2004} & Iterative alignment of MRI with stack of 2D sections & AR  & Yes & No & Yes &  Rhesus Monkey \\
+    Dauget, et al \cite{Dauget2007} & Reconstruction of sections with both cerebral hemispheres & H  & ? & Yes  & Yes  & Yes & Baboon \\
+    Chakravarty, et al. \cite{Chakravarty2006} & 2D alignment by averaging between adjacent nonlinear transforms &  H & No & No & No & Species\\ 
+    Cifor, et al. \cite{Cifor2011} & Maximize smoothness of alignment in transverse axis &  H & No & No &  & Species\\ 
+    Yang, et al. \cite{Yang2012} & Identify correspdoning region in MRI for stack of histologic sections  & H & Yes & No & Yes & Mouse \\ 
+    Pichat, et al., \cite{Pichat2015} & Graph-based 2D reconstruction & H & Yes & Yes & No & NA \\
+    Schubert, et al. \cite{Schubert2016} & Reconstruction of multimodal data using blockface images & AR/H/PLI & Yes & No & Yes & MRI & Rat \\
+    Gangoli, et al. \cite{Gangolli2017} & Manual landmarks + 2D nonlinear alignment  & H & No & No & Yes & Human \\
+    Iglesias, et al. \cite{Iglesias2018} & Probabilistic simultaneous synthesis and alignment &  H & Yes & MRI & Human \\ 
     \hline
     
 \end{tabular}
@@ -95,13 +100,14 @@ Chakravarty, et al. \cite{Chakravarty2003,Chakravarty2005} implemented a novel 3
 
 Dauget et al \cite{Dauget2007} developed a reconstruction pipeline aimed at histological sections containing both brain hemispheres. They created a "hemi-rigid" alignment to align the histological sections to blockface images and then used nonlinear transformations to align the blockface volume to the MRI. 
 
-
-
-
 Cifor et al \cite{Cifor2011} devised an approach that attempts to maximize the smoothness of reconstructed histologic volumes, but this approach seems to be limited to cases where similar anatomic structures can be identified across adjacent sections.  
 
 
 Yang et al 2012 \cite{Yang2012} propose a method for automatically reconstructing rat brain using corresponding MRI. Their approach centers on first finding the corresponding region of the MRI for a given stack of histological images by rigidly aligning the a portion of the histological volume to series of different locations along the coronal section of the MRI. The location where the rigid alignment produces the maximum mutual information is considered to be the correct MRI section corresponding to the histological volume. Piecewise rigid alignments are then calculated to match discrete tissue regions in the histological sections to their corresponding section in the MRI. 
+
+Pichat et al \cite{Pichat2015} addressed the persistent problem of propagating misregistration errors when aligning neigbouring sections to one another. They do this by using a graph theory based approach where multiple registration paths between between two sections is considered. This makes the 2D alignment process more robust by allowing the reconstruction to circumvent sections that are systematically misaligned. 
+
+Gangolli used dense labeling of manual landmarks and applied non-linear warping of histology to MRI \cite{Gangolli2017}.
 
 Schubert et al. \cite{Schubert2018} reconstructed multi-modal 2D autoradiograph, PLI and histological images from 2 rat brains into a 3D atlas. Blockface images were acquired for both rats and served as an intermediate step for aligning the 2D sections to the MRI of the rats. 
 
