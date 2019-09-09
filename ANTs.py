@@ -3,24 +3,28 @@ import nibabel as nib
 from nibabel.processing import resample_from_to
 from utils.utils import shell
 
-def ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolerance=1e-08, metric='Mattes', nbins=64, tfm_type=["Rigid","Affine","SyN"], rate=[0.05,0.05,0.05], shrink_factors=None,smoothing_sigmas=None, radius=64, init_tfm=None,init_inverse=False, sampling=1, dim=3, verbose=0, clobber=0, exit_on_failure=0, fix_header=False) :
+def ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolerance=1e-08, metrics=None, nbins=64, tfm_type=["Rigid","Affine","SyN"], rate=[0.05,0.05,0.05], shrink_factors=None,smoothing_sigmas=None, radius=64, init_tfm=None,init_inverse=False, sampling=1, dim=3, verbose=0, clobber=0, exit_on_failure=0, fix_header=False) :
 
-    moving_rsl_prefix += '_' + metric
-    tfm_prefix += '_' + metric
-
-    moving_rsl_fn = moving_rsl_prefix + '_' + tfm_type[-1] + 'nii.gz'
-    
     nLevels = len(iterations)
 
     if shrink_factors == None :
         shrink_factors=['4x2x1vox'] * nLevels
+    if smoothing_sigmas == None :
         smoothing_sigmas = ['4.0x2.0x1.0vox'] * nLevels
+    if metrics == None :
+        metrics = ['Mattes'] * nLevels
 
-    for level in range(nLevel) :
-        final_tfm_fn = tfm_prefix + tfm_type[-1] + '_Composite.h5'
-        moving_rsl_fn = moving_rsl_prefix + '_level-'+str(level)+'_'+ tfm_type[level] + '.nii.gz'
+    for level in range(nLevels) :
 
-        config_file = moving_rsl_prefix + '_level-'+str(level)+'_'+ tfm_type[level] + '_parameters.txt'
+        moving_rsl_prefix = moving_rsl_prefix + '_level-' + str(level) + '_' + metrics[level] + '_'+ tfm_type[level]
+
+        tfm_prefix = tfm_prefix + '_level-' + str(level) + '_' + metrics[level] + '_'+ tfm_type[level] 
+
+        final_tfm_fn = tfm_prefix + '_Composite.h5'
+        
+        moving_rsl_fn = moving_rsl_prefix + '.nii.gz'
+
+        config_file = moving_rsl_prefix + '_parameters.txt'
 
         if not os.path.exists(moving_rsl_fn) or not os.path.exists(final_tfm_fn) or clobber > 0 :
             # Set tfm file name
@@ -50,8 +54,8 @@ def ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations,
 
             ### Set tranform parameters for level
             cmdline += " --transform "+tfm_type[level]+"[ "+str(rate[level])+" ] " 
-            cmdline += " --metric "+metric+"["+fixed_fn+", "+moving_fn+", 1,"
-            if metric == "Mattes" :
+            cmdline += " --metric "+metrics[level]+"["+fixed_fn+", "+moving_fn+", 1,"
+            if metrics[level] == "Mattes" :
                 cmdline += " "+str(nbins)+", "
             else :
                 cmdline += " "+str(radius)+", "
@@ -64,7 +68,6 @@ def ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations,
             cmdline+=" --output [ "+tfm_level_prefix+" ,"+moving_rsl_fn+","+moving_rsl_fn_inverse+"] "
             
             if verbose == 1 : print(cmdline) 
-            #exit(0) 
             try : 
                 #Run command line
                 shell(cmdline)
@@ -77,6 +80,7 @@ def ANTs(outDir, tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations,
             with open(config_file, 'w+') as f :
                 f.write(cmdline)
             
+            exit(0) 
             #update init_tfm
             init_tfm = tfm_fn
             init_inverse=False
