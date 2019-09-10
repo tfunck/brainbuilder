@@ -69,15 +69,19 @@ Oureselin proposed a multi-resolution block-matching algorithm for reconstructin
 \begin{tabular}{ | c | c | c | c | c | c | c | }
    \hline
     \textbf{Authors} & \textbf{Summary} & \textbf{Modality} & \textbf{Fully Automated} & \textbf{Blockface} & \textbf{3D reference} \\ \textbf{Species} \\ \hline
-    Hibbard \cite{Hibbard1984} & First use of CC for 3D reconstruction & AR & No & No & No & Rat \\
+    Hibbard et al \cite{Hibbard1984} & First use of CC for 3D reconstruction & AR & No & No & No & Rat \\
+    Andreasen et al \cite{Andreasen1992} & Use of sum-squared error & H & Yes & No & No & No & Rabbit \\  
+    Zhao et al \cite{Zhao1993} & Optical flow between landmarks on cortical surface & AR & Yes & No & No & \\
     Toga et al \cite{Toga1993} \cite{Toga1997} & Fiducial markers used for 3D reconstruction & H & Yes & No & Rat, Human \\  
-    Kim et al \cite{Kim1997} & First use of mutual information for 3D reconstruction & AR & Yes & Yes & No & Rat \\
-    Schormann and Zilles \cite{Schormann1999} & Piecewise nonlinear deformation of cortical landmarks & H & Yes & No & Yes & Human  \\
+    Schormann et al \cite{Schormann1993} & MRI to H volume-matching with CC  & H & Yes & No & Yes & Human \\
+    Schormann and Zilles \cite{Schormann1995} & Piecewise nonlinear deformation of cortical landmarks & H & Yes & No & Yes & Human  \\
+    Kim et al \cite{Kim1997} & First use of mutual information for 3D reconstruction & AR & Yes & Yes & No & Rat\\
+    Schormann et al \cite{Schormann1998} & Nonlinear full-multigrid registration of H volume to MRI & H & Yes & Yes & Yes & Human \\
     Ourselin, et al \cite{Ourselin2001} & Block-matching alignment for reconstruction of 2D sections & H  & No & No & No &  Rat and Rhesus Monkey \\
     Malandain, et al \cite{Maladain2004} & Iterative alignment of MRI with stack of 2D sections & AR  & Yes & No & Yes &  Rhesus Monkey \\
     Dauget, et al \cite{Dauget2007} & Reconstruction of sections with both cerebral hemispheres & H  & ? & Yes  & Yes  & Yes & Baboon \\
     Chakravarty, et al. \cite{Chakravarty2006} & 2D alignment by averaging between adjacent nonlinear transforms &  H & No & No & No & Species\\ 
-    Cifor, et al. \cite{Cifor2011} & Maximize smoothness of alignment in transverse axis &  H & No & No &  & Species\\ 
+    Cifor, et al. \cite{Cifor2011} & Maximize smoothness of alignment in transverse axis &  H & No & No & No  & Species\\ 
     Yang, et al. \cite{Yang2012} & Identify correspdoning region in MRI for stack of histologic sections  & H & Yes & No & Yes & Mouse \\ 
     Pichat, et al., \cite{Pichat2015} & Graph-based 2D reconstruction & H & Yes & Yes & No & NA \\
     Schubert, et al. \cite{Schubert2016} & Reconstruction of multimodal data using blockface images & AR/H/PLI & Yes & No & Yes & MRI & Rat \\
