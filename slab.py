@@ -200,11 +200,11 @@ class Slab():
 
         out_fn = cls_iso_dwn_fn
         iterations=['1000x500x250', '2000x1500x1000', '2000x1500x1000']
-        shrink_factors=['4.0x2.0x1.0mm', '4.0x3.0x2.0x1.0mm', '4.0x3.0x2.0mm', '1.0x0.5mm']
-        smoothing_sigmas=['2.0x1.0x0.5mm', '2.0x1.5x1.0x0.5mm', '2.0x1.5x1.0mm', '0.50x0.25mm']
+        shrink_factors=['16x8x4', '16x12x8x4', '12x8x4', '4x2']
+        smoothing_sigmas=['8.0x4.0x2.0', '8.0x6.0x4.0x2.0', '6.0x3.0x2.0', '2.0x1.0']
         metrics=['CC', 'CC', 'CC', 'GC']
         tfm_types=['Rigid','Affine','SyN','SyN']
-        tfm_syn, moving_rsl_fn = ANTs(self.mri_to_receptor_dir, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations=iterations, tfm_type=tfm_types, shrink_factors=shrink_factors, smoothing_sigmas=smoothing_sigma, radius=64, metrics="Mattes", verbose=1, clobber=1, init_tfm=self.init_tfm, init_inverse=True, exit_on_failure=True)
+        tfm_syn, moving_rsl_fn = ANTs(self.mri_to_receptor_dir, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations=iterations, tfm_type=tfm_types, shrink_factors=shrink_factors, smoothing_sigmas=smoothing_sigmas, radius=4, metrics=metrics, verbose=1, clobber=1, init_tfm=self.init_tfm, init_inverse=True, exit_on_failure=True)
 
         if (not os.path.exists(out_fn) or clobber ) and moving_rsl_fn != None:
             img = nib.load(moving_rsl_fn)
