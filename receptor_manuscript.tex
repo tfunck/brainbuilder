@@ -47,7 +47,7 @@ Naturally, autoradiographs are limited compared to PET because they cannot be pe
 \subsection{3D Reconstruction to 2D post-mortem brain sections}
 The second approach to neurotransmitter receptor binding is using in vitro autoradiography. This technique also uses a radiotracer to bind to neurotransmitter receptors, but is perfomed on 2D sections of brain tissue that have been extracted from a brain post-mortem. Autoradiography has the advantage over PET with respect to the spatial resolution of the resultant images. Whereas PET images have a spatial resolution on the order of millimeters, autoradiographs have a resolution of up to approximately 50 microns. 
 
-Thorough literautre reviews have already been written by Dubois \cite{Dubois2007} and Pichat et al \cite{Pichat2018}. We will therefore only briefly describe previous techniques for 3D reconstruction histologic and autoradiographic data to better how these relate to the autoradiographic data described in our work. Several categorizations of 3D reconstruction techniques have been proposed. Daguet? et al \cite{CITATION} divide the types of artefacts encountered in 3D reconstruction between primary and secondary artefacts. Primary artefacts occur prior to sectioning and apply to the brain as a whole or at least locally to 3D portions of the brain. Secondary aretefacts are those which are produced as a result of sectioning or subsequent processing of brain sections and vary on a slice by slice basis. Reconstruction methods can therefore be divided between those that correct only for secondary artefacts, e.g. \cite{Charkarboty2006}, or both secondary and primary artefacts.
+Thorough literautre reviews have already been written by Dubois \cite{Dubois2007} and Pichat et al \cite{Pichat2018}. We will therefore only briefly describe previous techniques for 3D reconstruction histologic and autoradiographic data to better how these relate to the autoradiographic data described in our work. Several categorizations of 3D reconstruction techniques have been proposed. Daguet? et al \cite{CITATION} divide the types of artefacts encountered in 3D reconstruction between primary and secondary artefacts. Primary artefacts occur prior to sectioning and apply to the brain as a whole or at least locally to 3D portions of the brain. Secondary aretefacts are those which are produced as a result of sectioning or subsequent processing of brain sections and vary on a slice by slice basis. Reconstruction methods can therefore be divided between those that correct only for secondary artefacts, e.g. \cite{Chakravarty2006}, or both secondary and primary artefacts.
 
 Reconstruction of autoradiographs depends on target receptor and size of the brain, i.e., the phylogenic species, because this determines the type of embedding or freezing that is possible. This will determine many of the artefacts present in the autoradiographs.
 
@@ -222,7 +222,6 @@ As a proof-of-principle for the efficacy of our reconstruction pipeline, a singl
 \Discussion{}
 \subsection{Existing algorithms}
 
-While all of these methods are effective for their particular applications, they cannot be readily applied to the data at hand. Many of these methods assume similar image intensities, similar anatomic structures, and dense sampling \cite{Cifore2011}  \cite{Pichat2015}. 
 
 We therefore developed an algorithm that was suited to reconstructing this particular data set, where ligands are sorted into 4? categories based on their perceived image contrast. Autoradiographs in the first, highest contrast tier, are aligned first followed by ligands in progressively worse tiers. This has the advantage of limiting the potential impact of ligands with very poor contrast, such as EPIB or OXOT. 
 
@@ -233,8 +232,26 @@ While not a full algorithm for performing 3D reconstruction from 2D sections, Kr
 
 \subsection{Limitations and Future Work} 
 
-\subsection{Spatial Sampling Rate}
-The rich diversity of neurotransmitter receptors that were measured in this data-set also means that there is a gap between acquired neurotransmitter receptors of at least 400$\mu$m. This is a fundamental limitation of the dataset that cannot be improved on with the data at hand. 
+\subsubsection{Initial autoradiograph alignment}
+
+The algorithm used to align the autoradiographs suffers from the problem of many such algorithms in that alignment errors will be propagated through an entire stack of autoradiographs. 
+
+While all of these methods are effective for their particular applications, they cannot be readily applied to the data at hand. 
+
+The first use of mutual-information for 3D reconstruction of 2D sections was by Kim et al \cite{Kim1997}, but is very different method from that used here. They use a method that depends on manually defined control points to define a transformation between 2 sections that is then optimized using mutual information as a cost function. 
+
+The method proposed by \cite{Cifor2011} requires the same anatomic structures to be present across sections and may not work well with the significant amount of missing sections in the present data set. 
+
+Similarly, the network-based approach to image alignment of Pichat et al \cite{Pichat2015} considers sections to be nodes in a graph and the distance metric, e.g., mutual information, between 2 sections to be edge length between the sections. This is more robust than the method used here because it allows one to circumvent misalginments.  However, in order for the distance metrics that composes the edge length between sections must be comparable to one another. This assumption does not hold with the present data set because, for example, a normalized mutual information of 0.4 between, say, a dopamine and a serotonin section may be good, but may be poor between a GABA-A and and a GABA-B section.  
+
+
+The block-matching alignment scheme of Ourselin et al. \cite{Oureselin2001} is designed to align neighbouring histological sections even in cases where sections have suffered sigifnicant damage. Using their method on the current data set may not lead to good alignment because the method uses the cross-correlation between blocks adjacent sections. A simple solution to make their method more applicable to the current autoradiograph data would be to implement to replace cross-correlation with mutual information, because the latter is more robust when registering images with very different voxel intensities. Their method was not used here because, except at the edge of slabs, the sections were largely intact and because because ANTs with Mattes mutual information was found to be sufficient to reliable alignment. Nonetheless it may be the case that a modified block-matching strategy may provide better alignment  in the few cases where ANTs is unsuccessful. and may constitute a potential avenue for future development. 
+
+Another method for robust section alignment was created by Chakraverty et al. \cite{Charkravarty2006} for cases where no reference data is available. For a given section, they averaged the distortion fields for the alignment with the neighbouring posterior and anterior section, respectively, and repeated the alignment of all sections over several iterations. While this method does decrease the likelihood of misalignments by repeatedly reinitilazing the alignment process, it is best suited to cases where no reference is available and where sections have to be non-linearly warped to one another. 
+
+
+\subsubsection{Spatial Sampling Rate}
+The rich diversity of neurotransmitter receptors that were measured in this data-set also means that there is a gap between acquired neurotransmitter receptors of at least 400$\mu$m.  This is a fundamental limitation of the dataset that cannot be improved on with the data at hand. 
 
 The low sampling rate for any particular neurotransmitter receptor means that some sort of estimation will be required to create a full 3D volume. The interpolation method presented here uses distance weighted linear interpolation between slabs based on the euclidean distance between the acquired sections and the missing section. This assumes that neurotransmitter receptor density will change linearly across the surface of the brain and will obscure hard boundaries. In principle the use of a euclidean distance metric can bias the interpoalation when it does not match the true, geodesic distance along the surface of the cortex between acquired and missing sections. However, the sampling rate is small enough that the curvature between acquired sections is small enough that the euclidean and geodesic distance metric should not diverge significantly. 
 
