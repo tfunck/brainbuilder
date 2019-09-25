@@ -220,17 +220,11 @@ As a proof-of-principle for the efficacy of our reconstruction pipeline, a singl
 
 
 \Discussion{}
+We have created a fully-automated pipeline that successfully reconstructs 3D volumes of ligand binding densities for 20 different neurotransmitter receptors. To recapitulate briefly, the pipeline begins by preprocessing the data to isolate target brain regions from raw autoradiographs. The preprocessed autoradiographs are aligned to one another using rigid transformations to create an initial 3D autoradiograph volume. Each autoradiograph in the initial reconstruction is then segmented to create a autradiograph GM volume. A GM volume extracted from the donor's MRI is then nonlinearly aligned in 3D to the autoradiograph volume. The 2D sections of the autradiograph 3D volume are then nonlinearly aligned in 2D to the resampled MRI GM volume. Finally, a volume for 1 of the 20 measured neurotransmitter receptors is created using a linear distance-weighted lienar interpolation scheme is used fill in sections missing sections. The results show that the pipeline is able to accurately reconstruct gross anatomic features although more work is needed to perfect the reconstruction. 
+
 \subsection{Existing algorithms}
 
-
-We therefore developed an algorithm that was suited to reconstructing this particular data set, where ligands are sorted into 4? categories based on their perceived image contrast. Autoradiographs in the first, highest contrast tier, are aligned first followed by ligands in progressively worse tiers. This has the advantage of limiting the potential impact of ligands with very poor contrast, such as EPIB or OXOT. 
-
-\subsection{Atlas generation}
-
-Krauth, et al \cite{Krauth2010} & Histology & Multiple stains & ? & ? & Partial & Human (Subcortical GM)
-While not a full algorithm for performing 3D reconstruction from 2D sections, Krauth et al \cite{krauth2010} used an iterative surface-based algorithm to combine multiple histological stains. This involved aligning surfaces for subcortical GM structures to a temporary reference surface that was updated based subsequently better alignments of the indivudal surfaces to the reference. 
-
-\subsection{Limitations and Future Work} 
+Much work has been done in the field of 3D reconstruction and we will discuss how the nature of the data used in this work necessitated the choices made in desinging the pipeline and how these contrast with the methods presented by other groups. 
 
 \subsubsection{Initial autoradiograph alignment}
 
@@ -249,6 +243,10 @@ The block-matching alignment scheme of Ourselin et al. \cite{Oureselin2001} is d
 
 Another method for robust section alignment was created by Chakraverty et al. \cite{Charkravarty2006} for cases where no reference data is available. For a given section, they averaged the distortion fields for the alignment with the neighbouring posterior and anterior section, respectively, and repeated the alignment of all sections over several iterations. While this method does decrease the likelihood of misalignments by repeatedly reinitilazing the alignment process, it is best suited to cases where no reference is available and where sections have to be non-linearly warped to one another. 
 
+A similar scheme was used by both Malandain et al \cite{Malandain2004} and Amunts et al \cite{Amunts2013} to reconstruct histological and autoradioph volumes in 3D. Generally speaking this scheme iterates between two steps, where first the donor MRI is aligned in 3D to an autoradiograph stack and the autoradiographs are aligned in 2D to the transformed MRI. The difficulty in applying this method to our data is that the warping in the autoradiographs is so significant that the alignment of the 2D autoradiographs to their corresponding sections in the MRI volume is a deeply ill-posed problem. That is, there are many potential transformations that can align the autoradiograph section to the corresponding MRI section. For example, one autoradiograph may be better aligned in the dorsal portion of the cortex and poorly aligned in the ventral portion of the cortex, but the opposite may be the case for its neighbour. Thus 2D linear alignment of the autoradiographs to corresponding MRI sections actually leads to a worse alignment of the autoradiographs as the alignemnt between them decreases. 
+
+
+We therefore developed an algorithm that was suited to reconstructing this particular data set, where ligands are sorted into 4? categories based on their perceived image contrast. Autoradiographs in the first, highest contrast tier, are aligned first followed by ligands in progressively worse tiers. This has the advantage of limiting the potential impact of ligands with very poor contrast, such as EPIB or OXOT. 
 
 \subsubsection{Spatial Sampling Rate}
 The rich diversity of neurotransmitter receptors that were measured in this data-set also means that there is a gap between acquired neurotransmitter receptors of at least 400$\mu$m.  This is a fundamental limitation of the dataset that cannot be improved on with the data at hand. 
@@ -275,6 +273,9 @@ A further problem is that because the 3 class K-means does not work well consist
 
 The hetereogeneity of radioligands and in the acquisition protocol for the autoradiographs makes it difficult to use a single algorithm that can sucessfully segment all of the acquire autoradiographs. A more robust approach would be to use a deep neural network to perform the autoradiograph GM segmentation based on manually drawn GM segementations of the autoradiographs. While this approach is time-consuming, it would provide a general autoradiograph GM classifier that could potentially be applied to other data sets. 
 
+
+\subsection{Atlas generation}
+Other groups have previously created 3D neurotransmitter receptor atlases from autoradiography and histology. Many groups have focused on reconstructing a portion of the brain \cite{Chakravarty2006,Krauth2010,Xie2017,Iglesias2018a,Ewert2018,Sadikot2011}. The BigBrain is the first histological atlas of the entire human brain reconstructed in 3D at $\mu$m \cite{Amunts2013}. 
 
 
 

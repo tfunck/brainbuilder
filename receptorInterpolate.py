@@ -335,9 +335,8 @@ def interpolateMissingSlices(df, tfm, slab, ligand, rec_fn, srv_fn,  output_dir,
     return val_df
 
 
-def receptorInterpolate( slab, out_fn, rec_fn, srv_fn, cls_fn, output_dir, ligand, slice_info_fn, composite_transform_json, tfm_type_2d='SyNAggro', clobber=False , validation=False) :
+def receptorInterpolate( slab, out_fn, rec_fn, srv_fn, cls_fn, output_dir, ligand, slice_info_fn, tfm_type_2d='SyNAggro', clobber=False , validation=False) :
     #clobber=True
-
     if not os.path.exists(output_dir) :
         os.makedirs(output_dir)
     
@@ -347,12 +346,9 @@ def receptorInterpolate( slab, out_fn, rec_fn, srv_fn, cls_fn, output_dir, ligan
     ligand_out_fn = output_dir + os.sep + ligand +"_slab-"+str(slab)+"_init.nii.gz" 
     
     # 1. Get locations of slices for particular ligand in specified slab
-
     df = pd.read_csv(slice_info_fn)
     if ligand != 'all':
         df = df.loc[ df["ligand"] == ligand ]
-
-    #write_init_volume(df, rec_fn)
 
     # 2. Find non-linear transform from autoradiograph GM classified slice to MRI-derived SRV image
     tfm = alignLigandToSRV(df, slab, ligand, srv_fn, cls_fn, output_dir,  tfm_type_2d=tfm_type_2d, clobber=clobber)

@@ -255,7 +255,7 @@ class Slab():
             # lin_mri_space =  T2^-1 x [T4 x] T3 x T1 x downsampled 
             print(receptorVolume)
             if not os.path.exists(receptorVolume) or self.args.clobber or self.args.validation : 
-                receptorInterpolate(self.slab,ligand_interp_fn,rec_fn, self.srv_rsl, self.cls_fn, ligand_dir, ligand, rec_df_fn, transforms_fn, tfm_type_2d=args.tfm_type_2d, clobber=self.args.clobber)
+                receptorInterpolate(self.slab,ligand_interp_fn,rec_fn, self.srv_rsl, self.cls_fn, ligand_dir, ligand, rec_df_fn, tfm_type_2d=args.tfm_type_2d, clobber=self.args.clobber)
             
             write_ligand_volume(ligand, rec_df_fn, ligand_interp_fn,ligand_no_interp_fn , 10 )
             write_ligand_volume(ligand, rec_df_fn, rec_fn, ligand_init_ligand_fn )

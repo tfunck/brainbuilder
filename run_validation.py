@@ -8,10 +8,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-def load_template():
-    #Load Template
-    template=nib.load("output/MR1/R_slab_1/final/flum_space-mni_0.5mm.nii.gz")
-
 clobber=False
 ### Inputs
 slab=1
@@ -32,25 +28,30 @@ template=None
 
 #Crop REC
 if not exists(rec_crop_fn) or clobber :
-    if template == None : template = load_template() 
-    resample_to_output(resample_from_to(nib.load(rec_fn), template),voxel_sizes=[0.2,0.02,0.2], order=5 ).to_filename(rec_crop_fn)
-
+    if template == None : template=nib.load("output/MR1/R_slab_1/final/flum_space-mni_500um.nii.gz")
+    print('img_rsl')
+    img_rsl = resample_from_to(nib.load(rec_fn), template, order=1)
+    print('resample_to_output')
+    resample_to_output(img_rsl,voxel_sizes=[0.2,0.02,0.2], order=1 ).to_filename(rec_crop_fn)
+    print('done')
 
 #Crop SRV
 if not exists(srv_rsl_crop_fn ) or clobber :
     if template == None : template = load_template() 
     srv_rsl = nib.load(srv_rsl_fn)
     srv_rsl_crop = resample_from_to(srv_rsl, template)
-    srv_rsl_crop = resample_to_output(srv_rsl_crop, voxel_sizes=[0.2,0.02,0.2], order=5) 
+    srv_rsl_crop = resample_to_output(srv_rsl_crop, voxel_sizes=[0.2,0.02,0.2], order=1) 
     srv_rsl_crop.to_filename(srv_rsl_crop_fn)
 
+clobber=True
 if not exists("./simulation_validation/flum.nii.gz") or clobber : 
-    receptorInterpolate( slab, rec_crop_fn, srv_rsl_crop_fn, cls_fn, output_dir, ligand, rec_df_fn, transforms_fn, clobber=False)
+    print('run receptorInterpolate')
+    receptorInterpolate( slab, rec_crop_fn, output_dir+'/flum_validation.nii.gz', srv_rsl_crop_fn, cls_fn, output_dir, ligand, rec_df_fn, clobber=False)
 
 
-if not exists("./simulation_validation/flum_validation.csv") or clobber : 
-    exit(1)
-    receptorInterpolate( slab, rec_crop_fn, srv_rsl_crop_fn, cls_fn, output_dir, ligand, rec_df_fn, transforms_fn, clobber=False, validation=True)
+#if not exists("./simulation_validation/flum_validation.csv") or clobber : 
+#    exit(1)
+#    receptorInterpolate( slab, rec_crop_fn, srv_rsl_crop_fn, cls_fn, output_dir, ligand, rec_df_fn, transforms_fn, clobber=False, validation=True)
 
 gm_img = nib.load(cls_fn)
 gm = gm_img.get_data()
