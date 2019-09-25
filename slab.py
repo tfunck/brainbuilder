@@ -17,11 +17,12 @@ from receptorInterpolate import receptorInterpolate, receptorSliceIndicator
 from receptorAdjustAlignment import receptorRegister
 from detectLines import apply_model
 from ANTs import ANTs
+import ants
 
 dont_remove_lines=["MR1/R_slab_6"]
 
 class Slab():
-    def __init__ (self, slab_raw_path, slab_lin_path, slab, brain_id, hemi, args) :
+    def __init__ (self, slab_raw_path, slab_lin_path, slab, brain_id, hemi, args, srv_full="srv/mri1_gm_bg_srv.nii.gz") :
         self.hemi = hemi
         self.slab_raw_path = slab_raw_path
         self.slab_lin_path = slab_lin_path
@@ -34,6 +35,7 @@ class Slab():
         self.source_raw_dir = self.slab_raw_path #+os.sep+self.brain_id + os.sep + self.slab_basename
         self.clobber = args.clobber
         self.args=args 
+        self.srv_full=srv_full
         #Setup output directory
         if not os.path.exists(self.slab_output_path) : 
             os.makedirs(self.slab_output_path)
@@ -51,15 +53,13 @@ class Slab():
         z_mm = scale[self.brain_id][self.hemi][str(self.slab)]["size"]
         self.auto_affine = np.array([[z_mm/4164.,0,0,0],[0.0,z_mm/4164.,0,0],[0,0,1.0,0],[0,0,0,1]])
 
-        self.srv_rigid_rsl=self.mri_to_receptor_dir+os.sep+"srv_space-rec-"+str(self.slab)+"_rigid_rsl.nii.gz"
-        self.srv_affine_rsl=self.mri_to_receptor_dir+os.sep+"srv_space-rec-"+str(self.slab)+"_affine_rsl.nii.gz"
-        self.srv_rsl=self.mri_to_receptor_dir+os.sep+"srv_space-rec-"+str(self.slab)+"_nl_rsl.nii.gz"
-        self.srv2cls_prefix=self.mri_to_receptor_dir+os.sep+"mri_to_receptor_"+str(slab)+"_"
+        self.srv_rsl=self.mri_to_receptor_dir+os.sep+"mri_to_receptor_"+str(self.slab)+"_level-0_GC_SyN_rsl.nii.gz"
+        self.srv2cls_prefix=self.mri_to_receptor_dir+os.sep+"mri_to_receptor_"+str(self.slab)+"_"
 
         self.cls_fn = self.classify_dir + os.sep + "vol_cls_"+str(slab)+".nii.gz"
         
-        self.srv2cls = self.srv2cls_prefix + 'Composite.h5'
-        self.cls2srv = self.srv2cls_prefix + 'InverseComposite.h5'
+        self.srv2cls = self.srv2cls_prefix + "level-0_GC_SyN_Composite.h5"
+        self.cls2srv = self.srv2cls_prefix + "level-0_GC_SyN_InverseComposite.h5"
 
     def _init_reconstruct(self, args) :
         if args.run_preprocess : #or args.run_init_alignment or args.run_mri_to_receptor or args.run_receptor_interpolate :
@@ -73,12 +73,12 @@ class Slab():
     def _global_reconstruct(self, args, slabs_srv_dict) :
         
 
-        if args.run_mri_to_receptor  or args.run_receptor_interpolate :
+        if args.run_mri_to_receptor : #or args.run_receptor_interpolate   :
             print("MRI to Receptor")
             self._mri_to_receptor(slabs_srv_dict)
 
         if args.run_receptor_interpolate :
-            self._receptor_interpolate(args)
+            self._receptor_interpolate(slabs_srv_dict, args)
 
 
     def _preprocess(self):
@@ -172,23 +172,13 @@ class Slab():
         self.srv = slab_srv_dict["fixed"].loc[ slab_srv_dict["slab"] == float(slab) ].values[0] 
         self.init_tfm = slab_srv_dict["tfm"].loc[ slab_srv_dict["slab"] == float(slab) ].values[0]
 
-        #attenuation_file="mr1_attenuation_map.nii.gz"
         ###############################################
         ### Step 7: Transform MRI to receptor space ###
         ###############################################
         print("Step 7: Transform MRI to receptor space")
 
-        syn_file=self.mri_to_receptor_dir+os.sep+"srv_syn_space-rec_"+str(slab)+".nii.gz"
-        syn_file_inverse=self.mri_to_receptor_dir+os.sep+"cls_syn_space-mni_"+str(slab)+".nii.gz"
-        
-        affine_file=self.mri_to_receptor_dir+os.sep+"affine_"+str(slab)+".nii.gz"
-        affine_file_inverse=self.mri_to_receptor_dir+os.sep+"affine_inverse_"+str(slab)+".nii.gz"
-
         cls_iso_dwn_fn = self.classify_dir + os.sep + "vol_cls_"+str(slab)+"_250um.nii.gz"
         
-
-             
-             
         fixed_fn = cls_iso_dwn_fn
         moving_fn = self.srv
 
@@ -198,29 +188,38 @@ class Slab():
         if not os.path.exists(self.mri_to_receptor_dir):
             os.makedirs(self.mri_to_receptor_dir)
 
-        out_fn = cls_iso_dwn_fn
-        iterations=['1000x500x250', '2000x1500x1000', '2000x1500x1000']
-        shrink_factors=['16x8x4', '16x12x8x4', '12x8x4', '4x2']
-        smoothing_sigmas=['8.0x4.0x2.0', '8.0x6.0x4.0x2.0', '6.0x3.0x2.0', '2.0x1.0']
-        metrics=['CC', 'CC', 'CC', 'GC']
-        tfm_types=['Rigid','Affine','SyN','SyN']
-        tfm_syn, moving_rsl_fn = ANTs(self.mri_to_receptor_dir, self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations=iterations, tfm_type=tfm_types, shrink_factors=shrink_factors, smoothing_sigmas=smoothing_sigmas, radius=4, metrics=metrics, verbose=1, clobber=1, init_tfm=self.init_tfm, init_inverse=True, exit_on_failure=True)
+        iterations=[  '1500x1000x500']
+        shrink_factors=[ '8x4x2']
+        smoothing_sigmas=[ '4.0x2.0x1.0']
+        metrics=[ 'GC' ]
+        tfm_types=['SyN']
 
-        if (not os.path.exists(out_fn) or clobber ) and moving_rsl_fn != None:
-            img = nib.load(moving_rsl_fn)
-            rsl = nib.load(self.cls_fn)
-            resample_from_to(img, rsl, order=0).to_filename(out_fn)
+        tfm_syn, moving_rsl_fn = ANTs( self.srv2cls_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations=iterations, tfm_type=tfm_types, shrink_factors=shrink_factors, sampling=1, smoothing_sigmas=smoothing_sigmas, radius=3, metrics=metrics, verbose=1, clobber=0, init_tfm=self.init_tfm, init_inverse=True, exit_on_failure=True)
+
+
+        out_fn = sub('.nii.gz', '_rsl.nii.gz',  moving_rsl_fn)
+        print(moving_rsl_fn)
+        print('out_fn', out_fn)
+        if ( not os.path.exists(out_fn) or clobber ) and moving_rsl_fn != None :
+            print('cls_fn', self.cls_fn) 
+            print('srv_full', self.srv_full)
+            print('out_fn', out_fn)
+            print( tfm_syn, self.init_tfm )
+            #vol = ants.apply_transforms(fixed=self.cls_fn, moving=self.srv_full, transformlist=[tfm_syn, self.init_tfm ], verbose=True )
+            shell(' '.join(['antsApplyTransforms -v 1 -i', self.srv_full, '-r', self.cls_fn, '-o', out_fn, '-t', tfm_syn]))
             print("Wrote:", out_fn)
             print("fixed", fixed_fn)
             print("moving_rsl", moving_rsl_fn)
             print("moving", moving_fn)
 
-    def _receptor_interpolate(self,args):
+    def _receptor_interpolate(self,slab_srv_dict, args):
         ############################################################
         ### 8. Interpolate missing slices for each receptor type ###
         ############################################################
         print("Step 8. Interpolate missing slices for each receptor type")
         ligands=["flum,musc,sr95,cgp5,afdx,uk20,pire,praz,keta,dpmg,sch2,dpat,rx82,kain,ly34,damp,mk80,ampa,uk18,oxot,epib"]
+
+        self.srv = slab_srv_dict["fixed"].loc[ slab_srv_dict["slab"] == float(self.slab) ].values[0] 
 
         def write_ligand_volume(ligand, df_fn, rec_fn, out_fn, w=0) :
             df = pd.read_csv(df_fn)
@@ -246,22 +245,36 @@ class Slab():
         for ligand in self.args.ligands_to_run :
             ligand_dir = self.slab_output_path + os.sep + "ligand" + os.sep + ligand 
             print("\tLigand:",ligand)
-            receptorVolume = ligand_dir + os.sep + ligand + ".nii.gz"
             rec_slice_fn = ligand_dir + os.sep + ligand + "_slice_indicator.nii.gz"
-            ligand_interp_fn = ligand_dir+os.sep+ligand+".nii.gz"
+            
+            ligand_fn = ligand_dir+os.sep+ligand+"_slab-"+str(self.slab)+".nii.gz"
+            if args.subslab != None :
+                interp_fn = ligand_dir+os.sep+ligand+'_'+str(args.subslab)+".nii.gz"
+            else :
+                interp_fn = ligand_fn
+
             ligand_no_interp_fn = ligand_dir+os.sep+ligand+"_no_interp.nii.gz"
             ligand_init_ligand_fn = ligand_dir+os.sep+ligand+"_init.nii.gz"
             # lin --> downsampled --> crop --> 2D rigid (T1) --> 3D non-linear (T2) --> 2D non-linear (T3) [--> 2D non-linear (T4)]
             # lin_mri_space =  T2^-1 x [T4 x] T3 x T1 x downsampled 
-            print(receptorVolume)
-            if not os.path.exists(receptorVolume) or self.args.clobber or self.args.validation : 
-                receptorInterpolate(self.slab,ligand_interp_fn,rec_fn, self.srv_rsl, self.cls_fn, ligand_dir, ligand, rec_df_fn, transforms_fn, tfm_type_2d=args.tfm_type_2d, clobber=self.args.clobber)
+            print(interp_fn)
+            if not os.path.exists(interp_fn) or self.args.clobber or self.args.validation : 
+                receptorInterpolate(self.slab,interp_fn,rec_fn, self.srv_rsl, self.cls_fn, ligand_dir, ligand, rec_df_fn, transforms_fn, subslab=args.subslab, tfm_type_2d=args.tfm_type_2d, clobber=self.args.clobber)
+
+            if args.subslab != None : 
+                exit(0)
+
+            subslab_files =  glob(ligand_dir+os.sep+ligand+"_*.nii.gz")
+            if len(subslab_files) != 0 and not os.path.exists(ligand_fn) :
+                for f in subslab_files :
+                    ligand_vol += nib.load(f).get_data() 
+                nib.Nifti1Image(ligand_vol).to_filename(ligand_fn)
             
-            write_ligand_volume(ligand, rec_df_fn, ligand_interp_fn,ligand_no_interp_fn , 10 )
+            write_ligand_volume(ligand, rec_df_fn, ligand_fn,ligand_no_interp_fn , 10 )
             write_ligand_volume(ligand, rec_df_fn, rec_fn, ligand_init_ligand_fn )
 
             if not os.path.exists( rec_slice_fn  ) or self.args.clobber :
-                receptorSliceIndicator( rec_df_fn, ligand, receptorVolume, 3, rec_slice_fn )
+                receptorSliceIndicator( rec_df_fn, ligand, ligand_fn, 3, rec_slice_fn )
             
             ######################################################
             ### 9. Transform Linearized tif files to MRI space ###
@@ -279,7 +292,7 @@ class Slab():
 
             print( receptorVolume_mni_space )
             if not os.path.exists(receptorVolume_mni_space) or self.args.clobber :
-                cmdline=" ".join(["antsApplyTransforms -d 3 -n BSpline[3] -i",receptorVolume,"-r",self.srv,"-t",self.cls2srv,"-o",receptorVolume_mni_space])
+                cmdline=" ".join(["antsApplyTransforms -d 3 -n BSpline[3] -i",ligand_fn,"-r",self.srv,"-t",self.cls2srv,"-o",receptorVolume_mni_space])
                 print(cmdline)
                 shell(cmdline)
 
@@ -292,23 +305,28 @@ class Slab():
                 nib.processing.resample_to_output(nib.Nifti1Image(img.get_data(), img.affine), size, order=5).to_filename(receptorVolumeRsl)
                 del img
                 
-            #receptorVolume_final_kmeans = final_dir + os.sep + final_base_fn+"_segmented.nii.gz"
-            #receptorVolume_final_kmeans_rsl = final_dir + os.sep + final_base_fn+"_segmented_rsl.nii.gz"
-            #receptorVolume_final_dat = final_dir + os.sep + final_base_fn+"_segmented_rsl.dat"
-            #receptorVolume_final_kmeans_anlz = final_dir + os.sep + final_base_fn + "_segmented_rsl.img"
-            #if not os.path.exists( receptorVolume_final_kmeans ) or not os.path.exists(receptorVolume_final_dat) or self.args.clobber :
-            #    kmeans_vol(receptorVolumeRsl, 200,receptorVolume_final_dat, receptorVolume_final_kmeans)                
+            receptorVolume_final_kmeans = final_dir + os.sep + final_base_fn+"_segmented.nii.gz"
+            receptorVolume_final_kmeans_rsl = final_dir + os.sep + final_base_fn+"_segmented_rsl.nii.gz"
+            receptorVolume_final_dat = final_dir + os.sep + final_base_fn+"_segmented_rsl.dat"
+            receptorVolume_final_kmeans_anlz = final_dir + os.sep + final_base_fn + "_segmented_rsl.img"
+
+            
+            if not os.path.exists( receptorVolume_final_kmeans ) or not os.path.exists(receptorVolume_final_dat) or self.args.clobber :
+                kmeans_vol(receptorVolumeRsl, 200,receptorVolume_final_dat, receptorVolume_final_kmeans)                
+
             #Resample segmented receptor volume to attenuation map, so that they overlap
             #This makes it easier to define offset w.r.t center of scanner FOV for both volumes in Gate
-            #if not os.path.exists( receptorVolume_final_kmeans_rsl ) or  self.args.clobber :
-            #    img1 = nib.load(receptorVolume_final_kmeans)
-            #    vol1 = img1.get_data()
-            #    vol2 = nib.load(attenuation_file).get_data()
-            #    print(vol1.shape)
-            #    print(vol1.dtype.name)
-            #    print(vol2.shape)
-            #    print(vol2.dtype.name)
-            #    rsl = resample_from_to( nib.load(receptorVolume_final_kmeans) , nib.load(attenuation_file) )
-            #    rsl.set_data_dtype(img1.get_data_dtype())
-            #    rsl.to_filename(receptorVolume_final_kmeans_rsl)
-            #    shell("medcon -c anlz -f "+ receptorVolume_final_kmeans + ' -o '+receptorVolume_final_kmeans_anlz)
+            attenuation_file="mr1_attenuation_map.hdr"
+            if not os.path.exists( receptorVolume_final_kmeans_rsl ) or  self.args.clobber or True:
+                print('Resampling kmeans receptor volume to attenuation file')
+                img1 = nib.load(receptorVolume_final_kmeans)
+                vol1 = img1.get_data()
+                vol2 = nib.load(attenuation_file).get_data()
+                #print(vol1.shape)
+                #print(vol1.dtype.name)
+                #print(vol2.shape)
+                #print(vol2.dtype.name)
+                rsl = resample_from_to( nib.load(receptorVolume_final_kmeans) , nib.load(attenuation_file) )
+                rsl.set_data_dtype(img1.get_data_dtype())
+                rsl.to_filename(receptorVolume_final_kmeans_rsl)
+                #shell("medcon -c anlz -f "+ receptorVolume_final_kmeans + ' -o '+receptorVolume_final_kmeans_anlz)

@@ -8,8 +8,10 @@ import re
 import matplotlib.pyplot as plt
 import pandas as pd
 import time
+from glob import glob
 from ants import  apply_transforms, from_numpy
 from ANTs import ANTs
+from ants import image_read, registration
 from utils.utils import splitext
 
 
@@ -113,7 +115,6 @@ def section2Nii(vol, y, affine0, filename, clobber=False):
         affine[2,1]=affine[1,2]=0
         nib.Nifti1Image(vol, affine).to_filename(filename)
         
-
 def alignLigandToSRV(df, slab , ligand, srv_fn, cls_fn, output_dir,  tfm_type_2d="SyNAggro", clobber=False):
     print("\t\tNonlinear alignment of coronal sections for ligand",ligand,"for slab",int(slab))
     srv=None
@@ -125,81 +126,51 @@ def alignLigandToSRV(df, slab , ligand, srv_fn, cls_fn, output_dir,  tfm_type_2d
     srv_img = nib.load(srv_fn)
     srv = srv_img.get_data()
     
-    cls_img = nib.load(cls_fn)
-    cls = cls_img.get_data()
+    cls = nib.load(cls_fn).get_data()
     
     for i, row in df.iterrows() :
         _y0 = row["volume_order"]
+        print(_y0)
         tfm[str(_y0)]={str(_y0):[]}
 
-        prefix=tfm_dir+os.sep + ''.join(["cls_",str(_y0)]) + os.sep  
-
-        fixed_fn = srv_slice_fn =  tfm_dir + os.sep +'srv_'+str(_y0)+'.nii.gz'
-        moving_fn = cls_slice_fn = prefix+'cls_'+str(_y0)+'.nii.gz'
-        moving_rsl_fn  =  prefix+'cls_rsl_'+str(_y0)+'.nii.gz'
-        moving_rsl_fn_inverse  =  prefix+'srv_'+str(_y0)+'.nii.gz'
-        tfm_fn  =  prefix+"Composite.h5"
-        tfm_fn_inverse  =  prefix+"InverseComposite.h5"
-
-        if not os.path.exists(prefix) :  os.makedirs(prefix)
-
-        if not os.path.exists(moving_rsl_fn) or clobber :
-
-            print("\t\t\t",_y0)
-            section2Nii( srv[ :, int(_y0), : ], _y0, srv_img.affine, srv_slice_fn, clobber)  
-            section2Nii( cls[ :, int(_y0), : ], _y0, cls_img.affine, cls_slice_fn, clobber)
-            
-            #reg = registration(fixed=srv_slice, moving=cls_slice, type_of_transform=tfm_type_2d,reg_iterations=(500,250,125), outprefix=prefix, syn_metric="mattes"  )
-            ANTs(prefix, prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, iterations=['1500x1000x500x250x200', '1500x1000x1000x500x250', '3000x200x1500x750x500x250'], tolerance=1e-09, base_shrink_factor=1, radius=64, metric="GC", dim=2, verbose=0, clobber=clobber,  exit_on_failure=1, fix_header=True)
-        #'500x250x100', '500x500x300','1000x500x500'
-        if not os.path.exists(tfm_fn) : 
-            print("Error: could not find transformation file", tfm_fn)
+        prefix_string= ''.join(["slab-",str(slab),"_ligand-",ligand,"_y-",str(_y0)])
+        prefix=tfm_dir+os.sep + ''.join(["slab-",str(slab),"_ligand-",ligand,"_y-",str(_y0), "_"]) + os.sep 
+        if not os.path.exists(prefix) : 
+            os.makedirs(prefix)
+        if not os.path.exists(prefix+"1Warp.nii.gz") or clobber : #not os.path.exists(prefix+'DenseRigid_0GenericAffine.mat') or clobber :
+            #print( prefix+"1Warp.nii.gz")
+            #print( prefix+'DenseRigid_0GenericAffine.mat')
+            #print(clobber)
+            #print(row)
+            srv_slice = from_numpy( srv[ :, int(_y0), : ] )
+            cls_slice = from_numpy( cls[ :, int(_y0), : ] )
+            #print('Rigid')
+            #reg0 = registration(fixed=srv_slice, moving=cls_slice, type_of_transform='DenseRigid',reg_iterations=(1000,750,500), aff_metric='GC', outprefix=prefix+'DenseRigid_'  )
+            #print(reg0)
+            print('SyN')
+            #,initial_transform=reg0['fwdtransforms']
+            reg = registration(fixed=srv_slice, moving=cls_slice, type_of_transform=tfm_type_2d,reg_iterations=(1000,750,500), aff_metric='GC', syn_metic='CC', outprefix=prefix  )
+            print(reg)
+            tfm[str(_y0)][str(_y0)] = reg['fwdtransforms'] +tfm[str(_y0)][str(_y0)]
         else :
-            tfm[str(_y0)][str(_y0)] = [tfm_fn]
-        #else :
-        #    tfm[str(_y0)][str(_y0)] = [prefix+'1Warp.nii.gz', prefix+'0GenericAffine.mat' ] + tfm[str(_y0)][str(_y0)]
+            tfm[str(_y0)][str(_y0)] = [prefix+'1Warp.nii.gz', prefix+'0GenericAffine.mat' ] + tfm[str(_y0)][str(_y0)]
+            #tfm[str(_y0)][str(_y0)] = [prefix+'1Warp.nii.gz', prefix+'0GenericAffine.mat',prefix+'DenseRigid_0GenericAffine.mat' ] + tfm[str(_y0)][str(_y0)]
 
     return tfm
 
-def get_2d_srv_tfm(srv,  slab, ligand, output_dir,  _y, s, tfm, affine, clobber=False) :
+def get_2d_srv_tfm(srv_y,  srv_s,  slab, ligand, output_dir,  _y, s, tfm, tfm_type_2d='SyNAggro', clobber=False) :
     tfm_dir=output_dir + os.sep + 'tfm'
-    prefix=tfm_dir+os.sep + ''.join(["srv_y-",str(_y), "_to_",str(s)]) + os.sep  
-    fixed_fn =  tfm_dir + os.sep +'srv_'+str(s)+'.nii.gz'
-    moving_fn = tfm_dir + os.sep +'srv_'+str(_y)+'.nii.gz'
-    moving_rsl_fn  =  prefix+'srv_rsl_'+str(_y)+'_to_'+str(s)+'.nii.gz'
-    moving_rsl_fn_inverse  =  prefix+'srv_rsl_'+str(s)+'_to_'+str(_y)+'.nii.gz'
-
-    tfm_fn  =  prefix+"Composite.h5"
-    tfm_fn_inverse  =  prefix+"InverseComposite.h5"
-
     if not os.path.exists(tfm_dir) : os.makedirs(tfm_dir)
+    prefix =''.join([tfm_dir,"/slab-",str(slab),"_ligand-",ligand,"_y-",str(_y), "_to_",str(s),"/"])
 
     if not os.path.exists(prefix) :
         os.makedirs(prefix)
-    if not os.path.exists(tfm_fn) or clobber : 
-        #reg=registration(fixed=srv_s, moving=srv_y, type_of_transform=tfm_type_2d,reg_iterations=(500,250,125), outprefix=prefix)['fwdtransforms']
-
-        section2Nii( srv[ :, int(_y), : ], _y, affine, moving_fn, clobber)  
-        section2Nii( srv[ :, int(s), : ], s, affine, fixed_fn, clobber)
-        
-        prev_tfm=s-1
-        
-        try  :
-            init_tfm  = tfm[str(_y)][str(prev_tfm)][0]
-        except KeyError :
-            init_tfm = None
-
-        #print( _y, s , prev_tfm, tfm[str(_y)][str(prev_tfm)] )
-        start = time.time()
-        ANTs(prefix, prefix, fixed_fn, moving_fn, moving_rsl_fn, moving_rsl_fn_inverse, iterations=['2000x1000x500x250x100'], tfm_type=['SyN'], tolerance=1e-07,base_shrink_factor=2, radius=32, metric="GC", dim=2, verbose=0, clobber=clobber, init_tfm=init_tfm,  exit_on_failure=1, fix_header=True)
-        end = time.time()
-
-        #   '200x150x100','500x250x100'
-        print("\t\t\t",_y,'-->',s,  round(end - start,3) ) 
-
-    if os.path.exists(tfm_fn) :
-        tfm[str(_y)][str(s)] = [tfm_fn] + tfm[str(_y)][str(_y)] 
-
+    #if not os.path.exists(prefix+"0GenericAffine.mat") or clobber : 
+    if not os.path.exists(prefix+"1Warp.nii.gz") or clobber :
+        reg=registration(fixed=srv_s, moving=srv_y, type_of_transform=tfm_type_2d, reg_iterations=(1000,750,500),aff_metric='GC', syn_metic='CC', outprefix=prefix)['fwdtransforms']
+    else :
+        reg= [prefix+'1Warp.nii.gz', prefix+'0GenericAffine.mat' ]
+    tfm[str(_y)][str(s)] = reg + tfm[str(_y)][str(_y)] 
     return tfm
 
 def alignSRVtoSelf(df, tfm, slab, ligand, srv_fn, output_dir, tfm_type_2d='SyNAggro',  clobber=False, validation=False ):
@@ -222,6 +193,10 @@ def alignSRVtoSelf(df, tfm, slab, ligand, srv_fn, output_dir, tfm_type_2d='SyNAg
     for i, (_y0, _y1) in enumerate(zip(posterior_slice_location, anterior_slice_location)) :
         print("\t\t",_y0,_y1)
         _start = 1 + int(_y0)
+        srv_y0 = from_numpy(srv[ :, int(_y0), : ])
+        srv_y1 = from_numpy(srv[ :, int(_y1), : ])
+
+        imgList=[]
 
         if not validation :
             seq_list = np.arange(_start,_y1).astype(int)
@@ -235,8 +210,10 @@ def alignSRVtoSelf(df, tfm, slab, ligand, srv_fn, output_dir, tfm_type_2d='SyNAg
         # at each s position, a non-linear transformation from _y0 --> s
         # and _y1 --> s is calculated.
         for s in seq_list :
-            tfm = get_2d_srv_tfm( srv, slab, ligand, output_dir,  _y0, s, tfm, srv_img.affine, clobber=clobber) 
-            tfm = get_2d_srv_tfm( srv, slab, ligand, output_dir,  _y1, s, tfm, srv_img.affine, clobber=clobber) 
+            srv_s =from_numpy(srv[:,s,:])
+            print("\t",s)
+            tfm = get_2d_srv_tfm(srv_y0, srv_s, slab, ligand, output_dir,  _y0, s, tfm, tfm_type_2d, clobber=clobber) 
+            tfm = get_2d_srv_tfm(srv_y1, srv_s, slab, ligand, output_dir,  _y1, s, tfm, clobber=clobber) 
     
         #Save the updated tfm dict with all the transformation files to a .json file    
 
@@ -262,13 +239,14 @@ def interpolateMissingSlices(df, tfm, slab, ligand, rec_fn, srv_fn,  output_dir,
 
     slice_location = df["volume_order"].values
     if not validation : 
-        outVolume = np.zeros((rec.shape[0], np.max(slice_location)+1, rec.shape[2]))
+        outVolume = np.zeros((rec.shape[0], rec.shape[1], rec.shape[2]))
+        #outVolume = np.zeros((rec.shape[0], np.max(slice_location)+2, rec.shape[2]))
 
     posterior_slice_location=slice_location[0:(len(slice_location)-offset)]
     anterior_slice_location =slice_location[offset:]
     pd_list=[]
     
-    n = rec.shape[0] * rec.shape[1] * rec.shape[2]
+    n = rec.shape[1] * rec.shape[1] * rec.shape[2]
 
     for i, (_y0, _y1) in enumerate(zip(posterior_slice_location, anterior_slice_location )) :
         print("\t\t\t",_y0,_y1)
@@ -290,9 +268,8 @@ def interpolateMissingSlices(df, tfm, slab, ligand, rec_fn, srv_fn,  output_dir,
         if not validation :
             outVolume[:,_y0,:] = apply_transforms(rec_y0, rec_y0, tfm[str(_y0)][str(_y0)], interpolator=interpolator ).numpy()
 
-        if _y1 == slice_location[-1] and not validation :
-            outVolume[:,_y1,:] = apply_transforms(rec_y1, rec_y1, tfm[str(_y1)][str(_y1)], interpolator=interpolator ).numpy()
-        continue
+        #if _y1 == slice_location[-1] and not validation :
+        #    outVolume[:,_y1,:] = apply_transforms(rec_y1, rec_y1, tfm[str(_y1)][str(_y1)], interpolator=interpolator ).numpy()
 
         for s in seq_list :
             interp_img_fn= fill_dir + os.sep + ''.join(["slab-",str(slab),"_ligand-",ligand,"_interp_y-",str(s), ".nii.gz"])
@@ -335,9 +312,7 @@ def interpolateMissingSlices(df, tfm, slab, ligand, rec_fn, srv_fn,  output_dir,
     return val_df
 
 
-def receptorInterpolate( slab, out_fn, rec_fn, srv_fn, cls_fn, output_dir, ligand, slice_info_fn, composite_transform_json, tfm_type_2d='SyNAggro', clobber=False , validation=False) :
-    #clobber=True
-
+def receptorInterpolate( slab, out_fn, rec_fn, srv_fn, cls_fn, output_dir, ligand, slice_info_fn, composite_transform_json, subslab=None, tfm_type_2d='SyNAggro', clobber=False , validation=False) :
     if not os.path.exists(output_dir) :
         os.makedirs(output_dir)
     
@@ -351,6 +326,9 @@ def receptorInterpolate( slab, out_fn, rec_fn, srv_fn, cls_fn, output_dir, ligan
     df = pd.read_csv(slice_info_fn)
     if ligand != 'all':
         df = df.loc[ df["ligand"] == ligand ]
+    if subslab != None :
+        print('Running sub-slab: ', subslab, '/', df.shape[0]-1)
+        df = df.iloc[ subslab:(subslab+2), :]
 
     #write_init_volume(df, rec_fn)
 
@@ -358,7 +336,7 @@ def receptorInterpolate( slab, out_fn, rec_fn, srv_fn, cls_fn, output_dir, ligan
     tfm = alignLigandToSRV(df, slab, ligand, srv_fn, cls_fn, output_dir,  tfm_type_2d=tfm_type_2d, clobber=clobber)
      
     # 3. Find transformations for slices of MRI-derived super-resolution GM mask at locations where autoradiographs were acquired to slices where no autoradiograph section were acquired.
-    #tfm = alignSRVtoSelf(df, tfm, slab, ligand, srv_fn, output_dir, tfm_type_2d=tfm_type_2d, clobber=clobber, validation=validation )
+    tfm = alignSRVtoSelf(df, tfm, slab, ligand, srv_fn, output_dir, tfm_type_2d=tfm_type_2d, clobber=clobber, validation=validation )
     
     # 4. Interpolate slices between acquired autoradiograph slices for a particular ligand
     interpolator_list = ["gaussian"]
@@ -368,4 +346,4 @@ def receptorInterpolate( slab, out_fn, rec_fn, srv_fn, cls_fn, output_dir, ligan
 
     for interpolator in interpolator_list :
         val_df = interpolateMissingSlices(df, tfm,  slab, ligand, rec_fn, srv_fn, output_dir, out_fn, interpolator=interpolator, clobber=clobber, validation=validation, val_df=val_df ) 
-
+        

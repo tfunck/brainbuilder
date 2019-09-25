@@ -86,12 +86,12 @@ class Autoradiographs():
         return brain_list
 
 
-    def generate_mri_gm_mask(self, args) :
+    def find_mri_slabs(self, args) :
         srv_slabs_dict={}
         for brain_id, brain in self.brain.items() :
             srv_slabs_dict[brain_id]={}
             for hemi_id, hemi in brain.hemispheres.items() :
-                srv_slabs_dict[brain_id][hemi_id] = hemi._generate_mri_gm_mask( args, brain_id, hemi_id,clobber=self.clobber)
+                srv_slabs_dict[brain_id][hemi_id] = hemi._find_mri_slabs( args, brain_id, hemi_id,clobber=self.clobber)
         return srv_slabs_dict
 
     def init_reconstruct(self,args) :
@@ -105,14 +105,14 @@ class Autoradiographs():
         print("init recosntruct")
         self.init_reconstruct(args)
         print("generate mri gm")
-        srv_slabs_dict = self.generate_mri_gm_mask(args)
+        srv_slabs_dict = self.find_mri_slabs(args)
         
         for brain_id, brain in self.brain.items() :
             print(brain_id)
             for hemi_id, hemi in brain.hemispheres.items() :
                 print(hemi_id)
                 #if args.run_mri_to_receptor or args.run_receptor_interpolate :
-                #    srv_slabs_dict = hemi._generate_mri_gm_mask( args, brain_id, hemi_id, clobber=False)
+                #    srv_slabs_dict = hemi._find_mri_slabs( args, brain_id, hemi_id, clobber=False)
                 for slab_id, slab in hemi.slabs.items() :
                     print("Brain:", brain_id, "Hemisphere:", hemi_id, "Slab:", slab_id)
                     slab._global_reconstruct(args, srv_slabs_dict[brain_id][hemi_id])
@@ -173,7 +173,7 @@ class Hemisphere():
                 #print(slab_id)
                 self.slabs[slab_id] = Slab( raw_path, lin_path[0], slab_id, brainInstance.brain_id, self.hemi, args )
 
-    def _generate_mri_gm_mask(self, args, brain_id, hemi_id, clobber):
+    def _find_mri_slabs(self, args, brain_id, hemi_id, clobber):
         print("Generating MRI GM mask")
         align_slabs_args = AlignSlabsArgs(args.slabs_to_run,args.output+os.sep+brain_id+os.sep+hemi_id+os.sep)
         if clobber :
@@ -192,9 +192,10 @@ if __name__ == "__main__":
     parser.add_argument('--hemispheres', '-m', dest='hemispheres_to_run',type=str, nargs='+', default=[], help='Brains to reconstruct. Default = reconstruct all hemispheres.')
     parser.add_argument('--tfm-type-2d', '-t', dest='tfm_type_2d',type=str, default="SyNAggro", help='Type of transformation to use to transform 2D receptor section to 3D MRI volume')
     parser.add_argument('--slabs','-s', dest='slabs_to_run', type=str,nargs='+', default=[],  help='Slabs to reconstruct. Default = reconstruct all slabs.')
+    parser.add_argument('--subslab', dest='subslab', type=int, default=None,  help='Sub Slabs to reconstruct for particular ligand. Default = None.')
     parser.add_argument('--init-align-epochs', dest='init_align_epochs', type=int, default=3,  help='Number of iterations for initial rigid 2D alignment of autoradiographs.')
     parser.add_argument('--ligands','-l', dest='ligands_to_run', type=str,nargs='+', default=["flum"],  help='Ligands to reconstruct. Default = reconstruct all slabs.')
-    parser.add_argument('--mri-gm-mask', dest='generate_mri_gm_mask', action='store_true', default=False, help='Only generate GM masks from donor MRI')
+    parser.add_argument('--find-mri-slabs', dest='find_mri_slabs', action='store_true', default=False, help='Only generate GM masks from donor MRI')
     parser.add_argument('--preprocess', dest='run_preprocess', action='store_true', default=False, help='Only run reconstruction up to preprocessing')
     parser.add_argument('--init-alignment', dest='run_init_alignment', action='store_true', default=False, help='Only run reconstruction up to initial alignment ')
     parser.add_argument('--mri-to-receptor', dest='run_mri_to_receptor', action='store_true', default=False, help='Only run reconstruction up to alignment of mri to receptor')
@@ -208,8 +209,8 @@ if __name__ == "__main__":
     data = Autoradiographs( args )
     print("data")
 
-    if args.generate_mri_gm_mask :
-        data.generate_mri_gm_mask()
+    if args.find_mri_slabs :
+        data.find_mri_slabs(args)
     else :    
         print("reconstruct")
         data.reconstruct(args)
