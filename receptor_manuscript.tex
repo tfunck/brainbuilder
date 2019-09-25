@@ -42,17 +42,14 @@ Two approaches exist to measuring neurotransmitter receptors: in vivo and ex viv
 
 Despite the limitations of PET, significant work has been performed to create atlases of standard neurotransmitter receptor distributions \cite{Savli2012,Beliveau2017}. Beliveau, et al. have published an in vivo atlases of 4 of the serotonin 5-HT receptor subtypes using from 8-59 subjects, depending on the particular receptor \cite{Beliveau2017}. 
 
+Naturally, autoradiographs are limited compared to PET because they cannot be performed in vivo and produce only 2D sections. The 2D autoradiographs can be particularly problematic if the brain is sectioned at an angle that is not orthogonal to the folding of the cortical mantle, as this will misrepresent the laminar distribution of neurotransmitter receptor density. To avoid such sectioning artefacts, it is important to reconstruct autoradiographs into 3D. 
+
 \subsection{3D Reconstruction to 2D post-mortem brain sections}
 The second approach to neurotransmitter receptor binding is using in vitro autoradiography. This technique also uses a radiotracer to bind to neurotransmitter receptors, but is perfomed on 2D sections of brain tissue that have been extracted from a brain post-mortem. Autoradiography has the advantage over PET with respect to the spatial resolution of the resultant images. Whereas PET images have a spatial resolution on the order of millimeters, autoradiographs have a resolution of up to approximately 50 microns. 
 
-Thorough literautre reviews have already been written by Dubois \cite{Dubois2007} and Pichat et al \cite{Pichat2018}. We will therefore only briefly describe previous techniques for 3D reconstruction histologic and autoradiographic data to better how these relate to the autoradiographic data described in our work. Several categorizations of 3D reconstruction techniques have been proposed. Daguet? et al \cite{CITATION} divide the types of artefacts encountered in 3D reconstruction between primary and secondary artefacts. Primary artefacts occur prior to sectioning and apply to the brain as a whole or at least locally to 3D portions of the brain. Secondary aretefacts are those which are produced as a result of sectioning or subsequent processing of brain sections and vary on a slice by slice basis. Reconstruction methods can therefore be divided between those that correct only for secondary artefacts, e.g. \cite{Charkarboty2006}, or both secondary and primary artefacts.
-
-Another way to subdivide 3D reconcstruction algorithms for 2D brain sections is between those that use landmark or geometric features to perform reconstruction and those that use image intensities \cite{Pichat2018}.
-
+Thorough literautre reviews have already been written by Dubois \cite{Dubois2007} and Pichat et al \cite{Pichat2018}. We will therefore only briefly describe previous techniques for 3D reconstruction histologic and autoradiographic data to better how these relate to the autoradiographic data described in our work. Several categorizations of 3D reconstruction techniques have been proposed. Daguet? et al \cite{CITATION} divide the types of artefacts encountered in 3D reconstruction between primary and secondary artefacts. Primary artefacts occur prior to sectioning and apply to the brain as a whole or at least locally to 3D portions of the brain. Secondary aretefacts are those which are produced as a result of sectioning or subsequent processing of brain sections and vary on a slice by slice basis. Reconstruction methods can therefore be divided between those that correct only for secondary artefacts, e.g. \cite{Chakravarty2006}, or both secondary and primary artefacts.
 
 Reconstruction of autoradiographs depends on target receptor and size of the brain, i.e., the phylogenic species, because this determines the type of embedding or freezing that is possible. This will determine many of the artefacts present in the autoradiographs.
-
-Naturally, autoradiographs are limited compared to PET because they cannot be performed in vivo and produce only 2D sections. The 2D autoradiographs can be particularly problematic if the brain is sectioned at an angle that is not orthogonal to the folding of the cortical mantle, as this will misrepresent the laminar distribution of neurotransmitter receptor density. To avoid such sectioning artefacts, it is important to reconstruct autoradiographs into 3D. 
 
 To highlight the particularities and difficulties of reconstructing the autoradiographs described in this article, we first briefly recapitulate previous attempts at performing 3D reconstruction from 2D autoradioraphy and histology.
 
@@ -60,48 +57,61 @@ The introduction of the technique of autoradiography \cite{Sokoloff1977,Young197
 
 Many of these methods were semi-automated and required some form of manual intervention. 3D reconstruction with fiducial markers requires the insertion of the markers but subsequent alignment can then be automated \cite{Toga1985, Toga1986, Toga1987}. 
 
-Reconstruction can be performed with only autoradiograph images themselves using principal-axes transforms\cite{Hibbard1984}, intensity or frequency-based cross-correlation \cite{Hibbard1988, Toga1993}, sum of squared error \cite{Andreasen1992}, discrepency matching optical flow \cite{Zhao1993}, edge-based point matching \cite{Rangarajan1997}. This limits the artefacts which can be corrected for. 
+Reconstruction can be performed with only autoradiograph images themselves using principal-axes transforms\cite{Hibbard1984}, intensity or frequency-based cross-correlation \cite{Hibbard1988, Toga1993}, sum of squared error \cite{Andreasen1992}, discrepency matching optical flow \cite{Zhao1993}, edge-based point matching \cite{Rangarajan1997}.  
+
+\subsubsection{Correction of secondary artefacts}
+
+Coregistration of 2D slices is difficult because misalignment errors will be propagated to all subsequently coregistered sections. Methods have been developed to help address this problem and produce more robust alignments \cite{Ourselin2001} \cite{Chakravarty2005} \cite{Cifor2011} \cite{Pichat2015}. This limits the artefacts which can be corrected for.
+
+Chakravarty, et al. \cite{Chakravarty2003,Chakravarty2005} implemented a novel 3D alignment algorithm departed from previous methods by non-linearly aligned a central section to its 2 immediate neighbours and applied the average of the 2 deformations to the central section. The non-linear deformations allowed for the correction of warping artefacts in individual sections without using a reference image, e.g., block-face image, or volume, e.g., donor MRI. 
+Cifor et al \cite{Cifor2011} devised an approach that attempts to maximize the smoothness of reconstructed histologic volumes, but this approach seems to be limited to cases where similar anatomic structures can be identified across adjacent sections.  
+Pichat et al \cite{Pichat2015} addressed the problem of propagating misregistration errors by allowing  multiple registration paths between between two sections. This makes the 2D alignment process more robust by allowing the reconstruction to circumvent sections that are systematically misaligned. 
+
+
+\subsection{Correction of primary artefacts}
 
 An important development was the use of mutual information as a metric for optimization \cite{Kim1997}, because mutual information is very robust for multi-modal registration. Moreover, they introduced the use of non-linear warping to correct autoragradiographs with respect to block face images. However, their method required manual intervention to select control points for spline-based warping.
 
 Oureselin proposed a multi-resolution block-matching algorithm for reconstructing 3D histologic volumes, but did not include correction for non-linear distortions \cite{Ourselin2001}.
 \begin{center}
-\begin{tabular}{ | c | c | c | c | c | }
+\begin{tabular}{ | c | c | c | c | c | c | c | }
    \hline
-    \textbf{Authors} & \textbf{Modality} & \textbf{Fully Automated} & \textbf{Blockface} & \textbf{3D reference} \\ \textbf{Species} \\ \hline
-    Hibbard \cite{Hibbard1984} & AR & No & No & No &  Species \\
-    Ourselin, et al \cite{Ourselin2001} & H  & No & No & No &  Species \\
-    Maladain, et al \cite{Maladain2004} & AR  & Yes & No & Yes &  Rhesus Monkeys \\
-    Dauget, et al \cite{Dauget2007} & H  & ? & Yes  & Yes  & Yes & Baboon \\
-    Chakravarty, et al. \cite{Chakravarty2006} &  H & No & No & No & Species\\ 
-    Cifor, et al. \cite{Cifor2011} &  H & No & No &  & Species\\ 
-    Yang, et al. \cite{Yang2012} &  H & Yes & No & Yes & Mouse \\ 
-    Schubert, et al. \cite{Schubert2016} & AR/H/PLI & Yes & No & Yes & MRI & Rat \\
-    Iglesias, et al. \cite{Iglesias2018} & H & No & MRI & Human \\ 
+    \textbf{Authors} & \textbf{Summary} & \textbf{Modality} & \textbf{Fully Automated} & \textbf{Blockface} & \textbf{3D reference} \\ \textbf{Species} \\ \hline
+    Hibbard et al \cite{Hibbard1984} & Principal axes transform to perform 3D reconstruction & AR & No & No & No & Rat \\
+    Hibbard et al \cite{Hibbard1988} & First use of CC for 3D reconstruction & AR & No & No & No & Rat \\
+    Andreasen et al \cite{Andreasen1992} & Use of sum-squared error & H & Yes & No & No & No & Rabbit \\  
+    Zhao et al \cite{Zhao1993} & Optical flow between landmarks on cortical surface & AR & Yes & No & No & ? \\
+    Toga et al \cite{Toga1993} \cite{Toga1997} & Fiducial markers used for 3D reconstruction & H & Yes & No & ? & Rat, Human \\  
+    Schormann et al \cite{Schormann1993} & MRI to H volume-matching with CC  & H & Yes & No & Yes & Human \\
+    Schormann and Zilles \cite{Schormann1995} & Piecewise nonlinear deformation of cortical landmarks & H & Yes & No & Yes & Human  \\
+    Kim et al \cite{Kim1997} & First use of mutual information for 3D reconstruction & AR & Yes & Yes & No & Rat\\
+    Schormann et al \cite{Schormann1998} & Nonlinear full-multigrid registration of H volume to MRI & H & Yes & Yes & Yes & Human \\
+    Ourselin, et al \cite{Ourselin2001} & Block-matching alignment for reconstruction of 2D sections & H  & No & No & No &  Rat and Rhesus Monkey \\
+    Malandain, et al \cite{Maladain2004} & Iterative alignment of MRI with stack of 2D sections & AR  & Yes & No & Yes &  Rhesus Monkey \\
+    Dauget, et al \cite{Dauget2007} & Reconstruction of sections with both cerebral hemispheres & H  & ? & Yes  & Yes  & Yes & Baboon \\
+    Chakravarty, et al. \cite{Chakravarty2003}\cite{Chakravarty2005} & 2D alignment by averaging between adjacent nonlinear transforms &  H & No & No & No & Species\\ 
+    Cifor, et al. \cite{Cifor2011} & Maximize smoothness of alignment in transverse axis &  H & No & No & No  & Species\\ 
+    Yang, et al. \cite{Yang2012} & Identify correspdoning region in MRI for stack of histologic sections  & H & Yes & No & Yes & Mouse \\ 
+    Pichat, et al., \cite{Pichat2015} & Graph-based 2D reconstruction & H & Yes & Yes & No & NA \\
+    Schubert, et al. \cite{Schubert2016} & Reconstruction of multimodal data using blockface images & AR/H/PLI & Yes & No & Yes & MRI & Rat \\
+    Gangoli, et al. \cite{Gangolli2017} & Manual landmarks + 2D nonlinear alignment  & H & No & No & Yes & Human \\
+    Iglesias, et al. \cite{Iglesias2018} & Probabilistic simultaneous synthesis and alignment &  H & Yes & Yes & MRI & Human \\ 
     \hline
     
 \end{tabular}
 \end{center}
 
-An import limitation of the aforementioned reconstruction techniques is that registration errors will be compounded because alignment is performed between neighbouring sections. 
+A combination of Ref. \cite{Ourselin2001} with 3D alignment to MRI was first introduced by \cite{Malandain2004}. They used 2D block matching followed by a) 3D alignment of the MRI volume to the autoradiograph volume and b) a 2D alignment of the autoradiographs to the corresponding section of the MRI. This process was repeated iteratively to improve alignment. Their method was still limited by the use of only affine transforms and is not quite fully automated because it requires the selection of a reference section
 
 Autoradiographic and histologic reconstructions are frequently corrected for non-linear deformations versus an MR image acquired for the same brain. One such methods was proposed by \cite{Schormann1993} for histologic reconstruction. Schormann proposed a landmark-based technique for aligning 2D histological images to 3D MRI that could correct for local nonlinear deformations in the histologic sections \cite{Shormann1995}. 
 
-A combination of Ref. \cite{Ourselin2001} with 3D alignment to MRI was first introduced by \cite{Malandain2004}. They used 2D block matching followed by a) 3D alignment of the MRI volume to the autoradiograph volume and b) a 2D alignment of the autoradiographs to the corresponding section of the MRI. This process was repeated iteratively to improve alignment. Their method was still limited by the use of only affine transforms and is not quite fully automated because it requires the selection of a reference section
-
 Malandain et. al \cite{Malandain2004} build on the work of Ourselin et al \cite{Ourselin2001} by incorporating an iterative algorithm to progressively align autoradiograph sections to corresponding MRI sections and produce progressively better reconstructed autoradiograph volumes. Autoradiograph sections are aligned with 2D rigid and affine transformations to the MRI, producing a aligned autoradiograph volume. The MR image is aligned again in 3D to the autoradiograph volume and the autoradiographs are once again aligned to corresponding sections in the MRI.
-
-Chakravarty, et al. \cite{Chakravarty2003,Chakravarty2005} implemented a novel 3D alignment algorithm departed from previous methods by non-linearly aligned a central section to its 2 immediate neighbours and applied the average of the 2 deformations to the central section. The non-linear deformations allowed for the correction of warping artefacts in individual sections without using a reference image, e.g., block-face image, or volume, e.g., donor MRI. 
 
 Dauget et al \cite{Dauget2007} developed a reconstruction pipeline aimed at histological sections containing both brain hemispheres. They created a "hemi-rigid" alignment to align the histological sections to blockface images and then used nonlinear transformations to align the blockface volume to the MRI. 
 
-
-
-
-Cifor et al \cite{Cifor2011} devised an approach that attempts to maximize the smoothness of reconstructed histologic volumes, but this approach seems to be limited to cases where similar anatomic structures can be identified across adjacent sections.  
-
-
 Yang et al 2012 \cite{Yang2012} propose a method for automatically reconstructing rat brain using corresponding MRI. Their approach centers on first finding the corresponding region of the MRI for a given stack of histological images by rigidly aligning the a portion of the histological volume to series of different locations along the coronal section of the MRI. The location where the rigid alignment produces the maximum mutual information is considered to be the correct MRI section corresponding to the histological volume. Piecewise rigid alignments are then calculated to match discrete tissue regions in the histological sections to their corresponding section in the MRI. 
+
+Gangolli used dense labeling of manual landmarks and applied non-linear warping of histology to MRI \cite{Gangolli2017}.
 
 Schubert et al. \cite{Schubert2018} reconstructed multi-modal 2D autoradiograph, PLI and histological images from 2 rat brains into a 3D atlas. Blockface images were acquired for both rats and served as an intermediate step for aligning the 2D sections to the MRI of the rats. 
 
@@ -187,7 +197,9 @@ where $R$ is the measured radioactivity concentration interpolated from the cali
 \subsection{ 3D alignment of MRI to receptor volume }
     Coregistration of the receptor volume to the donor's postmortem MRI was used to correct for deformations in the autoradiographs that resulted from the brains not being fixed prior to sectioning and freezing. Coregistration was performed independently for each receptor volume slab. 
     
-    GM masks were extracted from both the receptor volumes and the donor's MRI be able to align autoradiographs with different binding densities with the same algorithm. An MRI Binary gray-matter (GM) images, i.e., masks, was extracted from the donor's MRI using cortical surface meshes were extracted from the MRI using the CIVET pipeline [3] and a super-resolution GM mask at 250um was derived from these cortical surface meshes [4]. A GM binary mask was generated for the initial receptor volume was generated for each slab using a 3-class K-means clustering to segment each 2D autoradiograph into background, white matter, and GM (Fig.1.3, column 2). The original GM receptor volume was downsampled from a voxel resolution of 200x20x200$\mu$m to 250$\mu$m isotropic resolution with an order 5 spline interpolation. Using GM masks instead of the neurotransmitter density images obviates the need to identify an specific algorithm or a particular set parameters for a given algorithm that that can align each of the autoaradiographs. 
+    GM masks were extracted from both the receptor volumes and the donor's MRI be able to align autoradiographs with different binding densities with the same algorithm. An MRI Binary gray-matter (GM) images, i.e., masks, was extracted from the donor's MRI using cortical surface meshes were extracted from the MRI using the CIVET pipeline [3] and a super-resolution cortical GM mask at 250um was derived from these cortical surface meshes \cite{Funck2014}. A segmentation of the donor's basal ganglia that was generated using ANIMAL \cite{Collins1995}, upsampled to 250$\mu$m using nearest neighbour interpolation, and added to the super-resolution cortical GM. 
+
+    A GM binary mask was generated for the initial receptor volume was generated for each slab using a 3-class K-means clustering to segment each 2D autoradiograph into background, white matter, and GM (Fig.1.3, column 2). The original GM receptor volume was downsampled from a voxel resolution of 200x20x200$\mu$m to 250$\mu$m isotropic resolution with an order 5 spline interpolation. Using GM masks instead of the neurotransmitter density images obviates the need to identify an specific algorithm or a particular set parameters for a given algorithm that that can align each of the autoaradiographs. 
     
     To accurately align the receptor volume to the donor's MRI it is necessary to first identity which portion of the identify the portion of the MRI that corresponds to the brain region defined in the receptor volume. This was accomplished by the following algorithm. The width of the brain slab, i.e., its extent along the coronal axis, was calculated based on the acquired autoradiograph sections in each slab. The expected location of the slabs was calculated assuming that the equal spacing between the slabs and based on the width of each slab. A prior pseudo-probability distribution for the position of each slab in the coronal axis was calculated by convolving the a function equal to 1 at the prior position for the slab by a gaussian function with a standard deviation equal to  1.5 times the width of the slab. Each slab was subsequently aligned to sections of equivalent width along the coronal axis of the GM MRI volume at 5mm increments. Alignment was performed with ANTs using rigid and affine transformations (CITATION). The criss correlation was calculated for each position across the coronal axis and weighted by the prior probability of that slab for that position. The position with the highest weighted probability was selected as the best candidate region in the donor's MRI corresponding to a specific slice. 
     
@@ -208,10 +220,61 @@ As a proof-of-principle for the efficacy of our reconstruction pipeline, a singl
 
 
 \Discussion{}
+\subsection{Existing algorithms}
+
+
+We therefore developed an algorithm that was suited to reconstructing this particular data set, where ligands are sorted into 4? categories based on their perceived image contrast. Autoradiographs in the first, highest contrast tier, are aligned first followed by ligands in progressively worse tiers. This has the advantage of limiting the potential impact of ligands with very poor contrast, such as EPIB or OXOT. 
+
 \subsection{Atlas generation}
 
 Krauth, et al \cite{Krauth2010} & Histology & Multiple stains & ? & ? & Partial & Human (Subcortical GM)
 While not a full algorithm for performing 3D reconstruction from 2D sections, Krauth et al \cite{krauth2010} used an iterative surface-based algorithm to combine multiple histological stains. This involved aligning surfaces for subcortical GM structures to a temporary reference surface that was updated based subsequently better alignments of the indivudal surfaces to the reference. 
+
+\subsection{Limitations and Future Work} 
+
+\subsubsection{Initial autoradiograph alignment}
+
+The algorithm used to align the autoradiographs suffers from the problem of many such algorithms in that alignment errors will be propagated through an entire stack of autoradiographs. 
+
+While all of these methods are effective for their particular applications, they cannot be readily applied to the data at hand. 
+
+The first use of mutual-information for 3D reconstruction of 2D sections was by Kim et al \cite{Kim1997}, but is very different method from that used here. They use a method that depends on manually defined control points to define a transformation between 2 sections that is then optimized using mutual information as a cost function. 
+
+The method proposed by \cite{Cifor2011} requires the same anatomic structures to be present across sections and may not work well with the significant amount of missing sections in the present data set. 
+
+Similarly, the network-based approach to image alignment of Pichat et al \cite{Pichat2015} considers sections to be nodes in a graph and the distance metric, e.g., mutual information, between 2 sections to be edge length between the sections. This is more robust than the method used here because it allows one to circumvent misalginments.  However, in order for the distance metrics that composes the edge length between sections must be comparable to one another. This assumption does not hold with the present data set because, for example, a normalized mutual information of 0.4 between, say, a dopamine and a serotonin section may be good, but may be poor between a GABA-A and and a GABA-B section.  
+
+
+The block-matching alignment scheme of Ourselin et al. \cite{Oureselin2001} is designed to align neighbouring histological sections even in cases where sections have suffered sigifnicant damage. Using their method on the current data set may not lead to good alignment because the method uses the cross-correlation between blocks adjacent sections. A simple solution to make their method more applicable to the current autoradiograph data would be to implement to replace cross-correlation with mutual information, because the latter is more robust when registering images with very different voxel intensities. Their method was not used here because, except at the edge of slabs, the sections were largely intact and because because ANTs with Mattes mutual information was found to be sufficient to reliable alignment. Nonetheless it may be the case that a modified block-matching strategy may provide better alignment  in the few cases where ANTs is unsuccessful. and may constitute a potential avenue for future development. 
+
+Another method for robust section alignment was created by Chakraverty et al. \cite{Charkravarty2006} for cases where no reference data is available. For a given section, they averaged the distortion fields for the alignment with the neighbouring posterior and anterior section, respectively, and repeated the alignment of all sections over several iterations. While this method does decrease the likelihood of misalignments by repeatedly reinitilazing the alignment process, it is best suited to cases where no reference is available and where sections have to be non-linearly warped to one another. 
+
+
+\subsubsection{Spatial Sampling Rate}
+The rich diversity of neurotransmitter receptors that were measured in this data-set also means that there is a gap between acquired neurotransmitter receptors of at least 400$\mu$m.  This is a fundamental limitation of the dataset that cannot be improved on with the data at hand. 
+
+The low sampling rate for any particular neurotransmitter receptor means that some sort of estimation will be required to create a full 3D volume. The interpolation method presented here uses distance weighted linear interpolation between slabs based on the euclidean distance between the acquired sections and the missing section. This assumes that neurotransmitter receptor density will change linearly across the surface of the brain and will obscure hard boundaries. In principle the use of a euclidean distance metric can bias the interpoalation when it does not match the true, geodesic distance along the surface of the cortex between acquired and missing sections. However, the sampling rate is small enough that the curvature between acquired sections is small enough that the euclidean and geodesic distance metric should not diverge significantly. 
+
+While the data set of autoradiographs is fixed, the limitations imposed by the relatively low sampling rate for each neutoransmitter receptor can be partially overcome by the correlation of this data with high-resolution in vivo PET. By comparing interpolated ligand binding densities to in vivo receptor binding, i.e., BPnd, with in vivo PET it will be possible to validate the extent to which the interpolation algorithm is accurate and potentially identify ways to improve it where it systematically fails. 
+
+
+\subsubsection{Non-orthogonal sectioning}
+
+The most important limitation with the reconstruction method presented here is that it assumes that each section for a particular autoradiograph cuts through the cortex orthogonally and therefore accurately represents the laminar distribution of the neurotransmitter receptor. This assumption is important to the interpolation method for filling  missing sections for a particular autoradiograph. The interpolation method assumes that a middle section between acquired posterior and anterior sections can be accurately represented as an average of the two acquired sections. The problem occurs if one, or both, of the acquired sections have been cut at an angle that is not orthogonal to the folding of the cortex. In that case the acquired section may be missing particular laminae and the laminae may be distorted based on the cutting angle and will bias the laminar receptor distribution in the interpolated missing section. 
+
+To illustrate the problem with a simple example, imagine sectioning an orange with one cut is nearly tangential to the surface of the orange and the second cut parrallel to the first but 1cm closer to the center of the orange. In this case, the first cut at the very edge of the orange will contain  a filled circle of with only rind, whereas the second cut would consist a sphere of rind that is filled with the meat of the orange. If one were to estimate a new orange section in between these two acquired ones using the method described here, it would in the center consist of an average of rind from the first section with meat in the second section and would hence be inaccurate. Similarly, a nearly tangential cut through the cortex will contain only the most superficial layers of receptor binding and will create a biased estimate when average with a neighbouring section where the plane of sectioning cuts the cortex orthogonally.  
+
+This problem can be overcome by using anatomic information from the MRI to contrain interpolation to within receptor layers and hence avoid contaminating binding densities from different layers of the cortex. This is a major avenue for future work and refinement of the method described here. 
+
+\subsubsection{Autoradiograph grey matter segmentation}
+The K-means algorithm is a simple algorithm that suffers from significant limitations in the present context. It only takes into account the image intensities and does not include information about the spatial structure of the images. It assumes that intensities are distributed according to a Gaussian (CHECK?) distribution around the means, which is unlikely to be the case and may lead to suboptimal tissue classification. Therefore while the 3 class K-means algorithm presented here works well with high-contrast radioligands like flumazenil, it performs poorly with lower contrast radioligands.
+
+The limitations of the GM segmentation with K-means poses 2 problems for autoradiograph reconstruction. The first is that it limits the spatial resolution and anatomic accuracy of the 3D GM autoradiograph volume which, in turn, limits the accuracy of the alignment of the receptor volume. Improving the 2D GM segmentation would produce a more anatomically accurate 3D GM volume that would, for example, have more clearly preserved sulci. 
+
+A further problem is that because the 3 class K-means does not work well consistently for low contrast radioligands, the 2D non-linear alignment of the autoradiograph GM volume to the MRI GM volume in autoradiograph space is likely to be poor. While it is possible to align autoradiographs to MRI using information theortic distance metrics, this requires fine-tuning parameters for each neurotransmitter receptor. 
+
+The hetereogeneity of radioligands and in the acquisition protocol for the autoradiographs makes it difficult to use a single algorithm that can sucessfully segment all of the acquire autoradiographs. A more robust approach would be to use a deep neural network to perform the autoradiograph GM segmentation based on manually drawn GM segementations of the autoradiographs. While this approach is time-consuming, it would provide a general autoradiograph GM classifier that could potentially be applied to other data sets. 
+
 
 
 
