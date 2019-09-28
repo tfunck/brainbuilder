@@ -34,8 +34,15 @@ template=None
 if not exists(rec_crop_fn) or clobber :
     print('Crop', rec_fn)
     if template == None : template = load_template() 
-    resample_to_output(resample_from_to(nib.load(rec_fn), template),voxel_sizes=[0.2,0.02,0.2], order=1 ).to_filename(rec_crop_fn)
+    rec_img = nib.load(rec_fn)
+    print(template.shape)
+    rec_rsl = resample_from_to(rec_img, template)
+    print(rec_rsl.shape)
+    del template
+    del rec_img
+    resample_to_output(rec_rsl,voxel_sizes=[0.2,0.02,0.2], order=0 ).to_filename(rec_crop_fn)
 
+    del rec_rsl
 
 #Crop SRV
 if not exists(srv_rsl_crop_fn ) or clobber :
@@ -46,15 +53,17 @@ if not exists(srv_rsl_crop_fn ) or clobber :
     srv_rsl_crop = resample_to_output(srv_rsl_crop, voxel_sizes=[0.2,0.02,0.2], order=1) 
     srv_rsl_crop.to_filename(srv_rsl_crop_fn)
 
+clobber=True
 if not exists("./simulation_validation/flum.nii.gz") or clobber : 
-
-    receptorInterpolate( slab, rec_crop_fn, srv_rsl_crop_fn, cls_fn, output_dir, ligand, rec_df_fn, transforms_fn, clobber=False)
+    print('run receptorInterpolate')
+    
+    receptorInterpolate( slab, output_dir+'/flum_validation.nii.gz', rec_crop_fn, srv_rsl_crop_fn, cls_fn, output_dir, ligand, rec_df_fn, clobber=False)
 
 exit(1)
 
-if not exists("./simulation_validation/flum_validation.csv") or clobber : 
-    exit(1)
-    receptorInterpolate( slab, rec_crop_fn, srv_rsl_crop_fn, cls_fn, output_dir, ligand, rec_df_fn, transforms_fn, clobber=False, validation=True)
+#if not exists("./simulation_validation/flum_validation.csv") or clobber : 
+#    exit(1)
+#    receptorInterpolate( slab, rec_crop_fn, srv_rsl_crop_fn, cls_fn, output_dir, ligand, rec_df_fn, transforms_fn, clobber=False, validation=True)
 
 gm_img = nib.load(cls_fn)
 gm = gm_img.get_data()
