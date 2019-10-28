@@ -43,21 +43,20 @@ if not exists(srv_rsl_crop_fn ) or clobber :
     srv_rsl_crop = resample_to_output(srv_rsl_crop, voxel_sizes=[0.2,0.02,0.2], order=1) 
     srv_rsl_crop.to_filename(srv_rsl_crop_fn)
 
-clobber=True
-if not exists("./simulation_validation/flum.nii.gz") or clobber : 
-    print('run receptorInterpolate')
-    receptorInterpolate( slab, rec_crop_fn, output_dir+'/flum_validation.nii.gz', srv_rsl_crop_fn, cls_fn, output_dir, ligand, rec_df_fn, clobber=False)
+#if not exists("./simulation_validation/flum.nii.gz") or clobber : 
+#    print('run receptorInterpolate')
+#    receptorInterpolate( slab, rec_crop_fn, output_dir+'/flum_validation.nii.gz', srv_rsl_crop_fn, cls_fn, output_dir, ligand, rec_df_fn, clobber=False)
 
 
 #if not exists("./simulation_validation/flum_validation.csv") or clobber : 
 #    exit(1)
 #    receptorInterpolate( slab, rec_crop_fn, srv_rsl_crop_fn, cls_fn, output_dir, ligand, rec_df_fn, transforms_fn, clobber=False, validation=True)
 
-gm_img = nib.load(cls_fn)
-gm = gm_img.get_data()
+#gm_img = nib.load(cls_fn)
+#gm = gm_img.get_data()
 
-flum_img = nib.load("./simulation_validation/flum.nii.gz")
-flum_vol = flum_img.get_data()
+#flum_img = nib.load("./simulation_validation/flum.nii.gz")
+#flum_vol = flum_img.get_data()
 
 ground_truth_img = nib.load(rec_crop_fn)
 ground_truth_vol = ground_truth_img.get_data()
