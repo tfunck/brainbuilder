@@ -123,7 +123,8 @@ def alignLigandToSRV(df, slab , ligand, srv_fn, cls_fn, output_dir,  tfm_type_2d
     tfm={}
     tfm_dir=output_dir + os.sep + 'tfm'
     if not os.path.exists(tfm_dir) : os.makedirs(tfm_dir)
-
+    
+    print("srv_fn:", srv_fn)
     srv_img = nib.load(srv_fn)
     srv = srv_img.get_data()
     
@@ -138,6 +139,8 @@ def alignLigandToSRV(df, slab , ligand, srv_fn, cls_fn, output_dir,  tfm_type_2d
         prefix=tfm_dir+os.sep + ''.join(["slab-",str(slab),"_ligand-",ligand,"_y-",str(_y0), "_"]) + os.sep 
         if not os.path.exists(prefix) : 
             os.makedirs(prefix)
+        
+        print(not os.path.exists(prefix+"1Warp.nii.gz"), prefix+"1Warp.nii.gz" , clobber)
         if not os.path.exists(prefix+"1Warp.nii.gz") or clobber : #not os.path.exists(prefix+'DenseRigid_0GenericAffine.mat') or clobber :
             #print( prefix+"1Warp.nii.gz")
             #print( prefix+'DenseRigid_0GenericAffine.mat')
@@ -162,11 +165,19 @@ def alignLigandToSRV(df, slab , ligand, srv_fn, cls_fn, output_dir,  tfm_type_2d
 def get_2d_srv_tfm(srv_y,  srv_s,  slab, ligand, output_dir,  _y, s, tfm, tfm_type_2d='SyNAggro', clobber=False) :
     tfm_dir=output_dir + os.sep + 'tfm'
     if not os.path.exists(tfm_dir) : os.makedirs(tfm_dir)
-    prefix =''.join([tfm_dir,"/slab-",str(slab),"_ligand-",ligand,"_y-",str(_y), "_to_",str(s),"/"])
 
+    prefix_list=[tfm_dir,"/slab-",str(slab)]
+    if ligand != '':
+        prefix_list +=["_ligand-",ligand]
+    prefix_list +=["_y-",str(_y), "_to_",str(s),"/"]
+
+    prefix =''.join(prefix_list)
+    
     if not os.path.exists(prefix) :
         os.makedirs(prefix)
     #if not os.path.exists(prefix+"0GenericAffine.mat") or clobber : 
+
+    print("Check", not os.path.exists(prefix+"1Warp.nii.gz"), prefix+"1Warp.nii.gz", clobber)
     if not os.path.exists(prefix+"1Warp.nii.gz") or clobber :
         reg=registration(fixed=srv_s, moving=srv_y, type_of_transform=tfm_type_2d, reg_iterations=(1000,750,500),aff_metric='GC', syn_metic='CC', outprefix=prefix)['fwdtransforms']
     else :
@@ -192,7 +203,7 @@ def alignSRVtoSelf(df, tfm, slab, ligand, srv_fn, output_dir, tfm_type_2d='SyNAg
     anterior_slice_location =slice_location[offset:]
 
     for i, (_y0, _y1) in enumerate(zip(posterior_slice_location, anterior_slice_location)) :
-        #print("\t\t",_y0,_y1)
+        print("\t\t",_y0,_y1)
         _start = 1 + int(_y0)
         srv_y0 = from_numpy(srv[ :, int(_y0), : ])
         srv_y1 = from_numpy(srv[ :, int(_y1), : ])
@@ -205,16 +216,16 @@ def alignSRVtoSelf(df, tfm, slab, ligand, srv_fn, output_dir, tfm_type_2d='SyNAg
             #if we are at the end of the stack of images, then exit because we cannot perform validation on this slice
             if _y1 == slice_location[-1] :
                 break
-            #print('-->',_y0, posterior_slice_location[i+1], _y1)
+            print('-->',_y0, posterior_slice_location[i+1], _y1)
             seq_list = np.array([ posterior_slice_location[i+1] ]) 
 
         # at each s position, a non-linear transformation from _y0 --> s
         # and _y1 --> s is calculated.
         for s in seq_list :
             srv_s =from_numpy(srv[:,s,:])
-            #print("\t",s)
-            tfm = get_2d_srv_tfm(srv_y0, srv_s, slab, ligand, output_dir,  _y0, s, tfm, tfm_type_2d, clobber=clobber) 
-            tfm = get_2d_srv_tfm(srv_y1, srv_s, slab, ligand, output_dir,  _y1, s, tfm, clobber=clobber) 
+            print("\t",s)
+            tfm = get_2d_srv_tfm(srv_y0, srv_s, slab, '', output_dir,  _y0, s, tfm, tfm_type_2d, clobber=clobber) 
+            tfm = get_2d_srv_tfm(srv_y1, srv_s, slab, '', output_dir,  _y1, s, tfm, clobber=clobber) 
     
         #Save the updated tfm dict with all the transformation files to a .json file    
 
@@ -237,6 +248,8 @@ def interpolateMissingSlices(df, tfm, slab, ligand, rec_fn, srv_fn,  output_dir,
     fill_dir=output_dir + os.sep + "fill/"
     if not os.path.exists(fill_dir) :
         os.makedirs(fill_dir)
+    
+    print("Receptor File:", rec_fn)
     rec_vol = nib.load(rec_fn)
     rec = rec_vol.get_data() 
     del rec_vol
@@ -328,6 +341,7 @@ def interpolateMissingSlices(df, tfm, slab, ligand, rec_fn, srv_fn,  output_dir,
     if not validation :
         print("Writing to",out_fn)
         nib.Nifti1Image(outVolume, srv_img.affine).to_filename(out_fn)
+        print(os.path.exists(out_fn))
     else :
         validation_fn = splitext(out_fn)[0] + '_validation.csv'
         val_df = pd.concat([ val_df ] + pd_list)
@@ -336,10 +350,10 @@ def interpolateMissingSlices(df, tfm, slab, ligand, rec_fn, srv_fn,  output_dir,
     return val_df
 
 
-def receptorInterpolate( slab, out_fn, rec_fn, srv_fn, cls_fn, output_dir, ligand, slice_info_fn,  subslab=None, tfm_type_2d='SyNAggro', clobber=False , validation=False) :
+def receptorInterpolate( slab, out_fn, rec_fn, srv_fn, cls_fn, output_dir, ligand, slice_info_fn,  subslab=-1, tfm_type_2d='SyNAggro', clobber=False , validation=False) :
     if not os.path.exists(output_dir) :
         os.makedirs(output_dir)
-    
+    print("Subslab", subslab) 
     #Create name for json file that stores transformations to map raw/linearized 2D autoradiographs
     #into alignment with super-resolution GM representation extracted from MRI
     tfm_dict_fn = output_dir + os.sep + ligand +"_slab-"+str(slab)+"_tfm.json" 
@@ -349,10 +363,10 @@ def receptorInterpolate( slab, out_fn, rec_fn, srv_fn, cls_fn, output_dir, ligan
     df = pd.read_csv(slice_info_fn)
     if ligand != 'all':
         df = df.loc[ df["ligand"] == ligand ]
-    if subslab != None :
+    if subslab == None : subslab=-1
+    if subslab >= 0  :
         print('Running sub-slab: ', subslab, '/', df.shape[0]-1)
         df = df.iloc[ subslab:(subslab+2), :]
-
     # 2. Find non-linear transform from autoradiograph GM classified slice to MRI-derived SRV image
     tfm = alignLigandToSRV(df, slab, ligand, srv_fn, cls_fn, output_dir,  tfm_type_2d=tfm_type_2d, clobber=clobber)
      

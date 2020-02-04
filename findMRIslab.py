@@ -62,7 +62,7 @@ def get_slab_start_end(i, y, slab_ymax, srv_ymax, ratio=0.1):
     mid = (end+start)/2.
     return start, mid, end 
 
-def registration(outDir, start,end,srv,tfm_prefix, moving_fn,fixed_fn, moving_rsl_prefix, moving_rsl_fn_inverse, srvRsl, p, args) :
+def registration(outDir,slab, start,end,srv,tfm_prefix, moving_fn,fixed_fn, moving_rsl_prefix, moving_rsl_fn_inverse, srvRsl, p, args) :
     metric=args.metric
     sampling=args.sampling
     clobber=args.clobber
@@ -81,14 +81,21 @@ def registration(outDir, start,end,srv,tfm_prefix, moving_fn,fixed_fn, moving_rs
         print(start, end, affine[1,:])
         nib.Nifti1Image( fixed, affine  ).to_filename(fixed_fn)
     
-        #Works
-        iterations = ['1500x1000', '1500x1500'] #, '250'] #'200']
-        shrink_factors = ['2x1', '2x1'] #, '2'] #, '3']
-        smoothing_sigmas = ['1.0x0.0', '1.0x0.0'] #, '1.0'] #, '1.5']
-        metrics = ['GC', 'GC', 'GC' ]
-        tfm_types=['Rigid','Affine','SyN']
-    tfm_syn, moving_rsl_fn = ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations=iterations, tfm_type=tfm_types, shrink_factors=shrink_factors, smoothing_sigmas=smoothing_sigmas, metrics=metrics, verbose=0, clobber=1,  exit_on_failure=True, generate_masks=False)
+    #Works
+    iterations =['1500x1000', '1500x1500']
+    shrink_factors = ['2x1', '2x1'] #, '2'] #, '3']
+    smoothing_sigmas = ['1.0x0.0', '1.0x0.0'] #, '1.0'] #, '1.5']
+    metrics = ['GC', 'GC', 'GC' ]
+    tfm_types=['Rigid','Affine','SyN']
     
+    moving_rsl_fn = outDir+os.sep+'cls_moving_rsl_'+str(slab)+'_'+str(start)+'_'+str(end) +'_level-1_GC_Affine.nii.gz'
+
+    tfm_syn = outDir+os.sep+'affine_'+str(slab)+'_'+str(start)+'_'+str(end) +'_level-1_GC_Affine_Composite.h5'
+    if (not os.path.exists(tfm_syn) and not os.path.exists(moving_rsl_fn)) or args.clobber :
+        print("Finding:", tfm_syn, moving_rsl_fn)
+        tfm_syn, moving_rsl_fn = ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations=iterations, tfm_type=tfm_types, shrink_factors=shrink_factors, smoothing_sigmas=smoothing_sigmas, metrics=metrics, verbose=0, clobber=clobber,  exit_on_failure=True, generate_masks=False)
+    else : 
+        print("Skipping")
     metric_val=0
     if  os.path.exists(fixed_fn) and os.path.exists(moving_rsl_fn) :
         if args.metric == "Mattes" :
@@ -154,13 +161,13 @@ def calculate_prior_distribution(cls_base_fn, srvMin, srvMax, nSlabs, srv_ymax,s
     
     totalWidth = np.sum(slabShape) 
     widthDiff = (srvWidth-totalWidth)/(nSlabs-1)
-
     prob_arrays=[]
     for i in range(nSlabs) :
         s = i+1
         prevWidth=0
         if s > 1 : prevWidth = np.sum(slabShape[(i-1)::-1])
         slabPositionPriorList += [ np.rint(srvMax - i*widthDiff - slabShape[i]/2.0 - prevWidth).astype(int)  ]
+
         impulse_array = np.zeros([srv_ymax])
         impulse_array[slabPositionPriorList[-1]] = 1.
         blurred_impulse_array = gaussian_filter(impulse_array, slab.shape[1]*1.5, mode='constant',cval=0 )
@@ -183,6 +190,8 @@ def calculate_prior_distribution(cls_base_fn, srvMin, srvMax, nSlabs, srv_ymax,s
     return slab_position_prior_prob
 
 def update_df(slab_df, best_df, df, out, srv_fn, metric="nmi_p") :
+    #print(slab_df)
+    #print(best_df)
     idx = slab_df["MetricValue"].loc[ slab_df["Metric"]==metric ].idxmax()
     best_df =  best_df.append( slab_df.iloc[idx,] )
     df = df.append(slab_df)
@@ -257,24 +266,24 @@ def align_single_slab(srv_fn, cls_fn, i, args, srv, srvRsl, slab_position_prior_
     slab = slabRsl.get_data()
     srvMin, srvMax = findSRVcoordinates(srv)
     print("Slab", i, srvMin, srvMax)
-
+    print("Clobber",args.clobber)
     slab_df=pd.DataFrame({})
-
     for y in range(srvMin, srvMax, args.slab_shift_width) : 
         start, mid, end = get_slab_start_end(i, y, slab.shape[1], srvRsl.shape[1],args.slab_offset_ratio)
         print(y, start, mid, end)
         fixed_fn = out.outDir+os.sep+'srv_fixed_'+str(i)+'_'+str( start )+'_'+str( end )+'.nii.gz'
         moving_rsl_prefix = out.outDir+os.sep+'cls_moving_rsl_'+str(i)+'_'+str(start)+'_'+str(end) #+'.nii.gz'
-        moving_rsl_fn_inverse = out.outDir+os.sep+'srv_fixed_rsl_'+str(i)+'_'+str(start)+'_'+str(end)+'.nii.gz'
+
+        moving_rsl_fn_inverse = out.outDir+os.sep+'srv_fixed_rsl_'+str(i)+'_'+str(start)+'_'+str(end)+'_level-1_GC_Affine_Composite.nii.gz'
         
         tfm_prefix = out.outDir + os.sep+'affine_'+str(i)+'_'+str(start)+"_"+str(end)+"_"
 
         p = slab_position_prior_prob[int(i)]['function'](mid) / slab_position_prior_prob[int(i)]['max']
-        if p  < 0.95 :
+        print("\t",p)
+        if p  < 0.90 :
             print("Break : low probability threshold reached :", p )
             break
-
-        tfm_fn_moving_rsl_fn, metric_val = registration(out.outDir, start,end,srv, tfm_prefix, moving_fn, fixed_fn, moving_rsl_prefix, moving_rsl_fn_inverse, srvRsl, p, args )
+        tfm_fn, moving_rsl_fn, metric_val = registration(out.outDir, i, start,end,srv, tfm_prefix, moving_fn, fixed_fn, moving_rsl_prefix, moving_rsl_fn_inverse, srvRsl, p, args )
 
         row_dict = {
                 "slab":[i]*3, 
@@ -290,10 +299,10 @@ def align_single_slab(srv_fn, cls_fn, i, args, srv, srvRsl, slab_position_prior_
                 "RegSchedule":[ '_'.join(args.iterations) ]*3
                 }
         
-
         row = pd.DataFrame(row_dict)
         slab_df = slab_df.append(row, ignore_index=True)
         print("Slab:", i, "start :", start,"end:", end, "Mattes", -metric_val*p, "p :", p )
+    
     slab_df, best_df, df =  update_df(slab_df, best_df, df, out, srv_fn, metric=args.metric+'_p')
 
     srv = update_srv(i,slab_df, srv, srvRsl.affine, out.outDir, args.metric+'_p') 
@@ -349,9 +358,9 @@ class OutputFilenames():
         itr_str = '-'.join(args.iterations)
         return "nbins-"+str(args.nbins)+"_metric-"+args.metric+"_rate-"+rate_str+"_itr-"+itr_str+"_offset-"+str(args.slab_offset_ratio)
 
-def align_slabs( args, cls_base_fn="output/MR1/R_slab_<slab>/classify/vol_cls_<slab>_250um.nii.gz", srv_fn = "srv/mri1_gm_bg_srv.nii.gz", scale_factors_fn="data/scale_factors.json" ):
+def align_slabs( args, cls_base_fn="MR1/R_slab_<slab>/classify/vol_cls_<slab>_250um.nii.gz", srv_fn = "srv/mri1_gm_bg_srv.nii.gz", scale_factors_fn="data/scale_factors.json" ):
     args.slab_fn_list = adjust_slab_list( args.slab_fn_list )
-
+    print(args.slab_fn_list)
     # Set optimization step rate
     args.rate = [0.1, 0.1, 0.1]
     for i in range(len(args.user_rate)) :
@@ -360,6 +369,8 @@ def align_slabs( args, cls_base_fn="output/MR1/R_slab_<slab>/classify/vol_cls_<s
     out = OutputFilenames(args)
     nSlabs = len(args.slab_fn_list)
     largestSlabN = int(max(args.slab_fn_list))
+
+    cls_base_fn = args.inDir + os.sep + cls_base_fn
 
     if not os.path.exists(args.outDir) :
         os.makedirs(args.outDir)
@@ -372,15 +383,16 @@ def align_slabs( args, cls_base_fn="output/MR1/R_slab_<slab>/classify/vol_cls_<s
 
         #Calculate prior distribution to weight metrics 
         srvMin, srvMax = findSRVcoordinates(srv)
-        
+         
         slab_position_prior_prob = calculate_prior_distribution(cls_base_fn, srvMin, srvMax, largestSlabN, srv.shape[1], args.slab_offset_ratio, args.outDir, args.step, args.slab_shift_width, clobber=args.clobber ) 
+
         df = pd.DataFrame({"slab":[], "y":[],"y_end":[], "nmi": [],  "tfm":[], "MetricValue":[], "Metric":[], "RegLevels":[], "Offset":[], "RegSchedule":[]  })
         best_df = pd.DataFrame({"slab":[], "y":[],"y_end":[], "nmi": [],  "tfm":[],"MetricValue":[], "Metric":[], "RegLevels":[], "Offset":[], "RegSchedule":[] })
 
         for i in args.slab_fn_list : 
             cls_fn=get_cls_fn(i, cls_base_fn)
             df, best_df, srv = align_single_slab(srv_fn, cls_fn, i, args, srv, srvRsl, slab_position_prior_prob, df, best_df, out)
-            best_df = save_best_alignments(i, best_df, srv_fn, args.metric, out)
+            best_df = save_best_alignments(i, best_df, srv_fn,  out)
 
         best_df.to_csv(out.best_csv_fn)
     else : 
@@ -395,8 +407,9 @@ def align_slabs( args, cls_base_fn="output/MR1/R_slab_<slab>/classify/vol_cls_<s
     return best_df
 
 class AlignSlabsArgs():
-    def __init__(self, slab_fn_list, outDir, metric='GC', label='', user_rate=[0.05,0.05,0.05], step=1, slab_shift_width=5, slab_offset_ratio=0.05, verbose=0, sampling=1, nbins=64, iterations=['500x250x100','500x250x50'], clobber=0) : 
+    def __init__(self, slab_fn_list,inDir, outDir, metric='GC', label='', user_rate=[0.05,0.05,0.05], step=1, slab_shift_width=5, slab_offset_ratio=0.05, verbose=0, sampling=1, nbins=64, iterations=['500x250x100','500x250x50'], clobber=0) : 
         self.slab_fn_list=slab_fn_list
+        self.inDir = inDir
         self.outDir = outDir 
         self.metric = metric 
         self.label = label

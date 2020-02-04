@@ -43,6 +43,47 @@ def check_file(fn):
     Classes for reconstruction
 '''
 
+# Module 1 (per slab)
+#   submodule 1.1:
+#       IN: 1) raw tif
+#       --> tif to nifti 
+#       --> downsample
+#       --> crop
+#       OUT: 1) raw.nii.gz 2) raw_rsl.nii.gz
+#
+#   submodule 1.2:
+#       IN : raw_rsl.nii.gz
+#       --> init reconstruction 
+#       OUT: 1) tfm.h5 2) init_vol.nii.gz 3) init.h5
+#
+#   submodule 1.3:
+#      IN : init_vol.nii.gz 
+#       --> gm mask
+#      OUT : gm_vol.nii.gz
+
+# Module 2 (all slabs)
+#   IN : 1) gm_vol_<slab>.nii.gz 2) mri_gm.nii.gz
+#   --> slab position
+#   OUT: 1) mri_gm_<slab>.nii.gz 2) affine.h5
+
+# Module 3 (per slab)
+#   IN: 1) gm_vol_<slab>.nii.gz 2) mri_gm_<slab>.nii.gz 3) affine.h5
+#   --> mri to receptor
+#   OUT: 1) mri_space-receptor.nii.gz 2) nonlinear.h5
+
+# Module 4 (per subslab)
+#   IN: 1) raw_rsl.nii.gz 2) init.h5
+#   --> subslab interpolation
+#   OUT: 1) subslab_interp.nii.gz
+
+# Module 5 (per slab)
+#   IN: 1) subslab_interp.nii.gz
+#   submodule 5.1 :
+#       --> combine subslabs
+#   submodule 5.2 :
+#       --> transform to mri
+#   OUT: 1) slab_interp.nii.gz 2) slab_interp_space-mri.nii.gz
+
 #
 # Autoradiographs --> Brain --> Hemisphere --> Slabs
 #
@@ -54,6 +95,7 @@ class Autoradiographs():
         self.hemispheres_to_run = args.hemispheres_to_run
         self.slabs_to_run = args.slabs_to_run
         self.output = args.output
+        print("Output:", args.output)
         self.clobber = args.clobber
         self.brain={}
         
@@ -111,8 +153,6 @@ class Autoradiographs():
             print(brain_id)
             for hemi_id, hemi in brain.hemispheres.items() :
                 print(hemi_id)
-                #if args.run_mri_to_receptor or args.run_receptor_interpolate :
-                #    srv_slabs_dict = hemi._find_mri_slabs( args, brain_id, hemi_id, clobber=False)
                 for slab_id, slab in hemi.slabs.items() :
                     print("Brain:", brain_id, "Hemisphere:", hemi_id, "Slab:", slab_id)
                     slab._global_reconstruct(args, srv_slabs_dict[brain_id][hemi_id])
@@ -147,6 +187,7 @@ class Hemisphere():
         self.brain_raw_path = brainInstance.brain_raw_path
         self.brain_lin_path = brainInstance.brain_lin_path
         self.args=args
+        self.n_slabs=1
 
         self.slabs={}
 
@@ -172,10 +213,13 @@ class Hemisphere():
                 #print(lin_path[0])
                 #print(slab_id)
                 self.slabs[slab_id] = Slab( raw_path, lin_path[0], slab_id, brainInstance.brain_id, self.hemi, args )
+            
+            self.n_slabs += 1
 
     def _find_mri_slabs(self, args, brain_id, hemi_id, clobber):
         print("Generating MRI GM mask")
-        align_slabs_args = AlignSlabsArgs(args.slabs_to_run,args.output+os.sep+brain_id+os.sep+hemi_id+os.sep)
+        slab_list = range(1,self.n_slabs)
+        align_slabs_args = AlignSlabsArgs(slab_list,args.output, args.output+os.sep+brain_id+os.sep+hemi_id+os.sep)
         if clobber :
             align_slabs_args.clobber=1
 
@@ -192,7 +236,7 @@ if __name__ == "__main__":
     parser.add_argument('--hemispheres', '-m', dest='hemispheres_to_run',type=str, nargs='+', default=[], help='Brains to reconstruct. Default = reconstruct all hemispheres.')
     parser.add_argument('--tfm-type-2d', '-t', dest='tfm_type_2d',type=str, default="SyNAggro", help='Type of transformation to use to transform 2D receptor section to 3D MRI volume')
     parser.add_argument('--slabs','-s', dest='slabs_to_run', type=str,nargs='+', default=[],  help='Slabs to reconstruct. Default = reconstruct all slabs.')
-    parser.add_argument('--subslab', dest='subslab', type=int, default=None,  help='Sub Slabs to reconstruct for particular ligand. Default = None.')
+    parser.add_argument('--subslab', dest='subslab', type=int, default=None, help='Sub Slabs to reconstruct for particular ligand. Default = None.')
     parser.add_argument('--init-align-epochs', dest='init_align_epochs', type=int, default=3,  help='Number of iterations for initial rigid 2D alignment of autoradiographs.')
     parser.add_argument('--ligands','-l', dest='ligands_to_run', type=str,nargs='+', default=["flum"],  help='Ligands to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--find-mri-slabs', dest='find_mri_slabs', action='store_true', default=False, help='Only generate GM masks from donor MRI')
