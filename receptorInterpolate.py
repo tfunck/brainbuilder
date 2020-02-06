@@ -291,40 +291,38 @@ def interpolateMissingSlices(df, tfm, slab, ligand, rec_fn, srv_fn,  output_dir,
             seq_list = np.array([ posterior_slice_location[i+1] ]) 
 
 
-        interp_img_fn= fill_dir + os.sep + ''.join(["slab-",str(slab),"_ligand-",ligand,"_interp_y-",str(_y0), ".nii.gz"])
-        if not os.path.exists(interp_img_fn) or clobber :
-            res = apply_transforms(rec_y0, rec_y0, tfm[str(_y0)][str(_y0)], interpolator=interpolator )
-            section2Nii(res.numpy(), _y0, affine, interp_img_fn, clobber=False)
-            del res
-        vol = nib.load(interp_img_fn).get_data()
-        outVolume[:,_y0,:] = vol.reshape(*vol.shape[0:2]) 
-
+        #interp_img_fn= fill_dir + os.sep + ''.join(["slab-",str(slab),"_ligand-",ligand,"_interp_y-",str(_y0), ".nii.gz"])
+        #if not os.path.exists(interp_img_fn) or clobber :
+        res = apply_transforms(rec_y0, rec_y0, tfm[str(_y0)][str(_y0)], interpolator=interpolator )
+        #section2Nii(res.numpy(), _y0, affine, interp_img_fn, clobber=False)
+        #del res
+        #vol = nib.load(interp_img_fn).get_data()
+        outVolume[:,_y0,:] = res #vol.reshape(*vol.shape[0:2]) 
+        del rel
         #if _y1 == slice_location[-1] and not validation :
         #    outVolume[:,_y1,:] = apply_transforms(rec_y1, rec_y1, tfm[str(_y1)][str(_y1)], interpolator=interpolator ).numpy()
         for s in seq_list :
-            interp_img_fn= fill_dir + os.sep + ''.join(["slab-",str(slab),"_ligand-",ligand,"_interp_y-",str(s), ".nii.gz"])
+            #interp_img_fn= fill_dir + os.sep + ''.join(["slab-",str(slab),"_ligand-",ligand,"_interp_y-",str(s), ".nii.gz"])
 
             try :
                 tfm[str(_y0)][str(s)]
                 tfm[str(_y1)][str(s)]
-                #print( tfm[str(_y0)][str(s)]) 
-                #print( tfm[str(_y1)][str(s)])
             except KeyError : 
                 continue
             #print(interp_img_fn,os.path.exists(interp_img_fn) )
-            if not os.path.exists(interp_img_fn) or clobber or validation :
-                start = time.time()
-                interp_img = distance_weighted_interpolation(srv, rec_y0, rec_y1,_y0, _y1, s, tfm, affine, interp_img_fn, interpolator)
-                end = time.time()
-                print(end-start)
+            #if not os.path.exists(interp_img_fn) or clobber or validation :
+            #start = time.time()
+            interp_img = distance_weighted_interpolation(srv, rec_y0, rec_y1,_y0, _y1, s, tfm, affine, interp_img_fn, interpolator)
+            #end = time.time()
+            #print(end-start)
 
-            else :
-                def mem_safe_load(interp_img_fn) :
-                    interp = nib.load(interp_img_fn)
-                    interp_img = interp.get_data()
-                    del interp
-                    return interp_img
-                interp_img = mem_safe_load(interp_img_fn)
+            #else :
+            #    def mem_safe_load(interp_img_fn) :
+            #        interp = nib.load(interp_img_fn)
+            #        interp_img = interp.get_data()
+            #        del interp
+            #        return interp_img
+            #    interp_img = mem_safe_load(interp_img_fn)
             
             if validation  :
                 validate_section(i, out_fn, rec,srv,interp_img,tfm, posterior_slice_location, offset, s, _y0, _y1, rec_y0, rec_y1, pd_list, interpolator)
