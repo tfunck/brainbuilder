@@ -392,13 +392,7 @@ def train_model(source_dir, output_dir, step, epochs, clobber) :
     label_dir=source_dir+os.sep+'labels'
     #generate_models(source_dir, output_dir, step, epochs, clobber)
     
-    deg_list = [0]
-    stretch_list = [1]
-    identity = lambda x : x
-    equalize = lambda x : cv2.equalizeHist( x.astype(np.uint8) )
-    h_list_0 = [ identity, equalize]
-    h_list_1 = [ identity] * len(h_list_0)
-    n_aug= len(deg_list) * len(stretch_list) * len(h_list_0)
+
 
     if not os.path.exists(source_dir+os.sep+'train.npy') or not os.path.exists(source_dir+os.sep+'labels.npy') or clobber  :
         images, masks = fn_to_array(step, clobber=clobber)
