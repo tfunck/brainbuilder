@@ -8,6 +8,9 @@ import pandas as pd
 import imageio
 import nibabel as nib
 import PIL
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 from glob import glob
 from re import sub
 from nibabel.processing import resample_to_output
@@ -16,16 +19,9 @@ from scipy.ndimage.filters import gaussian_filter
 from subprocess import call, Popen, PIPE, STDOUT
 from sklearn.cluster import KMeans
 from scipy.ndimage import zoom
+from skimage.transform import resize
 
-def imresize(X, dims, interp=3):
-    factor = [ j/i for i,j in zip(X.shape, dims)   ]
-
-    X = zoom(X, factor, interp)
-
-    return X
     
-
-
 def splitext(s):
     try :
         ssplit = os.path.basename(s).split('.')
@@ -157,8 +153,7 @@ def downsample_y(img_fn, out_fn, step=0.2, clobber=False ):
     img_dwn.to_filename(out_fn)
     del img_dwn
 
-import matplotlib.pyplot as plt
-def downsample(img, subject_fn="", step=0.1, interp='cubic'):
+def downsample(img, subject_fn="", step=0.2, interp=3):
     #Calculate length of image based on assumption that pixels are 0.02 x 0.02 microns
     l0 = img.shape[0] * 0.02 
     l1 = img.shape[1] * 0.02
@@ -168,18 +163,30 @@ def downsample(img, subject_fn="", step=0.1, interp='cubic'):
     dim1=int(np.ceil(l1 / step))
 
     #Calculate the standard deviation based on a FWHM (pixel step size) of downsampled image
-    sd0 = step / 2.634 
-    sd1 = step / 2.634 
+    sd0 = 5 #step / 2.634 
+    sd1 = 5 #step / 2.634 
 
     #Gaussian filter
-    img_blr = gaussian_filter(img, sigma=[sd0, sd1])
+    #img_blr = gaussian_filter(img.astype(float), sigma=[sd0, sd1])
+    
     #Downsample
-    img_dwn = scipy.misc.imresize(img_blr,size=(dim0, dim1),interp=interp )
+    #print('Downsample to', dim0, dim1)
+    img_dwn = resize(img.astype(float), (dim0, dim1), order=int(interp) )
+    #plt.subplot(3,1,1)
+    #plt.imshow(img)
+    #plt.subplot(3,1,2)
+    #plt.imshow(img_blr)
+    #plt.subplot(3,1,3)
+    #plt.imshow(img_dwn.astype(np.uint16))
+    #plt.show()
+    #plt.savefig('test.png')
+     
     if subject_fn != "" : 
-        print("Downsampled:", subject_fn )
+        #print("Downsampled filename:", subject_fn )
         #plt.subplot(2,1,1); plt.imshow(img)
         #plt.subplot(2,1,2); plt.imshow(img_dwn); plt.show()
-        imageio.imwrite(subject_fn, img_dwn)
+        imageio.imsave(subject_fn, img_dwn.astype(np.uint16))
+
     return(img_dwn)
 
 
@@ -214,15 +221,20 @@ def downsample_and_crop(source_lin_dir, lin_dwn_dir,crop_dir, affine, step=0.2, 
 def rgb2gray(rgb): return np.mean(rgb, axis=2)
 
 def find_min_max(seg):
-    m=np.max(seg)
+    m = np.max(seg)
+    print(np.unique(seg), m )
+    plt.imshow(seg)
+    plt.savefig('test.png')
     fmin = lambda a : min(np.array(range(len(a)))[a == m])
     fmax = lambda a : max(np.array(range(len(a)))[a == m])
-    xmax = [ fmax(seg[i,:]) for i in range(seg.shape[0]) if np.sum(seg[i,:]) != 0 ]
-    xmin = [ fmin(seg[i,:]) for i in range(seg.shape[0]) if np.sum(seg[i,:]) != 0 ]
+    
+    xmax = [ fmax(seg[i,:]) for i in range(seg.shape[0]) if np.sum(seg[i,:]==m) > 0 ]
+    xmin = [ fmin(seg[i,:]) for i in range(seg.shape[0]) if np.sum(seg[i,:]==m) > 0 ]
+    
     y_i = [ i for i in range(seg.shape[0]) if np.sum(seg[i,:]) != 0  ]
 
-    ymax = [ fmax(seg[:,i]) for i in range(seg.shape[1]) if np.sum(seg[:,i]) != 0 ]
-    ymin = [ fmin(seg[:,i]) for i in range(seg.shape[1]) if np.sum(seg[:,i]) != 0 ]
+    ymax = [ fmax(seg[:,i]) for i in range(seg.shape[1]) if np.sum(seg[:,i]==m) > 0 ]
+    ymin = [ fmin(seg[:,i]) for i in range(seg.shape[1]) if np.sum(seg[:,i]==m) > 0 ]
     x_i =  [ i for i in range(seg.shape[1]) if np.sum(seg[:,i]) != 0 ]
     
     if xmin == [] : xmin = [ 0 ]

@@ -208,7 +208,7 @@ def load_image(fn, step, clobber, interp='cubic') :
         #    print(fn2)
         #    plt.subplot(1,3,1)
         #    plt.imshow(img)
-        img = downsample(img, step=step, interp='cubic')
+        img = downsample(img, step=step, interp=3)
         if interp == 'nearest' : 
             #plt.subplot(1,3,2)
             #plt.imshow(img)
