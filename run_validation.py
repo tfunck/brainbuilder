@@ -69,8 +69,8 @@ if not exists(output_fn) or clobber :
 #    exit(1)
 #    receptorInterpolate( slab, rec_crop_fn, srv_rsl_crop_fn, cls_fn, output_dir, ligand, rec_df_fn, transforms_fn, clobber=False, validation=True)
 
-gm_img = nib.load(cls_fn)
-gm = gm_img.get_data()
+#gm_img = nib.load(cls_fn)
+#gm = gm_img.get_data()
 
 flum_img = nib.load(output_fn) #"./simulation_validation/flum.nii.gz")
 flum_vol = flum_img.get_data()

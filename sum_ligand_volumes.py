@@ -37,7 +37,8 @@ def sum_volume(fn_string, out_fn) :
     print(out_fn)
     nib.Nifti1Image( outVolume, img_list[0].affine ).to_filename(out_fn)
 
-#sum_volume("output//MR1/R/nbins-64_metric-GC_rate-0.05-0.05-0.05_itr-500x250x100-500x250x50_offset-0.05/final/cls_moving_rsl_<slab>_*.nii.gz","cls_space-mni_1mm_slabs-1-6.nii.gz" )
-sum_volume("output//MR1/R_slab_<slab>/final/flum_space-mni_500um.nii.gz","flum_space-mni_500um_slabs-1-6.nii.gz" )
-#sum_volume("output//MR1/R_slab_<slab>/ligand/flum/flum_init.nii.gz", "flum_init_space-rec_500um_slabs-1-6.nii.gz")
-#sum_volume("output//MR1/R_slab_<slab>/ligand/flum/flum_no_interp.nii.gz", "flum_no-interp_space-rec_500um_slabs-1-6.nii.gz")
+#sum_volume("output//MR1/R_slab_<slab>/final/flum_space-mni_500um.nii.gz","flum_space-mni_500um_slabs-1-6.nii.gz" )
+#sum_volume("flum_slab-<slab>_space-mni_500um.nii.gz","flum_space-mni_500um_slabs-1-6.nii.gz" )
+#sum_volume("musc_slab-<slab>_space-mni_500um.nii.gz","musc_space-mni_500um_slabs-1-6.nii.gz" )
+sum_volume("sr95_slab-<slab>_space-mni_500um.nii.gz","sr95_space-mni_500um_slabs-1-6.nii.gz" )
+#sum_volume("cgp5_slab-<slab>_space-mni_500um.nii.gz","cgp5_space-mni_500um_slabs-1-6.nii.gz" )

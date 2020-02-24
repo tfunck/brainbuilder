@@ -163,29 +163,30 @@ def downsample(img, subject_fn="", step=0.2, interp=3):
     dim1=int(np.ceil(l1 / step))
 
     #Calculate the standard deviation based on a FWHM (pixel step size) of downsampled image
-    sd0 = 10 #step / 2.634 
-    sd1 = 10 #step / 2.634 
+    sd0 = 5 #step / 2.634 
+    sd1 = 5 #step / 2.634 
 
     #Gaussian filter
-    img_blr = gaussian_filter(img.astype(float), sigma=[sd0, sd1])
+    #img_blr = gaussian_filter(img.astype(float), sigma=[sd0, sd1])
     
     #Downsample
-    print('Downsample to', dim0, dim1)
-    img_dwn = resize(img_blr, (dim0, dim1), order=interp )
-    print(img_dwn)
+    #print('Downsample to', dim0, dim1)
+    img_dwn = resize(img.astype(float), (dim0, dim1), order=int(interp) )
     #plt.subplot(3,1,1)
     #plt.imshow(img)
     #plt.subplot(3,1,2)
     #plt.imshow(img_blr)
     #plt.subplot(3,1,3)
-    #plt.imshow(img_dwn)
+    #plt.imshow(img_dwn.astype(np.uint16))
+    #plt.show()
     #plt.savefig('test.png')
      
     if subject_fn != "" : 
-        print("Downsampled filename:", subject_fn )
+        #print("Downsampled filename:", subject_fn )
         #plt.subplot(2,1,1); plt.imshow(img)
         #plt.subplot(2,1,2); plt.imshow(img_dwn); plt.show()
-        imageio.imwrite(subject_fn, img_dwn)
+        imageio.imsave(subject_fn, img_dwn.astype(np.uint16))
+
     return(img_dwn)
 
 

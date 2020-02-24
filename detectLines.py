@@ -1,203 +1,55 @@
 import os
 import argparse
 import numpy as np
-import keras
 import imageio
 import matplotlib.pyplot as plt
-import cv2
+import h5py as h5
+from re import sub
 from scipy.ndimage.morphology import binary_dilation, binary_erosion
-from keras.layers.convolutional import Conv1D, Conv2D, Conv3D, Convolution2D
-from keras.preprocessing.image import ImageDataGenerator
-from keras.layers.convolutional import ZeroPadding3D, ZeroPadding2D, ZeroPadding1D, UpSampling2D
-from keras.engine.topology import Input
-from keras.models import Model
-from keras.layers import BatchNormalization
-from keras.layers.core import Dropout
-from keras.utils import to_categorical
-from keras.layers import LeakyReLU, MaxPooling2D, concatenate,Conv2DTranspose, merge, ZeroPadding2D
-from keras.activations import relu
-from keras.callbacks import History, ModelCheckpoint
+import tensorflow as tf
+from tensorflow.keras.layers import *
+#from tensorflow.layers.merge_ops import merge
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.models import Model
+#from tensorflow.keras.layers import BatchNormalization
+#from tensorflow.keras.layers.core import Dropout
+from tensorflow.keras.utils import to_categorical
+#from tensorflow.keras.layers import LeakyReLU, MaxPooling2D, concatenate,Conv2DTranspose, merge, ZeroPadding2D
+from tensorflow.keras.activations import relu
+from tensorflow.keras.callbacks import History, ModelCheckpoint
 from utils import *
 from glob import glob
 from utils.utils import downsample
 from keras import backend as K
 from skimage.transform import rotate, resize 
-from keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from glob import glob
 from train_model import dice
 from scipy.ndimage.filters import gaussian_filter
 
-def get_max_model(train_output_dir):
-    model_list_str = train_output_dir+os.sep+"model_checkpoint-*hdf5"
-    model_list = glob(model_list_str)
-    if model_list == [] :
-        model_list = glob( train_output_dir+os.sep+"model.hdf5" )
-
-    if model_list == []:    
-        print("Could not find any saved models in:", model_list_str )
-        exit(1)
-    models = [ os.path.basename(f).split('.')[-2] for f in model_list]
-    max_model_idx = models.index(max(models))
-    max_model = model_list[max_model_idx]
-    return max_model
-
-def get_raw_files(raw_source_dir, ext):
-    raw_files_str = raw_source_dir +  os.sep + "*"+ext
-    raw_files = glob(raw_files_str)
-    if raw_files == [] :
-        print("Could not find any files in: ", raw_files_str)
-        exit(1)
-    return(raw_files)
-
-def downsample_raw(raw_files, output_dir, step, clobber) :
-    downsample_files=[]
-
-    dwn_dir=output_dir + os.sep + 'downsampled'
-    if not os.path.exists(dwn_dir) : os.makedirs(dwn_dir)
-
-    for f in raw_files :
-        f2_split = os.path.splitext(os.path.basename(f))
-        f2=dwn_dir +os.sep+f2_split[0]+'.png'
-        if not os.path.exists(f2) or clobber :
-            img = imageio.imread(f)
-            if len(img.shape) == 3 : img = np.mean(img, axis=2)
-            img = downsample(img, step=0.2, interp=2)
-            print(f2)
-            imageio.imsave(f2,img)
-        downsample_files += [f2]
-
-    return downsample_files
-
-def get_lines(raw_source_dir, downsample_files,raw_files, max_model,output_dir, clobber) :
-
-    print("Using model located in:", max_model) 
-    line_dir=output_dir + os.sep + 'lines'
-    if not os.path.exists(line_dir) : os.makedirs(line_dir)
-    line_files=[]
-    img0 = imageio.imread(raw_files[0])
-    if len(img0.shape) == 3 : img0 = np.mean(img0, axis=2)
-    y0=img0.shape[0]
-    x0=img0.shape[1]
-
-    for f in downsample_files :
-        line_fn_split = os.path.splitext(os.path.basename(f))
-        line_fn=line_dir +os.sep+line_fn_split[0]+'.png'
-        raw_fn =glob(raw_source_dir+os.sep+"*"+line_fn_split[0]+"*")[0]
-        raw_img = imageio.imread(raw_fn)
-
-        if not os.path.exists(line_fn) or clobber:
-            img=imageio.imread(f)
-            img0=img
-            ydim=img.shape[0]
-            xdim=img.shape[1]
-            if ydim > xdim : 
-                img = img.T
-            try : #Load keras if has not been loaded yet 
-                keras
-            except NameError :
-                from keras.models import load_model
-                import keras.metrics
-                keras.metrics.dice = dice
-                model = load_model(max_model )
-
-            # Apply neural network model to downsampled image
-            #plt.subplot(2,1,1); plt.imshow(img); 
-            img=img.reshape([1,img.shape[0],img.shape[1],1])
-            #X = np.zeros(img.shape)
-            #x = img[ :, 0:312 , 0:417 , :]
-            X = model.predict(img, batch_size=1)
-            idx = X > np.max(X) * 0.5
-            X[ idx ]  = 1
-            X[ ~idx ] = 0
-            
-            # Resample to full resolution
-            X=X.reshape(X.shape[1],X.shape[2])
-            print('Upsample', raw_img.shape)
-            X2 = resize(X,raw_img.shape , order=0); #downsample(X )
-            #X2=X2.reshape(y0,x0)
-            
-            if ydim > xdim : 
-                X2 = X2.T
-                print("Transposed to dim ", X2.shape, line_fn)
-            # Save output image
-            imageio.imsave(line_fn, X2)
-        line_files += [line_fn]
-    print("# of line files :", len(line_files))
-    return line_files
 
 
-def fill(iraw, iline, it=10):
-    transpose=False
-    if iraw.T.shape == iline.shape : 
-        transpose=True
-        iraw = iraw.T
-    
-    iraw_temp = np.copy(iraw)
-    iline_dil = binary_dilation(iline, iterations=it).astype(int)
-    
-    iline_dil = iline_dil - iline
-
-    border = iraw[iline_dil == 1]
-    border = border.flatten()
-
-    replacement_values = border[np.random.randint(0, len(border) , np.prod(iraw.shape))].reshape(iraw.shape)
-    iraw_temp[ iline == 1 ] = replacement_values[ iline == 1 ] 
-    iraw_temp = gaussian_filter(iraw_temp, 5)
-    iraw[ iline==1 ] = iraw_temp[iline == 1]
-
-    if transpose :
-        iraw = iraw.T
-    return iraw 
-
-def remove_lines(line_files, raw_files, raw_output_dir, clobber) :
-    final_dir=raw_output_dir + os.sep + 'final'
-    if not os.path.exists(final_dir) : os.makedirs(final_dir)
-
-    for raw in raw_files :
-        base =re.sub('#L', '', os.path.splitext(os.path.basename(raw))[0])
-        fout = final_dir + os.sep + base + '.png'
-        if not os.path.exists(fout) or clobber : 
-            print(raw)
-            iraw = imageio.imread(raw)
-            print(iraw.shape)
-            if len(iraw.shape) == 3 : iraw = np.mean(iraw, axis=2)
-            lines= [ f for f in line_files if base in f ]
-            if lines != [] : lines=lines[0]
-            else : 
-                print("Failed at remove_lines for :", raw); 
-                continue
-            iline = imageio.imread(lines)
-            iline=binary_dilation(iline,iterations=3).astype(int)
-            ifill=fill(iraw, iline)
-            imageio.imsave(fout, ifill)
-
-    return 0
-
-def apply_model(train_output_dir, raw_source_dir, lin_source_dir, raw_output_dir, step, ext='.TIF', clobber=False):
-    max_model=get_max_model(train_output_dir)
-    raw_files=get_raw_files(raw_source_dir, '.tif')  
-    lin_files=get_raw_files(lin_source_dir, ext) 
-
-    #raw_files = [ f for f in raw_files  if 'pire' in f ]
-    #lin_files = [ f for f in lin_files if 'pire' in f  ]
-
-    print("Got raw file names.")
-    downsample_files = downsample_raw(raw_files, raw_output_dir, step, clobber)
-    print("Got downsampled files.")
-    line_files = get_lines(raw_source_dir , downsample_files, raw_files,max_model, raw_output_dir,  clobber)
-    print("Loaded line files.")
-    remove_lines(line_files, lin_files, raw_output_dir, clobber)
-    print("Removed lines from raw files.")
-    return 0
-
-def gen(X,Y,batch_size=1):
-    i=0
+def gen(data,batch_size=1, idx_range=None):
+    if idx_range==None : idx_range=(0,X.shape[0])
+    i=idx_range[0]
+    mod=idx_range[1]-idx_range[0]
+  
     while True :
-        for i in range(0,X.shape[0],batch_size) :
-            x=X[i:(i+batch_size)]
-            y=Y[i:(i+batch_size)]
-            i+= batch_size
-            yield x, y 
+        x=data['x'][i:(i+batch_size)]
+        y=data['y'][i:(i+batch_size)]
+        dim = list(x.shape[0:3])+[1]
+        x = x.reshape( dim )
+        
+        y[ y <= 90] = 0
+        y[ (y > 90 ) & (y<200)] = 1
+        y[ y>=200 ] = 2
+        #plt.clf()
+        #plt.imshow(y[0,:,:].astype(float))
+        #plt.show()
+        y = to_categorical(y.reshape( dim ).astype(np.uint16), 3)
+
+        i = idx_range[0] + (i - idx_range[0] + batch_size) % data['x'].shape[0]
+        yield x, y 
 
 def dice(y_true, y_pred):
     ytf = K.flatten(y_true)
@@ -208,20 +60,13 @@ def dice(y_true, y_pred):
     return (2*overlap +1e-10) / (total + 1e-10)
 
 
-def load_image(fn, step, clobber, interp='cubic') :
+def load_image(fn,  step, clobber, interp=2) :
     
-    fn_split = os.path.splitext(fn)
-    fn2 = fn_split[0] + "_downsample" + fn_split[1]
-
     img = imageio.imread(fn)
     if len(img.shape) == 3 : img = np.mean(img, axis=2)
     if not os.path.exists(fn2) or clobber :
-        #if interp == 'nearest' : 
-        #    print(fn2)
-        #    plt.subplot(1,3,1)
-        #    plt.imshow(img)
-        img = downsample(img, step=step, interp='cubic')
-        if interp == 'nearest' : 
+        img = downsample(img, step=step, interp=2)
+        if interp == 0 : 
             #plt.subplot(1,3,2)
             #plt.imshow(img)
             idx = img > np.max(img) * 0.05
@@ -237,29 +82,58 @@ def load_image(fn, step, clobber, interp='cubic') :
     img = img.reshape(img.shape[0], img.shape[1], 1)
     return(img)
 
-
-def fn_to_array(step,clobber=False, train_str='test/train/*tif', label_str='test/label/*tif') :
-    train_list  = [ f for f in glob(train_str) if not 'downsample' in f ]
-    labels_list = [ f for f in glob(label_str) if not 'downsample' in f ]
-
-    n=len(train_list)
-    images = np.array([])
-    masks  = np.array([])
-    for f, i  in zip(train_list, range(n)) :
+def pair_train_and_labels(train_list, labels_list, step) :
+    new_train_list=[]
+    new_label_list=[]
+    
+    for i, f  in enumerate(train_list) :
+        if i % 100 == 0 : print(1.*i/len(train_list))
         f2_root=os.path.splitext(os.path.basename(f))[0]
         f2 = [ f for f in glob('test/label/' + f2_root + "*") if not 'downsample' in f ]
-        if f2 != [] : f2=f2[0]
-        image=load_image(f, step, clobber)
-        mask=load_image(f2, step, clobber, interp='nearest')
-        if i == 0 :
-            ysize=image.shape[0]
-            xsize=image.shape[1]
-            images = np.zeros((n,ysize,xsize,1))     
-            masks  = np.zeros((n,ysize,xsize,1))     
+
+        if f2 != [] : 
+            f2=f2[0]
+            f_rsl = sub('.tif','_downsample.png', f)
+            f2_rsl= sub('.tif','_downsample.png', f2)
+            if not os.path.exists(f_rsl) :
+                downsample( imageio.imread(f), step=step,  interp=2, subject_fn=f_rsl)
+
+            if not os.path.exists(f2_rsl) :
+                downsample( imageio.imread(f2), step=step,  interp=0, subject_fn=f2_rsl)
+
+            new_train_list.append( f_rsl )
+            new_label_list.append( f2_rsl )
+        else : 
+            continue
+
+    return new_train_list, new_label_list
+
+def safe_imread(fn) :
+    print(fn)
+    img = imageio.imread(fn)
+    if len(img.shape) > 2 :
+        img = np.mean(img,axis=2)
+    return img
+
+def fn_to_array(h5_fn, step,clobber=False, train_str='test/train/*tif', label_str='test/label/*tif') :
+    x_list  = [ f for f in glob(train_str) if not 'downsample' in f ]
+    y_list = [ f for f in glob(label_str) if not 'downsample' in f ]
+   
+    if not os.path.exists(h5_fn) or clobber :
+        x_list, y_list = pair_train_and_labels(x_list, y_list, step)
+        n=len(x_list)
+        image = imageio.imread(x_list[0])
+        ysize=image.shape[0]
+        xsize=image.shape[1]
+        data = h5.File(h5_fn, 'w')
+        data.create_dataset("x", (n, ysize, xsize), dtype='float16')
+        data.create_dataset("y", (n, ysize, xsize), dtype='float16')
         
-        images[i] = image
-        masks[i] = mask
-    return images, masks
+        for i, (x_fn, y_fn)  in enumerate(zip(x_list, y_list)) :
+            data['x'][i,:,:]=safe_imread(x_fn) #load_image(x_fn, step, clobber=clobber, interp=3)
+            data['y'][i,:,:]=safe_imread(y_fn) #load_image(y_fn, step, clobber=clobber, interp=0)
+        
+
 
 import cv2
 from utils.utils import *
@@ -341,31 +215,32 @@ def make_compile_model(masks) :
 
     #LEVEL 3
     CONV4_UP = UpSampling2D(size=(2, 2))(CONV4)
-    CONV4_PAD = ZeroPadding2D( ((1,0),(1,0)) )(CONV4_UP)
-    UP1 = merge([CONV4_PAD, CONV3], mode='concat', concat_axis=3)
+    CONV4_PAD = ZeroPadding2D( ((0,0),(0,0)) )(CONV4_UP)
+    UP1 = Concatenate()([CONV4_PAD, CONV3])#, mode='concat', concat_axis=3)
 
     CONV5 = Conv2D( N2, kernel_size=[3,3],activation='relu',padding='same')(UP1)
     CONV5 = Dropout(DO)(CONV5)
 
     #LEVEL 2
     CONV5_UP = UpSampling2D(size=(2, 2))(CONV5)
-    CONV5_PAD = ZeroPadding2D( ((0,0),(1,0)) )(CONV5_UP)
-    UP2 = merge([CONV5_PAD, CONV2], mode='concat', concat_axis=3)
+    CONV5_PAD = ZeroPadding2D( ((0,0),(0,0)) )(CONV5_UP)
+    UP2 = Concatenate()([CONV5_PAD, CONV2])#, mode='concat', concat_axis=3)
     CONV6 = Conv2D( N1, kernel_size=[3,3],activation='relu',padding='same')(UP2)
     CONV6 = Dropout(DO)(CONV6)
 
     #Level 1
     CONV6_UP = UpSampling2D(size=(2, 2))(CONV6)
-    CONV6_PAD = ZeroPadding2D( ((1,0),(1,0)) )(CONV6_UP)
-    UP3 = merge([CONV6_PAD, CONV1], mode='concat', concat_axis=3)
+    CONV6_PAD = ZeroPadding2D( ((0,0),(1,0)) )(CONV6_UP)
+    UP3 = Concatenate()([CONV6_PAD, CONV1])#, mode='concat', concat_axis=3)
     CONV7 = Conv2D( N0, kernel_size=[3,3],activation='relu',padding='same')(UP3) #MERGE1)
     CONV7 = Dropout(DO)(CONV7)
-    OUT = Conv2D(1, kernel_size=1,  padding='same', activation='sigmoid')(CONV7)
+    OUT = Conv2D(3, kernel_size=1,  padding='same', activation='sigmoid')(CONV7)
 
     model = Model(inputs=[image], outputs=OUT)
 
-    ada = keras.optimizers.Adam(0.0001)
-    model.compile(loss = 'binary_crossentropy', optimizer=ada,metrics=[dice] )
+    #ada = keras.optimizers.Adam(0.0001)
+    ada = tf.keras.optimizers.Adam()
+    model.compile(loss = 'categorical_crossentropy', optimizer=ada,metrics=[dice] )
     print(model.summary())
     return model
 
@@ -390,74 +265,35 @@ def predict_results(source_dir, output_dir, model, images_val, masks_val, _use_r
 def train_model(source_dir, output_dir, step, epochs, clobber) :
     train_dir=source_dir+os.sep+'train'
     label_dir=source_dir+os.sep+'labels'
-    #generate_models(source_dir, output_dir, step, epochs, clobber)
+    data_fn = output_dir +os.sep +'data.h5'
     
 
+    if not os.path.exists(output_dir) :
+        os.makedirs(output_dir)
 
-    if not os.path.exists(source_dir+os.sep+'train.npy') or not os.path.exists(source_dir+os.sep+'labels.npy') or clobber  :
-        images, masks = fn_to_array(step, clobber=clobber)
-        print(images.shape)
-        print(masks.shape)
-        np.save(train_dir, images)
-        np.save(label_dir, masks)
-    else : 
-        images = np.load(source_dir+os.sep+'train.npy')
-        masks = np.load(source_dir+os.sep+'labels.npy')
-    
+    if not os.path.exists(source_dir+os.sep+'train.h5') or not os.path.exists(source_dir+os.sep+'labels.h5') or clobber  :
+        fn_to_array(data_fn, step, clobber=clobber)
+   
+    data = h5.File(data_fn,'r' )
     ratio=0.8
-    n_images= images.shape[0] / n_aug
-    n_train = int(round(ratio * n_images)*n_aug )
-    
-    images_train= images[:n_train,]
-    images_val  = images[n_train:]
-
-    masks_train = masks[:n_train,]
-    masks_val   = masks[n_train:]
-
-    n=images_val.shape[0]
-    m=images_train.shape[0]
-    batch_size_list = [  i for i in range(1,min(n,m)+1) if n % i == 0 and m % i == 0 ]
+    n_images= data['x'].shape[0]
+    n_train = int(round(ratio * n_images) )
+    n_val = n_images - n_train
+    batch_size=1
 	
-    model = make_compile_model(masks) 
-    steps=int(np.floor(m/batch_size))
-    val_steps=int(np.floor(n/batch_size))
+    model = make_compile_model(data['x']) 
+    steps=int(np.floor(n_train/batch_size))
+    val_steps=int(np.floor(n_val/batch_size))
     model_name=source_dir+os.sep+"model.hdf5"
     checkpoint_fn = os.path.splitext(model_name)[0]+"_checkpoint-{epoch:02d}-{dice:.2f}.hdf5"
     checkpoint = ModelCheckpoint(checkpoint_fn, monitor='val_dice', verbose=0, save_best_only=True, mode='max')
 
-    batch_size = 16
+    steps=max(1, int(np.floor(n_train/batch_size)) )
+    val_steps=max(1, int(np.floor( (n_images-n_train)/batch_size)) )
 
-    # this is the augmentation configuration we will use for training
-    train_datagen = ImageDataGenerator(
-                    rescale=1./255,
-                    shear_range=0.2,
-                    zoom_range=0.2,
-                    horizontal_flip=True)
-
-    # this is the augmentation configuration we will use for testing:
-    # only rescaling
-    test_datagen = ImageDataGenerator(rescale=1./255)
-
-    # this is a generator that will read pictures found in
-    # subfolers of 'data/train', and indefinitely generate
-    # batches of augmented image data
-    train_generator = train_datagen.flow_from_directory(
-                    'data/train',  # this is the target directory
-                    target_size=(150, 150),  # all images will be resized to 150x150
-                    batch_size=batch_size,
-                    class_mode='binary')  # since we use binary_crossentropy loss, we need binary labels
-
-    # this is a similar generator, for validation data
-    validation_generator = test_datagen.flow_from_directory(
-                    'data/validation',
-                    target_size=(150, 150),
-                    batch_size=batch_size,
-                    class_mode='binary')
-
-
-    history = model.fit_generator( gen(images_train, masks_train, batch_size), 
+    history = model.fit_generator( gen(data, batch_size, idx_range=(0,n_train)), 
             steps_per_epoch=steps, 
-            validation_data=gen(images_val, masks_val, batch_size ), 
+            validation_data=gen(data, batch_size, idx_range=(n_train, n_images)), 
             validation_steps=val_steps, 
             epochs=epochs, 
             callbacks=[ checkpoint]
@@ -472,39 +308,16 @@ def train_model(source_dir, output_dir, step, epochs, clobber) :
     return 0
 
 
-#if __name__ == "__main__":
-#    parser = argparse.ArgumentParser(description='Process some integers.')
-#    parser.add_argument('--source',dest='source_dir', default='test/', help='Directory with raw images')
-#    parser.add_argument('--output',dest='output_dir', default='test/results',  help='Directory name for outputs')
-#    parser.add_argument('--step',dest='step', default=0.5, type=float, help='File extension for input files (default=.tif)')
-#    parser.add_argument('--epochs',dest='epochs', default=1, type=int, help='Number of epochs')
-#    parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
-
-#    args = parser.parse_args()
-#    main(args.source_dir, args.output_dir, step=args.step, epochs=args.epochs, clobber=args.clobber)
-
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--train-source',dest='train_source_dir', default='', help='Directory with raw images')
     parser.add_argument('--train-output',dest='train_output_dir', default='',  help='Directory name for outputs')
-    parser.add_argument('--raw-source',dest='raw_source_dir', default='', help='Directory with raw images')
-    parser.add_argument('--lin-source',dest='lin_source_dir', default='', help='Directory with raw images')
-    parser.add_argument('--raw-output',dest='raw_output_dir', default='',  help='Directory name for outputs')
     parser.add_argument('--ext',dest='ext', default='.TIF',  help='Directory name for outputs')
     parser.add_argument('--step',dest='step', default=0.1, type=float, help='File extension for input files (default=.tif)')
     parser.add_argument('--epochs',dest='epochs', default=1, type=int, help='Number of epochs')
     parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
 
     args = parser.parse_args()
-    if args.train_source_dir != '' and args.train_output_dir != '' :
-        train_model(args.train_source_dir, args.train_output_dir, step=args.step, epochs=args.epochs, clobber=args.clobber)
-    else :
-        print("Skipping train_model because either --train-source or --train-output is not set")
+    train_model(args.train_source_dir, args.train_output_dir, step=args.step, epochs=args.epochs, clobber=args.clobber)
     
-    if args.raw_source_dir != '' and args.raw_output_dir != '' and args.train_output_dir != '' :
-        apply_model(args.train_output_dir,args.raw_source_dir,args.lin_source_dir,args.raw_output_dir,args.step,args.ext, args.clobber)
-    else :
-        print("Skipping apply_model because either --train-output, --raw-source, or --raw-output are not set")
 
