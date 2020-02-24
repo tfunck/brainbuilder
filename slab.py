@@ -38,6 +38,7 @@ class Slab():
         self.srv_full=srv_full
         #Setup output directory
         if not os.path.exists(self.slab_output_path) : 
+            print("Creating ", self.slab_output_path)
             os.makedirs(self.slab_output_path)
 
         # Setup directories
@@ -243,11 +244,12 @@ class Slab():
         transforms_fn=self.reg_output_dir +os.sep+"/transforms.json"
 
         for ligand in self.args.ligands_to_run :
-            ligand_dir = self.slab_output_path + os.sep + "ligand" + os.sep + ligand 
+            ligand_dir = self.slab_output_path + os.sep + "ligand" #+ os.sep + ligand 
             print("\tLigand:",ligand)
             rec_slice_fn = ligand_dir + os.sep + ligand + "_slice_indicator.nii.gz"
             
             ligand_fn = ligand_dir+os.sep+ligand+"_slab-"+str(self.slab)+".nii.gz"
+            print("\tInterpolating slab:",self.slab, "subslab",args.subslab)
             if args.subslab != None :
                 interp_fn = ligand_dir+os.sep+ligand+'_'+str(args.subslab)+".nii.gz"
             else :
@@ -258,17 +260,23 @@ class Slab():
             # lin --> downsampled --> crop --> 2D rigid (T1) --> 3D non-linear (T2) --> 2D non-linear (T3) [--> 2D non-linear (T4)]
             # lin_mri_space =  T2^-1 x [T4 x] T3 x T1 x downsampled 
             print(interp_fn)
-            if not os.path.exists(interp_fn) or self.args.clobber or self.args.validation : 
-                receptorInterpolate(self.slab,interp_fn,rec_fn, self.srv_rsl, self.cls_fn, ligand_dir, ligand, rec_df_fn, transforms_fn, subslab=args.subslab, tfm_type_2d=args.tfm_type_2d, clobber=self.args.clobber)
+            if (not os.path.exists(interp_fn) or self.args.clobber or self.args.validation) and args.subslab != None : 
+                print(args.subslab)
+                receptorInterpolate(self.slab,interp_fn,rec_fn, self.srv_rsl, self.cls_fn, ligand_dir, ligand, rec_df_fn,  subslab=args.subslab, tfm_type_2d=args.tfm_type_2d, clobber=self.args.clobber)
 
             if args.subslab != None : 
                 exit(0)
 
             subslab_files =  glob(ligand_dir+os.sep+ligand+"_*.nii.gz")
             if len(subslab_files) != 0 and not os.path.exists(ligand_fn) :
-                for f in subslab_files :
-                    ligand_vol += nib.load(f).get_data() 
-                nib.Nifti1Image(ligand_vol).to_filename(ligand_fn)
+                print("Combining subslab volumes into single volume:", ligand_fn)
+                for i, f in enumerate(subslab_files) :
+                    if i == 0 :
+                        ligand_img = nib.load(f)
+                        ligand_vol = ligand_img.get_data() 
+                    else :
+                        ligand_vol += nib.load(f).get_data() 
+                nib.Nifti1Image(ligand_vol,ligand_img.affine).to_filename(ligand_fn)
             
             write_ligand_volume(ligand, rec_df_fn, ligand_fn,ligand_no_interp_fn , 10 )
             write_ligand_volume(ligand, rec_df_fn, rec_fn, ligand_init_ligand_fn )
@@ -296,9 +304,9 @@ class Slab():
                 print(cmdline)
                 shell(cmdline)
 
-            receptorVolumeRsl = final_dir + os.sep + ligand + "_space-mni_500um.nii.gz"
             size=0.5
             final_base_fn = ligand + "_space-mni_"+str(size)+"mm"
+            receptorVolumeRsl = final_dir + os.sep + ligand +"_slab-"+str(self.slab)+ "_space-mni_500um.nii.gz"
             if not os.path.exists(receptorVolumeRsl) or self.args.clobber : 
                 img = nib.load(receptorVolume_mni_space)
                 print("Writing:", receptorVolumeRsl)

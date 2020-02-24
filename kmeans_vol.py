@@ -32,7 +32,6 @@ def kmeans_vol(ii_fn,n , dat_fn, oo_fn):
         if km < 10 : km = 0.0
         F.write(str(i)+" "+str(i)+" "+str(km)+"\n")
         vol2_data[vol1_data == i] = km
-        print(i, km)
     del vol1_data
     #df=pd.concat(m)
     #df.to_csv(dat_fn, sep=' ', index=False, header=False)

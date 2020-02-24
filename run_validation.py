@@ -1,6 +1,6 @@
 from receptorInterpolate import receptorInterpolate
 from nibabel.processing import resample_from_to, resample_to_output
-
+from sys import argv
 from plot_interpolation_validation import plot_validation
 from os.path import exists
 import nibabel as nib
@@ -13,12 +13,16 @@ def load_template():
     template=nib.load("output/MR1/R_slab_1/final/flum_space-mni_500um.nii.gz")
     return template 
 clobber=False
+
 ### Inputs
-slab=1
-rec_fn="simulation_validation/equivolume_layers_right.mnc"
+slab=int(argv[1])
+subslab=int(argv[2])
+
+rec_fn="simulation_validation/equivolume_layers_right_mod.nii.gz"
 srv_rsl_fn="srv/mri1_gm_bg_srv.nii.gz"
 #cls_fn="srv/mri1_gm_bg_srv.nii.gz"
-output_dir="./simulation_validation"
+output_dir="~/simulation_validation"
+#output_dir="/project/def-aevans/tfunck/output/MR1/R_slab_"+str(slab)+"/ligand/flum/" # /juelich-receptor-atlas/simulation_validation"
 ligand="flum"
 slice_info_fn=""
 rec_df_fn="output/MR1/R_slab_1/coregistration/autoradiograph_info.csv"
@@ -53,13 +57,13 @@ if not exists(srv_rsl_crop_fn ) or clobber :
     srv_rsl_crop = resample_to_output(srv_rsl_crop, voxel_sizes=[0.2,0.02,0.2], order=1) 
     srv_rsl_crop.to_filename(srv_rsl_crop_fn)
 
-clobber=True
-if not exists("./simulation_validation/flum.nii.gz") or clobber : 
+output_fn = output_dir+'/equi_volume_mod_'+str(slab)+'_'+str(subslab)+'validation.nii.gz'
+
+if not exists(output_fn) or clobber : 
     print('run receptorInterpolate')
     
-    receptorInterpolate( slab, output_dir+'/flum_validation.nii.gz', rec_crop_fn, srv_rsl_crop_fn, cls_fn, output_dir, ligand, rec_df_fn, clobber=False)
+    receptorInterpolate( slab, output_fn, rec_crop_fn, srv_rsl_crop_fn, cls_fn, output_dir, ligand, rec_df_fn,subslab=subslab, clobber=False)
 
-exit(1)
 
 #if not exists("./simulation_validation/flum_validation.csv") or clobber : 
 #    exit(1)
@@ -68,13 +72,15 @@ exit(1)
 #gm_img = nib.load(cls_fn)
 #gm = gm_img.get_data()
 
-#flum_img = nib.load("./simulation_validation/flum.nii.gz")
-#flum_vol = flum_img.get_data()
+flum_img = nib.load(output_fn) #"./simulation_validation/flum.nii.gz")
+flum_vol = flum_img.get_data()
 
 ground_truth_img = nib.load(rec_crop_fn)
 ground_truth_vol = ground_truth_img.get_data()
 errorVolume = np.zeros(flum_vol.shape)
 simulation_error=[]
+i_list=[]
+error_list=[]
 for y in range(flum_vol.shape[1]) :
     f = flum_vol[:,y,:]
     g = gm[:,y,:]
@@ -96,16 +102,18 @@ for y in range(flum_vol.shape[1]) :
         #plt.subplot(4,1,4); plt.imshow(e);
         #plt.title(error)
         #plt.show()
+        i_list.append(i)
+        error_list.append(error)
     else : 
         error = 0.
     
     simulation_error += [ error ]
 
 nib.Nifti1Image(errorVolume, flum_img.affine).to_filename("simulation_validation/error.nii.gz")
-df = pd.read_csv("simulation_validation/flum_validation.csv" )
+#df = pd.read_csv("simulation_validation/flum_validation.csv" )
 
 plt.plot(simulation_error)
-plt.scatter(df["i"].values, df["error"].values, c='r')
+plt.scatter(i_list, error_list, c='r')
 plt.show()
 
 
