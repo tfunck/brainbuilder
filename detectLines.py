@@ -3,7 +3,6 @@ import argparse
 import numpy as np
 import imageio
 import matplotlib.pyplot as plt
-import cv2
 import h5py as h5
 from re import sub
 from scipy.ndimage.morphology import binary_dilation, binary_erosion
@@ -267,12 +266,7 @@ def train_model(source_dir, output_dir, step, epochs, clobber) :
     train_dir=source_dir+os.sep+'train'
     label_dir=source_dir+os.sep+'labels'
     data_fn = output_dir +os.sep +'data.h5'
-    #generate_models(source_dir, output_dir, step, epochs, clobber)
     
-    deg_list = [0]
-    stretch_list = [1]
-    identity = lambda x : x
-    equalize = lambda x : cv2.equalizeHist( x.astype(np.uint8) )
     h_list_0 = [ identity, equalize]
     h_list_1 = [ identity] * len(h_list_0)
     n_aug= len(deg_list) * len(stretch_list) * len(h_list_0)
