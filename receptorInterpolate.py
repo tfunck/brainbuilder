@@ -8,12 +8,13 @@ import re
 import matplotlib.pyplot as plt
 import pandas as pd
 import time
+#import psutil
 from glob import glob
 from ants import  apply_transforms, from_numpy
+from ants import  from_numpy
 from ANTs import ANTs
 from ants import image_read, registration
-from utils.utils import splitext
-
+from utils.utils import splitext, shell
 
 def validate_section(i, out_fn, rec,srv,interp_img,tfm, posterior_slice_location, offset, s, _y0, _y1, rec_y0, rec_y1, pd_list, interpolator):
     validation_section = int(posterior_slice_location[i+int(offset/2)])
@@ -191,7 +192,7 @@ def alignSRVtoSelf(df, tfm, slab, ligand, srv_fn, output_dir, tfm_type_2d='SyNAg
     anterior_slice_location =slice_location[offset:]
 
     for i, (_y0, _y1) in enumerate(zip(posterior_slice_location, anterior_slice_location)) :
-        print("\t\t",_y0,_y1)
+        #print("\t\t",_y0,_y1)
         _start = 1 + int(_y0)
         srv_y0 = from_numpy(srv[ :, int(_y0), : ])
         srv_y1 = from_numpy(srv[ :, int(_y1), : ])
@@ -204,20 +205,32 @@ def alignSRVtoSelf(df, tfm, slab, ligand, srv_fn, output_dir, tfm_type_2d='SyNAg
             #if we are at the end of the stack of images, then exit because we cannot perform validation on this slice
             if _y1 == slice_location[-1] :
                 break
-            print('-->',_y0, posterior_slice_location[i+1], _y1)
+            #print('-->',_y0, posterior_slice_location[i+1], _y1)
             seq_list = np.array([ posterior_slice_location[i+1] ]) 
 
         # at each s position, a non-linear transformation from _y0 --> s
         # and _y1 --> s is calculated.
         for s in seq_list :
             srv_s =from_numpy(srv[:,s,:])
-            print("\t",s)
+            #print("\t",s)
             tfm = get_2d_srv_tfm(srv_y0, srv_s, slab, ligand, output_dir,  _y0, s, tfm, tfm_type_2d, clobber=clobber) 
             tfm = get_2d_srv_tfm(srv_y1, srv_s, slab, ligand, output_dir,  _y1, s, tfm, clobber=clobber) 
     
         #Save the updated tfm dict with all the transformation files to a .json file    
 
     return tfm
+
+def distance_weighted_interpolation(srv, rec_y0, rec_y1,_y0, _y1, s, tfm, affine, interp_img_fn, interpolator ) :
+    srv_s = from_numpy(srv[:,s,:])
+    #print(interpolator, _y0, str(s), _y1)
+    img0  = apply_transforms(rec_y0, rec_y0, tfm[str(_y0)][str(s)], interpolator=interpolator).numpy()
+    img1  = apply_transforms(rec_y0, rec_y1, tfm[str(_y1)][str(s)], interpolator=interpolator).numpy()
+    x=(s - float(_y0)) / (float(_y1) - float(_y0) ) 
+    interp_img = img0 * (1-x) + img1 * x
+    affine[1,3]=s
+    #print(interp_img.shape, outVolume.shape)
+    nib.Nifti1Image( interp_img, affine ).to_filename(interp_img_fn)
+    return interp_img
 
 def interpolateMissingSlices(df, tfm, slab, ligand, rec_fn, srv_fn,  output_dir, out_fn, interpolator='linear', clobber=False, validation=False, val_df=None ):
     print("\t\tInterpolating missing slices for ligand ", ligand, "in slab", int(slab))
@@ -226,6 +239,7 @@ def interpolateMissingSlices(df, tfm, slab, ligand, rec_fn, srv_fn,  output_dir,
         os.makedirs(fill_dir)
     rec_vol = nib.load(rec_fn)
     rec = rec_vol.get_data() 
+    del rec_vol
 
     srv_img =nib.load(srv_fn) 
     srv = srv_img.get_data()
@@ -249,12 +263,10 @@ def interpolateMissingSlices(df, tfm, slab, ligand, rec_fn, srv_fn,  output_dir,
     n = rec.shape[1] * rec.shape[1] * rec.shape[2]
 
     for i, (_y0, _y1) in enumerate(zip(posterior_slice_location, anterior_slice_location )) :
-        print("\t\t\t",_y0,_y1)
+        print("\t\t\t",_y0,_y1) #, 'memory % used:', psutil.virtual_memory()[2] )
         _start = 1 + int(_y0)
         rec_y0 = from_numpy(rec[ :, int(_y0), : ])
         rec_y1 = from_numpy(rec[ :, int(_y1), : ])
-        srv_y0 = from_numpy(srv[ :, int(_y0), : ])
-        srv_y1 = from_numpy(srv[ :, int(_y1), : ])
 
         imgList=[]
         if not validation :
@@ -265,12 +277,17 @@ def interpolateMissingSlices(df, tfm, slab, ligand, rec_fn, srv_fn,  output_dir,
                 break
             seq_list = np.array([ posterior_slice_location[i+1] ]) 
 
-        if not validation :
-            outVolume[:,_y0,:] = apply_transforms(rec_y0, rec_y0, tfm[str(_y0)][str(_y0)], interpolator=interpolator ).numpy()
+
+        interp_img_fn= fill_dir + os.sep + ''.join(["slab-",str(slab),"_ligand-",ligand,"_interp_y-",str(_y0), ".nii.gz"])
+        if not os.path.exists(interp_img_fn) or clobber :
+            res = apply_transforms(rec_y0, rec_y0, tfm[str(_y0)][str(_y0)], interpolator=interpolator )
+            section2Nii(res.numpy(), _y0, affine, interp_img_fn, clobber=False)
+            del res
+        vol = nib.load(interp_img_fn).get_data()
+        outVolume[:,_y0,:] = vol.reshape(*vol.shape[0:2]) 
 
         #if _y1 == slice_location[-1] and not validation :
         #    outVolume[:,_y1,:] = apply_transforms(rec_y1, rec_y1, tfm[str(_y1)][str(_y1)], interpolator=interpolator ).numpy()
-
         for s in seq_list :
             interp_img_fn= fill_dir + os.sep + ''.join(["slab-",str(slab),"_ligand-",ligand,"_interp_y-",str(s), ".nii.gz"])
 
@@ -283,23 +300,30 @@ def interpolateMissingSlices(df, tfm, slab, ligand, rec_fn, srv_fn,  output_dir,
                 continue
             #print(interp_img_fn,os.path.exists(interp_img_fn) )
             if not os.path.exists(interp_img_fn) or clobber or validation :
-                srv_s = from_numpy(srv[:,s,:])
-                #print(interpolator, _y0, str(s), _y1)
-                img0  = apply_transforms(rec_y0, rec_y0, tfm[str(_y0)][str(s)], interpolator=interpolator).numpy()
-                img1  = apply_transforms(rec_y0, rec_y1, tfm[str(_y1)][str(s)], interpolator=interpolator).numpy()
-                x=(s - float(_y0)) / (float(_y1) - float(_y0) ) 
-                interp_img = img0 * (1-x) + img1 * x
-                affine[1,3]=s
-                #print(interp_img.shape, outVolume.shape)
-                nib.Nifti1Image( interp_img, affine ).to_filename(interp_img_fn)
+                start = time.time()
+                interp_img = distance_weighted_interpolation(srv, rec_y0, rec_y1,_y0, _y1, s, tfm, affine, interp_img_fn, interpolator)
+                end = time.time()
+                print(end-start)
+
             else :
-                interp_img = nib.load(interp_img_fn).get_data()
+                def mem_safe_load(interp_img_fn) :
+                    interp = nib.load(interp_img_fn)
+                    interp_img = interp.get_data()
+                    del interp
+                    return interp_img
+                interp_img = mem_safe_load(interp_img_fn)
             
             if validation  :
                 validate_section(i, out_fn, rec,srv,interp_img,tfm, posterior_slice_location, offset, s, _y0, _y1, rec_y0, rec_y1, pd_list, interpolator)
             else :
                 print("\t\t\tAssigning:",s)
                 outVolume[:,s,:] = interp_img
+                del interp_img
+        del rec_y0
+        del rec_y1
+    
+    del rec
+    del srv
 
     if not validation :
         print("Writing to",out_fn)

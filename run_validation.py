@@ -8,6 +8,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
+def load_template():
+    #Load Template
+    template=nib.load("output/MR1/R_slab_1/final/flum_space-mni_500um.nii.gz")
+    return template 
 clobber=False
 ### Inputs
 slab=1
@@ -28,25 +32,34 @@ template=None
 
 #Crop REC
 if not exists(rec_crop_fn) or clobber :
-    if template == None : template=nib.load("output/MR1/R_slab_1/final/flum_space-mni_500um.nii.gz")
-    print('img_rsl')
-    img_rsl = resample_from_to(nib.load(rec_fn), template, order=1)
-    print('resample_to_output')
-    resample_to_output(img_rsl,voxel_sizes=[0.2,0.02,0.2], order=1 ).to_filename(rec_crop_fn)
-    print('done')
+    print('Crop', rec_fn)
+    if template == None : template = load_template() 
+    rec_img = nib.load(rec_fn)
+    print(template.shape)
+    rec_rsl = resample_from_to(rec_img, template)
+    print(rec_rsl.shape)
+    del template
+    del rec_img
+    resample_to_output(rec_rsl,voxel_sizes=[0.2,0.02,0.2], order=0 ).to_filename(rec_crop_fn)
+
+    del rec_rsl
 
 #Crop SRV
 if not exists(srv_rsl_crop_fn ) or clobber :
+    print('Crop', srv_rsl_fn)
     if template == None : template = load_template() 
     srv_rsl = nib.load(srv_rsl_fn)
     srv_rsl_crop = resample_from_to(srv_rsl, template)
     srv_rsl_crop = resample_to_output(srv_rsl_crop, voxel_sizes=[0.2,0.02,0.2], order=1) 
     srv_rsl_crop.to_filename(srv_rsl_crop_fn)
 
-#if not exists("./simulation_validation/flum.nii.gz") or clobber : 
-#    print('run receptorInterpolate')
-#    receptorInterpolate( slab, rec_crop_fn, output_dir+'/flum_validation.nii.gz', srv_rsl_crop_fn, cls_fn, output_dir, ligand, rec_df_fn, clobber=False)
+clobber=True
+if not exists("./simulation_validation/flum.nii.gz") or clobber : 
+    print('run receptorInterpolate')
+    
+    receptorInterpolate( slab, output_dir+'/flum_validation.nii.gz', rec_crop_fn, srv_rsl_crop_fn, cls_fn, output_dir, ligand, rec_df_fn, clobber=False)
 
+exit(1)
 
 #if not exists("./simulation_validation/flum_validation.csv") or clobber : 
 #    exit(1)

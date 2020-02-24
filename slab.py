@@ -257,11 +257,6 @@ class Slab():
             ligand_init_ligand_fn = ligand_dir+os.sep+ligand+"_init.nii.gz"
             # lin --> downsampled --> crop --> 2D rigid (T1) --> 3D non-linear (T2) --> 2D non-linear (T3) [--> 2D non-linear (T4)]
             # lin_mri_space =  T2^-1 x [T4 x] T3 x T1 x downsampled 
-<<<<<<< HEAD
-            print(receptorVolume)
-            if not os.path.exists(receptorVolume) or self.args.clobber or self.args.validation : 
-                receptorInterpolate(self.slab,ligand_interp_fn,rec_fn, self.srv_rsl, self.cls_fn, ligand_dir, ligand, rec_df_fn, tfm_type_2d=args.tfm_type_2d, clobber=self.args.clobber)
-=======
             print(interp_fn)
             if not os.path.exists(interp_fn) or self.args.clobber or self.args.validation : 
                 receptorInterpolate(self.slab,interp_fn,rec_fn, self.srv_rsl, self.cls_fn, ligand_dir, ligand, rec_df_fn, transforms_fn, subslab=args.subslab, tfm_type_2d=args.tfm_type_2d, clobber=self.args.clobber)
@@ -274,7 +269,6 @@ class Slab():
                 for f in subslab_files :
                     ligand_vol += nib.load(f).get_data() 
                 nib.Nifti1Image(ligand_vol).to_filename(ligand_fn)
->>>>>>> 3026aec386ac9e138c26bd75666f86f8b1eeeb27
             
             write_ligand_volume(ligand, rec_df_fn, ligand_fn,ligand_no_interp_fn , 10 )
             write_ligand_volume(ligand, rec_df_fn, rec_fn, ligand_init_ligand_fn )

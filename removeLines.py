@@ -501,4 +501,3 @@ if __name__ == "__main__":
         apply_model(args.train_output_dir,args.raw_source_dir,args.lin_source_dir,args.raw_output_dir,args.step,args.ext, args.clobber)
     else :
         print("Skipping apply_model because either --train-output, --raw-source, or --raw-output are not set")
-
