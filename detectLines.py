@@ -1,182 +1,32 @@
 import os
 import argparse
 import numpy as np
-import keras
 import imageio
 import matplotlib.pyplot as plt
 import cv2
 from scipy.ndimage.morphology import binary_dilation, binary_erosion
-from keras.layers.convolutional import Conv1D, Conv2D, Conv3D, Convolution2D
-from keras.preprocessing.image import ImageDataGenerator
-from keras.layers.convolutional import ZeroPadding3D, ZeroPadding2D, ZeroPadding1D, UpSampling2D
-from keras.engine.topology import Input
-from keras.models import Model
-from keras.layers import BatchNormalization
-from keras.layers.core import Dropout
-from keras.utils import to_categorical
-from keras.layers import LeakyReLU, MaxPooling2D, concatenate,Conv2DTranspose, merge, ZeroPadding2D
-from keras.activations import relu
-from keras.callbacks import History, ModelCheckpoint
+from tensorflow.keras.layers import *
+
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.models import Model
+#from tensorflow.keras.layers import BatchNormalization
+#from tensorflow.keras.layers.core import Dropout
+from tensorflow.keras.utils import to_categorical
+#from tensorflow.keras.layers import LeakyReLU, MaxPooling2D, concatenate,Conv2DTranspose, merge, ZeroPadding2D
+from tensorflow.keras.activations import relu
+from tensorflow.keras.callbacks import History, ModelCheckpoint
 from utils import *
 from glob import glob
 from utils.utils import downsample
 from keras import backend as K
 from skimage.transform import rotate, resize 
-from keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from glob import glob
 from utils.utils import downsample
 from train_model import dice
 from utils.utils import imresize 
 from scipy.ndimage.filters import gaussian_filter
 
-def get_max_model(train_output_dir):
-    model_list_str = train_output_dir+os.sep+"model_checkpoint-*hdf5"
-    model_list = glob(model_list_str)
-    if model_list == [] :
-        print("Could not find any saved models in:", model_list_str )
-        exit(1)
-    models = [ os.path.basename(f).split('.')[-2] for f in model_list]
-    max_model_idx = models.index(max(models))
-    max_model = model_list[max_model_idx]
-    return max_model
-
-def get_raw_files(raw_source_dir, ext):
-    raw_files_str = raw_source_dir +  os.sep + "*"+ext
-    raw_files = glob(raw_files_str)
-    if raw_files == [] :
-        print("Could not find any files in: ", raw_files_str)
-        exit(1)
-    return(raw_files)
-
-def downsample_raw(raw_files, output_dir, step, clobber) :
-    downsample_files=[]
-
-    dwn_dir=output_dir + os.sep + 'downsampled'
-    if not os.path.exists(dwn_dir) : os.makedirs(dwn_dir)
-
-    for f in raw_files :
-        f2_split = os.path.splitext(os.path.basename(f))
-        f2=dwn_dir +os.sep+f2_split[0]+'.png'
-        if not os.path.exists(f2) or clobber :
-            img = imageio.imread(f)
-            if len(img.shape) == 3 : img = np.mean(img, axis=2)
-            img = downsample(img, step=step, interp='cubic')
-            imageio.imsave(f2,img)
-        downsample_files += [f2]
-
-    return downsample_files
-
-def get_lines(downsample_files,raw_files, max_model,output_dir, clobber) :
-
-    print("Using model located in:", max_model) 
-    line_dir=output_dir + os.sep + 'lines'
-    if not os.path.exists(line_dir) : os.makedirs(line_dir)
-    line_files=[]
-    img0 = imageio.imread(raw_files[0])
-    if len(img0.shape) == 3 : img0 = np.mean(img0, axis=2)
-    y0=img0.shape[0]
-    x0=img0.shape[1]
-
-    for f in downsample_files :
-        line_fn_split = os.path.splitext(os.path.basename(f))
-        line_fn=line_dir +os.sep+line_fn_split[0]+'.png'
-
-        if not os.path.exists(line_fn) or clobber:
-            img=imageio.imread(f)
-            img0=img
-            ydim=img.shape[0]
-            xdim=img.shape[1]
-            if ydim > xdim : 
-                img = img.T
-            try : #Load keras if has not been loaded yet 
-                keras
-            except NameError :
-                from keras.models import load_model
-                import keras.metrics
-                keras.metrics.dice = dice
-                model = load_model(max_model )
-
-            # Apply neural network model to downsampled image
-            #plt.subplot(2,1,1); plt.imshow(img); 
-            img=img.reshape([1,img.shape[0],img.shape[1],1])
-            X = model.predict(img, batch_size=1)
-            idx = X > np.max(X) * 0.5
-            X[ idx ]  = 1
-            X[ ~idx ] = 0
-            
-            # Resample to full resolution
-            X=X.reshape(X.shape[1],X.shape[2])
-            X2 = imresize(X, (y0,x0), interp=0)
-            X2=X2.reshape(y0,x0)
-            
-            if ydim > xdim : 
-                X2 = X2.T
-                print("Transposed to dim ", X2.shape, line_fn)
-            # Save output image
-            imageio.imsave(line_fn, X2)
-        line_files += [line_fn]
-    print("# of line files :", len(line_files))
-    return line_files
-
-
-def fill(iraw, iline, it=10):
-    transpose=False
-    if iraw.T.shape == iline.shape : 
-        transpose=True
-        iraw = iraw.T
-    
-    iraw_temp = np.copy(iraw)
-    iline_dil = binary_dilation(iline, iterations=it).astype(int)
-    
-    iline_dil = iline_dil - iline
-
-    border = iraw[iline_dil == 1]
-    border = border.flatten()
-
-    replacement_values = border[np.random.randint(0, len(border) , np.prod(iraw.shape))].reshape(iraw.shape)
-    iraw_temp[ iline == 1 ] = replacement_values[ iline == 1 ] 
-    iraw_temp = gaussian_filter(iraw_temp, 5)
-    iraw[ iline==1 ] = iraw_temp[iline == 1]
-
-    if transpose :
-        iraw = iraw.T
-    return iraw 
-
-def remove_lines(line_files, raw_files, raw_output_dir, clobber) :
-    final_dir=raw_output_dir + os.sep + 'final'
-    if not os.path.exists(final_dir) : os.makedirs(final_dir)
-
-    for raw in raw_files :
-        base =re.sub('#L', '', os.path.splitext(os.path.basename(raw))[0])
-        fout = final_dir + os.sep + base + '.png'
-        if not os.path.exists(fout) or clobber : 
-            print(raw)
-            iraw = imageio.imread(raw)
-            if len(iraw.shape) == 3 : iraw = np.mean(iraw, axis=2)
-            lines= [ f for f in line_files if base in f ]
-            if lines != [] : lines=lines[0]
-            else : 
-                print("Failed at remove_lines for :", raw); 
-                continue
-            iline = imageio.imread(lines)
-            iline=binary_dilation(iline,iterations=3).astype(int)
-            ifill=fill(iraw, iline)
-            imageio.imsave(fout, ifill)
-
-    return 0
-
-def apply_model(train_output_dir, raw_source_dir, lin_source_dir, raw_output_dir, step, ext='.TIF', clobber=False):
-    max_model=get_max_model(train_output_dir)
-    raw_files=get_raw_files(raw_source_dir, '.tif')  
-    lin_files=get_raw_files(lin_source_dir, ext)  
-    #print("Got raw file names.")
-    downsample_files = downsample_raw(raw_files, raw_output_dir, step, clobber)
-    print("Got downsampled files.")
-    line_files = get_lines(downsample_files, raw_files,max_model, raw_output_dir,  clobber)
-    print("Loaded line files.")
-    remove_lines(line_files, lin_files, raw_output_dir, clobber)
-    print("Removed lines from raw files.")
-    return 0
 
 def gen(X,Y,batch_size=1):
     i=0
@@ -466,39 +316,16 @@ def train_model(source_dir, output_dir, step, epochs, clobber) :
     return 0
 
 
-#if __name__ == "__main__":
-#    parser = argparse.ArgumentParser(description='Process some integers.')
-#    parser.add_argument('--source',dest='source_dir', default='test/', help='Directory with raw images')
-#    parser.add_argument('--output',dest='output_dir', default='test/results',  help='Directory name for outputs')
-#    parser.add_argument('--step',dest='step', default=0.5, type=float, help='File extension for input files (default=.tif)')
-#    parser.add_argument('--epochs',dest='epochs', default=1, type=int, help='Number of epochs')
-#    parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
-
-#    args = parser.parse_args()
-#    main(args.source_dir, args.output_dir, step=args.step, epochs=args.epochs, clobber=args.clobber)
-
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--train-source',dest='train_source_dir', default='', help='Directory with raw images')
     parser.add_argument('--train-output',dest='train_output_dir', default='',  help='Directory name for outputs')
-    parser.add_argument('--raw-source',dest='raw_source_dir', default='', help='Directory with raw images')
-    parser.add_argument('--lin-source',dest='lin_source_dir', default='', help='Directory with raw images')
-    parser.add_argument('--raw-output',dest='raw_output_dir', default='',  help='Directory name for outputs')
     parser.add_argument('--ext',dest='ext', default='.TIF',  help='Directory name for outputs')
     parser.add_argument('--step',dest='step', default=0.1, type=float, help='File extension for input files (default=.tif)')
     parser.add_argument('--epochs',dest='epochs', default=1, type=int, help='Number of epochs')
     parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
 
     args = parser.parse_args()
-    if args.train_source_dir != '' and args.train_output_dir != '' :
-        train_model(args.train_source_dir, args.train_output_dir, step=args.step, epochs=args.epochs, clobber=args.clobber)
-    else :
-        print("Skipping train_model because either --train-source or --train-output is not set")
+    train_model(args.train_source_dir, args.train_output_dir, step=args.step, epochs=args.epochs, clobber=args.clobber)
     
-    if args.raw_source_dir != '' and args.raw_output_dir != '' and args.train_output_dir != '' :
-        apply_model(args.train_output_dir,args.raw_source_dir,args.lin_source_dir,args.raw_output_dir,args.step,args.ext, args.clobber)
-    else :
-        print("Skipping apply_model because either --train-output, --raw-source, or --raw-output are not set")
 
