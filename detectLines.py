@@ -24,15 +24,16 @@ from keras import backend as K
 from skimage.transform import rotate, resize 
 from keras.preprocessing.image import ImageDataGenerator
 from glob import glob
-from utils.utils import downsample
 from train_model import dice
-from utils.utils import imresize 
 from scipy.ndimage.filters import gaussian_filter
 
 def get_max_model(train_output_dir):
     model_list_str = train_output_dir+os.sep+"model_checkpoint-*hdf5"
     model_list = glob(model_list_str)
     if model_list == [] :
+        model_list = glob( train_output_dir+os.sep+"model.hdf5" )
+
+    if model_list == []:    
         print("Could not find any saved models in:", model_list_str )
         exit(1)
     models = [ os.path.basename(f).split('.')[-2] for f in model_list]
@@ -60,13 +61,14 @@ def downsample_raw(raw_files, output_dir, step, clobber) :
         if not os.path.exists(f2) or clobber :
             img = imageio.imread(f)
             if len(img.shape) == 3 : img = np.mean(img, axis=2)
-            img = downsample(img, step=step, interp='cubic')
+            img = downsample(img, step=0.2, interp=2)
+            print(f2)
             imageio.imsave(f2,img)
         downsample_files += [f2]
 
     return downsample_files
 
-def get_lines(downsample_files,raw_files, max_model,output_dir, clobber) :
+def get_lines(raw_source_dir, downsample_files,raw_files, max_model,output_dir, clobber) :
 
     print("Using model located in:", max_model) 
     line_dir=output_dir + os.sep + 'lines'
@@ -80,6 +82,8 @@ def get_lines(downsample_files,raw_files, max_model,output_dir, clobber) :
     for f in downsample_files :
         line_fn_split = os.path.splitext(os.path.basename(f))
         line_fn=line_dir +os.sep+line_fn_split[0]+'.png'
+        raw_fn =glob(raw_source_dir+os.sep+"*"+line_fn_split[0]+"*")[0]
+        raw_img = imageio.imread(raw_fn)
 
         if not os.path.exists(line_fn) or clobber:
             img=imageio.imread(f)
@@ -99,6 +103,8 @@ def get_lines(downsample_files,raw_files, max_model,output_dir, clobber) :
             # Apply neural network model to downsampled image
             #plt.subplot(2,1,1); plt.imshow(img); 
             img=img.reshape([1,img.shape[0],img.shape[1],1])
+            #X = np.zeros(img.shape)
+            #x = img[ :, 0:312 , 0:417 , :]
             X = model.predict(img, batch_size=1)
             idx = X > np.max(X) * 0.5
             X[ idx ]  = 1
@@ -106,8 +112,9 @@ def get_lines(downsample_files,raw_files, max_model,output_dir, clobber) :
             
             # Resample to full resolution
             X=X.reshape(X.shape[1],X.shape[2])
-            X2 = imresize(X, (y0,x0), interp=0)
-            X2=X2.reshape(y0,x0)
+            print('Upsample', raw_img.shape)
+            X2 = resize(X,raw_img.shape , order=0); #downsample(X )
+            #X2=X2.reshape(y0,x0)
             
             if ydim > xdim : 
                 X2 = X2.T
@@ -152,6 +159,7 @@ def remove_lines(line_files, raw_files, raw_output_dir, clobber) :
         if not os.path.exists(fout) or clobber : 
             print(raw)
             iraw = imageio.imread(raw)
+            print(iraw.shape)
             if len(iraw.shape) == 3 : iraw = np.mean(iraw, axis=2)
             lines= [ f for f in line_files if base in f ]
             if lines != [] : lines=lines[0]
@@ -168,11 +176,15 @@ def remove_lines(line_files, raw_files, raw_output_dir, clobber) :
 def apply_model(train_output_dir, raw_source_dir, lin_source_dir, raw_output_dir, step, ext='.TIF', clobber=False):
     max_model=get_max_model(train_output_dir)
     raw_files=get_raw_files(raw_source_dir, '.tif')  
-    lin_files=get_raw_files(lin_source_dir, ext)  
-    #print("Got raw file names.")
+    lin_files=get_raw_files(lin_source_dir, ext) 
+
+    #raw_files = [ f for f in raw_files  if 'pire' in f ]
+    #lin_files = [ f for f in lin_files if 'pire' in f  ]
+
+    print("Got raw file names.")
     downsample_files = downsample_raw(raw_files, raw_output_dir, step, clobber)
     print("Got downsampled files.")
-    line_files = get_lines(downsample_files, raw_files,max_model, raw_output_dir,  clobber)
+    line_files = get_lines(raw_source_dir , downsample_files, raw_files,max_model, raw_output_dir,  clobber)
     print("Loaded line files.")
     remove_lines(line_files, lin_files, raw_output_dir, clobber)
     print("Removed lines from raw files.")

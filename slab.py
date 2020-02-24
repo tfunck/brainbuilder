@@ -95,20 +95,21 @@ class Slab():
         ### Step 0: Train line detection network ###
         ############################################
         #if train-model :
-            #python3 detectLines.py --epochs 5 --step 0.2 --train-source "test/" --train-output "line_detection_model/"
+        #    python3 detectLines.py --epochs 5 --step 0.2 --train-source "test/" --train-output "line_detection_model/"
 
         ###################################
         ### Step 1 : Apply line removal ###
         ###################################
+        shell("python3 detectLines.py --step "+str(0.2)+"  --train-output line_detection_model/  --raw-source "+ self.source_raw_dir +" --lin-source "+ self.source_lin_dir +" --raw-output " + self.lines_output_dir+ " --ext .TIF") #--train-source \"test/\"
         #shell("python3 detectLines.py --step "+str(0.2)+"  --train-output line_detection_model/  --raw-source "+ raw_source+os.sep+hemi+"_slab_"+str(slab)+" --lin-source "+ lin_source+os.sep+hemi+"_slab_"+str(slab) +" --raw-output " + lines_output_dir+ " --ext .TIF") #--train-source \"test/\"
-        #apply_model("line_detection_model/",source_raw_dir,source_lin_dir,lines_output_dir,0.2, clobber=False)
+        apply_model("line_detection_model/",self.source_raw_dir,self.source_lin_dir,self.lines_output_dir,0.2, clobber=False)
 
         ##############################
         # Step 2: Automatic Cropping #
         ##############################
         no_frame=False
         if brain+"/"+hemi+"_slab_"+str(slab) in dont_remove_lines : no_frame=True
-        crop_source_files(self.slab_output_path+"/lines_removed/", self.crop_output_dir, downsample_step=0.2, manual_only=True, no_frame=no_frame, ext='.png',clobber=False)
+        crop_source_files(self.slab_output_path+"/lines_removed/", self.crop_output_dir, downsample_step=0.2, manual_only=False, no_frame=no_frame, ext='.png',clobber=False)
 
         ##################################
         # Step 3 : Downsample Linearized #

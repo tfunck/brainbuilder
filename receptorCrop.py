@@ -7,8 +7,8 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt 
 import scipy.signal
+from skimage.transform import resize
 from glob import glob
-from utils.utils import imresize
 from sklearn.feature_extraction import image
 from sys import exit, argv
 from utils.mouse_click import click
@@ -81,7 +81,7 @@ def remove_border_regions(cc) :
     if len(numPixels_sort) > 1 :
         ratio =   numPixels_sort[-2] / numPixels_sort[-1]
     else : 
-        ratio=0
+        ratio=1
     print(ratio)
     #for each label in the set of labels
     for l in cc_unique :
@@ -131,7 +131,8 @@ def cropp_img(img, line, no_frame=False, low_contrast=False, plot=False, lineari
         print("Linearized Inversing")
     else :
         print("NOT Linearized Inversing")
-
+    
+    img = (img - img.min()) / (img.max() - img.min())
     img_hist =  rank.equalize(img,disk(100)) 
     
     img_thr_0 = threshold(img, sd=0)
@@ -148,8 +149,8 @@ def cropp_img(img, line, no_frame=False, low_contrast=False, plot=False, lineari
         img_thr[ line != 0 ] = 1
     else : 
         img_thr[ line != 0 ] = 0
-    img_thr = binary_dilation(binary_erosion(img_thr, iterations=3), iterations=3).astype(int)
 
+    img_thr = binary_dilation(binary_erosion(img_thr, iterations=3), iterations=3).astype(int)
 
     cc, nlabels = label(img_thr, structure=np.array([[0,1,0],[1,1,1],[0,1,0]]))
     #plt.subplot(3,1,1); plt.imshow(cc) 
@@ -179,7 +180,8 @@ def crop(img, img_dwn, bounding_box_dwn) :
         #cropped_dwn = cropped_dwn[y0:y1,x0:x1]
         
         #Create cropped image at full resolution
-        bounding_box=imresize(bounding_box_dwn,size=(img.shape[0],img.shape[1]),interp=0)
+        bounding_box=resize(bounding_box_dwn, (img.shape[0],img.shape[1]), order=0)
+        #bounding_box=downsample(bounding_box_dwn, (img.shape[0],img.shape[1]),interp=0)
         bounding_box = bounding_box /  np.max(bounding_box)
         ymin, ymax, xmin, xmax, yi, xi = find_min_max(bounding_box)
         y0=min(ymin)
@@ -266,7 +268,7 @@ def crop_gui(subject_output_base, img_dwn, img, qc_fn):
         #cropped = manual_crop * img
         cropped, cropped_dwn, bounding_box = crop(img, img_dwn, manual_crop_dwn )
         
-        scipy.misc.imsave(qc_fn, cropped_dwn)
+        imageio.imsave(qc_fn, cropped_dwn)
     except TypeError :
         return [], []
     return cropped, cropped_dwn, bounding_box
@@ -291,7 +293,6 @@ def crop_source_files(source_dir, output_dir, downsample_step=0.5, clobber=False
         bounding_box_fn=subject_output_base + 'bounding_box.png' 
         if (not os.path.exists(bounding_box_fn) or not os.path.exists(qc_fn)) or clobber :
             line_fn = [ i for i in line_files if fsplit[0] in i  ] 
-            print(line_fn)
             if line_fn != [] : line_fn = line_fn[0]
             else : 
                 print("Error: could not find file", f)
@@ -316,8 +317,8 @@ def crop_source_files(source_dir, output_dir, downsample_step=0.5, clobber=False
                     break
 
             #Downsampled the image to make processing faster
-            img_dwn =   downsample(img, subject_output_base+"img_dwn.jpg", downsample_step)
-            iline_dwn = downsample(iline, "", downsample_step)
+            img_dwn =   downsample(img, subject_fn=subject_output_base+"img_dwn.jpg", step=downsample_step, interp=1)
+            iline_dwn = downsample(iline, subject_fn="", step=downsample_step, interp=1)
 
             if not manual_only :
                 bounding_box_dwn, img_smoothed,  im_thr, cc = cropp_img(img_dwn,iline_dwn,no_frame,low_contrast=low_contrast, linearized=linearized)
@@ -333,8 +334,8 @@ def crop_source_files(source_dir, output_dir, downsample_step=0.5, clobber=False
             
             if cropped != [] :
                 print("Cropped:", fout,"\n")
-                scipy.misc.imsave(fout, cropped)
-                scipy.misc.imsave(bounding_box_fn, bounding_box)
+                imageio.imsave(fout, cropped)
+                imageio.imsave(bounding_box_fn, bounding_box)
             else : 
                 print("No cropped image to save")
 
