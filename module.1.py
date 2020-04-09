@@ -1,3 +1,13 @@
+from detectLines import train_model, apply_model
+
+def tif2hdf5(dir_path, section_df, out_fn, clobber=False):
+    '''
+        Combine input images into an hdf5 volume
+    '''
+    if not os.path.exists(out_fn) or clobber :
+        for row in section_df.iterrows() :
+
+
 
 # Module 1 (per slab)
 #   submodule 1.1:
@@ -22,45 +32,67 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--input','-i', dest='source', default='data/',  help='Directory with raw images')
     parser.add_argument('--output','-o', dest='output', default='output/', help='Directory name for outputs')
+    parser.add_argument('--slab','-s', dest='slab', help='Brain slab')
+    parser.add_argument('--hemi','-h', dest='hemi', help='Brain hemisphere')
+    parser.add_argument('--brain','-b', dest='brain', help='Brain number')
     parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
 
     args = parser.parse_args()
-    print("args")
     # Setup variables 
-    slab = self.slab
-    hemi = self.hemi
-    brain = self.brain_id
-    self.slab_output_path = self.slab_output_path 
-    downsample
-    # 
+    #downsample
+    scale_factors_json = check_file(args.source + os.sep + "scale_factors.json")
+    z_mm = scale[self.brain_id][self.hemi][str(self.slab)]["size"]
+    auto_affine = np.array([[z_mm/4164.,0,0,0],[0.0,z_mm/4164.,0,0],[0,0,1.0,0],[0,0,0,1]])
+    input_raw = args.source + 'lin' 
+    input_lin = args.source + 'raw'
 
-    ############################################
-    ### Step 0: Train line detection network ###
-    ############################################
-    #if train-model :
-        #python3 detectLines.py --epochs 5 --step 0.2 --train-source "test/" --train-output "line_detection_model/"
+    lines_removed_dir = args.output+"/lines_removed/"
+    cropped_dir = args.output+"/crop/"
+    downsampled_dir = args.output + '/downsampled/'
+    if not os.path.exists(downsampled_dir) : os.makedirs(downsampled_dir)
+    
+    ### Step 1 : Put linearized and raw sections into HDF5 file
+    tif2hdf5(lin_source_dir, lin_h5_fn)
+    tif2hdf5(raw_source_dir, raw_h5_fn)
 
-    ###################################
-    ### Step 1 : Apply line removal ###
-    ###################################
-    #shell("python3 detectLines.py --step "+str(0.2)+"  --train-output line_detection_model/  --raw-source "+ raw_source+os.sep+hemi+"_slab_"+str(slab)+" --lin-source "+ lin_source+os.sep+hemi+"_slab_"+str(slab) +" --raw-output " + lines_output_dir+ " --ext .TIF") #--train-source \"test/\"
-    #apply_model("line_detection_model/",source_raw_dir,source_lin_dir,lines_output_dir,0.2, clobber=False)
 
-    ##############################
-    # Step 2: Automatic Cropping #
-    ##############################
-    no_frame=False
-    if brain+"/"+hemi+"_slab_"+str(slab) in dont_remove_lines : no_frame=True
-    crop_source_files(self.slab_output_path+"/lines_removed/", self.crop_output_dir, downsample_step=0.2, manual_only=True, no_frame=no_frame, ext='.png',clobber=False)
+    if not os.path.exists(receptor_lines_removed_fn) or clobber :
+        for y in range(dwn_vol.shape[1]) :
+            ###################################
+            ### Step 2 : Apply line removal ###
+            ###################################
+            if not os.path.exists(receptor_lines_removed_fn) or clobber :
+                #Detect lines at 250um
+                line_vol[:,y,:] = get_lines(dwn_vol[:,y:,], raw_files,max_model, raw_output_dir,  clobber)
+        
+    if not os.path.exists(receptor_lines_removed_fn) or clobber :
+        for idx, receptor_fn in enumerate(.csv):
+                #Remove lines at 20um
+                remove_lines(line_files, raw_files, raw_output_dir, clobber)
 
-    ##################################
-    # Step 3 : Downsample Linearized #
-    ##################################
-    # Load scale factors for adjusting autoradiographs
-    #scale_factors_json = check_file(args.source + os.sep + "scale_factors.json")
-    scale_factors_json = self.args.source + os.sep + "scale_factors.json"
+    if not os.path.exists(receptor_lines_removed_fn) or clobber :
+        for idx, receptor_fn in enumerate(.csv):
+            ############################
+            # Step 4 : GM Segmentation #
+            ############################
+            #At 20um resolution
 
-    if not os.path.exists(self.downsampled_dir) : os.makedirs(self.downsampled_dir)
-    print(self.source_lin_dir, self.downsampled_dir)
-    downsample_and_crop(self.source_lin_dir, self.downsampled_dir, self.crop_output_dir, self.auto_affine, clobber=self.args.clobber)
+            ##############################
+            # Step 3: Automatic Cropping #
+            ##############################
+            #At 250um
+            if not os.path.exists(receptor_cropped_fn) or clobber :
+                crop_source_files(, cropped_dir, downsample_step=0.2, manual_only=True, no_frame=no_frame, ext='.png',clobber=False)
+
+    ###########################################
+    ### Step 1 : Downsample GM and Receptor, preserve sulci ###
+    ###########################################
+    if not os.path.exists(receptor_lines_removed_fn) or clobber :
+        dwn_vol = np.zeros()
+        for idx, receptor_fn in enumerate(.csv):
+            img = imageio.imread(receptor_fn)
+            if len(img.shape) == 3 : img = np.mean(img,axis=2)
+            dwn_vol[:,idx,:] = nib.processing.resample_to_output(nib.Nifti1Image(img, auto_affine), .25, order=5).get_data()
+
+    #Next step, inter-autoradiograph alignment
 
