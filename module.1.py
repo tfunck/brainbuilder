@@ -21,18 +21,20 @@
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--input','-i', dest='source', default='data/',  help='Directory with raw images')
+    parser.add_argument('--csv','-c', dest='autoradiograph_info_fn', default='autoradiograph_info.csv',  help='csv file with autoradiograph information for each section')
     parser.add_argument('--output','-o', dest='output', default='output/', help='Directory name for outputs')
     parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
 
     args = parser.parse_args()
     print("args")
+    df = pd.read_csv(args.autoradiograph_info_fn)
     # Setup variables 
     slab = self.slab
     hemi = self.hemi
     brain = self.brain_id
     self.slab_output_path = self.slab_output_path 
-    downsample
-    # 
+    
+    # Downsample
 
     ############################################
     ### Step 0: Train line detection network ###
