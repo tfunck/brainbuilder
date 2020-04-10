@@ -527,6 +527,18 @@ def train_model(source_dir, output_dir, step, epochs, clobber) :
 
     return 0
 
+def apply_model(train_output_dir, raw_file, lin_file, raw_output_dir, step, ext='.TIF', clobber=False):
+    max_model=get_max_model(train_output_dir)
+    
+    #print("Got raw file names.")
+    downsample_file = downsample_raw([raw_file], raw_output_dir, step, clobber)
+    print("Got downsampled files.")
+    line_files = get_lines(downsample_files, raw_files,max_model, raw_output_dir,  clobber)
+    print("Loaded line files.")
+    #remove_lines(line_files, lin_files, raw_output_dir, clobber)
+    remove_lines(line_files, raw_files, raw_output_dir, clobber)
+    print("Removed lines from raw files.")
+    return 0
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
