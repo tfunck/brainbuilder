@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import h5py as h5
 import tensorflow as tf
 import time
+from scipy.ndimage.morphology import distance_transform_cdt as cdt
 from re import sub
 from scipy.ndimage.morphology import binary_dilation, binary_erosion
 from skimage import exposure
@@ -19,6 +20,8 @@ from tensorflow.keras.activations import relu
 from tensorflow.keras.callbacks import History, ModelCheckpoint
 from tensorflow.python.ops import math_ops
 from tensorflow.python.framework import constant_op
+from tensorflow.keras import metrics
+from tensorflow.keras import losses 
 from utils import *
 from glob import glob
 from utils.utils import downsample
@@ -30,18 +33,15 @@ from scipy.ndimage.filters import gaussian_filter
 from sklearn.utils.class_weight import compute_class_weight
 from tensorflow.keras import backend as K
 
-def weighted_categorical_accuracy(weights, batch_size, value):
+def weighted_categorical_accuracy(weights):
     weights = K.variable(weights)
-    batch_size = constant_op.constant(batch_size, dtype=K.floatx())
-    value_int = int(value)
-    value = constant_op.constant(value, dtype=K.floatx())
 
     def loss(y_true, y_pred) :
-        #var = math_ops.equal(math_ops.argmax(y_true, axis=-1), math_ops.argmax(y_pred, axis=-1))
-        func = lambda y_true,y_pred : math_ops.multiply( math_ops.reduce_mean( math_ops.cast(math_ops.equal(y_true, y_pred) , K.floatx()), axis=(1,2)) , weights)
-        
-        loss_var = math_ops.reduce_mean( math_ops.div(func(y_true, y_pred) , func(y_true, y_true) ), axis=0)
-        return loss_var[value_int]
+        func = lambda y_true, y_pred : math_ops.reduce_mean( math_ops.multiply( math_ops.reduce_mean( math_ops.cast(math_ops.equal(y_true, y_pred) , K.floatx()), axis=(1,2)) , weights), axis=0 )
+        num = func(y_true, y_pred)
+        den = func(y_true, y_true)
+        loss_var = math_ops.reduce_mean( math_ops.div( num, den) )
+        return loss_var
     return loss
 
 def weighted_categorical_crossentropy(weights):
@@ -72,46 +72,8 @@ def weighted_categorical_crossentropy(weights):
     return loss
 
 
-def recall_m(y_true, y_pred):
-        true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-        possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
-        recall = true_positives / (possible_positives + K.epsilon())
-        return recall
 
-def precision_m(y_true, y_pred):
-        true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-        predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
-        precision = true_positives / (predicted_positives + K.epsilon())
-        return precision
-
-def f1_m(y_true, y_pred):
-    precision = precision_m(y_true, y_pred)
-    recall = recall_m(y_true, y_pred)
-    return 2*((precision*recall)/(precision+recall+K.epsilon()))
-
-def get_patches(x, y, batch_size, shape, step):
-    x_patch = np.zeros([batch_size, step, step, 1])
-    y_patch = np.zeros([batch_size, step, step, 1])
-
-    j=0
-    while j < batch_size :
-        rand_dim1 = np.random.randint(0, shape[1]-step)
-        rand_dim2 = np.random.randint(0, shape[2]-step)
-        
-        a=rand_dim1
-        b=rand_dim1+step
-        c=rand_dim2
-        d=rand_dim2+step
-        xi = x[j, a:b, c:d ]
-        yi = y[j, a:b, c:d ]
-        #Ensure that at least one pixel isn't zero in labels
-        if np.max(xi) > 0 and np.max(yi) > 0 :
-            x_patch[j,:,:,0] = xi
-            y_patch[j,:,:,0] = yi
-            j+=1
-    return x_patch, y_patch
-
-def rotate_and_reflect(x,y):
+def reflect(x,y):
     """ rotate and reflect random samples
     """
     #create vector to rotate
@@ -123,24 +85,9 @@ def rotate_and_reflect(x,y):
     x[to_reflect_lr,:,:]=np.fliplr(x[to_reflect_lr,:,:])
     y[to_reflect_lr,:,:]=np.fliplr(y[to_reflect_lr,:,:])
     
-    torotate=np.random.randint(2,size=x.shape[0] ).astype(bool)
-    x[torotate,:,:]=np.rot90(x[torotate,:,:],axes=(1,2))
-    y[torotate,:,:]=np.rot90(y[torotate,:,:],axes=(1,2))
     return x,y
-
-def intensity_modify(x, prob=0.1) :
     
-    
-    if np.random.uniform(0,1) < prob :
-        x[ x > 0 ] = np.log2(x[x>0])
-
-    if np.random.uniform(0,1) < prob :
-        x = exposure.equalize_hist(x)
-
-
-    return x
-    
-def random_mask(x, dim=256, mask_scale=(0.,0.20) ):
+def random_mask(x, mask_scale=(0.,0.20) ):
     '''
         Remove random mask from x
     '''
@@ -148,16 +95,51 @@ def random_mask(x, dim=256, mask_scale=(0.,0.20) ):
         print("Error mask_scale must be between 0 and 1")
         exit(1)
 
+    dim = np.array( x.shape[1:3] )
     for section in range(x.shape[0]) :
         #multiply image dimension <dim> by randomly generated values between mask_scale [0] and [1]
         mask_dim = np.array(dim * np.random.uniform(*mask_scale)).astype(int)
-
+        
         #generate random location in image x. subtract dim by mask dim
         #to prevent mask from overlapping with the x image border
-        i = np.random.randint(1,dim-mask_dim)
-        j = np.random.randint(1,dim-mask_dim)
-        x[section, i:(i+mask_dim),j:(j+mask_dim)] = 0
+        i = np.random.randint(1,dim[0]-mask_dim[0])
+        j = np.random.randint(1,dim[1]-mask_dim[1])
+        x[section, i:(i+mask_dim[0]),j:(j+mask_dim[1])] = 0
     return x
+
+def create_synthetic_data(data, batch_size) :
+    i0 = np.random.randint(0, data['x_clean'].shape[0] - batch_size )
+    i1 = np.random.randint(0, data['y'].shape[0] - batch_size )
+    
+    x = data['x_clean'][i0:(i0+batch_size), :, :]
+    for k in range(batch_size) :
+        x[k] = (x[k] - np.min(x[k])) /  (np.max(x[k])-np.min(x[k]) )
+
+    x_source = data['x'][i1:(i1+batch_size), :, :]
+    y = data['y'][i1:(i1+batch_size), :,:]
+    x_source, y = reflect(x_source, y)
+    x_out = np.copy(x)
+    x_out[ y > 0 ] = x_source[ y > 0]
+    '''
+    for k in range(batch_size) :
+        plt.clf()
+        plt.figure(  figsize=(9,9) )
+        plt.subplot(2,2,1)
+        plt.imshow( x_source[k,:,:].reshape(x.shape[1],x.shape[2]).astype(float) )
+        plt.colorbar()
+        plt.subplot(2,2,2)
+        plt.imshow( y[k,:,:].reshape(x.shape[1],x.shape[2]).astype(float), vmin=0, vmax=2 )
+        plt.colorbar()
+        plt.subplot(2,2,3)
+        plt.imshow( x[k,:,:].reshape(x.shape[1],x.shape[2]).astype(float) )
+        plt.colorbar()
+        plt.subplot(2,2,4)
+        plt.imshow( x_out[k,:,:].reshape(x.shape[1],x.shape[2]).astype(float) )
+        plt.colorbar()
+        plt.savefig('syn_qc_'+str(k)+'.png',dpi=200)
+    '''
+    return x_out, y
+
 
 def gen(data,batch_size, idx, step=128, validate=False):
     i=0 #idx[0] 
@@ -169,24 +151,31 @@ def gen(data,batch_size, idx, step=128, validate=False):
 
     while True :
         batch_size = min(X.shape[0] - i , batch_size)
-        x=X[ idx[i:(i+batch_size)] ]
-        y=Y[ idx[i:(i+batch_size)] ]
-        
+
+        ### Get batch data
+        if i + batch_size < X.shape[0] :
+            x=X[ idx[i:(i+batch_size)] ]
+            y=Y[ idx[i:(i+batch_size)] ]
+        elif not validate :
+            print('Generating Synthetic Data')
+            x, y = create_synthetic_data(data, batch_size)
+        else :
+            print('Error: index spills over data array')
+            exit(1)
+
+        ### Augment data
         if not validate :
-            x, y = getes(x, y, batch_size, X.shape, step)
-            x, y = rotate_and_reflect(x,y ) 
-            x = intensity_modify(x, prob=0.2)
+            x, y = reflect(x, y) 
             x=random_mask(x)
-        
 
         #for k in range(batch_size) :
         #    plt.clf()
         #    plt.subplot(2,1,1)
-        #    plt.imshow( x[k,:,:].reshape(step,step).astype(float) )
+        #    plt.imshow( x[k,:,:].reshape(x.shape[1],x.shape[2]).astype(float) )
         #    plt.subplot(2,1,2)
-        #    plt.imshow( y[k,:,:].reshape(step,step).astype(float), vmin=0, vmax=2 )
+        #    plt.imshow( y[k,:,:].reshape(x.shape[1],x.shape[2]).astype(float), vmin=0, vmax=2 )
         #    plt.savefig('patch_qc_'+str(i)+'_'+str(k)+'.png')
-
+        x = x.reshape(*x.shape, 1)
         y = to_categorical(y.astype(np.uint16), 3).astype(np.uint16)
         if i + batch_size < idx[0] :
             i += batch_size 
@@ -220,8 +209,10 @@ def load_image(fn,  step, clobber, interp=2) :
 
 def downsample_images(source_dir,output_dir, step=1, ext='tif', clobber=False):
     train_str=source_dir+'/train/*'+ext
+    train_clean_str=source_dir+'/clean/*'+ext
     label_str=source_dir+'/label/*'+ext
     train_dir = output_dir +os.sep +"train"
+    train_clean_dir = output_dir +os.sep +"clean"
     label_dir = output_dir +os.sep +"label"
 
     if not os.path.exists(label_dir) :
@@ -230,7 +221,11 @@ def downsample_images(source_dir,output_dir, step=1, ext='tif', clobber=False):
     if not os.path.exists(train_dir) :
         os.makedirs(train_dir)
     
+    if not os.path.exists(train_clean_dir) :
+        os.makedirs(train_clean_dir)
+
     x_list  = [ f for f in glob(train_str)]
+    x_clean_list  = [ f for f in glob(train_clean_str)]
     y_list = [ f for f in glob(label_str) ]
     
     for fn in x_list :
@@ -238,7 +233,13 @@ def downsample_images(source_dir,output_dir, step=1, ext='tif', clobber=False):
         if not os.path.exists(fn_rsl) or clobber :
             img = imageio.imread(fn)
             downsample( img, step=step,  interp=2, subject_fn=fn_rsl)
-    
+
+    for fn in x_clean_list :
+        fn_rsl = train_clean_dir + os.sep + sub('.'+ext,'_downsample.png', os.path.basename(fn))
+        if not os.path.exists(fn_rsl) or clobber :
+            img = imageio.imread(fn)
+            downsample( img, step=step,  interp=2, subject_fn=fn_rsl)   
+
     for fn in y_list :
         fn_rsl = label_dir + os.sep + os.path.splitext(os.path.basename(fn))[0]+'_downsample.png'
         if not os.path.exists(fn_rsl) or clobber :
@@ -264,8 +265,6 @@ def pair_train_and_labels(output_dir, train_list, labels_list, step) :
             new_train_list.append( f)
             new_label_list.append( f2 )
         else : 
-            print('For train image', f)
-            print('Could not string corresponding to:',f2_str,'\n')
             continue
 
     return new_train_list, new_label_list
@@ -276,21 +275,29 @@ def safe_imread(fn) :
         img = np.mean(img,axis=2)
     return img
 
-
-
+def chamfer(x):
+    idx = x>0
+    x[idx]=1
+    x[~idx]=0
+    dist0 = cdt(x)
+    x[~idx]=1
+    x[idx]=0
+    dist1 = cdt(x)
+    
+    return dist0 + dist1
 
 def fn_to_array(h5_fn, output_dir, step=0.1,clobber=False) :
     train_str=output_dir+'/train/*'
     label_str=output_dir+'/label/*'
+    train_clean_str=output_dir+'/clean/*'
 
     x_list  = [ f for f in glob(train_str+"downsample*")]
+    x_clean_list = [ f for f in glob(train_clean_str+"downsample*")]
     y_list = [ f for f in glob(label_str+"downsample*") ]
     
     if not os.path.exists(h5_fn) or clobber :
         x_list, y_list = pair_train_and_labels(output_dir, x_list, y_list, step)
         
-        print(len(x_list))
-       
         x_list_0=[]
         y_list_0=[]
         for x_fn, y_fn in zip(x_list, y_list):
@@ -298,22 +305,26 @@ def fn_to_array(h5_fn, output_dir, step=0.1,clobber=False) :
             y[ y <= 90] = 0
             y[ (y > 90 ) & (y<200)] = 1
             y[ y>=200 ] = 2
-            print(np.unique(y), y_fn)
             if np.max(y) == 0 :
-                print('Skip', y_fn)
+                pass
             else :
                 x_list_0.append(x_fn)
                 y_list_0.append(y_fn)
         x_list = x_list_0
         y_list = y_list_0
         n=len(x_list)
+        n_clean = len(x_clean_list)
         image = imageio.imread(x_list[0])
         ysize=image.shape[0]
         xsize=image.shape[1]
         data = h5.File(h5_fn, 'w')
         data.create_dataset("x", (n, ysize, xsize), dtype='float16')
+        data.create_dataset("x_clean", (n_clean, ysize, xsize), dtype='float16')
         data.create_dataset("y", (n, ysize, xsize), dtype='uint16')
         
+        for i, fn in enumerate(x_clean_list) :
+            data['x_clean'][i, :, : ] =  safe_imread(fn)
+
         for i, (x_fn, y_fn)  in enumerate(zip(x_list, y_list)) :
             x = safe_imread(x_fn) #load_image(x_fn, step, clobber=clobber, interp=3)
             x = (x - np.min(x))/( np.max(x) - np.min(x) )
@@ -326,14 +337,14 @@ def fn_to_array(h5_fn, output_dir, step=0.1,clobber=False) :
             data['y'][i,:,:]=y.astype(np.uint16) #load_image(y_fn, step, clobber=clobber, interp=0)
             #print(i,np.max(data['y'][i,:,:]),np.max(y), y_fn)
        
-            #if not os.path.exists('qc_'+os.path.basename(x_fn)+'.png') :
-                #plt.clf()
-                #print('qc_'+os.path.basename(x_fn)+'.png')
-                #plt.subplot(2,1,1)
-                #plt.imshow( x )
-                #plt.subplot(2,1,2)
-                #plt.imshow( y , vmin=0, vmax=2)
-                #plt.savefig('qc_'+os.path.basename(x_fn)+'.png')
+            #if not os.path.exists('qc_'+os.path.basename(x_fn)) :
+            #plt.clf()
+            #print('qc_'+os.path.basename(x_fn)+'.png')
+            #plt.subplot(3,1,1)
+            #plt.imshow( data['x'][i,:,:] )
+            #plt.subplot(3,1,2)
+            #plt.imshow( data['y'][i,:,:] , vmin=0, vmax=2)
+            #plt.savefig('qc_'+os.path.basename(x_fn)+'.png', dpi=200)
      
 from utils.utils import *
 
@@ -389,40 +400,27 @@ def make_compile_model(masks,class_weights,batch_size) :
 
     #Level 1
     CONV6_UP = UpSampling2D(size=(2, 2))(CONV6)
-    CONV6_PAD = ZeroPadding2D( ((0,0),(0,0)) )(CONV6_UP)
+    CONV6_PAD = ZeroPadding2D( ((0,0),(0,1)) )(CONV6_UP)
     UP3 = Concatenate()([CONV6_PAD, CONV1])#, mode='concat', concat_axis=3)
     CONV7 = Conv2D( N0, kernel_size=[3,3],activation='relu',padding='same')(UP3) #MERGE1)
     CONV7 = Conv2D( N0, kernel_size=[3,3],activation='relu',padding='same')(CONV7) #MERGE1)
     CONV7 = Dropout(DO)(CONV7)
-    OUT = Conv2D(3, kernel_size=1,  padding='same', activation='softmax')(CONV7)
+    OUT = Conv2D(3, kernel_size=1,  padding='same', activation='softmax', name='cls')(CONV7)
 
-    model = Model(inputs=[image], outputs=OUT)
-    #ada = keras.optimizers.Adam(0.0001)
+    model = Model(inputs=[image], outputs=[OUT])
     ada = tf.keras.optimizers.Adam()
-    #model.compile(loss = 'categorical_crossentropy', optimizer=ada, metrics=[f1_m ] ) #f1_m
-    metrics = ['CategoricalAccuracy']
-    model.compile(loss = weighted_categorical_crossentropy(class_weights) , optimizer=ada, metrics=metrics ) #f1_m
+
+    #metric_dict = {'cls':metrics.CategoricalAccuracy, 'seg':metrics.Accuracy }
+    metric_list = [metrics.CategoricalAccuracy, metrics.Accuracy ]
+    #loss_dict = {'cls':metrics.CategoricalAccuracy, 'seg':metrics.Accuracy }
+    loss_list = [metrics.CategoricalAccuracy, metrics.Accuracy ]
+    #loss_dict = {'cls':  , 'seg':losses.mean_squared_error}
+    loss_weights = [1, 1]
+
+    model.compile(loss = weighted_categorical_crossentropy(class_weights),  optimizer=ada, metrics=['CategoricalAccuracy'] )
     print(model.summary())
     return model
 
-def add_padding(img, zmax, xmax):
-    z=img.shape[0]
-    x=img.shape[1]
-    dz = zmax - z
-    dx = xmax - x
-    z_pad = pad_size(dz)
-    x_pad = pad_size(dx)
-    img_pad = np.pad(img, (z_pad,x_pad), 'minimum')
-    return img_pad
-
-def get_subset_dim(shape, i, patch_size):
-    if shape < i +patch_size :
-        i = shape - patch_size
-        #print(i)
-    else :
-        pass
-        #print()
-    return i
 
 def predict_results(source_dir, output_dir, model,patch_size, data, n_train, n_images, _use_radon ):
     if not os.path.exists(source_dir+os.sep+'results') : os.makedirs(source_dir+os.sep+'results')
@@ -435,23 +433,7 @@ def predict_results(source_dir, output_dir, model,patch_size, data, n_train, n_i
         img=data['x'][i,:].reshape([1,ydim,xdim,1])
         seg=data['y'][i,:].reshape([1,ydim,xdim,1])
         
-        itr=0
-        X = np.zeros_like(img)
-        N = np.zeros_like(img)
-        stride = int(patch_size/2)
-        for x in range(0, img.shape[1], stride):
-            for y in range(0, img.shape[2], stride ):
-                
-                xi = get_subset_dim(img.shape[1], x, patch_size)
-                yi = get_subset_dim(img.shape[2], y, patch_size)
-                
-                subset = img[0,xi:xi+patch_size, yi:yi+patch_size,0 ]
-                
-                subset = subset.reshape([1,patch_size,patch_size,1])
-                xx = np.argmax( model.predict(subset, batch_size=1), axis=3)
-                X[ 0,xi:xi+patch_size, yi:yi+patch_size ,0 ] +=  xx[0,:, : ]
-                N[ 0,xi:xi+patch_size, yi:yi+patch_size ,0 ] +=  1
-        X = X/ N
+        X = np.argmax( model.predict(img, batch_size=1), axis=3)
         plt.figure(figsize=(12,8), dpi=200, facecolor='b' ) 
         plt.subplot(1,3,1)
         plt.imshow( img.reshape(ydim,xdim).astype(float) )
@@ -465,25 +447,6 @@ def predict_results(source_dir, output_dir, model,patch_size, data, n_train, n_i
         plt.clf()
         if j > 15 : break
 
-def get_class_weights(data, class_weights_fn, new_class_weights ):
-    print('Calculating class weights')
-    if not os.path.exists(class_weights_fn) or new_class_weights :
-        y=np.array(data['y'][:]).flatten()
-        class_weights = compute_class_weight("balanced", np.array([0,1,2]), y)
-        
-        class_weights_dict = {  "0":str(class_weights[0]), 
-                                "1":str(class_weights[1]),
-                                "2":str(class_weights[2]) }
-
-        json.dump(class_weights_dict, open(class_weights_fn, 'w'))
-    else :
-        class_weights_str = json.load(open(class_weights_fn, 'r'))
-        class_weights={ 0:float(class_weights_str["0"]), 
-                        1:float(class_weights_str["1"]), 
-                        2:float(class_weights_str["2"])} 
-
-    print("Class Weights:", class_weights)
-    return class_weights
 
 def train_model(source_dir, output_dir, step, epochs, ext='tif', clobber=False) :
     train_dir=source_dir+os.sep+'train'
@@ -496,11 +459,10 @@ def train_model(source_dir, output_dir, step, epochs, ext='tif', clobber=False) 
     
     downsample_images(source_dir, output_dir, step=step, ext=ext, clobber=clobber)
 
-    if not os.path.exists(source_dir+os.sep+'train.h5') or not os.path.exists(source_dir+os.sep+'labels.h5') or clobber  :
+    if not os.path.exists(source_dir+os.sep+'train.h5') or not os.path.exists(source_dir+os.sep+'labels.h5') or clobber:
         fn_to_array(data_fn, output_dir, step, clobber=clobber)
 
     data = h5.File(data_fn,'r' )
-
     ratio=0.8
     n_images= data['x'].shape[0]
     n_train = int(round(ratio * n_images) )
@@ -513,8 +475,8 @@ def train_model(source_dir, output_dir, step, epochs, ext='tif', clobber=False) 
     print('N Images:', n_images, "N Train:", n_train, "N Val:", n_images - n_train )
     patch_size=256
     batch_size=10
-    samples_per_image=2
-    max_steps=int(np.floor(n_train/batch_size))
+    samples_per_image=1.4
+    max_steps=int(np.floor( (n_train + samples_per_image * n_train ) /batch_size) )
     val_steps=int(np.floor(n_val/batch_size))
     model_name=output_dir+os.sep+"model.hdf5"
     #checkpoint_fn = os.path.splitext(model_name)[0]+"_checkpoint-{epoch:02d}-{f1_m:.2f}.hdf5"
@@ -524,13 +486,12 @@ def train_model(source_dir, output_dir, step, epochs, ext='tif', clobber=False) 
     val_steps=int(((n_images-n_train)*samples_per_image)/batch_size)
     best_loss= np.inf
     best_metric = 0
+
+    class_weights_npy = np.array([1,1,5])
     if not os.path.exists(model_name) or clobber :
-        #class_weights = get_class_weights(data, output_dir+os.sep+'class_weights.json', new_class_weights=False )
         #ar = np.array([ np.sum(data['y'][:] == 0),  np.sum(data['y'][:] == 1), np.sum(data['y'][:] == 2) ])
         #ar = ar/ np.product(data['y'].shape[0] * data['y'].shape[1] * data['y'].shape[2] )
-        #class_weights_npy = 1/ ar
-        #class_weights_npy = np.array( list(class_weights) )
-        class_weights_npy = np.array([1,3,6])
+        #true_class_weights_npy = 1/ ar
         print('Class Weights:', class_weights_npy)
         print(data['x'].shape)
         model = make_compile_model(data['x'], class_weights_npy, batch_size) 
@@ -560,9 +521,9 @@ def train_model(source_dir, output_dir, step, epochs, ext='tif', clobber=False) 
                 print('Saving model')
                 model.save(model_name)
                 best_loss = val_loss
-
     else :
-        model = load_model(model_name, custom_objects={"dice":dice, "f1_m":f1_m})
+        print(model_name)
+        model = load_model(model_name, custom_objects={"loss":weighted_categorical_crossentropy(class_weights_npy)})
     
     predict_results(output_dir, output_dir, model, patch_size, data, n_train, n_images, False )
 
