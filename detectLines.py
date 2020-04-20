@@ -98,7 +98,7 @@ def random_mask(x, mask_scale=(0.,0.20) ):
     dim = np.array( x.shape[1:3] )
     for section in range(x.shape[0]) :
         #multiply image dimension <dim> by randomly generated values between mask_scale [0] and [1]
-        mask_dim = np.array(dim * np.random.uniform(*mask_scale)).astype(int)
+        mask_dim = np.array( dim * np.random.uniform(*mask_scale) ).astype(int)
         
         #generate random location in image x. subtract dim by mask dim
         #to prevent mask from overlapping with the x image border
@@ -120,45 +120,51 @@ def create_synthetic_data(data, batch_size) :
     x_source, y = reflect(x_source, y)
     x_out = np.copy(x)
     x_out[ y > 0 ] = x_source[ y > 0]
-    '''
-    for k in range(batch_size) :
-        plt.clf()
-        plt.figure(  figsize=(9,9) )
-        plt.subplot(2,2,1)
-        plt.imshow( x_source[k,:,:].reshape(x.shape[1],x.shape[2]).astype(float) )
-        plt.colorbar()
-        plt.subplot(2,2,2)
-        plt.imshow( y[k,:,:].reshape(x.shape[1],x.shape[2]).astype(float), vmin=0, vmax=2 )
-        plt.colorbar()
-        plt.subplot(2,2,3)
-        plt.imshow( x[k,:,:].reshape(x.shape[1],x.shape[2]).astype(float) )
-        plt.colorbar()
-        plt.subplot(2,2,4)
-        plt.imshow( x_out[k,:,:].reshape(x.shape[1],x.shape[2]).astype(float) )
-        plt.colorbar()
-        plt.savefig('syn_qc_'+str(k)+'.png',dpi=200)
-    '''
     return x_out, y
 
+def gen_qc(model, batch_size, x, y, epoch, i, train_qc_dir ) :
+    z = model.predict( x, batch_size=batch_size )
+    for k in range(batch_size) :
+        plt.clf()
+        plt.figure(figsize=(9,12))
+        plt.subplot(3,1,1)
+        #plt.title( os.path.basename(x_fn[k]) )
+        plt.imshow( x[k,:,:].reshape(x.shape[1],x.shape[2]).astype(float) )
 
-def gen(data,batch_size, idx, step=128, validate=False):
+        plt.subplot(3,1,2)
+        #plt.title( os.path.basename(y_fn[k]) )
+        plt.imshow( np.argmax(y[k,:,:],axis=2).reshape(x.shape[1],x.shape[2]).astype(float), vmin=0, vmax=2 )
+        
+        plt.subplot(3,1,3)
+        #plt.title( os.path.basename(y_fn[k]) )
+        plt.imshow( np.argmax(z[k,:,:],axis=2).reshape(x.shape[1],x.shape[2]).astype(float), vmin=0, vmax=2 )
+
+        plt.tight_layout()
+        out_fn='%s/epoch_qc_%s_%s_%s.png' % (train_qc_dir, str(i), str(k), str(epoch))
+        plt.savefig(out_fn,dpi=200)
+
+def gen(data,batch_size, idx, validate=False, qc=False):
     i=0 #idx[0] 
     X=data['x'][:]
     Y=data['y'][:]
-    idx=np.arange(idx[0]).astype(int)
+    X_FN=data['x_fn'][:]
+    Y_FN=data['y_fn'][:]
 
     if not validate : np.random.shuffle(idx)
-
     while True :
-        batch_size = min(X.shape[0] - i , batch_size)
-
         ### Get batch data
-        if i + batch_size < X.shape[0] :
-            x=X[ idx[i:(i+batch_size)] ]
-            y=Y[ idx[i:(i+batch_size)] ]
+        if i + batch_size < X.shape[0] or validate :
+            cur_idx = idx[i:(i+batch_size)]
+            x=X[ cur_idx ]
+            y=Y[ cur_idx ]
+            x_fn=X_FN[ cur_idx  ] 
+            y_fn=Y_FN[ cur_idx  ] 
+            #print('Reading original data', idx[i:(i+batch_size)])
         elif not validate :
-            print('Generating Synthetic Data')
+            #print('Generating Synthetic Data')
             x, y = create_synthetic_data(data, batch_size)
+            x_fn = ['synthetic'] * batch_size
+            y_fn = ['synthetic'] * batch_size
         else :
             print('Error: index spills over data array')
             exit(1)
@@ -168,25 +174,15 @@ def gen(data,batch_size, idx, step=128, validate=False):
             x, y = reflect(x, y) 
             x=random_mask(x)
 
-        #for k in range(batch_size) :
-        #    plt.clf()
-        #    plt.subplot(2,1,1)
-        #    plt.imshow( x[k,:,:].reshape(x.shape[1],x.shape[2]).astype(float) )
-        #    plt.subplot(2,1,2)
-        #    plt.imshow( y[k,:,:].reshape(x.shape[1],x.shape[2]).astype(float), vmin=0, vmax=2 )
-        #    plt.savefig('patch_qc_'+str(i)+'_'+str(k)+'.png')
         x = x.reshape(*x.shape, 1)
         y = to_categorical(y.astype(np.uint16), 3).astype(np.uint16)
-        if i + batch_size < idx[0] :
-            i += batch_size 
-        else : 
-            i = 0 
+        
+        i += batch_size 
         yield x.astype(np.float32), y.astype(np.float32)
 
 
 
 def load_image(fn,  step, clobber, interp=2) :
-    
     img = imageio.imread(fn)
     if len(img.shape) == 3 : img = np.mean(img, axis=2)
     if not os.path.exists(fn2) or clobber :
@@ -207,48 +203,21 @@ def load_image(fn,  step, clobber, interp=2) :
     img = img.reshape(img.shape[0], img.shape[1], 1)
     return(img)
 
-def downsample_images(source_dir,output_dir, step=1, ext='tif', clobber=False):
-    train_str=source_dir+'/train/*'+ext
-    train_clean_str=source_dir+'/clean/*'+ext
-    label_str=source_dir+'/label/*'+ext
-    train_dir = output_dir +os.sep +"train"
-    train_clean_dir = output_dir +os.sep +"clean"
-    label_dir = output_dir +os.sep +"label"
-
-    if not os.path.exists(label_dir) :
-        os.makedirs(label_dir)
+def downsample_image_subset(base_in_dir, base_out_dir, image_str, step=0.1, ext='.tif', clobber=False ) : 
+    in_dir_str = base_in_dir+'/'+image_str+'/*'+ext
+    out_dir = base_out_dir + '/' + image_str + '/'
+    print(in_dir_str)
+    image_list  = [ f for f in glob(in_dir_str)]
     
-    if not os.path.exists(train_dir) :
-        os.makedirs(train_dir)
-    
-    if not os.path.exists(train_clean_dir) :
-        os.makedirs(train_clean_dir)
+    if not os.path.exists(out_dir) :
+        os.makedirs(out_dir)
 
-    x_list  = [ f for f in glob(train_str)]
-    x_clean_list  = [ f for f in glob(train_clean_str)]
-    y_list = [ f for f in glob(label_str) ]
-    
-    for fn in x_list :
-        fn_rsl = train_dir + os.sep + sub('.'+ext,'_downsample.png', os.path.basename(fn))
-        if not os.path.exists(fn_rsl) or clobber :
-            img = imageio.imread(fn)
-            downsample( img, step=step,  interp=2, subject_fn=fn_rsl)
-
-    for fn in x_clean_list :
-        fn_rsl = train_clean_dir + os.sep + sub('.'+ext,'_downsample.png', os.path.basename(fn))
-        if not os.path.exists(fn_rsl) or clobber :
-            img = imageio.imread(fn)
-            downsample( img, step=step,  interp=2, subject_fn=fn_rsl)   
-
-    for fn in y_list :
-        fn_rsl = label_dir + os.sep + os.path.splitext(os.path.basename(fn))[0]+'_downsample.png'
+    for fn in image_list :
+        fn_rsl = out_dir + os.sep + sub('.'+ext,'_downsample.png', os.path.basename(fn))
         if not os.path.exists(fn_rsl) or clobber :
             img = safe_imread(fn)
-            #print('a', np.unique(img))
-            #img[ img == 127.5 ] = 0
-            #img[ img == 255 ] = 128
-            #print( np.unique(img))
             downsample( img, step=step,  interp=2, subject_fn=fn_rsl)
+    print('Downsampled', image_str)
 
 def pair_train_and_labels(output_dir, train_list, labels_list, step) :
     new_train_list=[]
@@ -275,23 +244,15 @@ def safe_imread(fn) :
         img = np.mean(img,axis=2)
     return img
 
-def chamfer(x):
-    idx = x>0
-    x[idx]=1
-    x[~idx]=0
-    dist0 = cdt(x)
-    x[~idx]=1
-    x[idx]=0
-    dist1 = cdt(x)
-    
-    return dist0 + dist1
 
 def fn_to_array(h5_fn, output_dir, step=0.1,clobber=False) :
+    train_no_label_str = output_dir + '/train_no_labels/*'
     train_str=output_dir+'/train/*'
     label_str=output_dir+'/label/*'
     train_clean_str=output_dir+'/clean/*'
 
     x_list  = [ f for f in glob(train_str+"downsample*")]
+    x_no_label_list  = [ f for f in glob(train_no_label_str+"downsample*")]
     x_clean_list = [ f for f in glob(train_clean_str+"downsample*")]
     y_list = [ f for f in glob(label_str+"downsample*") ]
     
@@ -314,27 +275,40 @@ def fn_to_array(h5_fn, output_dir, step=0.1,clobber=False) :
         y_list = y_list_0
         n=len(x_list)
         n_clean = len(x_clean_list)
+        n_no_label = len(x_no_label_list)
         image = imageio.imread(x_list[0])
         ysize=image.shape[0]
         xsize=image.shape[1]
         data = h5.File(h5_fn, 'w')
+        dt = h5.string_dtype(encoding='ascii')
         data.create_dataset("x", (n, ysize, xsize), dtype='float16')
+        data.create_dataset("x_fn", (n, ), dtype=dt)
         data.create_dataset("x_clean", (n_clean, ysize, xsize), dtype='float16')
+        data.create_dataset("x_no_label", (n_no_label, ysize, xsize), dtype='float16')
         data.create_dataset("y", (n, ysize, xsize), dtype='uint16')
+        data.create_dataset("y_fn", (n, ), dtype=dt)
         
+        print('Clean')
         for i, fn in enumerate(x_clean_list) :
             data['x_clean'][i, :, : ] =  safe_imread(fn)
+
+        print('No Lines')
+        for i, fn  in enumerate(x_no_label_list) :
+            imageio.imread(fn)
+            data['x_no_label'][i, :, : ] =  safe_imread(fn)
 
         for i, (x_fn, y_fn)  in enumerate(zip(x_list, y_list)) :
             x = safe_imread(x_fn) #load_image(x_fn, step, clobber=clobber, interp=3)
             x = (x - np.min(x))/( np.max(x) - np.min(x) )
             data['x'][i,:,:] = x
+            data['x_fn'][i] = x_fn
             
             y=safe_imread(y_fn)
             y[ y <= 90] = 0
             y[ (y > 90 ) & (y<200)] = 1
             y[ y>=200 ] = 2
             data['y'][i,:,:]=y.astype(np.uint16) #load_image(y_fn, step, clobber=clobber, interp=0)
+            data['y_fn'][i] = y_fn
             #print(i,np.max(data['y'][i,:,:]),np.max(y), y_fn)
        
             #if not os.path.exists('qc_'+os.path.basename(x_fn)) :
@@ -352,11 +326,13 @@ def make_compile_model(masks,class_weights,batch_size) :
     image = Input(shape=( masks.shape[1], masks.shape[2], 1))
     IN = image #BatchNormalization()(image)
 
-    DO=0.2
-    N0=20
-    N1=N0#*2
-    N2=N1#*2
-    N3=N2#*2
+    DO=0.25
+    N0=16
+    N1=N0*2
+    N2=N1*2
+    N3=N2*2
+    N4=N3*2
+
     #LEVEL 1
     CONV1 = Conv2D( N0 , kernel_size=[3,3],activation='relu',padding='same')(IN)
     CONV1 = Conv2D( N0 , kernel_size=[3,3],activation='relu',padding='same')(CONV1)
@@ -379,91 +355,78 @@ def make_compile_model(masks,class_weights,batch_size) :
     CONV4 = Conv2D( N3 , kernel_size=[3,3],activation='relu',padding='same')(POOL3)
     CONV4 = Conv2D( N3 , kernel_size=[3,3],activation='relu',padding='same')(CONV4)
     CONV4 = Dropout(DO)(CONV4)
+    POOL4 = MaxPooling2D(pool_size=(2, 2))(CONV4)
 
-
-    #LEVEL 3
-    CONV4_UP = UpSampling2D(size=(2, 2))(CONV4)
-    CONV4_PAD = ZeroPadding2D( ((0,0),(0,0)) )(CONV4_UP)
-    UP1 = Concatenate()([CONV4_PAD, CONV3])#, mode='concat', concat_axis=3)
-
-    CONV5 = Conv2D( N2, kernel_size=[3,3],activation='relu',padding='same')(UP1)
-    CONV5 = Conv2D( N2, kernel_size=[3,3],activation='relu',padding='same')(CONV5)
+    #LEVEL 5
+    CONV5 = Conv2D( N4 , kernel_size=[3,3],activation='relu',padding='same')(POOL4)
+    CONV5 = Conv2D( N4 , kernel_size=[3,3],activation='relu',padding='same')(CONV5)
     CONV5 = Dropout(DO)(CONV5)
 
-    #LEVEL 2
-    CONV5_UP = UpSampling2D(size=(2, 2))(CONV5)
-    CONV5_PAD = ZeroPadding2D( ((0,0),(0,0)) )(CONV5_UP)
-    UP2 = Concatenate()([CONV5_PAD, CONV2])#, mode='concat', concat_axis=3)
-    CONV6 = Conv2D( N1, kernel_size=[3,3],activation='relu',padding='same')(UP2)
-    CONV6 = Conv2D( N1, kernel_size=[3,3],activation='relu',padding='same')(CONV6)
+    #LEVEL 4
+    CONV6_UP = UpSampling2D(size=(2, 2))(CONV5)
+    CONV6_PAD = ZeroPadding2D( ((0,0),(0,0)) )(CONV6_UP)
+    UP1 = Concatenate()([CONV6_PAD, CONV4])#, mode='concat', concat_axis=3)
+    CONV6 = Conv2D( N2, kernel_size=[3,3],activation='relu',padding='same')(UP1)
+    CONV6 = Conv2D( N2, kernel_size=[3,3],activation='relu',padding='same')(CONV6)
     CONV6 = Dropout(DO)(CONV6)
 
-    #Level 1
-    CONV6_UP = UpSampling2D(size=(2, 2))(CONV6)
-    CONV6_PAD = ZeroPadding2D( ((0,0),(0,1)) )(CONV6_UP)
-    UP3 = Concatenate()([CONV6_PAD, CONV1])#, mode='concat', concat_axis=3)
-    CONV7 = Conv2D( N0, kernel_size=[3,3],activation='relu',padding='same')(UP3) #MERGE1)
-    CONV7 = Conv2D( N0, kernel_size=[3,3],activation='relu',padding='same')(CONV7) #MERGE1)
+    #LEVEL 3
+    CONV7_UP = UpSampling2D(size=(2, 2))(CONV6)
+    CONV7_PAD = ZeroPadding2D( ((0,0),(0,0)) )(CONV7_UP)
+    UP2 = Concatenate()([CONV7_PAD, CONV3])#, mode='concat', concat_axis=3)
+
+    CONV7 = Conv2D( N2, kernel_size=[3,3],activation='relu',padding='same')(UP2)
+    CONV7 = Conv2D( N2, kernel_size=[3,3],activation='relu',padding='same')(CONV7)
     CONV7 = Dropout(DO)(CONV7)
-    OUT = Conv2D(3, kernel_size=1,  padding='same', activation='softmax', name='cls')(CONV7)
+
+    #LEVEL 2
+    CONV8_UP = UpSampling2D(size=(2, 2))(CONV7)
+    CONV8_PAD = ZeroPadding2D( ((0,0),(0,0)) )(CONV8_UP)
+    UP3 = Concatenate()([CONV8_PAD, CONV2])#, mode='concat', concat_axis=3)
+    CONV8 = Conv2D( N1, kernel_size=[3,3],activation='relu',padding='same')(UP3)
+    CONV8 = Conv2D( N1, kernel_size=[3,3],activation='relu',padding='same')(CONV8)
+    CONV8 = Dropout(DO)(CONV8)
+
+    #Level 1
+    CONV9_UP = UpSampling2D(size=(2, 2))(CONV8)
+    CONV9_PAD = ZeroPadding2D( ((0,0),(0,1)) )(CONV9_UP)
+    UP4 = Concatenate()([CONV9_PAD, CONV1])
+    CONV9 = Conv2D( N0, kernel_size=[3,3],activation='relu',padding='same')(UP4) 
+    CONV9 = Conv2D( N0, kernel_size=[3,3],activation='relu',padding='same')(CONV9) 
+    CONV9 = Dropout(DO)(CONV9)
+    OUT = Conv2D(3, kernel_size=1,  padding='same', activation='softmax', name='cls')(CONV9)
 
     model = Model(inputs=[image], outputs=[OUT])
     ada = tf.keras.optimizers.Adam()
 
-    #metric_dict = {'cls':metrics.CategoricalAccuracy, 'seg':metrics.Accuracy }
-    metric_list = [metrics.CategoricalAccuracy, metrics.Accuracy ]
-    #loss_dict = {'cls':metrics.CategoricalAccuracy, 'seg':metrics.Accuracy }
-    loss_list = [metrics.CategoricalAccuracy, metrics.Accuracy ]
-    #loss_dict = {'cls':  , 'seg':losses.mean_squared_error}
-    loss_weights = [1, 1]
-
-    model.compile(loss = weighted_categorical_crossentropy(class_weights),  optimizer=ada, metrics=['CategoricalAccuracy'] )
+    #model.compile(loss=weighted_categorical_crossentropy(class_weights),  optimizer=ada, metrics=['CategoricalAccuracy'] )
+    model.compile(loss='categorical_crossentropy',  optimizer=ada, metrics=['CategoricalAccuracy'] )
     print(model.summary())
     return model
 
-
-def predict_results(source_dir, output_dir, model,patch_size, data, n_train, n_images, _use_radon ):
-    if not os.path.exists(source_dir+os.sep+'results') : os.makedirs(source_dir+os.sep+'results')
-    ydim=data['x'].shape[1]
-    xdim=data['y'].shape[2]
-    qc_dir = output_dir + os.sep + 'qc'
-    if not os.path.exists(qc_dir) : os.makedirs(qc_dir)
-
-    for j, i in enumerate( range(n_train, n_images) ) :
-        img=data['x'][i,:].reshape([1,ydim,xdim,1])
-        seg=data['y'][i,:].reshape([1,ydim,xdim,1])
-        
-        X = np.argmax( model.predict(img, batch_size=1), axis=3)
-        plt.figure(figsize=(12,8), dpi=200, facecolor='b' ) 
-        plt.subplot(1,3,1)
-        plt.imshow( img.reshape(ydim,xdim).astype(float) )
-        plt.subplot(1,3,2)
-        plt.imshow(seg.reshape(ydim,xdim).astype(float), vmin=0, vmax=2  )
-        plt.subplot(1,3,3)
-        plt.imshow(X.reshape(ydim,xdim).astype(float),vmin=0,vmax=2) #.astype(int), vmin=0, vmax=2 )
-        print(qc_dir+os.sep+str(i)+'.png')
-        plt.tight_layout()
-        plt.savefig(qc_dir+os.sep+str(i)+'.png', facecolor='black')
-        plt.clf()
-        if j > 15 : break
-
-
-def train_model(source_dir, output_dir, step, epochs, ext='tif', clobber=False) :
-    train_dir=source_dir+os.sep+'train'
-    label_dir=source_dir+os.sep+'labels'
-    data_fn = output_dir +os.sep +'data.h5'
+def run_model(model, data, batch_size, idx, max_steps, epoch, train_qc_dir, validate=False, qc_epoch=[],qc_batch=[]):
+    epoch_loss=0
+    epoch_metric=0
     
+    for step, (x, y) in enumerate(gen(data, batch_size, idx, validate=validate)) :
+        if epoch in qc_epoch and step in qc_batch :  gen_qc(model, batch_size, x, y, epoch, step, train_qc_dir )
 
-    if not os.path.exists(output_dir) :
-        os.makedirs(output_dir)
-    
-    downsample_images(source_dir, output_dir, step=step, ext=ext, clobber=clobber)
+        if step >= max_steps : break
 
-    if not os.path.exists(source_dir+os.sep+'train.h5') or not os.path.exists(source_dir+os.sep+'labels.h5') or clobber:
-        fn_to_array(data_fn, output_dir, step, clobber=clobber)
+        if not validate:
+            batch_loss, batch_metric  = model.train_on_batch(x, y) 
+        else :
+            batch_loss, batch_metric  = model.evaluate(x, y, verbose=0) 
 
-    data = h5.File(data_fn,'r' )
-    ratio=0.8
+        epoch_loss   += batch_loss * 1/( max_steps)
+        epoch_metric += batch_metric * 1/( max_steps)
+
+    return epoch_loss, epoch_metric
+
+def fit_model(data, model, model_name,  epochs, class_weights_npy, output_dir, ratio=0.8, batch_size=10 ) :
+    train_qc_dir = output_dir + os.sep + 'train_qc'
+    if not os.path.exists(train_qc_dir) : os.makedirs(train_qc_dir)
+
     n_images= data['x'].shape[0]
     n_train = int(round(ratio * n_images) )
     n_val = n_images - n_train
@@ -473,59 +436,96 @@ def train_model(source_dir, output_dir, step, epochs, ext='tif', clobber=False) 
     val_idx = all_idx[n_train:n_images]
 
     print('N Images:', n_images, "N Train:", n_train, "N Val:", n_images - n_train )
-    patch_size=256
-    batch_size=10
-    samples_per_image=1.4
-    max_steps=int(np.floor( (n_train + samples_per_image * n_train ) /batch_size) )
+    samples_per_image=1.5
+    train_steps=int(np.floor( (samples_per_image * n_train ) /batch_size) )
     val_steps=int(np.floor(n_val/batch_size))
-    model_name=output_dir+os.sep+"model.hdf5"
-    #checkpoint_fn = os.path.splitext(model_name)[0]+"_checkpoint-{epoch:02d}-{f1_m:.2f}.hdf5"
-    #checkpoint = ModelCheckpoint(checkpoint_fn, monitor='loss', verbose=0, save_best_only=True, mode='min')
 
-    steps=int((n_train*samples_per_image)/batch_size)
-    val_steps=int(((n_images-n_train)*samples_per_image)/batch_size)
     best_loss= np.inf
     best_metric = 0
+    print('Fitting model')
+    print('Train:', n_train,'Validate:',n_val)
+    train_loss_list=[]
+    val_loss_list=[]
 
-    class_weights_npy = np.array([1,1,5])
+    ###Iterate over epochs and train/validate
+    for epoch in range(epochs) :
+        # Train
+        train_loss, train_metric = run_model(model, data, batch_size, train_idx, train_steps, epoch, train_qc_dir, qc_epoch=[], qc_batch=[])
+        # Validate
+        val_loss, val_metric = run_model(model, data, batch_size, val_idx, val_steps, epoch, train_qc_dir, validate=True)
+
+        train_loss_list.append(train_loss)
+        val_loss_list.append(val_loss)
+        
+        # Print result for current epoch
+        sig_dig=5 
+        print('Epoch:',epoch,'\tLoss:',round(train_loss,sig_dig),'\tMetric:', round(train_metric,sig_dig),end='')
+        print('\tVal Loss:', round(val_loss,sig_dig) , '\tVal Metric:', round(val_metric,sig_dig) ) 
+
+        # Save best model
+        if val_loss < best_loss :
+            print('Saving model')
+            model.save(model_name)
+            best_loss = val_loss
+   
+    ### Plot training and validation loss
+    plt.figure()
+    line1 = plt.plot(range(epochs), train_loss_list, c='r')
+    line2 = plt.plot(range(epochs), val_loss_list, c='b')
+    plt.legend((line1,line2),('Train Loss', 'Val Loss'))
+    plt.savefig(output_dir+os.sep+'training_plot.png')
+
+def predict_results(output_dir, model, data):
+    ydim=data['x_no_label'].shape[1]
+    xdim=data['x_no_label'].shape[2]
+    qc_dir = output_dir + os.sep + 'qc'
+    if not os.path.exists(qc_dir) : os.makedirs(qc_dir)
+
+    for i in range(data['x_no_label'].shape[0]) :
+        img=data['x_no_label'][i,:].reshape([1,ydim,xdim,1])
+        img = (img-np.min(img)) / (np.max(img) - np.min(img))
+        X = np.argmax( model.predict(img, batch_size=1), axis=3)
+        plt.figure(figsize=(12,8), dpi=200, facecolor='b' ) 
+        plt.subplot(1,2,1)
+        plt.imshow( img.reshape(ydim,xdim).astype(float) )
+        plt.subplot(1,2,2)
+        plt.imshow(X.reshape(ydim,xdim).astype(float),vmin=0,vmax=2) #.astype(int), vmin=0, vmax=2 )
+        print(qc_dir+os.sep+str(i)+'.png')
+        plt.tight_layout()
+        plt.savefig(qc_dir+os.sep+str(i)+'.png', facecolor='black')
+        plt.clf()
+        if i > 30 : break
+
+
+def train_model(source_dir, output_dir, step, epochs, ext='tif',batch_size=10,ratio=0.8, clobber=False) :
+    data_fn=output_dir+os.sep+"data.h5"
+
+    # Downsample images
+    for img_str in ['label', 'clean', 'train', 'train_no_labels'] :
+        downsample_image_subset(source_dir, output_dir, img_str, step=step, ext=ext, clobber=clobber)  
+
+    # Put downsampled images into an hdf5
+    if not os.path.exists(source_dir+os.sep+'train.h5') or not os.path.exists(source_dir+os.sep+'labels.h5') or clobber:
+        fn_to_array(data_fn, output_dir, step, clobber=clobber)
+
+    
+    data = h5.File(data_fn,'r' )
+    class_weights_npy = np.array([1,1,1])
+
+    # Output model name
+    model_name=output_dir+os.sep+"model.hdf5"
+
     if not os.path.exists(model_name) or clobber :
-        #ar = np.array([ np.sum(data['y'][:] == 0),  np.sum(data['y'][:] == 1), np.sum(data['y'][:] == 2) ])
-        #ar = ar/ np.product(data['y'].shape[0] * data['y'].shape[1] * data['y'].shape[2] )
-        #true_class_weights_npy = 1/ ar
-        print('Class Weights:', class_weights_npy)
-        print(data['x'].shape)
+        # Create model
         model = make_compile_model(data['x'], class_weights_npy, batch_size) 
-        print('Fitting model')
-        for epoch in range(epochs) :
-            train_loss=0
-            train_metric=0
-            val_loss=0
-            val_metric=0 
-            
-            for step, (x, y) in enumerate(gen(data, batch_size, train_idx,step=patch_size)) :
-                if step >= max_steps : break
-                loss, metric  = model.train_on_batch(x, y) 
-                train_loss   += loss * 1/( max_steps)
-                train_metric += metric * 1/( max_steps)
-            
-            for step, (x, y) in enumerate(gen(data, batch_size, val_idx,step=patch_size)) :
-                if step >= val_steps : break
-                loss, metric = model.evaluate(x, y,verbose=0)
-                val_loss   += loss * 1/( val_steps)
-                val_metric += metric * 1/( val_steps)
-            
-            sig_dig=5 
-            print('Epoch:',epoch,'\tLoss:',round(train_loss,sig_dig),'\tMetric:', round(train_metric,sig_dig),end='')
-            print('\tVal Loss:', round(val_loss,sig_dig) , '\tVal Metric:', round(val_metric,sig_dig) ) 
-            if val_loss < best_loss :
-                print('Saving model')
-                model.save(model_name)
-                best_loss = val_loss
+        # Fit model
+        fit_model(data, model, model_name,  epochs, class_weights_npy, output_dir, ratio=ratio, batch_size=batch_size)
     else :
         print(model_name)
         model = load_model(model_name, custom_objects={"loss":weighted_categorical_crossentropy(class_weights_npy)})
-    
-    predict_results(output_dir, output_dir, model, patch_size, data, n_train, n_images, False )
+   
+    # Apply model to new data
+    predict_results( output_dir, model,  data )
 
     return 0
 
@@ -548,10 +548,12 @@ if __name__ == "__main__":
     parser.add_argument('--train-output',dest='train_output_dir', default='',  help='Directory name for outputs')
     parser.add_argument('--ext',dest='ext', default='.tif',  help='Directory name for outputs')
     parser.add_argument('--step',dest='step', default=0.1, type=float, help='File extension for input files (default=.tif)')
+    parser.add_argument('--batch-size',dest='batch_size', default=10, type=float, help='Size of training batches')
+    parser.add_argument('--ratio',dest='ratio', default=0.8, type=float, help='Ratio of data to use for training')
     parser.add_argument('--epochs',dest='epochs', default=20, type=int, help='Number of epochs')
     parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
 
     args = parser.parse_args()
-    train_model(args.train_source_dir, args.train_output_dir, step=args.step, epochs=args.epochs, ext=args.ext, clobber=args.clobber)
+    train_model(args.train_source_dir, args.train_output_dir, step=args.step, epochs=args.epochs, batch_size=args.batch_size, ratio=args.ratio, ext=args.ext, clobber=args.clobber)
     
 
