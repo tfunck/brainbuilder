@@ -1,54 +1,92 @@
 import h5py as h5
-from detectLines import train_model, apply_model
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import h5py as h5
+import imageio
+import argparse
+import os
+import json
+import nibabel as nib
+import nibabel.processing
+#from detectLines import train_model, apply_model
+
+def check_file(fn):
+    '''
+        Verify that a file exists. If it does not return with error, otherwise return path.
+    '''
+    if not os.path.exists(fn) :
+        print("Error could not find path for", fn)
+        exit(ERROR_FILENOTFOUND)
+    return fn
+
+def read_image(fn):
+    img = imageio.imread(fn)
+    if len(img.shape) == 3 : img = np.mean(img,axis=2)
+    return img
+
+def downsample_image(img_fn) :
+    print(img_fn)
+    img = read_image(img_fn)
+    img_nii = nib.Nifti1Image(img, auto_affine)
+    img_dwn = nib.processing.resample_to_output( img_nii, .1, order=5).get_data()
+    img_dwn = img_dwn.reshape(img_dwn.shape[0:2])
+    return img_dwn
 
 
+def downsample(df, dwn_fn, clobber=0) :
+    
+    img0 = downsample_image( df['lin_fn'].iloc[0] ) 
+    if not os.path.exists(dwn_fn) or clobber > 0:
+        n = df.shape[0]
+        dwn_vol = h5.File(dwn_fn, "w")
+        dwn_vol.create_dataset( 'data', (n, img0.shape[0], img0.shape[1]),  compression="gzip", dtype='float16')
+        dwn_vol.create_dataset( 'flip', (n,),  compression="gzip", dtype='bool')
+        dwn_vol['flip'][:] =False
+    else : 
+        dwn_vol = h5.File(dwn_fn, "r+")
 
+    for i, (slab_i, row) in enumerate(df.iterrows()) :
+        if np.max(dwn_vol['data'][i,:,:]) == 0 :
+            dwn_img = downsample_image( row['lin_fn'] )
+            if dwn_img.shape != img0.shape :
+                dwn_img = dwn_img.T
+                dwn_vol['flip'][i] = True
+            dwn_vol['data'][i,:,:] = dwn_img 
 
-
-# Module 1 (per slab)
-#   submodule 1.1:
-#       IN: 1) raw tif
-#       --> tif to nifti 
-#       --> downsample
-#       --> remove lines
-#       --> crop
-#       OUT: 1) raw.nii.gz 2) raw_rsl.nii.gz
-#
-#   submodule 1.2:
-#       IN : raw_rsl.nii.gz
-#       --> init reconstruction 
-#       OUT: 1) tfm.h5 2) init_vol.nii.gz 3) init.h5
-#
-#   submodule 1.3:
-#      IN : init_vol.nii.gz 
-#       --> gm mask
-#      OUT : gm_vol.nii.gz
+    return dwn_vol
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--input','-i', dest='source', default='data/',  help='Directory with raw images')
-    parser.add_argument('--csv','-c', dest='autoradiograph_info_fn', default='autoradiograph_info.csv',  help='csv file with autoradiograph information for each section')
+    parser.add_argument('--csv','-c', dest='auto_info_fn', default='autoradiograph_info.csv',  help='csv file with autoradiograph information for each section')
     parser.add_argument('--output','-o', dest='output', default='output/', help='Directory name for outputs')
-    parser.add_argument('--slab','-s', dest='slab', help='Brain slab')
-    parser.add_argument('--hemi','-h', dest='hemi', help='Brain hemisphere')
+    parser.add_argument('--slab','-s', dest='slab',type=int, help='Brain slab')
+    parser.add_argument('--hemi','-H', dest='hemi', help='Brain hemisphere')
     parser.add_argument('--brain','-b', dest='brain', help='Brain number')
-    parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
+    parser.add_argument('--clobber', dest='clobber', type=int, default=0, help='Clobber results')
 
     args = parser.parse_args()
     # Setup variables 
-    #downsample
     scale_factors_json = check_file(args.source + os.sep + "scale_factors.json")
-    z_mm = scale[self.brain_id][self.hemi][str(self.slab)]["size"]
+    scale = json.load(open(scale_factors_json,'r'))
+    z_mm = scale[args.brain][args.hemi][str(args.slab)]["size"]
     auto_affine = np.array([[z_mm/4164.,0,0,0],[0.0,z_mm/4164.,0,0],[0,0,1.0,0],[0,0,0,1]])
-    input_raw = args.source + 'lin' 
-    input_lin = args.source + 'raw'
 
-    lines_removed_dir = args.output+"/lines_removed/"
-    cropped_dir = args.output+"/crop/"
-    downsampled_dir = args.output + '/downsampled/'
-    if not os.path.exists(downsampled_dir) : os.makedirs(downsampled_dir)
-    
+    dwn_fn = '%s/brain-%s_hemi-%s_slab-%s_space-rec_100um_lin.h5.gz' % ( args.output, args.brain, args.hemi, args.slab  )
+    #Create output directory
+    if not os.path.exists(args.output) : os.makedirs(args.output)
 
+    #Read .csv with autoradiograph information
+    df = pd.read_csv(args.auto_info_fn)
+    df = df.loc[ (df['hemisphere'] == args.hemi) & (df['mri'] == args.brain) & (df['slab']==args.slab) ]
+
+    ###########################################
+    ### Step 1 : Downsample GM and Receptor, preserve sulci ###
+    ###########################################
+    dwn_vol = downsample(df, dwn_fn, clobber=args.clobber) 
+
+    '''
     if not os.path.exists(receptor_lines_removed_fn) or clobber :
         for y in range(dwn_vol.shape[1]) :
             ###################################
@@ -76,16 +114,6 @@ if __name__ == "__main__":
             #At 250um
             if not os.path.exists(receptor_cropped_fn) or clobber :
                 crop_source_files(, cropped_dir, downsample_step=0.2, manual_only=True, no_frame=no_frame, ext='.png',clobber=False)
+    '''
 
-    ###########################################
-    ### Step 1 : Downsample GM and Receptor, preserve sulci ###
-    ###########################################
-    if not os.path.exists(receptor_lines_removed_fn) or clobber :
-        dwn_vol = np.zeros()
-        for idx, receptor_fn in enumerate(.csv):
-            img = imageio.imread(receptor_fn)
-            if len(img.shape) == 3 : img = np.mean(img,axis=2)
-            dwn_vol[:,idx,:] = nib.processing.resample_to_output(nib.Nifti1Image(img, auto_affine), .25, order=5).get_data()
-
-    #Next step, inter-autoradiograph alignment
 
