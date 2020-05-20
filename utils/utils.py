@@ -153,6 +153,19 @@ def downsample_y(img_fn, out_fn, step=0.2, clobber=False ):
     img_dwn.to_filename(out_fn)
     del img_dwn
 
+def safe_imread(fn) :
+    img = imageio.imread(fn)
+    if len(img.shape) > 2 :
+        img = np.mean(img,axis=2)
+    return img
+
+def nib_downsample(in_fn, aff, step, order=5) :
+    img = safe_imread(in_fn)
+    out_img = nib.processing.resample_to_output(nib.Nifti1Image(img, aff), step, order=order).get_data()
+    out_img = out_img.reshape(out_img.shape[0], out_img.shape[1])
+    print(out_img.shape)
+    return out_img
+    
 def downsample(img, subject_fn="", step=0.2, interp=3):
     #Calculate length of image based on assumption that pixels are 0.02 x 0.02 microns
     l0 = img.shape[0] * 0.02 
@@ -163,15 +176,11 @@ def downsample(img, subject_fn="", step=0.2, interp=3):
     dim1=int(np.ceil(l1 / step))
 
     #Calculate the standard deviation based on a FWHM (pixel step size) of downsampled image
-    sd0 = 5 #step / 2.634 
-    sd1 = 5 #step / 2.634 
-
-    #Gaussian filter
-    #img_blr = gaussian_filter(img.astype(float), sigma=[sd0, sd1])
     
     #Downsample
     #print('Downsample to', dim0, dim1)
     img_dwn = resize(img.astype(float), (dim0, dim1), order=int(interp) )
+    print( img.shape , '-->', img_dwn.shape)
     #plt.subplot(3,1,1)
     #plt.imshow(img)
     #plt.subplot(3,1,2)
@@ -222,7 +231,6 @@ def rgb2gray(rgb): return np.mean(rgb, axis=2)
 
 def find_min_max(seg):
     m = np.max(seg)
-    print(np.unique(seg), m )
     plt.imshow(seg)
     plt.savefig('test.png')
     fmin = lambda a : min(np.array(range(len(a)))[a == m])
