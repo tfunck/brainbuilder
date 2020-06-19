@@ -10,6 +10,7 @@ import os
 import argparse
 import shutil
 import re
+from glob import glob
 from ANTs import ANTs
 from utils.utils import shell, splitext
 from nibabel.processing import resample_to_output
@@ -405,7 +406,7 @@ def align_slabs( args, cls_base_fn="MR1/R_slab_<slab>/classify/vol_cls_<slab>_25
     best_df = pd.read_csv(out.best_csv_fn)
 
     #Delete temporary (non-final) files
-    for f in lob(args.outDir + os.sep + "*nii.gz")  :
+    for f in glob(args.outDir + os.sep + "*nii.gz")  :
         os.remove(f)
 
     return best_df

@@ -293,7 +293,7 @@ def interpolateMissingSlices(df, tfm, slab, ligand, rec_fn, srv_fn,  output_dir,
 
         #interp_img_fn= fill_dir + os.sep + ''.join(["slab-",str(slab),"_ligand-",ligand,"_interp_y-",str(_y0), ".nii.gz"])
         #if not os.path.exists(interp_img_fn) or clobber :
-        res = apply_transforms(rec_y0, rec_y0, tfm[str(_y0)][str(_y0)], interpolator=interpolator )
+        res = apply_transforms(rec_y0, rec_y0, tfm[str(_y0)][str(_y0)], interpolator=interpolator ).numpy()
         #section2Nii(res.numpy(), _y0, affine, interp_img_fn, clobber=False)
         #del res
         #vol = nib.load(interp_img_fn).get_data()
