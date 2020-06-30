@@ -30,6 +30,7 @@ if __name__ == '__main__' :
     parser.add_argument('--fixed','-f', dest='fixed_fn', type=str, help='')
     parser.add_argument('--moving','-m', dest='moving_fn', type=str, help='')
     parser.add_argument('--out','-o', dest='out_fn', type=str, help='')
+    parser.add_argument('--init-tfm','-t', dest='init_tfm', type=str, help='')
     parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
     
     args = parser.parse_args()
@@ -46,9 +47,10 @@ if __name__ == '__main__' :
     tfm_types=['SyN']
     prefix = os.path.splitext(args.out)[0]
 
-    tfm_syn, moving_rsl_fn = ANTs(prefix, args.fixed_fn, args.moving_fn, prefix, iterations=iterations, tfm_type=tfm_types, shrink_factors=shrink_factors, sampling=1, smoothing_sigmas=smoothing_sigmas, radius=3, metrics=metrics, verbose=1, clobber=0, init_tfm=self.init_tfm, init_inverse=True, exit_on_failure=True)
+    tfm_syn, moving_rsl_fn = ANTs(prefix, args.fixed_fn, args.moving_fn, prefix, iterations=iterations, tfm_type=tfm_types, shrink_factors=shrink_factors, sampling=1, smoothing_sigmas=smoothing_sigmas, radius=3, metrics=metrics, verbose=1, clobber=0, init_tfm=args.init_tfm, init_inverse=True, exit_on_failure=True)
 
     if ( not os.path.exists(out_fn) or clobber ) and moving_rsl_fn != None :
-        shell(' '.join(['antsApplyTransforms -v 1 -i', args.moving_fn, '-r', self.fixed_fn, '-o', args.out_fn, '-t', tfm_syn]))
+        shell(' '.join(['antsApplyTransforms -v 1 -i', args.moving_fn, '-r', args.fixed_fn, '-o', args.out_fn, '-t', tfm_syn]))
 
-    ants_transform_surface()
+    surf_out_fn = prefix+'.surf.gii'
+    ants_transform_surface( args.surf_fn, args.init_tfm, surf_out_fn   )
