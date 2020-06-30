@@ -274,11 +274,11 @@ if __name__ == "__main__":
     df = pd.read_csv(args.auto_info_fn)
     df = df.loc[ (df['mri'] == args.brain) &  (df['slab'] == args.slab) & ( df['hemisphere'] == args.hemi) ]
 
-    downsample_lin(dwn_vol_fn, df['lin_fn'].values,  step=0.1, clobber=False)
-    exit(0)
-    vol = h5.File(dwn_vol_fn, 'r')
-    line_data = h5.File(args.line_hdf5_fn, 'r')
-    model = load_model(args.model_fn)
+    #downsample_lin(dwn_vol_fn, df['lin_fn'].values,  step=0.1, clobber=False)
+    #exit(0)
+    #vol = h5.File(dwn_vol_fn, 'r')
+    #line_data = h5.File(args.line_hdf5_fn, 'r')
+    #model = load_model(args.model_fn)
     contrast_df=pd.DataFrame({'ligand':[],'contrast':[]})
     
     qc_dir ='%s/qc'%(args.output)

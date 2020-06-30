@@ -28,7 +28,7 @@ def click_and_crop(event, x, y, flags, param):
 		cropping = False
 
 		# draw a rectangle around the region of interest
-		cv2.rectangle(image, refPt[0], refPt[1], (0, 255, 0), 2)
+		cv2.rectangle(image, refPt[0], refPt[1], (255, 255, 255), 2)
 		cv2.imshow("image", image)
 
 
@@ -36,11 +36,13 @@ def click_and_crop(event, x, y, flags, param):
 #ap = argparse.ArgumentParser()
 #ap.add_argument("-i", "--image", required=True, help="Path to the image")
 #args = vars(ap.parse_args())
-
+from PIL import Image
+import numpy as np
 def click(img) : 
     # load the image, clone it, and setup the mouse callback function
     global image
-    image = cv2.imread(img)
+    #image = cv2.imread(img)
+    image = img #Image.fromarray(img.astype(np.uint8))
     clone = image.copy()
     cv2.namedWindow("image", cv2.WINDOW_AUTOSIZE)
     cv2.setMouseCallback("image", click_and_crop)

@@ -231,8 +231,6 @@ def rgb2gray(rgb): return np.mean(rgb, axis=2)
 
 def find_min_max(seg):
     m = np.max(seg)
-    plt.imshow(seg)
-    plt.savefig('test.png')
     fmin = lambda a : min(np.array(range(len(a)))[a == m])
     fmax = lambda a : max(np.array(range(len(a)))[a == m])
     
