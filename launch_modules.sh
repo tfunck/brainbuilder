@@ -16,19 +16,43 @@ hemi_list="R L"
 slab_list="1 2 3 4 5 6"
 ligand_list="flum"
 
+#If running on server:
+#run=qsub
+#If running locally:
+run=sh 
+
+#Path to autoradiograph_info.csv
+autoradiograph_info_fn='autoradiograph_info.csv'
+
+out_dir='reconstruction_output'
+mkdir -p $out_dir
+
+###---------------------###
+###  PROCESSING STEPS   ###
+###---------------------###
+#   1. Init Alignment (Rigid 2D, per slab)
+#   2. GM segmentation of receptor volumes (per slab)
+#   3. Slab to MRI (Affine 3D, per slab)
+#   4. GM MRI to autoradiograph volume (Nonlinear 3D, per slab)
+#   5. Autoradiograph to GM MRI (2D nonlinear, per slab)
+#   6. Interpolate autoradiograph to surface
+#   7. Interpolate missing vertices on sphere, interpolate back to 3D volume
+
 ###
-### Step 1 : Initial interslab alignment
+### Steps 1 & 2: Initial interslab alignment, GM segmentation
 ###
 init_file_check=""
-for brain in brain_list; do
-    for hemi in hemi_list; do
+for brain in $brain_list; do
+    for hemi in $hemi_list; do
         for slab in "1" "2" "3" "4" "5" "6"; do
             init_align_fn=${out_dir}/'init_align_brain-${brain}_hemi-${hemi}_slab-${slab}.nii.gz'
             seg_fn=${out_dir}/'seg_brain-${brain}_hemi-${hemi}_slab-${slab}.nii.gz'
             
             if [[ ! -f $init_align_fn && ! -f $seg_fn ]]; then
-                echo qsub batch_interslab_alignment.sh $brain $hemi $slab    
-                init_file_check="$init_file_check $init_align_fn $seg_fn  "
+                echo qsub batch_init_alignment.sh $brain $hemi $slab    
+                bash -c "$run batch_init_alignment.sh $brain $hemi $slab $init_align_fn $out_dir $autoradiograph_info_fn"
+                init_file_check="$init_file_check $init_align_fn $seg_fn "
+                exit 0
             fi
         done
     done
@@ -37,6 +61,7 @@ done
 #Pause script until previous job have finished 
 pause $init_file_check 
 
+exit 0 
 ###
 ### Step 2 : Align slabs to MRI
 ###

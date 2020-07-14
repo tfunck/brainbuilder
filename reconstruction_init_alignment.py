@@ -5,12 +5,14 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import json
 import shutil
+import sys
 from glob import glob
 from utils.utils import set_csv, add_padding, setup_tiers
 from ants import registration, apply_transforms, image_mutual_information, from_numpy, image_similarity
 
 
 def find_next_slice( i , step, df):
+    #Get the the tier of the current section
     current_tier = df["tier"].iloc[i]
     i2=i
     i2_list = []
@@ -40,17 +42,24 @@ def adjust_alignment(df, vol, epoch, y_idx, mid, initial_transforms, step, outpu
     i=mid
     mi_list=[]
 
+    # Iterate over the sections along y-axis
     while i > 0 and i < len(y_idx)-1  :
+        #Find the next neighbouring section//
+
         j_list = find_next_slice(i, step, df)
+        #Set the current section to <fixed>
         fixed = from_numpy(vol[:,y_idx[i],:].T, spacing=(0.2,0.2))
         #print("I :", i, "J List: ", j_list)
+        
+        #for neighbours
         for j in j_list :
             outprefix = output_dir + "/transforms/epoch-"+str(epoch)+"/"+str(y_idx[j])+'/' 
             if not os.path.exists(outprefix): os.makedirs(outprefix)
             if not os.path.exists(output_dir+"/qc"): os.makedirs(output_dir+"/qc")
             tfm_fn = outprefix + "0GenericAffine.mat"
             qc_fn = output_dir + "/qc/"+str(y_idx[j])+"_"+str(y_idx[i])+"_"+str(epoch)+".png"
-
+            
+            #Set the section which is being moved to the fixed image 
             moving= from_numpy(vol[:,y_idx[j],:].T, spacing=(0.2,0.2))
 
             if clobber or  not os.path.exists(tfm_fn) : # or not os.path.exists(qc_fn)  :
@@ -177,24 +186,38 @@ def add_y_position(df):
         df["volume_order"].loc[ row["order"] == df["order"]] = order_max - row["order"]
     return df
 
-def receptorRegister(source_dir, output_dir, tiers_string, receptor_df_fn, ext=".nii.gz", scale_factors_json="data/scale_factors.json", n_epochs=3, write_each_iteration=False, clobber=False):
+def receptorRegister(brain,hemi,slab, init_align_fn, output_dir, receptor_df_fn, tiers_string=None, scale_factors_json="data/scale_factors.json", n_epochs=3, write_each_iteration=False, clobber=False):
+    print('receptor register')
     if not os.path.exists(output_dir) :
         os.makedirs(output_dir)
+
+    if tiers_string==None:
+        tiers_string = "flum,musc,sr95,cgp5,afdx,uk20,pire,praz,keta,dpmg;sch2,dpat,rx82,kain,ly34,damp,mk80,ampa,uk18;oxot;epib"
     
     with open(scale_factors_json) as f : scale=json.load(f)
-
-    source_files=glob(source_dir+os.sep+ "*" + ext)
-    print(source_dir+os.sep +"*"+ext)
-    df = set_csv(source_files, output_dir, clobber=clobber)
-    df = setup_tiers(df, tiers_string) 
+    df = pd.read_csv(receptor_df_fn)
+    df = df.loc[ (df.brain==brain) & (df.slab==slab) & (df.hemi==hemi),:]
     df = add_y_position(df)
     df.sort_values(["volume_order"], inplace=True)
-
-    df.to_csv(receptor_df_fn)
 
     slab_img_fn = output_dir + os.sep + 'vol_0.nii.gz'
     if not os.path.exists(slab_img_fn) or clobber :
         init_volume(slab_img_fn,  df, scale, ext=".nii.gz", clobber=clobber)
 
+    df = setup_tiers(df, tiers_string)
+    print(df)
+    exit(0)
     receptorAdjustAlignment(df, slab_img_fn, output_dir, n_epochs=n_epochs, write_each_iteration=write_each_itertion, clobber=clobber)
+
+
+if __name__ == '__main__' :
+    print(sys.argv)
+    brain = sys.argv[1]
+    hemi = sys.argv[2]
+    slab = sys.argv[3] 
+    init_align_fn = sys.argv[4]
+    output_dir = sys.argv[5]
+    receptor_df_fn = sys.argv[6]
+    
+    receptorRegister( brain, hemi, slab, init_align_fn, output_dir, receptor_df_fn, n_epochs=4, write_each_iteration=True, clobber=True)
 
