@@ -26,8 +26,8 @@ def sum_volume(fn_string, out_fn) :
     for i in range(0,len(img_list)) :
         print(i,)
         vol =  img_list[i].get_data()
-        vol[ vol < 0 ] = 0
-        vol = vol  / np.std(vol)
+        #vol[ vol < 0 ] = 0
+        #vol = vol  / np.std(vol)
         #vol /= np.max(vol)
         print(vol.shape, outVolume.shape)
         outVolume += vol
