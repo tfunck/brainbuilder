@@ -2,11 +2,13 @@ import nibabel as nib
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+import imageio
 import pandas as pd
 import json
 import shutil
 import sys
 from glob import glob
+import re
 from utils.utils import set_csv, add_padding, setup_tiers
 from ants import registration, apply_transforms, image_mutual_information, from_numpy, image_similarity
 
@@ -41,11 +43,11 @@ def adjust_alignment(df, vol, epoch, y_idx, mid, initial_transforms, step, outpu
     if not os.path.exists(output_dir + "/qc/") : os.makedirs(output_dir + "/qc/")
     i=mid
     mi_list=[]
-
+    n=len(y_idx)
     # Iterate over the sections along y-axis
     while i > 0 and i < len(y_idx)-1  :
         #Find the next neighbouring section//
-
+        if i % 100 == 0 : print(100.* np.round(i/n,3),end='\r')
         j_list = find_next_slice(i, step, df)
         #Set the current section to <fixed>
         fixed = from_numpy(vol[:,y_idx[i],:].T, spacing=(0.2,0.2))
@@ -90,7 +92,7 @@ def adjust_alignment(df, vol, epoch, y_idx, mid, initial_transforms, step, outpu
 
     return mi_list, vol 
 
-def receptorAdjustAlignment(df, vol_fn, output_dir, n_epochs=3, write_each_iteration=False, clobber=False):
+def receptorAdjustAlignment(init_align_fn, df, vol_fn, output_dir, n_epochs=3, write_each_iteration=False, clobber=False):
     
     vol_nii = nib.load(vol_fn)
     vol = vol_nii.get_data()
@@ -119,7 +121,7 @@ def receptorAdjustAlignment(df, vol_fn, output_dir, n_epochs=3, write_each_itera
         plt.scatter(range(1,len(mi_list)+1), mi_list, c='r')
         plt.savefig(output_dir+os.sep+'mi.png')
 
-    shutil.copy(output_dir+os.sep+"vol_"+str(epochs[-1])+".nii.gz", output_dir+os.sep+"vol_final.nii.gz")
+    shutil.copy(output_dir+os.sep+"vol_"+str(epochs[-1])+".nii.gz", init_align_fn)
     print(output_dir+os.sep+'transforms.json')
     initial_transforms_mod = { str(k):v for k, v in initial_transforms.items() }
     
@@ -129,16 +131,18 @@ def receptorAdjustAlignment(df, vol_fn, output_dir, n_epochs=3, write_each_itera
 def init_volume(slab_img_fn,  df, scale, ext=".nii.gz", clobber=False, align=True):
     example_fn=df["filename"].values[0]
     print(example_fn)
-    shape = nib.load(example_fn).get_shape()
+    #shape = nib.load(example_fn).get_shape()
+    shape = imageio.imread(example_fn).shape
     xmax = shape[0] 
     zmax = shape[1]
-    order_max=df["order"].max()
-    order_min=df["order"].min()  
-    slab_ymax=order_max-order_min + 1
+    order_max=df["volume_order"].max()
+    order_min=df["volume_order"].min()  
+    slab_ymax=order_max+1 #-order_min + 1
 
     z0=x0=0
     for i, row in df.iterrows() :
-        shape =  nib.load(row["filename"]).get_data().shape
+        shape =  imageio.imread(row["filename"]).shape
+        #shape =  nib.load(row["filename"]).get_data().shape
         x0 = max([x0,shape[0]])
         z0 = max([z0,shape[1]])
 
@@ -154,7 +158,8 @@ def init_volume(slab_img_fn,  df, scale, ext=".nii.gz", clobber=False, align=Tru
         hemi = row["hemisphere"]
         mr = row["mri"]
         direction = scale[mr][hemi][str(slab)]["direction"]
-        temp =  nib.load(_file).get_data()
+        #temp =  nib.load(_file).get_data()
+        temp =  imageio.imread(_file)
         temp = temp.reshape(*temp.shape[0:2])
         if direction == "rostral_to_caudal":
             temp = np.flip(temp, 0)
@@ -170,7 +175,7 @@ def init_volume(slab_img_fn,  df, scale, ext=".nii.gz", clobber=False, align=Tru
     #    vol = np.flip(vol, 1)
     
     print("\tWriting",slab_img_fn)
-    slab_ymin=-126+df["order"].min()*0.02
+    slab_ymin=-126+df["volume_order"].min()*0.02
     affine=np.array([[0.2, 0, 0, -72],
                     [0, 0.02, 0, slab_ymin],
                     [0,0,0.2, -90],
@@ -181,12 +186,13 @@ def init_volume(slab_img_fn,  df, scale, ext=".nii.gz", clobber=False, align=Tru
     
 def add_y_position(df):
     df["volume_order"]=[0]*df.shape[0]
-    order_max=df["order"].max()
-    for i, row in df.iterrows() :
-        df["volume_order"].loc[ row["order"] == df["order"]] = order_max - row["order"]
+    df["volume_order"] = df["global_order"].max() - df["global_order"] 
+    #order_max=df["volume_order"].max()
+    #for i, row in df.iterrows() :
+    #    df["volume_order"].loc[ row["order"] == df["order"]] = order_max - row["order"]
     return df
 
-def receptorRegister(brain,hemi,slab, init_align_fn, output_dir, receptor_df_fn, tiers_string=None, scale_factors_json="data/scale_factors.json", n_epochs=3, write_each_iteration=False, clobber=False):
+def receptorRegister(brain,hemi,slab, init_align_fn, source_dir, output_dir, receptor_df_fn, tiers_string=None, scale_factors_json="scale_factors.json", n_epochs=3, write_each_iteration=False, clobber=False):
     print('receptor register')
     if not os.path.exists(output_dir) :
         os.makedirs(output_dir)
@@ -196,18 +202,18 @@ def receptorRegister(brain,hemi,slab, init_align_fn, output_dir, receptor_df_fn,
     
     with open(scale_factors_json) as f : scale=json.load(f)
     df = pd.read_csv(receptor_df_fn)
-    df = df.loc[ (df.brain==brain) & (df.slab==slab) & (df.hemi==hemi),:]
+    df = df.loc[ (df.mri ==brain) & (df.slab==int(slab)) & (df.hemisphere==hemi)]
+    #df["volume_order"] = df["global_order"]
     df = add_y_position(df)
     df.sort_values(["volume_order"], inplace=True)
-
+    df['filename']=source_dir+'/'+df['lin_fn'].apply(lambda x : os.path.splitext(os.path.basename(x))[0]) +'.png'
+    df['filename']=df['filename'].apply(lambda x : re.sub('#L.png','.png',x))
     slab_img_fn = output_dir + os.sep + 'vol_0.nii.gz'
     if not os.path.exists(slab_img_fn) or clobber :
         init_volume(slab_img_fn,  df, scale, ext=".nii.gz", clobber=clobber)
 
     df = setup_tiers(df, tiers_string)
-    print(df)
-    exit(0)
-    receptorAdjustAlignment(df, slab_img_fn, output_dir, n_epochs=n_epochs, write_each_iteration=write_each_itertion, clobber=clobber)
+    receptorAdjustAlignment(init_align_fn, df, slab_img_fn, output_dir, n_epochs=n_epochs, write_each_iteration=write_each_iteration, clobber=clobber)
 
 
 if __name__ == '__main__' :
@@ -216,8 +222,9 @@ if __name__ == '__main__' :
     hemi = sys.argv[2]
     slab = sys.argv[3] 
     init_align_fn = sys.argv[4]
-    output_dir = sys.argv[5]
-    receptor_df_fn = sys.argv[6]
+    source_dir = sys.argv[5]
+    output_dir = sys.argv[6]
+    receptor_df_fn = sys.argv[7]
     
-    receptorRegister( brain, hemi, slab, init_align_fn, output_dir, receptor_df_fn, n_epochs=4, write_each_iteration=True, clobber=True)
+    receptorRegister( brain, hemi, slab, init_align_fn, source_dir, output_dir, receptor_df_fn, n_epochs=4, write_each_iteration=True, clobber=True)
 

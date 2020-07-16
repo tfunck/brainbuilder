@@ -36,6 +36,7 @@ from skimage.segmentation import clear_border
 from skimage.exposure import equalize_hist
 from skimage.morphology import disk
 from scipy.ndimage import label
+from utils.utils import shell 
 matplotlib.use("TkAgg")
 
 def qc(img_list, name_list, qc_fn, dpi=200):
@@ -251,7 +252,6 @@ def preprocess(fn,base,version,qc_fn,temp_crop_fn):
     im = safe_imread(fn)
     im_no_lines, lines = remove_lines(im, base,version)
     if np.max(im_no_lines) == np.min(im_no_lines) : return 1
-    
     if version == 4 : 
         im_no_lines = exposure.equalize_adapthist(im, clip_limit=0.03)
         #im_no_lines =  equalize_hist(gaussian_filter(im_no_lines,1))
@@ -280,8 +280,10 @@ def preprocess(fn,base,version,qc_fn,temp_crop_fn):
         seg = denoise(seg,  verbose=verbose)
 
         if verbose : print('\tFill in tissue regions')
-        seg_fill = fill_regions(seg)
-
+        if version != 5 :
+            seg_fill = fill_regions(seg)
+        else :
+            seg_fill = seg
         ### 9) Remove pieces of tissue that are connected to border
         if verbose : print('\tClear border')
         seg_fill_no_border = clear_border(seg_fill, buffer_size=3)
@@ -295,7 +297,9 @@ def preprocess(fn,base,version,qc_fn,temp_crop_fn):
             crop_lo = fill_regions(binary_dilation(crop_lo,iterations=10).astype(int), False)
         else :
             crop_lo = fill_regions(fill_regions(crop_lo,False), False)
-        crop_lo = binary_dilation(crop_lo, iterations=10).astype(int)
+
+        if version != 5 :
+            crop_lo = binary_dilation(crop_lo, iterations=10).astype(int)
 
     if version == 2 or version == 3 :
         im = im_no_lines
@@ -357,27 +361,40 @@ if __name__ == '__main__' :
         final_crop_fn = '%s/%s.png'%(final_dir, os.path.splitext(os.path.basename(fn))[0])
         
         qc_str = 'crop/v%s/qc/*%s*'%(args.version,base)
-        pass_str = 'crop/v%s/pass/*%s*'%(args.version,base)
+        pass_str = 'crop/*/pass/*%s*'%(base)
         fail_str = 'crop/v%s/fail/*%s*'%(args.version,base)
         
         pass_list = glob(pass_str)
         qc_list = glob(qc_str)
         fail_list = glob(fail_str)
-        if len(qc_list) == 2 and len(glob(pass_list)) == 1 : os.remove(qc_fn)
+        if len(qc_list) == 1 and len(glob(pass_list)) == 1 : os.remove(qc_fn)
+        
+        if args.version == 5 :
+            #Version 5 of the preprocessing is just to copy the autoradiograph 
+            # to final_crop_fn and then use an external software (e.g., GIMP)
+            #to manually crop the image. Last resort if nothing else has worked.
+            #
+            if len(pass_list) == 0 :
+                shutil.copy(fn, final_crop_fn)
+                shutil.copy(fn, pass_fn)
+            continue
 
 
         if args.process :
-            if len(pass_list) > 0 : continue
+            if len(pass_list) > 0 or len(qc_list) > 0 : continue
+            print(pass_str)
+            print(pass_list)
             preprocess(fn, base, args.version, qc_fn, temp_crop_fn)
 
         if args.passed :
             if len(pass_list) > 0 : 
                 current_version = int(pass_fn.split('/')[1][1]) 
-                print(current_version, pass_fn,'>',final_crop_fn)
+                #print(current_version, pass_fn,'>',final_crop_fn)
                 if not os.path.exists(temp_crop_fn) :
-                    print('\tpreprocess')
-                    preprocess(fn, base, current_version, qc_fn, temp_crop_fn)
-                if not os.path.exists(final_crop_fn) :
+                    pass
+                    #print('\tpreprocess')
+                    #preprocess(fn, base, current_version, qc_fn, temp_crop_fn)
+                if not os.path.exists(final_crop_fn) and os.path.exists(temp_crop_fn) :
                     print('\tcopy')
                     shutil.copy(temp_crop_fn, final_crop_fn) 
             else :
@@ -385,17 +402,24 @@ if __name__ == '__main__' :
                     os.remove(final_crop_fn)
 
         if args.final_qc or args.final_check:
+            temp_qc_dir=f'crop/combined_final/qc/temp'
+            if not os.path.exists(temp_qc_dir) :
+                os.makedirs(temp_qc_dir)
+
             mask_fn=glob(f'crop/combined_final/mask/{base}*.png')
             if len(mask_fn) > 0 : mask_fn = mask_fn[0]
             else : mask_fn = f'crop/combined_final/mask/{base}.png'
 
             qc_fn = glob( f'crop/combined_final/qc/{base}*.png' )
             if len(qc_fn) > 0 : qc_fn = qc_fn[0]
-            else : qc_fn = f'crop/combined_final/qc/{base}.png'
-
-            if (not os.path.exists(qc_fn) or not os.path.exists(mask_fn)) and args.final_check : preprocess(fn, base, 4, qc_fn, mask_fn)
-            elif not os.path.exists(qc_fn) and os.path.exists(mask_fn) : 
-                print(np.round(100.*index/n,3), qc_fn)
+            else : qc_fn = f'{temp_qc_dir}/{base}.png'
+            #else : qc_fn = f'crop/combined_final/qc/{temp_qc_dir}{base}.png'
+            
+            v=int(pass_fn.split('/')[1][1])
+            if (not os.path.exists(qc_fn) or not os.path.exists(mask_fn)) and args.final_check : 
+                preprocess(fn, base, v, qc_fn, mask_fn)
+            if not os.path.exists(qc_fn) and os.path.exists(mask_fn) : 
+                #print(np.round(100.*index/n,3), qc_fn)
                 mask = imageio.imread(mask_fn)
                 img = imageio.imread(fn)
                 plt.subplot(1,2,1)

@@ -42,15 +42,16 @@ mkdir -p $out_dir
 ### Steps 1 & 2: Initial interslab alignment, GM segmentation
 ###
 init_file_check=""
-for brain in $brain_list; do
-    for hemi in $hemi_list; do
+src_dir='receptor_dwn/'
+for brain in $brain_list ; do
+    for hemi in $hemi_list ; do
         for slab in "1" "2" "3" "4" "5" "6"; do
             init_align_fn=${out_dir}/'init_align_brain-${brain}_hemi-${hemi}_slab-${slab}.nii.gz'
             seg_fn=${out_dir}/'seg_brain-${brain}_hemi-${hemi}_slab-${slab}.nii.gz'
             
             if [[ ! -f $init_align_fn && ! -f $seg_fn ]]; then
                 echo qsub batch_init_alignment.sh $brain $hemi $slab    
-                bash -c "$run batch_init_alignment.sh $brain $hemi $slab $init_align_fn $out_dir $autoradiograph_info_fn"
+                bash -c "$run batch_init_alignment.sh $brain $hemi $slab $init_align_fn $src_dir $out_dir $autoradiograph_info_fn"
                 init_file_check="$init_file_check $init_align_fn $seg_fn "
                 exit 0
             fi
