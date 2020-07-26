@@ -1,17 +1,26 @@
 import nibabel as nib
 import numpy as np
-import os
+import matplotlib
 import matplotlib.pyplot as plt
+import os
+import re
 import imageio
 import pandas as pd
 import json
 import shutil
 import sys
+from utils.utils import shell
 from glob import glob
 import re
 from utils.utils import set_csv, add_padding, setup_tiers
-from ants import registration, apply_transforms, image_mutual_information, from_numpy, image_similarity
+from ANTs import ANTs
+from ants import read_transform, registration, apply_transforms, image_mutual_information, from_numpy, image_similarity
+matplotlib.use('TKAgg')
 
+def load2d(fn):
+    ar = nib.load(fn).get_fdata()
+    ar = ar.reshape(ar.shape[0],ar.shape[1])
+    return ar 
 
 def find_next_slice( i , step, df):
     #Get the the tier of the current section
@@ -26,162 +35,196 @@ def find_next_slice( i , step, df):
     return i2_list
 
 
-def create_qc_image(fixed,moving,rsl, fixed_order, moving_order, qc_fn):
-    plt.subplot(2,1,1)
-    plt.title('fixed: '+str(fixed_order))
+def create_qc_image(fixed,fixed_rsl, moving,rsl,final_rsl, fixed_order, moving_order,tier_fixed,tier_moving,ligand_fixed,ligand_moving,qc_fn):
+    plt.subplot(3,1,1)
+    plt.title('fixed (gray): {} {} {}'.format(fixed_order, tier_fixed, ligand_fixed))
     plt.imshow(fixed, cmap=plt.cm.gray )
     plt.imshow(moving, alpha=0.35, cmap=plt.cm.hot)
-    plt.subplot(2,1,2)
-    plt.title('moving: '+ str(moving_order))
+    plt.subplot(3,1,2)
+    plt.title('moving (hot): {} {} {}'.format(moving_order, tier_moving, ligand_moving))
     plt.imshow(fixed, cmap=plt.cm.gray)
     plt.imshow(rsl, alpha=0.35, cmap=plt.cm.hot)
+    plt.subplot(3,1,3)
+    plt.title('fixed_rsl vs moving rsl')
+    plt.imshow(fixed_rsl, cmap=plt.cm.gray)
+    plt.imshow(final_rsl, alpha=0.35, cmap=plt.cm.hot)
     plt.tight_layout()
     plt.savefig( qc_fn )
     plt.clf()
 
-def adjust_alignment(df, vol, epoch, y_idx, mid, initial_transforms, step, output_dir,clobber=False):
+def adjust_alignment(df,  epoch, y_idx, mid, transforms, step, output_dir,desc, shrink_factor,  smooth_sigma,iteration,tfm_type,clobber=False):
     if not os.path.exists(output_dir + "/qc/") : os.makedirs(output_dir + "/qc/")
     i=mid
     mi_list=[]
     n=len(y_idx)
+
+    affine=np.array([[0.2, 0, 0, -72],
+        [0,  0.02, 0, 0],
+        [0, 0 , 0.2, -90],
+        [0, 0, 0, 1]])
+    if not os.path.exists(output_dir+"/qc"): os.makedirs(output_dir+"/qc")
     # Iterate over the sections along y-axis
     while i > 0 and i < len(y_idx)-1  :
-        #Find the next neighbouring section//
-        if i % 100 == 0 : print(100.* np.round(i/n,3),end='\r')
-        j_list = find_next_slice(i, step, df)
-        #Set the current section to <fixed>
-        fixed = from_numpy(vol[:,y_idx[i],:].T, spacing=(0.2,0.2))
-        #print("I :", i, "J List: ", j_list)
+        fixed_fn=df['filename_rsl'].iloc[i]
         
-        #for neighbours
+        if y_idx[i] < 500 : break
+        #Find the next neighbouring section//
+        if i % 10 == 0 : print(100.* np.round(i/n,3),end='\r')
+        j_list = find_next_slice(i, step, df)
+        
+        #For neighbours
         for j in j_list :
-            outprefix = output_dir + "/transforms/epoch-"+str(epoch)+"/"+str(y_idx[j])+'/' 
+            moving_fn=df['filename_rsl'].iloc[j]
+            outprefix ="{}/init_transforms/{}_{}-{}/".format(output_dir,  y_idx[j], tfm_type, epoch) 
             if not os.path.exists(outprefix): os.makedirs(outprefix)
-            if not os.path.exists(output_dir+"/qc"): os.makedirs(output_dir+"/qc")
-            tfm_fn = outprefix + "0GenericAffine.mat"
-            qc_fn = output_dir + "/qc/"+str(y_idx[j])+"_"+str(y_idx[i])+"_"+str(epoch)+".png"
+            tfm_fn = outprefix + "level-0_Mattes_{}_Composite.h5".format( tfm_type)
+            inv_tfm_fn = outprefix + "level-0_Mattes_{}_InverseComposite.h5".format( tfm_type)
+            moving_rsl_fn= outprefix + "_level-0_Mattes_{}.nii.gz".format( tfm_type)
             
-            #Set the section which is being moved to the fixed image 
-            moving= from_numpy(vol[:,y_idx[j],:].T, spacing=(0.2,0.2))
+            qc_fn = "{}/qc/{}_{}_{}_{}_{}_{}-{}.png".format(output_dir, *desc, y_idx[j], y_idx[i], tfm_type, epoch)
+            if clobber or not os.path.exists(moving_rsl_fn) or not os.path.exists(tfm_fn)  or not os.path.exists(qc_fn)  :
+                print(df['filename_rsl'].iloc[i])
+                print('Moving:', moving_fn)
+                print('Fixed:', fixed_fn)
+                ANTs( tfm_prefix=outprefix,
+                    fixed_fn=fixed_fn, 
+                    moving_fn=moving_fn, 
+                    moving_rsl_prefix=outprefix, 
+                    iterations=[iteration], 
+                    metrics=['Mattes'], 
+                    tfm_type=[tfm_type], 
+                    shrink_factors=[shrink_factor],
+                    smoothing_sigmas=[smooth_sigma], 
+                    init_tfm=transforms[ y_idx[j]]['fwd'],
+                    sampling_method='Regular', sampling=1, verbose=0, generate_masks=False, clobber=True  )
+                
+                
+            fixed_tfm_list=transforms[ y_idx[i]]['fwd']
+            final_tfm_fn = outprefix + "final_level-0_Mattes_{}_Composite.h5".format( tfm_type)
+            if not os.path.exists(final_tfm_fn) or clobber :
+                if fixed_tfm_list != [] :
+                    fixed_tfm_fn = fixed_tfm_list[-1]
+                    shell(f'antsApplyTransforms -d 3 -i {moving_fn} -r {fixed_fn} -t {tfm_fn} -t {fixed_tfm_fn} -o Linear[{final_tfm_fn}]',False,True)
+                    
+                else :
+                    shell(f'antsApplyTransforms -d 3 -i {moving_fn} -r {fixed_fn} -t {tfm_fn}  -o Linear[{final_tfm_fn}]',False,True)
 
-            if clobber or  not os.path.exists(tfm_fn) : # or not os.path.exists(qc_fn)  :
-                out = registration(fixed, moving, initial_transforms=initial_transforms[y_idx[j]], outprefix=outprefix, type_of_transform='DenseRigid', aff_metric='mattes', verbose=False)
-               
-                rsl = out['warpedmovout'].numpy().T
-                del out
-            else :
-                init =  [ tfm_fn ] 
-                rsl = apply_transforms(moving, moving, init, interpolator='linear').numpy().T
-
-            if not os.path.exists(qc_fn) or clobber :
-                create_qc_image( vol[:,y_idx[i],:], vol[:,y_idx[j],:], rsl, y_idx[i], y_idx[j], qc_fn)
-
-            rsl_ants = from_numpy(rsl, spacing=(0.2,0.2))
-            #mi_list.append( image_similarity(fixed, rsl_ants, metric_type='MattesMutualInformation' , sampling_strategy='regular', sampling_percentage=0.8 ))
-            mi_list.append(0)
-
-            initial_transforms[y_idx[j]] = [tfm_fn] + initial_transforms[y_idx[j]] 
-            vol[:,y_idx[j],:] = rsl
-        del fixed
-        del moving
-        del rsl
-        del rsl_ants
-
+            final_moving_rsl_fn= outprefix + "final_level-0_Mattes_{}-{}.nii.gz".format( tfm_type,epoch)
+            if not os.path.exists(final_moving_rsl_fn) or clobber  :
+                shell(f'antsApplyTransforms -v 1 -d 3 -i {moving_fn} -r {fixed_fn}  -t {final_tfm_fn} -o {final_moving_rsl_fn}')
+            
+            if not os.path.exists(qc_fn) :
+                create_qc_image( load2d(fixed_fn), 
+                            load2d(df['filename_rsl_new'].iloc[i]), 
+                            load2d(moving_fn), 
+                            load2d(moving_rsl_fn),
+                            load2d(final_moving_rsl_fn), 
+                            y_idx[i], y_idx[j],df['tier'].iloc[i], df['tier'].iloc[j], df['ligand'].iloc[i], df['ligand'].iloc[j], qc_fn)
+            #   F       M
+            #   | <fwd  |
+            #   | inv>  |
+            #   |       |
+            transforms[ y_idx[j]]['inv'].append(inv_tfm_fn)
+            transforms[ y_idx[j]]['fwd'].append(final_tfm_fn)
+            df['filename_rsl_new'].iloc[j] = final_moving_rsl_fn
         i = j_list[-1]
-    
+    df.to_csv('{}/df_{}-{}.csv'.format(output_dir,tfm_type,epoch))
+    return transforms,df
 
-    return mi_list, vol 
+def concatenate_transforms(transforms,tfm_type,epoch):
+    #Calculate combined transformation
+    concat_transforms={}
+    for i, tfm_list in transforms.items() :
+        concat_tfm_fn ="{}/init_transforms/epoch-{}-{}/{}/concat_tfm.nii.gz".format(output_dir, tfm_type,epoch, i) 
+        print(i, tfm_list)
+        if len(tfm_list) > 0 : 
+            if not os.path.exists(concat_tfm_fn) or clobber :
+                shell('AverageImages 2 {} 0 {}'.format(concat_tfm_fn,' '.join(tfm_list) ))
+            concat_transforms[i]=concat_tfm_fn 
+    return concat_transforms
 
-def receptorAdjustAlignment(init_align_fn, df, vol_fn, output_dir, n_epochs=3, write_each_iteration=False, clobber=False):
-    
-    vol_nii = nib.load(vol_fn)
-    vol = vol_nii.get_data()
-    mi_fn = output_dir + os.sep + 'mi.csv'
+def apply_transforms_to_sections(df,transforms,output_dir) :
+    temp_dir='{}/temp'.format(output_dir)
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
 
-    y_idx = df['volume_order'].values 
-    mid = np.rint(y_idx.shape[0] / 2.).astype(int)
-    epochs=np.arange(0,n_epochs).astype(int)+1
-    mi_list=[]
-    #Init dict with initial transforms
-    initial_transforms={}
-    for i in y_idx :  
-        initial_transforms[i]=[]
+    for i, row in df.iterrows() :
+        fn = df['filename_rsl']
+        i = df['global_order']
+        tfm_fn = transforms[i]
+        #out_fn='{}/'output_dir
+        out_fn = "{}/{}_{}_{}_{}-{}_{}.nii.gz".format(temp_dir, *desc, tfm_type, epoch,i)
+        shell('AntsApplyTransforms -i {} -t {} -r {} -o {}'.format( fn, tfm_fn, fn, out_fn  ))
+        df['filename_rsl']=out_fn
 
-    for epoch in epochs :
-        print("Epoch:", epoch)
-        mi = 0
-        mi_list_0, vol = adjust_alignment(df, vol, epoch, y_idx, mid, initial_transforms, -1, output_dir,clobber=clobber)
-        mi_list_1, vol = adjust_alignment(df, vol, epoch, y_idx, mid, initial_transforms,  1, output_dir,clobber=clobber)
-        if write_each_iteration :
-            nib.Nifti1Image(vol, vol_nii.affine ).to_filename(output_dir+os.sep+'vol_'+str(epoch)+'.nii.gz')
-    
-        mi_list.append(sum(mi_list_0+mi_list_1))
-        plt.clf()
-        plt.plot(range(1,len(mi_list)+1), mi_list)
-        plt.scatter(range(1,len(mi_list)+1), mi_list, c='r')
-        plt.savefig(output_dir+os.sep+'mi.png')
+def combine_sections_to_vol(df,z_mm,out_fn):
 
-    shutil.copy(output_dir+os.sep+"vol_"+str(epochs[-1])+".nii.gz", init_align_fn)
-    print(output_dir+os.sep+'transforms.json')
-    initial_transforms_mod = { str(k):v for k, v in initial_transforms.items() }
-    
-    with open(output_dir+os.sep+'transforms.json', 'w+') as fp : 
-        json.dump(initial_transforms_mod, fp )
-
-def init_volume(slab_img_fn,  df, scale, ext=".nii.gz", clobber=False, align=True):
-    example_fn=df["filename"].values[0]
+    example_fn=df["filename_rsl"].iloc[0]
     print(example_fn)
-    #shape = nib.load(example_fn).get_shape()
-    shape = imageio.imread(example_fn).shape
+    shape = nib.load(example_fn).shape
     xmax = shape[0] 
     zmax = shape[1]
     order_max=df["volume_order"].max()
     order_min=df["volume_order"].min()  
     slab_ymax=order_max+1 #-order_min + 1
 
-    z0=x0=0
-    for i, row in df.iterrows() :
-        shape =  imageio.imread(row["filename"]).shape
-        #shape =  nib.load(row["filename"]).get_data().shape
-        x0 = max([x0,shape[0]])
-        z0 = max([z0,shape[1]])
 
-    vol = np.zeros( [x0,slab_ymax,z0])
+    vol = np.zeros( [xmax,slab_ymax,zmax])
+    for i, row in df.iterrows():
+        if row['volume_order'] < 500 or row['volume_order'] > 700 :
+            continue
+        y = row['volume_order']
+        ar = nib.load(row['filename_rsl']).get_fdata()
+        ar=ar.reshape(ar.shape[0],ar.shape[1])
+        vol[:,y,:]= ar
 
-    for i, row in df.iterrows() :
-        vorder = row["volume_order"]
-        _file = row["filename"] 
-
-        ligand = row["ligand"]
-
-        slab = row["slab"]
-        hemi = row["hemisphere"]
-        mr = row["mri"]
-        direction = scale[mr][hemi][str(slab)]["direction"]
-        #temp =  nib.load(_file).get_data()
-        temp =  imageio.imread(_file)
-        temp = temp.reshape(*temp.shape[0:2])
-        if direction == "rostral_to_caudal":
-            temp = np.flip(temp, 0)
-            temp = np.flip(temp, 1)
-        elif direction == "caudal_to_rostral":
-            temp = np.flip(temp, 0)
-        temp = add_padding(temp, x0,z0) 
-
-        vol[ : , vorder , : ] = temp
-
-
-    #if direction == "caudal_to_rostral":
-    #    vol = np.flip(vol, 1)
     
-    print("\tWriting",slab_img_fn)
-    slab_ymin=-126+df["volume_order"].min()*0.02
-    affine=np.array([[0.2, 0, 0, -72],
-                    [0, 0.02, 0, slab_ymin],
-                    [0,0,0.2, -90],
+    xstep= z_mm/4164. * 10
+    zstep= z_mm/4164. * 10
+
+    print("\tWriting Volume",out_fn)
+    slab_ymin=-126+df["volume_order"].min()*0.02 
+    ystep = 0.02 
+    affine=np.array([[xstep, 0, 0, -72],
+                    [0,  ystep, 0, slab_ymin],
+                    [0, 0 ,zstep, -90],
                     [0, 0, 0, 1]])
-    img = nib.Nifti1Image(vol, affine)   
-    img.to_filename(slab_img_fn)
+    nib.Nifti1Image(vol, affine ).to_filename(out_fn )
+
+def receptorAdjustAlignment(init_align_fn, df, vol_fn_str, output_dir,scale, n_epochs=3, desc=(0,0,0), write_each_iteration=False, clobber=False):
+    
+    z_mm = scale[brain][hemi][str(slab)]["size"]
+    y_idx = df['volume_order'].values 
+    mid = np.rint(y_idx.shape[0] / 2.).astype(int)
+    #Init dict with initial transforms
+    transforms={}
+    for i in y_idx :  transforms[i]={'fwd':[], 'inv':[] }
+
+    parameters=[
+            ('Rigid','2','1','250'),
+            ('Rigid','1','0','100'),
+            ('SyN','4','2','100'),
+            ('SyN','2','1','50'),
+            ('SyN','1','0','25')
+            ]
+    df['original_filename_rsl']=df['filename_rsl']
+
+    for epoch, (tfm_type, shrink_factor, smooth_sigma,iterations) in enumerate(parameters) :
+        out_fn = vol_fn_str.format(output_dir,*desc,tfm_type+'-'+str(epoch))
+        df['filename_rsl_new']=df['filename_rsl']
+        #if os.path.exists(out_fn) and not clobber : continue
+        transforms,df = adjust_alignment(df,  epoch, y_idx, mid, transforms, -1, output_dir,desc, shrink_factor, smooth_sigma, iterations, tfm_type, clobber=clobber)
+        #transforms,df = adjust_alignment(df, vol, epoch, y_idx, mid, transforms, 1, output_dir,desc, shrink_factor, smooth_sigma, iterations, tfm_type, clobber=clobber)
+        df['filename_rsl']=df['filename_rsl_new']
+        #concat_transforms= concatenate_transforms(transforms, tfm_type, epoch)
+        vol = combine_sections_to_vol(df,z_mm, out_fn)
+            
+    
+
+    initial_transforms_mod = { str(k):v for k, v in transforms.items() }
+    
+    with open(output_dir+os.sep+'transforms.json', 'w+') as fp : 
+        json.dump(initial_transforms_mod, fp )
 
     
 def add_y_position(df):
@@ -208,12 +251,17 @@ def receptorRegister(brain,hemi,slab, init_align_fn, source_dir, output_dir, rec
     df.sort_values(["volume_order"], inplace=True)
     df['filename']=source_dir+'/'+df['lin_fn'].apply(lambda x : os.path.splitext(os.path.basename(x))[0]) +'.png'
     df['filename']=df['filename'].apply(lambda x : re.sub('#L.png','.png',x))
-    slab_img_fn = output_dir + os.sep + 'vol_0.nii.gz'
-    if not os.path.exists(slab_img_fn) or clobber :
-        init_volume(slab_img_fn,  df, scale, ext=".nii.gz", clobber=clobber)
+    df['filename_rsl'] = df['filename'].apply(lambda x: 'reconstruction_output/0_crop/'+os.path.splitext(os.path.basename(x))[0]+'#L.nii.gz')
+
+    # Remove UB , "unspecific binding" from the df
+    df = df.loc[df['repeat'] != 'UB']
+
+    slab_img_fn_str = '{}/brain-{}_hemi-{}_slab-{}_init_align_{}.nii.gz'
+    slab_img_0_fn = slab_img_fn_str.format(output_dir, brain,hemi,slab,0)
 
     df = setup_tiers(df, tiers_string)
-    receptorAdjustAlignment(init_align_fn, df, slab_img_fn, output_dir, n_epochs=n_epochs, write_each_iteration=write_each_iteration, clobber=clobber)
+    df.to_csv(output_dir+'/tiers.csv')
+    receptorAdjustAlignment(init_align_fn, df, slab_img_fn_str, output_dir, scale, n_epochs=n_epochs, write_each_iteration=write_each_iteration,desc=(brain,hemi,slab), clobber=clobber)
 
 
 if __name__ == '__main__' :
@@ -225,6 +273,7 @@ if __name__ == '__main__' :
     source_dir = sys.argv[5]
     output_dir = sys.argv[6]
     receptor_df_fn = sys.argv[7]
+    n_epochs= int(sys.argv[8])
     
-    receptorRegister( brain, hemi, slab, init_align_fn, source_dir, output_dir, receptor_df_fn, n_epochs=4, write_each_iteration=True, clobber=True)
+    receptorRegister( brain, hemi, slab, init_align_fn, source_dir, output_dir, receptor_df_fn, n_epochs=n_epochs,  clobber=False)
 

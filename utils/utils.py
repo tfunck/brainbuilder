@@ -98,7 +98,7 @@ def unbuffered(proc, stream='stdout'):
             print(out)
             yield out
 
-def shell(cmd, verbose=False):
+def shell(cmd, verbose=False,exit_on_failure=True):
     '''Run command in shell and read STDOUT, STDERR and the error code'''
     stdout=""
     if verbose :
@@ -109,8 +109,8 @@ def shell(cmd, verbose=False):
 
     for line in unbuffered(process):
         stdout = stdout + line + "\n"
-        #if verbose :
-        print(line)
+        if verbose :
+            print(line)
 
     errorcode = process.returncode
     stderr=stdout
@@ -118,6 +118,7 @@ def shell(cmd, verbose=False):
         print ("Error:")
         print ("Command:", cmd)
         print ("Stderr:", stdout)
+        if exit_on_failure : exit(errorcode)
     return stdout, stderr, errorcode
 
 def get_z_x_max(source_files):

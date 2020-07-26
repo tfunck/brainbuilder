@@ -377,6 +377,8 @@ if __name__ == '__main__' :
             if len(pass_list) == 0 :
                 shutil.copy(fn, final_crop_fn)
                 shutil.copy(fn, pass_fn)
+                print(pass_list)
+                print(final_crop_fn)
             continue
 
 

@@ -16,7 +16,7 @@ def generate_mask(fn, out_fn, sigma=8) :
         return None
     img  = nib.load(fn)
     vol  = img.get_data()
-    vol  = gaussian_filter(vol, sigma*2)
+    vol  = gaussian_filter(vol, sigma)
 
     if np.sum(vol) == 0 : return 1
     idx  = vol > threshold_otsu(vol)
@@ -31,7 +31,7 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
     nLevels = len(iterations)
 
     if rate == None :
-        rate = [0.5]*nLevels
+        rate = [0.25]*nLevels
     if shrink_factors == None :
         shrink_factors=['4x2x1vox'] * nLevels
     if smoothing_sigmas == None :
@@ -64,7 +64,6 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
 
     final_moving_rsl_fn = moving_rsl_prefix + '_level-' + str(nLevels-1) + '_' + metrics[-1] + '_'+ tfm_type[-1] + '.nii.gz'
     final_tfm_fn = tfm_prefix + 'level-' + str(nLevels-1) + '_' + metrics[-1] + '_'+ tfm_type[-1]+'_Composite.h5'
-
     #If image volume is empty, write identity matrix
     if np.sum(nib.load(fixed_fn).get_data()) == 0  or np.sum( nib.load(moving_fn).get_data() ) == 0 :
         print("Warning: atleast one of the image volume is empty")
@@ -88,17 +87,16 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
 
             ### Inputs
             cmdline =  "antsRegistration --verbose "+str(verbose)
-            cmdline += " --write-composite-transform 1 --float --collapse-output-transforms 1 --dimensionality "+str(dim) +" "
+            cmdline += " --write-composite-transform 1 --float --collapse-output-transforms 0 --dimensionality "+str(dim) +" "
 
-            if init_tfm == None : 
-                cmdline += " --initial-moving-transform [ "+fixed_fn+", "+moving_fn+", 1 ] "
+            if init_tfm == None or init_tfm == [] : 
+                cmdline += " --initial-moving-transform [ "+fixed_fn+", "+moving_fn+", 0 ] "
             else : 
                 if init_inverse :
-                    cmdline += " --initial-moving-transform [" + init_tfm + ",1] "
+                    cmdline += " --initial-moving-transform [" + ','.join(init_tfm) + ",1] "
                 else :
-                    cmdline += " --initial-moving-transform " + init_tfm + " "
-
-            cmdline += " --initialize-transforms-per-stage 0 --interpolation Linear "
+                    cmdline += " --initial-moving-transform " + ','.join(init_tfm) + " "
+            cmdline += " --initialize-transforms-per-stage 1 --interpolation Linear "
         
             #Set up smooth sigmas and shrink factors
             smooth_sigma = smoothing_sigmas[level]
@@ -116,7 +114,7 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
             else :
                 cmdline += " "+str(radius)+", "
             cmdline += sampling_method +" , "+str(sampling)+" ] "
-            cmdline += " --convergence [ "+iterations[level]+" , "+str(tolerance)+" , 10 ] "
+            cmdline += " --convergence [ "+iterations[level]+" , "+str(tolerance)+" , 20 ] "
             cmdline += " --smoothing-sigmas "+smooth_sigma+"vox --shrink-factors "+shrink_factor
             cmdline += " --use-estimate-learning-rate-once 1 --use-histogram-matching 0 "
         
@@ -127,9 +125,10 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
             try : 
                 #Run command line
                 stdout, stderr, errorcode = shell(cmdline)
-                print(stdout)
-                print(stderr)
-                print(errorcode)
+                if verbose == 1 :
+                    print(stdout)
+                    print(stderr)
+                    print(errorcode)
             except RuntimeError :
                 if exit_on_failure == 0 :
                     exit(1)
@@ -138,7 +137,7 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
             
             with open(config_file, 'w+') as f :
                 f.write(cmdline)
-            print(tfm_fn) 
+            
             #update init_tfm
             init_tfm = tfm_fn
             init_inverse=False
