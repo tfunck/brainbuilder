@@ -31,7 +31,7 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
     nLevels = len(iterations)
 
     if rate == None :
-        rate = [0.25]*nLevels
+        rate = [0.1]*nLevels
     if shrink_factors == None :
         shrink_factors=['4x2x1vox'] * nLevels
     if smoothing_sigmas == None :

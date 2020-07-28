@@ -55,7 +55,7 @@ n_epochs=10
 init_file_check=""
 for brain in $brain_list ; do
     for hemi in $hemi_list ; do
-        for slab in "1" "2" "3" "4" "5" "6"; do
+        for slab in $slab_list; do 
             out_dir_1="${out_dir}/1_init_align/${brain}_${hemi}_${slab}/"
             out_dir_2="${out_dir}/2_segment/${brain}_${hemi}_${slab}/"
             init_align_fn="${out_dir_1}/brain-${brain}_hemi-${hemi}_slab-${slab}_init_align_${n_epochs}.nii.gz"
