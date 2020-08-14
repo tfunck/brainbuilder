@@ -15,7 +15,7 @@ def generate_mask(fn, out_fn, sigma=8) :
     if os.path.exists(out_fn) :
         return None
     img  = nib.load(fn)
-    vol  = img.get_data()
+    vol  = img.get_fdata()
     vol  = gaussian_filter(vol, sigma)
 
     if np.sum(vol) == 0 : return 1
@@ -26,9 +26,12 @@ def generate_mask(fn, out_fn, sigma=8) :
     return 0
 
 
-def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolerance=1e-08, metrics=None, nbins=64, tfm_type=["Rigid","Affine","SyN"], rate=None, shrink_factors=None,smoothing_sigmas=None, radius=4, init_tfm=None,init_inverse=False,sampling_method='Regular', sampling=1, dim=3, verbose=0, clobber=0, exit_on_failure=0, fix_header=False, generate_masks=True, mask_dir=None ) :
+def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolerance=1e-08, metrics=None, nbins=32, tfm_type=["Rigid","Affine","SyN"], rate=None, shrink_factors=None,smoothing_sigmas=None, radius=4, init_tfm=None,init_inverse=False,sampling_method='Regular', sampling=1, dim=3, verbose=0, clobber=0, exit_on_failure=0, fix_header=False, generate_masks=True, no_init_tfm=False, mask_dir=None, write_composite_transform=True, n_tries=5 ) :
    
     nLevels = len(iterations)
+    if verbose :
+        print('Moving:', moving_fn)
+        print('Fixed:', fixed_fn)
 
     if rate == None :
         rate = [0.1]*nLevels
@@ -70,7 +73,8 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
         identity = sitk.Transform(3, sitk.sitkIdentity)
         sitk.WriteTransform(identity, final_tfm_fn)
         copy( moving_fn, final_moving_rsl_fn )
-
+    
+   
     for level in range(nLevels) :
         moving_rsl_level_prefix = moving_rsl_prefix + '_level-' + str(level) + '_' + metrics[level] + '_'+ tfm_type[level]
         tfm_level_prefix = tfm_prefix + 'level-' + str(level) + '_' + metrics[level] + '_'+ tfm_type[level]+'_' 
@@ -88,14 +92,18 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
             ### Inputs
             cmdline =  "antsRegistration --verbose "+str(verbose)
             cmdline += " --write-composite-transform 1 --float --collapse-output-transforms 0 --dimensionality "+str(dim) +" "
+            if not no_init_tfm :
+                if init_tfm == None : 
+                    cmdline += " --initial-moving-transform [ "+fixed_fn+", "+moving_fn+", 1 ] "
+                else : 
+                    if type(init_tfm) != list :
+                        init_tfm=[init_tfm]
 
-            if init_tfm == None or init_tfm == [] : 
-                cmdline += " --initial-moving-transform [ "+fixed_fn+", "+moving_fn+", 0 ] "
-            else : 
-                if init_inverse :
-                    cmdline += " --initial-moving-transform [" + ','.join(init_tfm) + ",1] "
-                else :
-                    cmdline += " --initial-moving-transform " + ','.join(init_tfm) + " "
+                    if init_inverse :
+                        cmdline += " --initial-moving-transform [" + ','.join(init_tfm) + ",1] "
+                    else :
+                        cmdline += " --initial-moving-transform " + ','.join(init_tfm) + " "
+
             cmdline += " --initialize-transforms-per-stage 1 --interpolation Linear "
         
             #Set up smooth sigmas and shrink factors
@@ -117,29 +125,35 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
             cmdline += " --convergence [ "+iterations[level]+" , "+str(tolerance)+" , 20 ] "
             cmdline += " --smoothing-sigmas "+smooth_sigma+"vox --shrink-factors "+shrink_factor
             cmdline += " --use-estimate-learning-rate-once 1 --use-histogram-matching 0 "
-        
+       
+            if write_composite_transform : cmdline += " --write-composite-transform 1"
+
             ### Outputs
             cmdline+=" --output [ "+tfm_level_prefix+" ,"+moving_rsl_fn+","+moving_rsl_fn_inverse+"] "
             
             if verbose == 1 : print(cmdline) 
-            try : 
-                #Run command line
-                stdout, stderr, errorcode = shell(cmdline)
-                if verbose == 1 :
-                    print(stdout)
-                    print(stderr)
-                    print(errorcode)
-            except RuntimeError :
-                if exit_on_failure == 0 :
-                    exit(1)
-                elif exit_on_failure == 1 :
-                    return(1)
+            
+            errorcode=0
+            for attempt in range(n_tries) :
+                try : 
+                    #Run command line
+                    stdout, stderr, errorcode = shell(cmdline, exit_on_failure=False)
+                    print('Attempt:', attempt, errorcode)
+                    if verbose == 1 :
+                        print(stdout)
+                        print(stderr)
+                except RuntimeError :
+                    errorcode = 1
+                    if exit_on_failure == 1 :
+                        return(1)
+                if errorcode == 0 : break
+            if errorcode != 0 : return(1)
             
             with open(config_file, 'w+') as f :
                 f.write(cmdline)
             
             #update init_tfm
-            init_tfm = tfm_fn
+            init_tfm = [tfm_fn]
             init_inverse=False
 
             if fix_header and os.path.exists(moving_rsl_fn) : 
