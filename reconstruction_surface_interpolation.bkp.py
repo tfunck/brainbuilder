@@ -139,7 +139,8 @@ def transform_surf_to_slab(out_dir,brain,hemi,tfm_list, surf_mid_fn, surf_wm_fn,
         if not os.path.exists(surf_mid_rsl_fn) or clobber >= 1 or True  : 
             apply_ants_transform_to_obj(surf_mid_fn, tfm_list[i], surf_mid_rsl_fn, [0,0])
             print('Display ', surf_mid_rsl_fn)
-        
+        print('exit')
+        exit(0)
         if not os.path.exists(surf_wm_rsl_fn) or clobber >= 1  or True: 
             apply_ants_transform_to_obj(surf_mid_fn, tfm_list[i], surf_mid_rsl_fn, [0,0])
 
@@ -162,10 +163,24 @@ def surface_interpolation(nl_tfm_str,  slab_str, out_dir, brain, hemi, n_depths,
     interp_fn  = f'{out_dir}/{brain}_{hemi}_interp.nii.gz'
 
     #Interpolate at coordinate locations
+    
+    #n_vertices = 163848
+    #n_vertices = 81920
     surf_mid_fn = obj_str.format('mid', n_vertices,'')
     surf_gm_fn = obj_str.format('gray', n_vertices,'')
     surf_wm_fn = obj_str.format('white', n_vertices,'')
     sphere_obj_fn = obj_str.format('mid', n_vertices,'_sphere')
+
+    #affine = write_mask_and_array(array_src_h5, mask_src_h5, clobber=args.clobber)
+    #steps = [ affine[0,0], affine[1,1], affine[2,2]   ]
+    #starts = [ affine[0,3], affine[1,3], affine[2,3]   ]
+    #array_src = h5.File(array_src_h5, 'r+')
+    #mask_src = h5.File(mask_src_h5, 'r+')
+    #write_nii( array_src, array_src_nii, affine, np.float32, args.clobber)
+    #write_nii( mask_src,  mask_src_nii, affine, np.int32, args.clobber)
+    #dimensions = array_src['data'][:].shape
+    #mask_src.close()
+    #array_src.close()
 
     print('Get surface mask and surface values')
     surface_mask_fn = f'surface_slab_mask_{n_vertices}.txt'
@@ -175,27 +190,20 @@ def surface_interpolation(nl_tfm_str,  slab_str, out_dir, brain, hemi, n_depths,
     nslabs=1 #len(glob(args.nl_tfm_str.format('*','*')))
     lin_df = pd.read_csv(lin_df_fn)
     print('N Slabs:',nslabs)
-    
-    #Initialize lists of transformation (tfm) and slabs
     for slab in range(1,1+nslabs) :
         lin_fn = lin_df['tfm'].loc[ lin_df['slab'].astype(int) == slab  ].values[0]
         nl_fn = nl_tfm_str.format(slab,slab)
         tfm_list.append([ lin_fn, nl_fn ])
         slab_list.append(slab_str.format(slab,slab))
-    
-    #For each slab, transform the mesh surface to the receptor space
-    #TODO: transform points into space of individual autoradiographs
     surf_mid_list, surf_wm_list, surf_gm_list = transform_surf_to_slab(out_dir,brain,hemi,tfm_list,surf_mid_fn,surf_gm_fn,surf_wm_fn,nslabs)
 
-    #Extract profiles from the slabs using the surfaces 
     if not os.path.exists(profile_fn) or clobber >= 1 :
         get_profiles(surf_mid_list, surf_wm_list, surf_gm_list, n_depths, profile_fn, slab_list )
-    profiles = pd.read_csv(profile_fn).values
 
-    # Create an object that will be used to interpolate over the surfaces
+        profiles = pd.read_csv(profile_fn).values
+
     mapper = SurfaceVolumeMapper(white_surf=surf_wm_fn, gray_surf=surf_gm_fn, resolution=steps, mask=None,dimensions=dimensions, origin=starts, filename=None, save_in_absence=False )
 
-    # Interpolate a 3D receptor volume from the surface mesh profiles
     print('Map Vector to Block')
     vol_interp = mapper.map_profiles_to_block(profiles)
 

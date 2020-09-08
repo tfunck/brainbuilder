@@ -50,7 +50,6 @@ if __name__ == '__main__' :
     for index, (fn, base) in enumerate(zip(files, basenames)) : 
 
         if 'MR1' not in base : continue
-        if index % 100 == 0 : print(index/n,end='\r')
         crop_fn = '{}/{}.nii.gz'.format(args.out_dir , base)
 
         if not os.path.exists(crop_fn) or args.clobber :

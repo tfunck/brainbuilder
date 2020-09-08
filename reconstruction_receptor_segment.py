@@ -10,6 +10,8 @@ import imageio
 import nibabel as nib
 import gzip
 import shutil
+from re import sub
+from nibabel.processing import resample_from_to, resample_to_output
 from skimage.filters import threshold_otsu, threshold_li
 from scipy.ndimage.filters import gaussian_filter
 from sklearn.cluster import KMeans
@@ -99,7 +101,7 @@ def safe_h5py_open(filename, mode='r+'):
         exit(1)
 
 
-def classifyReceptorSlices(in_fn, out_dir, out_fn, morph_iterations=5, clobber=False) :
+def classifyReceptorSlices(in_fn, out_dir, out_fn, morph_iterations=5, clobber=False, rsl_dim=0.2) :
     if not os.path.exists(out_fn) or clobber :
         #
         # Check Inputs
@@ -176,9 +178,11 @@ def classifyReceptorSlices(in_fn, out_dir, out_fn, morph_iterations=5, clobber=F
         # Save output volume
         #   
         print("Writing output to", out_fn)
-
         img_cls = nib.Nifti1Image(data, vol1.get_affine() )     
-        img_cls.to_filename(out_fn)
+       
+        img_cls_rsl = resample_to_output(img_cls, [rsl_dim]*3 )
+        img_cls_rsl.to_filename(out_fn) 
+
 
         return 0
 

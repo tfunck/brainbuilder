@@ -31,6 +31,10 @@ if __name__ == '__main__' :
     parser.add_argument('--moving','-m', dest='moving_fn', type=str, help='')
     parser.add_argument('--out','-o', dest='out_fn', type=str, help='')
     parser.add_argument('--init-tfm','-t', dest='init_tfm', type=str, help='')
+    parser.add_argument('--shrink-factors', dest='shrink_factors', type=str, default='1')
+    parser.add_argument('--smooth-factors', dest='smooth_sigmas', type=str, default='0')
+    parser.add_argument('--iterations', dest='iterations', type=str, default='1000')
+    parser.add_argument('--df-fn', dest='df_fn', type=str, help='')
     parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber results')
     
     args = parser.parse_args()
@@ -40,10 +44,11 @@ if __name__ == '__main__' :
     slab = args.slab
     clobber = args.clobber
 
-    iterations=[  '150x100x50']
-    shrink_factors=[ '8x4x2']
-    smoothing_sigmas=[ '4.0x2.0x1.0']
-    metrics=[ 'GC' ]
+
+    iterations=[ args.iterations ]
+    shrink_factors=[ args.shrink_factors]
+    smoothing_sigmas=[ args.smooth_sigmas ]
+    metrics=[ 'Mattes' ]
     tfm_types=['SyN']
     
     prefix = os.path.splitext(args.out_fn)[0]
@@ -52,8 +57,10 @@ if __name__ == '__main__' :
     if not os.path.exists(out_dir) :
         os.makedirs(out_dir)
 
-    tfm_syn, moving_rsl_fn = ANTs(prefix, args.fixed_fn, args.moving_fn, prefix, iterations=iterations, tfm_type=tfm_types, shrink_factors=shrink_factors, sampling=1, smoothing_sigmas=smoothing_sigmas, radius=3, metrics=metrics, verbose=1, clobber=0, no_init_tfm=True, init_inverse=True, exit_on_failure=True)
+    #shell(' '.join(['antsApplyTransforms -v 1 -i', args.moving_fn, '-r', args.fixed_fn, '-o', 'test_lin.nii.gz', '-t [', args.init_tfm,',1]']))
+    #tfm_syn, moving_rsl_fn = ANTs(prefix+'_', args.fixed_fn, 'test_lin.nii.gz', prefix, iterations=iterations, tfm_type=tfm_types, shrink_factors=shrink_factors, sampling=1, rate=[0.5], metrics=['Mattes'], smoothing_sigmas=smoothing_sigmas, radius=3,  verbose=1, clobber=0,  generate_masks=False, no_init_tfm=False, init_inverse=True, exit_on_failure=True)
 
     #if ( not os.path.exists(args.out_fn) or clobber ) and moving_rsl_fn != None :
-    #    shell(' '.join(['antsApplyTransforms -v 1 -i', args.moving_fn, '-r', args.fixed_fn, '-o', args.out_fn, '-t', tfm_syn]))
+    #shell(' '.join(['antsApplyTransforms -v 1 -i', 'test_lin.nii.gz', '-r', args.fixed_fn, '-o', 'test_nl.nii.gz', '-t', tfm_syn ]))
+    #shell(' '.join(['antsApplyTransforms -v 1 -i', args.moving_fn, '-r', args.fixed_fn, '-o', 'test_nl.nii.gz', '-t', tfm_syn ]))
 

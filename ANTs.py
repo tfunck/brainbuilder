@@ -26,7 +26,7 @@ def generate_mask(fn, out_fn, sigma=8) :
     return 0
 
 
-def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolerance=1e-08, metrics=None, nbins=32, tfm_type=["Rigid","Affine","SyN"], rate=None, shrink_factors=None,smoothing_sigmas=None, radius=4, init_tfm=None,init_inverse=False,sampling_method='Regular', sampling=1, dim=3, verbose=0, clobber=0, exit_on_failure=0, fix_header=False, generate_masks=True, no_init_tfm=False, mask_dir=None, write_composite_transform=True, n_tries=5 ) :
+def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolerance=1e-08, metrics=None, nbins=32, tfm_type=["Rigid","Affine","SyN"], rate=None, shrink_factors=None,smoothing_sigmas=None, radius=4, init_tfm=None,init_inverse=False,sampling_method='Regular', sampling=1, dim=3, verbose=0, clobber=0, exit_on_failure=0, fix_header=False, generate_masks=True, no_init_tfm=False, mask_dir=None, write_composite_transform=True, n_tries=5, init_tfm_direction='moving' ) :
    
     nLevels = len(iterations)
     if verbose :
@@ -94,15 +94,15 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
             cmdline += " --write-composite-transform 1 --float --collapse-output-transforms 0 --dimensionality "+str(dim) +" "
             if not no_init_tfm :
                 if init_tfm == None : 
-                    cmdline += " --initial-moving-transform [ "+fixed_fn+", "+moving_fn+", 1 ] "
+                    cmdline += f" --initial-{init_tfm_direction}-transform [ "+fixed_fn+", "+moving_fn+", 1 ] "
                 else : 
                     if type(init_tfm) != list :
                         init_tfm=[init_tfm]
 
                     if init_inverse :
-                        cmdline += " --initial-moving-transform [" + ','.join(init_tfm) + ",1] "
+                        cmdline += f" --initial-{init_tfm_direction}-transform [" + ','.join(init_tfm) + ",1] "
                     else :
-                        cmdline += " --initial-moving-transform " + ','.join(init_tfm) + " "
+                        cmdline += f" --initial-{init_tfm_direction}-transform " + ','.join(init_tfm) + " "
 
             cmdline += " --initialize-transforms-per-stage 1 --interpolation Linear "
         
