@@ -67,6 +67,8 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
 
     final_moving_rsl_fn = moving_rsl_prefix + '_level-' + str(nLevels-1) + '_' + metrics[-1] + '_'+ tfm_type[-1] + '.nii.gz'
     final_tfm_fn = tfm_prefix + 'level-' + str(nLevels-1) + '_' + metrics[-1] + '_'+ tfm_type[-1]+'_Composite.h5'
+    final_tfm_inv_fn = tfm_prefix + 'level-' + str(nLevels-1) + '_' + metrics[-1] + '_'+ tfm_type[-1]+'_InverseComposite.h5'
+
     #If image volume is empty, write identity matrix
     if np.sum(nib.load(fixed_fn).get_data()) == 0  or np.sum( nib.load(moving_fn).get_data() ) == 0 :
         print("Warning: atleast one of the image volume is empty")
@@ -164,4 +166,4 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
                 #resample_from_to( nib.load(moving_rsl_fn_inverse), nib.load(moving_fn)).to_filename(moving_rsl_fn_inverse)
                 nib.Nifti1Image(  nib.load(moving_rsl_fn_inverse).get_data(), nib.load(moving_fn).affine ).to_filename(moving_rsl_fn_inverse)
 
-    return final_tfm_fn, moving_rsl_fn
+    return final_tfm_fn,final_tfm_inv_fn , moving_rsl_fn

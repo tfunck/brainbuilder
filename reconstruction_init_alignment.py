@@ -293,7 +293,7 @@ def combine_sections_to_vol(df,z_mm,direction,out_fn):
                     [0, 0, 0, 1]])
     nib.Nifti1Image(vol, affine ).to_filename(out_fn )
 
-def alignment_stage( df, vol_fn_str, output_dir,scale,parameters, tfm_json_list=[], n_epochs=3, desc=(0,0,0), stage=1,target_ligand=None, target_tier=1, ligand_n=0, write_each_iteration=False, clobber=False):
+def alignment_stage(brain,hemi,slab, df, vol_fn_str, output_dir,scale,parameters, tfm_json_list=[], n_epochs=3, desc=(0,0,0), stage=1,target_ligand=None, target_tier=1, ligand_n=0, write_each_iteration=False, clobber=False):
     
     z_mm = scale[brain][hemi][str(slab)]["size"]
     direction = scale[brain][hemi][str(slab)]["direction"]
@@ -394,7 +394,7 @@ def receptorRegister(brain,hemi,slab, init_align_fn, source_dir, output_dir, rec
     parameters=[('Rigid','4x2x1','2x1x0','250x100x20')]
     for target_ligand, df_ligand  in df.groupby(['ligand']):
         ligand_n = ligand_intensity_order.index(target_ligand)
-        df_ligand, tfm_json_list = alignment_stage(df_ligand, slab_img_fn_str, output_dir_1, scale, stage=1, target_ligand=target_ligand,ligand_n=ligand_n, n_epochs=n_epochs, parameters=parameters, target_tier=1, write_each_iteration=write_each_iteration,desc=(brain,hemi,slab), clobber=clobber)
+        df_ligand, tfm_json_list = alignment_stage(brain,hemi,slab,df_ligand, slab_img_fn_str, output_dir_1, scale, stage=1, target_ligand=target_ligand,ligand_n=ligand_n, n_epochs=n_epochs, parameters=parameters, target_tier=1, write_each_iteration=write_each_iteration,desc=(brain,hemi,slab), clobber=clobber)
 
         if df['filename_rsl'].isnull().sum() > 0 : 
             print('nan in filename_rsl, stage 1, ligand', target_ligand)
@@ -426,7 +426,7 @@ def receptorRegister(brain,hemi,slab, init_align_fn, source_dir, output_dir, rec
         df_ligand['tier'].loc[df_ligand['ligand']==target_ligand] = 2
         df_ligand['tier'].loc[df_ligand['ligand']==ligand_intensity_order[0]] = 1
         
-        df_ligand, tfm_json_list = alignment_stage(df_ligand, slab_img_fn_str, output_dir_2, scale,stage=2, n_epochs=n_epochs, target_ligand=target_ligand, ligand_n=i, tfm_json_list=tfm_json_list,target_tier=2, parameters=parameters, write_each_iteration=write_each_iteration,desc=(brain,hemi,slab), clobber=clobber)
+        df_ligand, tfm_json_list = alignment_stage(brain,hemi,slab,df_ligand, slab_img_fn_str, output_dir_2, scale,stage=2, n_epochs=n_epochs, target_ligand=target_ligand, ligand_n=i, tfm_json_list=tfm_json_list,target_tier=2, parameters=parameters, write_each_iteration=write_each_iteration,desc=(brain,hemi,slab), clobber=clobber)
 
         concat_list.append( df_ligand )
     
@@ -446,7 +446,7 @@ def receptorRegister(brain,hemi,slab, init_align_fn, source_dir, output_dir, rec
     output_dir_3 = output_dir + os.sep + 'stage_3'
     df['tier'] = 1
     parameters=[('SyN','4','2','25'), ('SyN','2','1','25'),  ('SyN','1','0','25') ]
-    df = alignment_stage(init_align_fn, df, slab_img_fn_str, output_dir_3, scale, stage=3, target_ligand=None,ligand_n=ligand_n, n_epochs=n_epochs, target_tier=1,parameters=parameters, write_each_iteration=write_each_iteration,desc=(brain,hemi,slab), clobber=clobber)
+    df = alignment_stage(brain,hemi,slab,init_align_fn, df, slab_img_fn_str, output_dir_3, scale, stage=3, target_ligand=None,ligand_n=ligand_n, n_epochs=n_epochs, target_tier=1,parameters=parameters, write_each_iteration=write_each_iteration,desc=(brain,hemi,slab), clobber=clobber)
 
 if __name__ == '__main__' :
     print(sys.argv)
