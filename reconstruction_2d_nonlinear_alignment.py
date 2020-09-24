@@ -10,78 +10,100 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import time
 import stripy as stripy
+import shutil
 from sys import argv
 from glob import glob
 from ants import  apply_transforms, from_numpy
 from ants import  from_numpy
 from ANTs import ANTs
 from ants import image_read, registration
-from utils.utils import splitext, shell
+from utils.utils import splitext, shell, w2v , v2w
+from scipy.ndimage.measurements import center_of_mass
+
 matplotlib.use('TKAgg')
 
 
-def receptor_2d_alignment( df_fn, srv_fn, output_dir,  out_3d_fn, direction='rostral_to_caudal', clobber=False): 
+def receptor_2d_alignment( df, rec_fn, rec_rsl_fn, srv_fn, output_dir,  out_3d_fn, resolution, resolution_itr, direction='rostral_to_caudal', clobber=False): 
     if not os.path.exists(output_dir) :
         os.makedirs(output_dir)
-    temp_fn=re.sub('.nii.gz','_temp.nii.gz', out_3d_fn) 
-    df = pd.read_csv(df_fn)
 
-    print("\t\tNonlinear alignment of coronal sections")
+    #temp_lores_fn=re.sub('.nii.gz','_lores_temp.nii.gz', out_3d_fn) 
+    temp_hires_fn=re.sub('.nii.gz','_hires_temp.nii.gz', out_3d_fn) 
+
     tfm_dir=output_dir + os.sep + 'tfm'
     if not os.path.exists(tfm_dir) : os.makedirs(tfm_dir)
-    
-    print("srv_fn:", srv_fn)
+
     srv_img = nib.load(srv_fn)
-    srv = srv_img.get_data()
-    out = np.zeros_like(srv)
+    srv = srv_img.get_fdata()
+    
+    rec_hires_img = nib.load(rec_fn)
+    rec_hires_vol = rec_hires_img.get_fdata()
+    xstep = rec_hires_img.affine[0,0]
+    zstep = rec_hires_img.affine[2,2]
 
-    ymax = srv.shape[1]
+    out_hires = np.zeros_like(rec_hires_vol)
+    
+    avg_step = (xstep+zstep)/2 
+    resolution_level = np.ceil(np.log2(3/avg_step )+ 1 ).astype(int)
 
+    #Set strings for alignment parameters
+    lin_itr_str='x'.join([str(i) for i in range(resolution_level*100,0,-100)])
+    nl_itr_str='x'.join([str(i) for i in range(resolution_level*20*(resolution_itr+1),0,-20)])
+
+    f_str='x'.join([ str(i) for i in range(resolution_level,0,-1)])
+    f = lambda x : x/2 if x > 1  else 0
+    s_list = map(f,  range(resolution_level,0,-1) ) 
+    s_str='x'.join( [str(i) for i in s_list] ) + 'vox'
+
+    fx_fn='/tmp/fixed.nii.gz'
+
+    aff_hires = np.array([[xstep,  0, 0, 0],
+                        [0, zstep, 0, 0],
+                        [0, 0, 1, 0],
+                        [0, 0, 0, 1]])
+    
     for idx, (i, row) in enumerate(df.iterrows()):
-        #print(row)
         y=row['volume_order'] 
         prefix=f'{tfm_dir}/y-{y}' 
         
-        out_fn=f'{prefix}.nii.gz'
+        out_hires_fn=f'{prefix}.nii.gz'
         out_inv_fn=f'{prefix}_inv.nii.gz'
         tfm_fn=f'{prefix}_Composite.h5'
-        print(idx)
-        print('Out fn', out_fn, os.path.exists(out_fn) )
-        print('TFM fn', tfm_fn, os.path.exists(tfm_fn) )
-        if not os.path.exists(tfm_fn) or not os.path.exists(out_fn) or clobber : 
-            # Create 2D receptor section
-            rec_img = nib.load( row['filename_rsl']  )
-            rec_np = rec_img.get_fdata()
-            if direction == "rostral_to_caudal":
-                rec_np = np.flip(rec_np, 1)
-            rec_np = np.flip(rec_np, 0)
-            nib.Nifti1Image(rec_np, rec_img.affine).to_filename('/tmp/moving.nii.gz')
+        if not os.path.exists(tfm_fn) or not os.path.exists(out_hires_fn) or clobber : 
+            # Create 2d rec section
+            mv_rsl_fn=f'{prefix}_mv_0.2mm.nii.gz'
+            rec_np = rec_hires_vol[:,int(y),:]
+            img = nib.Nifti1Image(rec_np, aff_hires )
+            img.to_filename(mv_rsl_fn)
 
-            # Create 2D src section
+            # Create 2D srv section
             srv_np = srv[ :, int(y), : ]
-            nib.Nifti1Image(srv_np, rec_img.affine).to_filename('/tmp/fixed.nii.gz')
+            nib.Nifti1Image(srv_np, aff_hires).to_filename(fx_fn)
 
+            # calculate 2d nonlinear transform between receptor slice and mri gm srv volume
             if not os.path.exists(tfm_fn)  or clobber : 
-                #init_tfm=row['init_tfm']
-                #if type(init_tfm) == str :
-                #    init_moving=f'--initial-moving-transform [ {init_tfm}]'
-                #else : init_moving=''
+                print('\t\t',y)
 
-                shell(f'antsRegistration -v 0 -d 2 --write-composite-transform 1  --initial-moving-transform [/tmp/fixed.nii.gz,/tmp/moving.nii.gz,1] -o [{prefix}_,{out_fn},{out_inv_fn}]   -t Rigid[.1] -m Mattes[/tmp/fixed.nii.gz,/tmp/moving.nii.gz,1,20,Regular,1] -c [500] -s 0vox -f 1  -t Affine[.1]   -c [250]  -m Mattes[/tmp/fixed.nii.gz,/tmp/moving.nii.gz,1,20,Regular,1] -s 0vox -f 1 -t SyN[.1] -m Mattes[/tmp/fixed.nii.gz,/tmp/moving.nii.gz,1,20,Regular,1] -c [100] -s 0vox -f 1 ') 
-            elif not os.path.exists(out_fn) or clobber :
-                shell(f'antsApplyTransforms   -d 2 -t {tfm_fn} -t {init_tfm} -i {rec_slice} -r {rec_slice} -o [{prefix}_,{out_fn},{out_inv_fn}]') 
-        else : 
-            print('Reading', out_fn)
-        img = nib.load(out_fn)
-        warpedmovout = img.get_fdata()
-        out[:,y,:] = warpedmovout
+                stout, sterr, errorcode = shell(f'antsRegistration -v 0 -d 2 --write-composite-transform 1  --initial-moving-transform [{fx_fn},{mv_rsl_fn},1] -o [{prefix}_,{out_hires_fn},/tmp/out_inv.nii.gz] -t Similarity[.1] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_rsl_fn},1,20,Regular,1] -s {s_str} -f {f_str}   -t Affine[.1]   -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_rsl_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t SyN[0.1] -m Mattes[{fx_fn},{mv_rsl_fn},1,20,Regular,1] -c [{nl_itr_str}] -s {s_str} -f {f_str}', exit_on_failure=True,verbose=False)
+
+                #Create QC image
+                out_2d_np = nib.load(out_hires_fn).get_fdata()
+                plt.imshow(srv_np,cmap='gray',origin='lower')
+                plt.imshow(out_2d_np,cmap='hot',alpha=0.45,origin='lower')
+                plt.tight_layout()
+                plt.savefig(f'{prefix}qc.png',fc='black')
+                plt.clf()
+                plt.cla()
+
+        img_hires = nib.load(out_hires_fn)
+        warpedmovout_hires = img_hires.get_fdata()
+        out_hires[:,int(y),:] = warpedmovout_hires
+        del warpedmovout_hires
+
         if idx % 50 == 0 :
-            print('Writing intermediate file', temp_fn)
-            nib.Nifti1Image(out, srv_img.affine).to_filename(temp_fn)
+            print(f'\r{idx} writing temp file to {temp_hires_fn}')
+            nib.Nifti1Image(out_hires, rec_hires_img.affine).to_filename(temp_hires_fn)
 
-    print(out_3d_fn)
-    nib.Nifti1Image(out, srv_img.affine).to_filename(out_3d_fn)
+    print('\t\tWriting 3D non-linear:', out_3d_fn)
+    nib.Nifti1Image(out_hires, srv_img.affine).to_filename(out_3d_fn)
 
-if __name__ == '__main__':
-    for i in range(len(argv)) : print(i,argv[i])
-    receptor_2d_alignment(argv[1],argv[2],argv[3],argv[4],argv[5])

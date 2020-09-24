@@ -20,7 +20,7 @@ from nibabel.processing import resample_to_output
 from skimage.filters import threshold_otsu, threshold_li
 from ants import  from_numpy,  apply_transforms, apply_ants_transform, read_transform
 from ants import image_read, registration
-from utils.utils import shell
+from utils.utils import shell, w2v, v2w
 from vast.surface_volume_mapper import SurfaceVolumeMapper
 
 def load_slabs(slab_fn_list) :
@@ -29,11 +29,7 @@ def load_slabs(slab_fn_list) :
         slabs.append( nib.load(slab_fn) )
     return slabs
 
-def w2v(i, step, start):
-    return np.round( (i-start)/step ).astype(int)
 
-def v2w(i, step, start) :
-    return start + i * step
 
 def vol_surf_interp(src, coords, affine,  clobber=0 ):
 

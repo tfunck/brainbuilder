@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 from glob import glob
 from re import sub
 from nibabel.processing import resample_to_output
+from scipy.ndimage.filters import gaussian_filter 
 from os.path import basename
 from scipy.ndimage.filters import gaussian_filter
 from subprocess import call, Popen, PIPE, STDOUT
@@ -21,7 +22,21 @@ from sklearn.cluster import KMeans
 from scipy.ndimage import zoom
 from skimage.transform import resize
 
+def resample(img, out_fn, res, factor=2):
+    xres = (res/factor) / img.affine[0,0]
+    yres = (res/factor) / img.affine[1,1]
+    zres = (res/factor) / img.affine[2,2]
     
+    vol = img.get_fdata()
+    vol = gaussian_filter(vol, (xres,yres,zres))
+    img2 = nib.Nifti1Image(vol, img.affine)
+
+    resample_to_output(img2, [res]*3).to_filename(out_fn)
+def w2v(i, step, start):
+    return np.round( (i-start)/step ).astype(int)
+
+def v2w(i, step, start) :
+    return start + i * step   
 def splitext(s):
     try :
         ssplit = os.path.basename(s).split('.')

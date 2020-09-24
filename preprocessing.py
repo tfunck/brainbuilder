@@ -265,7 +265,7 @@ def preprocess(fn,base,version,qc_fn,temp_crop_fn):
         elif im_contrast < 0.1 or version == 2 :
             im_no_lines = equalize_hist(gaussian_filter(im_no_lines,3))
         
-        ### 5) K means segmentation
+        ### 5) Otsu segmentation
         if verbose : print('\tSegment Tissue')
         seg = segment_tissue(im_no_lines,version)
 

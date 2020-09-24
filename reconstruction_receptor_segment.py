@@ -11,6 +11,7 @@ import nibabel as nib
 import gzip
 import shutil
 from re import sub
+from utils.utils import resample
 from nibabel.processing import resample_from_to, resample_to_output
 from skimage.filters import threshold_otsu, threshold_li
 from scipy.ndimage.filters import gaussian_filter
@@ -180,8 +181,7 @@ def classifyReceptorSlices(in_fn, out_dir, out_fn, morph_iterations=5, clobber=F
         print("Writing output to", out_fn)
         img_cls = nib.Nifti1Image(data, vol1.get_affine() )     
        
-        img_cls_rsl = resample_to_output(img_cls, [rsl_dim]*3 )
-        img_cls_rsl.to_filename(out_fn) 
+        resample(img_cls, out_fn,rsl_dim)
 
 
         return 0

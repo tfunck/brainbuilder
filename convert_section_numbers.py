@@ -39,12 +39,14 @@ if __name__ == "__main__":
         df0=pd.read_csv(csv)
         tdf = pd.DataFrame({'lin_fn':df0['name'],'slab_order':df0['number']})
         section_info_list.append( tdf  )
+    print(section_info_list)
 
     section_info = pd.concat(section_info_list)
     section_info['lin_fn'] = section_info['lin_fn'].apply(fix_lin_fn)
     section_info = section_info.loc[  section_info['lin_fn'] != 'nan' ]
     base_split = list( section_info['lin_fn'].apply(split_filename).values )#.reshape(section_info.shape[0],-1)
-
+    print(section_info)
+    print(base_split)
     for i, l in enumerate(base_split) :
         if len(l) < 7 :
             base_split[i] += [np.nan]*(7-len(l))

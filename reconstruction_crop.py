@@ -26,33 +26,29 @@ matplotlib.use("TkAgg")
 
 def get_base(fn) :
     fn = os.path.splitext(os.path.basename(fn))[0] 
-    #if fn[-2:] == '#L':
-    #    fn = fn[0:-2]
     return fn
 
-if __name__ == '__main__' :
-    parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('--clobber', dest='clobber', action='store_true', default=False, help='Clobber')
-    parser.add_argument('-s', dest='src_dir', default='crop/combined_final/mask/', help='source dir')
-    parser.add_argument('-o', dest='out_dir', default='reconstruction_output/crop/', help='source dir')
-    parser.add_argument('-d', dest='auto_info_fn', default='autoradiograph_info.csv', help='source dir')
+
+def crop(src_dir, out_dir, df, out_df_fn,clobber=False):
     pad = 50
     p = int(pad/2)
-    args = parser.parse_args()
-
-    df = pd.read_csv(args.auto_info_fn)
+    
     df['lin_fn'] = df['lin_fn'].apply( lambda x: os.path.splitext(os.path.basename(x))[0] ) 
+    df['crop_fn']= df['lin_fn'].apply(lambda x: f'{out_dir}/{x}.nii.gz')
+    df.to_csv(out_df_fn)
+    
+    if not False in df['crop_fn'].apply(lambda x: os.path.exists(x) ) : return 0
 
-    if not os.path.exists(args.out_dir) : os.makedirs(args.out_dir)
-    files = glob('{}/*'.format(args.src_dir))
+    if not os.path.exists(out_dir) : os.makedirs(out_dir)
+    files = glob('{}/*'.format(src_dir))
     basenames = [ get_base(fn) for fn in files ]
     n=len(files)
     for index, (fn, base) in enumerate(zip(files, basenames)) : 
 
         if 'MR1' not in base : continue
-        crop_fn = '{}/{}.nii.gz'.format(args.out_dir , base)
+        crop_fn = '{}/{}.nii.gz'.format(out_dir , base)
 
-        if not os.path.exists(crop_fn) or args.clobber :
+        if not os.path.exists(crop_fn) or clobber :
             mask_fn=glob(f'crop/combined_final/mask/{base}*.png')
             #print(mask_fn)
             if len(mask_fn) > 0 : 
