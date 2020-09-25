@@ -20,7 +20,7 @@ from scipy.io import loadmat
 from numpy.linalg import det
 from scipy.interpolate import interp1d
 import matplotlib
-matplotlib.use('TKAgg')
+#matplotlib.use('TKAgg')
 
 
 def w2v(c, step, start):

@@ -15,14 +15,13 @@ from utils.utils import safe_imread, downsample
 from utils.mouse_click import click
 from glob import glob
 import h5py as h5
-import tensorflow as tf
 import nibabel as nib
 import pandas as pd
 from skimage import exposure
 from nibabel.processing import *
 from sklearn.cluster import KMeans
 from re import sub
-matplotlib.use("TkAgg")
+#matplotlib.use("TkAgg")
 
 def get_base(fn) :
     fn = os.path.splitext(os.path.basename(fn))[0] 
