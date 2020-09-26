@@ -12,7 +12,6 @@ import sys
 from utils.utils import shell
 from glob import glob
 import re
-import cv2
 from utils.utils import set_csv, add_padding
 from utils.ANTs import ANTs
 from ants import write_transform, read_transform, registration, apply_transforms, image_mutual_information, from_numpy, image_similarity
