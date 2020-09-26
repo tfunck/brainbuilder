@@ -1,0 +1,13 @@
+Metadata-Version: 1.1
+Name: solve
+Version: 1.0
+Summary: solve cubic polynomial
+Home-page: https://github.com/tfunck/solve
+Author: Thomas Funck
+Author-email: tffunck@gmail.com
+License: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX :: Linux
