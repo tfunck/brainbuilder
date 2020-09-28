@@ -16,8 +16,8 @@ import re
 import argparse
 
 global file_dir
-file_dir, fn =os.path.split( os.path.abspath(__file__) )
-file_dir = file_dir +os.sep +'section_numbers' +os.sep
+base_file_dir, fn =os.path.split( os.path.abspath(__file__) )
+file_dir = base_file_dir +os.sep +'section_numbers' +os.sep
 def w2v(c, step, start):
     return np.round( (c-start)/step ).astype(int)
 
@@ -63,6 +63,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--brains','-b', dest='brain', type=str, default='MR1', help='Brains to reconstruct. Default = run all.')
     parser.add_argument('--hemispheres', '--hemi', dest='hemi',default='R',type=str, help='Brains to reconstruct. Default = reconstruct all hemispheres.')
+    #parser.add_argument('--resolution', '-r', dest='resolution',default='3',type=str, help='Brains to reconstruct. Default = reconstruct all hemispheres.')
     parser.add_argument('--slab','-s', dest='slab', type=str, default=1, help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--src-dir','-i', dest='src_dir', type=str, default='receptor_dwn', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--out-dir','-o', dest='out_dir', type=str, default='reconstruction_output', help='Slabs to reconstruct. Default = reconstruct all slabs.')
@@ -84,7 +85,7 @@ if __name__ == '__main__':
     #run=qsub
     ### If running locally:
     run='sh' 
-
+    scale_factors_fn=base_file_dir+'/scale_factors.json'
     srv_fn="srv/mri1_gm_bg_srv.nii.gz"
     srv_base_fn = srv_fn
 
@@ -115,7 +116,7 @@ if __name__ == '__main__':
     #   7. Interpolate missing vertices on sphere, interpolate back to 3D volume
 
     ### Step 0 :
-    df = crop(src_dir,crop_dir, df, src_dir+os.sep+'autoradiograph_info_downsample.csv', remote=args.remote)
+    df = crop(src_dir,crop_dir, df,out_dir+os.sep+'autoradiograph_info_downsample.csv', remote=args.remote)
 
     ###
     ### Steps 1 & 2: Initial interslab alignment, GM segmentation
@@ -148,7 +149,7 @@ if __name__ == '__main__':
                 slab_df=df.loc[  (df['hemisphere']==hemi) & (df['mri']==brain) & (df['slab']==int(slab)) ]
 
                 if not os.path.exists( init_align_fn) and not args.remote : 
-                    receptorRegister(brain,hemi,slab, init_align_fn, out_dir_1, slab_df, scale_factors_json="scale_factors.json", clobber=False)
+                    receptorRegister(brain,hemi,slab, init_align_fn, out_dir_1, slab_df, scale_factors_json=scale_factors_fn, clobber=False)
                
 
                 ### Iterate over progressively finer resolution
@@ -218,7 +219,7 @@ if __name__ == '__main__':
 
                     nl_2d_vol=files[brain][hemi][slab][resolution]['nl_2d_vol']
 
-                    direction=json.load(open('scale_factors.json','r'))[brain][hemi][slab]["direction"]
+                    direction=json.load(open(scale_factors_fn,'r'))[brain][hemi][slab]["direction"]
 
                     print('\tNL 2D volume:', nl_2d_vol, os.path.exists( nl_2d_vol ))
                     if not os.path.exists( nl_2d_vol ) :

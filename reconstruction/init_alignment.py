@@ -15,7 +15,7 @@ import re
 from utils.utils import set_csv, add_padding
 from utils.ANTs import ANTs
 from ants import write_transform, read_transform, registration, apply_transforms, image_mutual_information, from_numpy, image_similarity
-matplotlib.use('TKAgg')
+#matplotlib.use('TKAgg')
 
 def load2d(fn):
     ar = nib.load(fn).get_fdata()

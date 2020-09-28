@@ -4,12 +4,12 @@ import vast.io_mesh as io
 import numpy as np
 import h5py
 import gzip
-import vast.volume_tools as vt
+#import vast.volume_tools as vt #Removing bc libminc not installed
 import vast.surface_tools as st
 from functools import partial
 from glob import glob
 import matplotlib
-matplotlib.use("TkAgg")
+#matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import concurrent.futures
 import os
@@ -253,9 +253,10 @@ class SurfaceVolumeMapper(object):
     
     def save_block(self, filename,block, dtype="ubyte"):
         """calls save block from volume tools"""
-        vt.save_mnc_block(filename, block,
-                          origin=self.origin, resolution=self.resolution,
-                         dtype=dtype)
+        # commented out because libminc not included
+        #vt.save_mnc_block(filename, block,
+        #                  origin=self.origin, resolution=self.resolution,
+        #                 dtype=dtype)
         return
         
     def surface_mask_triangles(self, mask):

@@ -12,7 +12,7 @@ import gc
 import matplotlib.pyplot as plt
 from scipy.ndimage import rotate
 from utils.utils import safe_imread, downsample
-from utils.mouse_click import click
+#from utils.mouse_click import click
 from glob import glob
 import h5py as h5
 import nibabel as nib

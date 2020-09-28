@@ -18,7 +18,7 @@ from utils.ANTs import ANTs
 from utils.utils import splitext, shell, w2v , v2w
 from scipy.ndimage.measurements import center_of_mass
 
-matplotlib.use('TKAgg')
+#matplotlib.use('TKAgg')
 
 
 def receptor_2d_alignment( df, rec_fn, rec_rsl_fn, srv_fn, output_dir,  out_3d_fn, resolution, resolution_itr, direction='rostral_to_caudal', clobber=False): 

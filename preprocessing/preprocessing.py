@@ -11,7 +11,7 @@ import imageio
 import gc 
 import matplotlib.pyplot as plt
 from utils.utils import safe_imread, downsample
-from utils.mouse_click import click
+#from utils.mouse_click import click
 import h5py as h5
 import nibabel as nib
 import pandas as pd
@@ -234,7 +234,7 @@ def get_base(fn) :
 
 def crop_gui(img_dwn):
     #img_dwn = safe_imread(img_fn)
-    refPts = click(img_dwn)
+    refPts = (0,0)#click(img_dwn) #Commented out to run on server and open-cv could not be installed in singularity
     try :
         x0=refPts[0][0]
         y0=refPts[0][1]
