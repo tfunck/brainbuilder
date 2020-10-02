@@ -111,8 +111,6 @@ def save_mesh_data(fname, surf_data):
         raise ValueError('fname must be a filename and surf_data must be a numpy array')
 
 
-   
-
 
 # function to read vtk files
 # ideally use pyvtk, but it didn't work for our data, look into why
