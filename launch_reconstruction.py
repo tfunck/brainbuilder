@@ -65,11 +65,12 @@ if __name__ == '__main__':
     parser.add_argument('--hemispheres', '--hemi', dest='hemi',default='R',type=str, help='Brains to reconstruct. Default = reconstruct all hemispheres.')
     parser.add_argument('--clobber', dest='clobber',default=False,action='store_true', help='Overwrite existing results')
     parser.add_argument('--slab','-s', dest='slab', type=str, default=1, help='Slabs to reconstruct. Default = reconstruct all slabs.')
-    parser.add_argument('--chunk-perc','-u', dest='slab_chunk_perc', type=, default=1., help='Subslab size (use with --nonlinear-only option) ')
-    parser.add_argument('--chunk','-c', dest='slab_chunk_i', type=str, default=1, help='Subslab to align (use with --nonlinear-only option).')
+    parser.add_argument('--chunk-perc','-u', dest='slab_chunk_perc', type=float, default=1., help='Subslab size (use with --nonlinear-only option) ')
+    parser.add_argument('--chunk','-c', dest='slab_chunk_i', type=int, default=1, help='Subslab to align (use with --nonlinear-only option).')
     parser.add_argument('--src-dir','-i', dest='src_dir', type=str, default='receptor_dwn', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--out-dir','-o', dest='out_dir', type=str, default='reconstruction_output', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--remote','-p', dest='remote', default=False, action='store_true',  help='Slabs to reconstruct. Default = reconstruct all slabs.')
+    parser.add_argument('--nonlinear-only', dest='nonlinear_only', default=False, action='store_true',  help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--resolutions','-r', dest='resolution_list', nargs='+', default=[ 3, 2, 1 , 0.5, 0.25],  help='List of resolutions to process')
 
     args = parser.parse_args()
@@ -79,7 +80,7 @@ if __name__ == '__main__':
     brain_list=[args.brain] 
     hemi_list=[args.hemi]
     slab_list=[args.slab] 
-    resolution_list = resolution_list
+    resolution_list = args.resolution_list
 
     slab_list = adjust_slab_list(slab_list)
 
@@ -157,54 +158,55 @@ if __name__ == '__main__':
                 for resolution_itr, resolution in enumerate(resolution_list) :
                     print('Resolution',resolution)
                     
-                        cur_out_dir=f'{out_dir}/{brain}_{hemi}_{slab}/{resolution}mm/'
-                        os.makedirs(cur_out_dir,exist_ok=True)
-                        lin_dir=f'{cur_out_dir}/3_align_slab_to_mri/'
-                        files[brain][hemi][slab]['lin_dir'] = lin_dir
+                    cur_out_dir=f'{out_dir}/{brain}_{hemi}_{slab}/{resolution}mm/'
+                    os.makedirs(cur_out_dir,exist_ok=True)
+                    lin_dir=f'{cur_out_dir}/3_align_slab_to_mri/'
+                    files[brain][hemi][slab]['lin_dir'] = lin_dir
 
-                        ###
-                        ### Step 1.5 : Downsample SRV to current resolution
-                        ###
-                        srv_rsl_fn = f'{cur_out_dir}/srv_{resolution}mm.nii.gz' 
-                        if not os.path.exists(srv_rsl_fn) or args.clobber :
-                            resample(nib.load(srv_fn), srv_rsl_fn, resolution)
-         
-                        srv_base_rsl_fn = f'{cur_out_dir}/srv_base_{resolution}mm.nii.gz' 
-                        if not os.path.exists(srv_base_rsl_fn) or args.clobber :
-                            resample(nib.load(srv_base_fn), srv_base_rsl_fn, resolution)
+                    ###
+                    ### Step 1.5 : Downsample SRV to current resolution
+                    ###
+                    srv_rsl_fn = f'{cur_out_dir}/srv_{resolution}mm.nii.gz' 
+                    if not os.path.exists(srv_rsl_fn) or args.clobber :
+                        resample(nib.load(srv_fn), srv_rsl_fn, resolution)
+     
+                    srv_base_rsl_fn = f'{cur_out_dir}/srv_base_{resolution}mm.nii.gz' 
+                    if not os.path.exists(srv_base_rsl_fn) or args.clobber :
+                        resample(nib.load(srv_base_fn), srv_base_rsl_fn, resolution)
 
-                        ###
-                        ### Step 2 : Autoradiograph segmentation
-                        ###
-                        print('\tAutoradiograph segmentation')
-                        if resolution_itr > 0 : align_fn = nl_2d_vol
-                        else : align_fn = init_align_fn
+                    ###
+                    ### Step 2 : Autoradiograph segmentation
+                    ###
+                    print('\tAutoradiograph segmentation')
+                    if resolution_itr > 0 : align_fn = nl_2d_vol
+                    else : align_fn = init_align_fn
 
-                        seg_dir=f'{cur_out_dir}/2_segment/'
-                        seg_rsl_fn=f'{seg_dir}/brain-{brain}_hemi-{hemi}_slab-{slab}_seg_{resolution}mm.nii.gz'
-                        if (not os.path.exists(seg_rsl_fn) or args.clobber) and not args.nonlinear_only :
-                            classifyReceptorSlices(align_fn, seg_dir, seg_rsl_fn, rsl_dim=resolution)
-                        
-                        ###
-                        ### Step 3 : Align slabs to MRI
-                        ###
-                        print('\tStep 3: align slabs to MRI')
-                        hemi_df = df.loc[ (df['mri']==brain) & (df['hemisphere']==hemi) ]
+                    seg_dir=f'{cur_out_dir}/2_segment/'
+                    seg_rsl_fn=f'{seg_dir}/brain-{brain}_hemi-{hemi}_slab-{slab}_seg_{resolution}mm.nii.gz'
+                    if (not os.path.exists(seg_rsl_fn) or args.clobber) and not args.nonlinear_only :
+                        classifyReceptorSlices(align_fn, seg_dir, seg_rsl_fn, rsl_dim=resolution)
+                    
+                    ###
+                    ### Step 3 : Align slabs to MRI
+                    ###
+                    print('\tStep 3: align slabs to MRI')
+                    hemi_df = df.loc[ (df['mri']==brain) & (df['hemisphere']==hemi) ]
 
-                        align_to_mri_dir = f'{cur_out_dir}/3_align_slab_to_mri/' 
-                        os.makedirs(align_to_mri_dir, exist_ok=True)
-                        prev_resolution=resolution_list[resolution_itr-1]
+                    align_to_mri_dir = f'{cur_out_dir}/3_align_slab_to_mri/' 
+                    os.makedirs(align_to_mri_dir, exist_ok=True)
+                    prev_resolution=resolution_list[resolution_itr-1]
 
-                        if resolution_itr == 0:
-                            tfm=None
-                        else :
-                            tfm=files[brain][hemi][slab][prev_resolution]['nl_3d_tfm']
+                    if resolution_itr == 0:
+                        tfm=None
+                    else :
+                        tfm=files[brain][hemi][slab][prev_resolution]['nl_3d_tfm']
 
-                        if not args.nonlinear_only :
-                            nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_lin, srv_3d_lin = align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, align_to_mri_dir, hemi_df, slab_list[slab_i:], tfm )
+                    #FIXME need filenames produced by align_slab_to_mri, o/w should be skipped if nonlinear_only == True
+                    #if not args.nonlinear_only :
+                    nl_3d_tfm_fn,nl_3d_tfm_inv_fn , rec_3d_lin, srv_3d_lin = align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, align_to_mri_dir, hemi_df, slab_list[slab_i:], tfm  )
 
-                        files[brain][hemi][slab][resolution]['nl_3d_tfm'] = nl_3d_tfm_fn
-                        files[brain][hemi][slab][resolution]['nl_3d_tfm_inv'] = nl_3d_tfm_inv_fn
+                    files[brain][hemi][slab][resolution]['nl_3d_tfm'] = nl_3d_tfm_fn
+                    files[brain][hemi][slab][resolution]['nl_3d_tfm_inv'] = nl_3d_tfm_inv_fn
 
                     ###
                     ### Step 4 : 2D alignment of receptor to resample MRI GM vol
@@ -227,16 +229,17 @@ if __name__ == '__main__':
                         
                         if args.nonlinear_only :
                             chunk_size = slab_df.shape[0] * args.slab_chunk_perc
+                            print(chunk_size)
                             a = np.round(chunk_size*args.slab_chunk_i).astype(int)
-                            b = np.round(chunk_size*args.slab_chunk_i+1).astype(int)
+                            b = np.round(chunk_size*(args.slab_chunk_i+1)).astype(int)
                             slab_df = slab_df.iloc[ a:b ]
                         
                         if not os.path.exists(srv_base_rsl_crop_fn) or args.clobber :
                             shell(f'antsApplyTransforms -v 1 -d 3 -i {srv_base_rsl_fn} -r {init_align_fn} -t {nl_3d_tfm_inv_fn} -o {srv_base_rsl_crop_fn}', verbose=True)
 
-                        if args.nonlinear_only : exit(0)
 
-                        receptor_2d_alignment( slab_df, init_align_fn, init_align_rsl_fn, srv_base_rsl_crop_fn, nl_2d_dir, nl_2d_vol, resolution, resolution_itr, direction=direction)
+                        receptor_2d_alignment( slab_df, init_align_fn, init_align_rsl_fn, srv_base_rsl_crop_fn, nl_2d_dir, nl_2d_vol, resolution, resolution_itr, dont_write_output=args.nonlinear_only, direction=direction)
+                        if args.nonlinear_only : exit(0)
                
             ###
             ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
