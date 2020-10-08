@@ -56,14 +56,11 @@ def receptor_2d_alignment( df, rec_fn, rec_rsl_fn, srv_fn, output_dir,  out_3d_f
 
     lin_itr_str='x'.join([str(i) for i in range(max_lin_itr,0,lin_step)])
     nl_itr_str='x'.join([str(i) for i in range(max_nl_itr,0,nl_step)])
-    print(resolution_itr)
-    print(resolution_level)
-    print(lin_itr_str)
-    print(nl_itr_str)
 
-    f_str='x'.join([ str(i) for i in range(resolution_level,0,-1)])
+
+    f_str='x'.join([ str(i) for i in range(resolution_itr+1,0,-1)])
     f = lambda x : x/2 if x > 1  else 0
-    s_list = map(f,  range(resolution_level,0,-1) ) 
+    s_list = map(f,  range(resolution_itr+1,0,-1) ) 
     s_str='x'.join( [str(i) for i in s_list] ) + 'vox'
     
     fx_fn=tempfile.NamedTemporaryFile().name+'.nii.gz'
