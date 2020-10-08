@@ -225,7 +225,6 @@ if __name__ == '__main__':
 
                         if not os.path.exists(srv_base_rsl_crop_fn) or args.clobber :
                             shell(f'antsApplyTransforms -v 1 -d 3 -i {srv_base_rsl_fn} -r {init_align_fn} -t {nl_3d_tfm_inv_fn} -o {srv_base_rsl_crop_fn}', verbose=True)
-                        print('got here!')
                         receptor_2d_alignment( slab_df, init_align_fn, init_align_rsl_fn, srv_base_rsl_crop_fn, nl_2d_dir, nl_2d_vol, resolution, resolution_itr, direction=direction)
                
             ###

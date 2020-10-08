@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 import argparse
+import os
 from mesh_io import load_mesh_geometry, save_mesh_geometry, save_mesh_data, save_obj, read_obj
 
 #            o (2,1)_4
@@ -35,12 +36,12 @@ def get_poly_idx(idx ):
 
 class Surface():
     def __init__(self, fn=None):
-
+        self.fn=fn
         if fn==None :
             self.ngh_list = test_ngh
             self.coords_list = test_coords
         else :
-            self.mesh_dict = load_mesh_geometry(base_mesh_fn)
+            self.mesh_dict = load_mesh_geometry(fn)
             self.coords_list = self.mesh_dict['coords']
             self.ngh_list = self.mesh_dict['neighbours']
         self.vertices={}
@@ -50,8 +51,10 @@ class Surface():
         self.gen_vertices()
 
         self.gen_polygons()
+        self.n_poly=len(self.polygons.values())
+
         print('File has {} vertices and {} polygons'.format( len(self.vertices.values()), len(self.polygons.values())))
-        self.current_max_edge_length, self.max_dist_poly = self.get_max_edge_length() 
+        self.current_max_edge_length = self.get_max_edge_length() 
         
     def gen_vertices(self):
         for coords_idx, (coords, ngh) in enumerate(zip(self.coords_list, self.ngh_list)) :
@@ -76,51 +79,61 @@ class Surface():
                 tgt=self.vertices[ngh]
                 plt.plot([vtx.coords[0],  tgt.coords[0] ], [vtx.coords[1],  tgt.coords[1]] , c='b')
 
-        plt.subplot(1,2,2)
-        for poly in self.polygons.values() :
-            x0 = [poly.vertices[0].coords[0],  poly.vertices[1].coords[0],poly.vertices[2].coords[0]  ]
-            y0 = [poly.vertices[0].coords[1],  poly.vertices[1].coords[1],poly.vertices[2].coords[1]  ]
-            plt.scatter(x0,y0)
-
-        x0 = [ self.max_dist_poly.farthest_vertices[0][0], self.max_dist_poly.farthest_vertices[1][0] ]
-        y0 = [ self.max_dist_poly.farthest_vertices[0][1], self.max_dist_poly.farthest_vertices[1][1] ]
-        plt.plot(x0, y0)
-
         plt.savefig(out_fn)
         plt.clf()
         plt.cla()
 
     def get_max_edge_length(self):
-        lengths = np.array([ (poly.max_edge_length, poly_key) for poly_key, poly in self.polygons.items()])
-        idx = np.argmax(lengths[:,0].astype(float))
-        max_dist_poly=self.polygons[ lengths[idx,1] ]
-        return max_dist_poly.max_edge_length, max_dist_poly
+        if len(self.polygons.values()) == 0 : 
+            return self.current_max_edge_length
+        else :
+            return max([ poly.max_edge_length for poly in self.polygons.values()])
 
     def upsample(self, global_max_edge_length=-1):
         
-        while self.current_max_edge_length > global_max_edge_length :
+        while self.current_max_edge_length > global_max_edge_length and self.n_poly > 0 :
             new_polygons={}
-            new_polygon_count=0
+            to_remove=[]
 
             tstart = time.time()
-            for i, polygon in self.polygons.items():
+            for idx, (i, polygon) in enumerate(self.polygons.items()):
                 if polygon.max_edge_length > global_max_edge_length or global_max_edge_length<0 :
-                    self.vertices, new_polygons, self.max_index = polygon.subdivide(self.vertices, new_polygons, self.max_index)
-                    new_polygon_count += 1
-                else :
-                    new_polygons[i] = polygon
 
-            self.polygons = new_polygons
-            self.current_max_edge_length, self.max_dist_poly = self.get_max_edge_length() 
-            tend = time.time()
+                    if idx % 1000 == 0 : print('{:3.3%}'.format(idx/self.n_poly),end='\r')
 
-            n_poly=len(self.polygons.values())
+                    self.vertices, new_polygons, self.max_index = polygon.subdivide(self.vertices,new_polygons, self.max_index, global_max_edge_length)
+                    
+
+                    to_remove.append(i)
+
+            for i in to_remove: del self.polygons[i]
+
+            self.polygons.update(new_polygons)
+
+            del new_polygons
+            self.current_max_edge_length = self.get_max_edge_length() 
+
+            
+
+            self.n_poly=len(self.polygons.values())
             n_vtx=len(self.vertices.values())
-            print('n polygons:{} ({:2.2%} new)\tn vertices {}\tmax length {:3.3}\t time {:3.1}s'.format(n_poly, new_polygon_count/n_poly, n_vtx, self.current_max_edge_length, tend-tstart ))
+            
+            tend = time.time()
+            print('n polygons: {}\tn vertices {}\tmax length {:3.3}\t time {}min'.format(self.n_poly, n_vtx, self.current_max_edge_length, np.round((tend-tstart)/60.,2) ))
+
             # if we are not usign global_max_edge_lendth (i.e., it is negative) then break
             if global_max_edge_length < 0 : break
 
-    def to_filename(self, fn):
+    def to_filename(self, fn=None):
+        if fn==None:
+            base,ext = os.path.splitext(self.fn)
+            fn = '{}_{}.{}'.format(base, self.current_max_edge_length, ext)
+
+            if os.path.exists(fn) :
+                print('Output filename not provided and default output filename already exists: {}', fn)
+                exit(1)
+        print('Writing to', fn)
+
         coords = np.array([ vtx.coords for vtx in self.vertices.values() ] )
         ngh =  [ vtx.ngh for vtx in self.vertices.values() ] 
         ngh_count = np.array( [ len(n) for n in ngh ])
@@ -133,7 +146,7 @@ class Polygon():
     def __init__(self, vertices):
         self.vertices = vertices
         self.index = [vtx.index for vtx in self.vertices]
-        self.max_edge_length, self.farthest_vertices = self.set_max_edge_length()
+        self.max_edge_length = self.set_max_edge_length()
 
     def set_max_edge_length(self):
         max_edge_length=0
@@ -142,12 +155,10 @@ class Polygon():
             d = np.sum(np.abs(np.array(self.vertices[i].coords) - np.array(self.vertices[j].coords)))
             if d > max_edge_length : 
                 max_edge_length = d
-                farthest_vertices=[ self.vertices[i].coords, self.vertices[j].coords]
 
+        return max_edge_length
 
-        return max_edge_length, farthest_vertices
-
-    def subdivide(self,all_vertices,all_polygons,max_index):
+    def subdivide(self,all_vertices,all_polygons,max_index, global_max_edge_length):
         # First step is to define 4 new points in the current triangle.
         # The first 3 are on edges between existing points of triangle.
         # 4th point is in the center of the triangle.
@@ -206,9 +217,6 @@ class Polygon():
         for i in range(3) :
             j, k = base_set - {i}
             #Updating existing vertices in triangle and remove their old neighbours
-            #print(self.vertices)
-            #print('1',self.vertices[i].ngh)
-            #print('\t remove', self.vertices[j].index, self.vertices[k].index)
             try :
                 self.vertices[i].ngh.remove(self.vertices[j].index)
             except ValueError :
@@ -218,7 +226,6 @@ class Polygon():
                 self.vertices[i].ngh.remove(self.vertices[k].index)
             except ValueError :
                 pass
-            #print('2',self.vertices[i].ngh)
 
         # Using the information on the new points, their indices, and neighours, we can 
         # create new Vertex instances for these new points
@@ -236,11 +243,13 @@ class Polygon():
             vtx1 = new_vertices[i]
             vtx2 = new_vertices[(i+1)%6]
             vtx3 = new_vertices[6]
-            all_polygons[get_poly_idx([vtx1.index,vtx2.index,vtx3.index])] = Polygon([vtx1, vtx2, vtx3])
+            poly = Polygon([vtx1, vtx2, vtx3])
+            if poly.max_edge_length > global_max_edge_length :
+                all_polygons[get_poly_idx([vtx1.index,vtx2.index,vtx3.index])] = poly
+
+
         return all_vertices, all_polygons, max_index
        
-
-
 class Vertex():
     def __init__(self, coords, ngh, index):
         self.coords = coords
@@ -264,8 +273,8 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-i', dest='input_fn', type=str, help='Filename for input obj file.')
-    parser.add_argument('-o', dest='output_fn', type=str,  help='Filename for output obj file.')
-    parser.add_argument('-m', dest='max_length', default=-1, type=int, help='Maximum vertex edge length (Default of -1 -> subdivide each polygon once).')
+    parser.add_argument('-o', dest='output_fn', type=str, default=None,  help='Filename for output obj file.')
+    parser.add_argument('-m', dest='max_length', default=-1, type=float, help='Maximum vertex edge length (Default of -1 -> subdivide each polygon once).')
     parser.add_argument('-t', dest='test', default=False, action='store_true', help='Run simple toy example to test code.')
 
     args = parser.parse_args()
@@ -279,5 +288,5 @@ if __name__ == '__main__':
 
     surf = Surface(args.input_fn)
     surf.upsample(args.max_length)
-    surf.to_filename(out_obj_fn)
+    surf.to_filename(args.output_fn)
 

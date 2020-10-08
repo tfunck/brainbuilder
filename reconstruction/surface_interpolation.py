@@ -188,12 +188,11 @@ def surface_interpolation(tfm_list,  slab_list, out_dir, brain, hemi, resolution
     for ligand, df_ligand in df.groupby(['ligand']):
         print('\tInterpolating for ligand:',ligand)
 
-        # Calculate order (volume_order) of autoradiographs in volume
 
         # Extract profiles from the slabs using the surfaces 
         profile_fn  = f'{out_dir}/{brain}_{hemi}_{ligand}_{resolution}mm_profiles.csv'
         if not os.path.exists(profile_fn) or clobber >= 1 :
-            get_profiles(sphere_obj_fn,surf_mid_list, surf_wm_list, surf_gm_list, n_depths, profile_fn, slab_list, df_ligand)
+            get_profiles(sphere_obj_fn, surf_mid_list, surf_wm_list, surf_gm_list, n_depths, profile_fn, slab_list, df_ligand)
         profiles = pd.read_csv(profile_fn).values
             
         # Interpolate a 3D receptor volume from the surface mesh profiles

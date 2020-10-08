@@ -25,8 +25,7 @@ from scipy.ndimage.measurements import center_of_mass
 def receptor_2d_alignment( df, rec_fn, rec_rsl_fn, srv_fn, output_dir,  out_3d_fn, resolution, resolution_itr, direction='rostral_to_caudal', clobber=False): 
     if not os.path.exists(output_dir) :
         os.makedirs(output_dir)
-    print('okayr!')
-    exit(0)
+    
     temp_hires_fn=re.sub('.nii.gz','_hires_temp.nii.gz', out_3d_fn) 
 
     tfm_dir=output_dir + os.sep + 'tfm'
@@ -43,22 +42,24 @@ def receptor_2d_alignment( df, rec_fn, rec_rsl_fn, srv_fn, output_dir,  out_3d_f
     out_hires = np.zeros_like(rec_hires_vol)
     
     avg_step = (xstep+zstep)/2 
-    resolution_level = np.ceil(np.log2(3/avg_step )+ 1 ).astype(int)
+
+    #don't remember what resolution_level does, so setting to 3 to cancel out it's effect
+    resolution_level = 1 # np.ceil(np.log2(3/avg_step )+ 1 ).astype(int)
 
     #Set strings for alignment parameters
     base_lin_itr= 100
     base_nl_itr = 10
-    max_lin_itr = resolution_level * base_lin_itr
+    max_lin_itr = resolution_level * base_lin_itr * (resolution_itr+1)
     max_nl_itr  = resolution_level * base_nl_itr * (resolution_itr+1)
-    lin_step = -base_lin_itr*(resolution_itr+1)
-    nl_step  = -base_nl_itr*(resolution_itr+1)
+    lin_step = -base_lin_itr #*(resolution_itr)
+    nl_step  = -base_nl_itr #*(resolution_itr)
 
     lin_itr_str='x'.join([str(i) for i in range(max_lin_itr,0,lin_step)])
     nl_itr_str='x'.join([str(i) for i in range(max_nl_itr,0,nl_step)])
-
+    print(resolution_itr)
+    print(resolution_level)
     print(lin_itr_str)
     print(nl_itr_str)
-    exit(0)
 
     f_str='x'.join([ str(i) for i in range(resolution_level,0,-1)])
     f = lambda x : x/2 if x > 1  else 0
@@ -94,7 +95,7 @@ def receptor_2d_alignment( df, rec_fn, rec_rsl_fn, srv_fn, output_dir,  out_3d_f
             if not os.path.exists(tfm_fn)  or clobber : 
                 print('\t\t',y)
 
-                stout, sterr, errorcode = shell(f'antsRegistration -v 0 -d 2 --write-composite-transform 1  --initial-moving-transform [{fx_fn},{mv_rsl_fn},1] -o [{prefix}_,{out_hires_fn},/tmp/out_inv.nii.gz] -t Similarity[.1] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_rsl_fn},1,20,Regular,1] -s {s_str} -f {f_str}   -t Affine[.1]   -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_rsl_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t SyN[0.1] -m Mattes[{fx_fn},{mv_rsl_fn},1,20,Regular,1] -c [{nl_itr_str}] -s {nl_s_str} -f {nl_f_str}', exit_on_failure=True,verbose=False)
+                stout, sterr, errorcode = shell(f'antsRegistration -v 0 -d 2 --write-composite-transform 1  --initial-moving-transform [{fx_fn},{mv_rsl_fn},1] -o [{prefix}_,{out_hires_fn},/tmp/out_inv.nii.gz] -t Similarity[.1] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_rsl_fn},1,20,Regular,1] -s {s_str} -f {f_str}   -t Affine[.1]   -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_rsl_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t SyN[0.1] -m Mattes[{fx_fn},{mv_rsl_fn},1,20,Regular,1] -c [{nl_itr_str}] -s {s_str} -f {f_str}', exit_on_failure=True,verbose=False)
 
                 #Create QC image
                 out_2d_np = nib.load(out_hires_fn).get_fdata()
