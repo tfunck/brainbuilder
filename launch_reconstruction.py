@@ -34,7 +34,7 @@ def adjust_slab_list(ll) :
     oo = [ str(i) for i in oo ]
     return oo
 
-def calculate_section_order(autoradiograph_info_fn, source_dir, in_df_fn='section_order/autoradiograph_info.csv') :
+def calculate_section_order(autoradiograph_info_fn, source_dir, out_dir, in_df_fn='section_order/autoradiograph_info.csv') :
     df=pd.read_csv(in_df_fn)
     df['volume_order']=-1
     for (brain,hemi), tdf in df.groupby(['mri', 'hemisphere']):
@@ -49,7 +49,7 @@ def calculate_section_order(autoradiograph_info_fn, source_dir, in_df_fn='sectio
 
     df['filename']=source_dir+'/'+df['lin_fn'].apply(lambda x : os.path.splitext(os.path.basename(x))[0]) +'.png'
     df['filename']=df['filename'].apply(lambda x : re.sub('#L.png','.png',x))
-    df['filename_rsl'] = df['filename'].apply(lambda x: 'reconstruction_output/0_crop/'+os.path.splitext(os.path.basename(x))[0]+'#L.nii.gz')
+    df['filename_rsl'] = df['filename'].apply(lambda x: out_dir+'/reconstruction_output/0_crop/'+os.path.splitext(os.path.basename(x))[0]+'#L.nii.gz')
 
     df.sort_values(["mri","hemisphere","slab","volume_order"], inplace=True)
 
@@ -94,11 +94,11 @@ if __name__ == '__main__':
     crop_dir=f'{out_dir}/0_crop'
     os.makedirs(out_dir,exist_ok=True)
 
-    autoradiograph_info_fn=out_dir+'autoradiograph_info_volume_order.csv'
+    autoradiograph_info_fn=out_dir+'/autoradiograph_info_volume_order.csv'
 
     #Process the base autoradiograph csv
     if not os.path.exists(autoradiograph_info_fn) : 
-        calculate_section_order(autoradiograph_info_fn, crop_dir, in_df_fn=file_dir+os.sep+'autoradiograph_info.csv')
+        calculate_section_order(autoradiograph_info_fn, crop_dir, out_dir, in_df_fn=file_dir+os.sep+'autoradiograph_info.csv')
 
     df=pd.read_csv(autoradiograph_info_fn)
 

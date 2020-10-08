@@ -11,6 +11,7 @@ import pandas as pd
 import time
 import stripy as stripy
 import shutil
+import tempfile
 from sys import argv
 from glob import glob
 from ants import  apply_transforms, from_numpy, from_numpy, image_read, registration
@@ -45,14 +46,14 @@ def receptor_2d_alignment( df, rec_fn, rec_rsl_fn, srv_fn, output_dir,  out_3d_f
 
     #Set strings for alignment parameters
     lin_itr_str='x'.join([str(i) for i in range(resolution_level*100,0,-100)])
-    nl_itr_str='x'.join([str(i) for i in range(resolution_level*20*(resolution_itr+1),0,-20*(resolution_itr+1))])
+    nl_itr_str='x'.join([str(i) for i in range(resolution_level*10*(resolution_itr+1),0,-20*(resolution_itr+1))])
 
     f_str='x'.join([ str(i) for i in range(resolution_level,0,-1)])
     f = lambda x : x/2 if x > 1  else 0
     s_list = map(f,  range(resolution_level,0,-1) ) 
     s_str='x'.join( [str(i) for i in s_list] ) + 'vox'
-
-    fx_fn='/tmp/fixed.nii.gz'
+    
+    fx_fn=tempfile.NamedTemporaryFile().name+'.nii.gz'
 
     aff_hires = np.array([[xstep,  0, 0, 0],
                         [0, zstep, 0, 0],
