@@ -110,8 +110,8 @@ def receptor_2d_alignment( df, rec_fn, rec_rsl_fn, srv_fn, output_dir,  out_3d_f
 
         if not dont_write_output :
             if idx % 50 == 0 :
-            print(f'\r{idx} writing temp file to {temp_hires_fn}')
-            nib.Nifti1Image(out_hires, rec_hires_img.affine).to_filename(temp_hires_fn)
+                print(f'\r{idx} writing temp file to {temp_hires_fn}')
+                nib.Nifti1Image(out_hires, rec_hires_img.affine).to_filename(temp_hires_fn)
 
     if not dont_write_output :
         print('\t\tWriting 3D non-linear:', out_3d_fn)
