@@ -89,7 +89,7 @@ def receptor_2d_alignment( df, rec_fn, rec_rsl_fn, srv_fn, output_dir,  out_3d_f
             nib.Nifti1Image(srv_np, aff_hires).to_filename(fx_fn)
 
             # calculate 2d nonlinear transform between receptor slice and mri gm srv volume
-            if not os.path.exists(tfm_fn)  or clobber : 
+            if not os.path.exists(tfm_fn) or not os.path.exists(out_hires_fn)  or clobber : 
                 print('\t\t',y)
 
                 stout, sterr, errorcode = shell(f'antsRegistration -v 0 -d 2 --write-composite-transform 1  --initial-moving-transform [{fx_fn},{mv_rsl_fn},1] -o [{prefix}_,{out_hires_fn},/tmp/out_inv.nii.gz] -t Similarity[.1] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_rsl_fn},1,20,Regular,1] -s {s_str} -f {f_str}   -t Affine[.1]   -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_rsl_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t SyN[0.1] -m Mattes[{fx_fn},{mv_rsl_fn},1,20,Regular,1] -c [{nl_itr_str}] -s {s_str} -f {f_str}', exit_on_failure=True,verbose=False)
