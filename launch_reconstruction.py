@@ -63,7 +63,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--brains','-b', dest='brain', type=str, default='MR1', help='Brains to reconstruct. Default = run all.')
     parser.add_argument('--hemispheres', '--hemi', dest='hemi',default='R',type=str, help='Brains to reconstruct. Default = reconstruct all hemispheres.')
-    #parser.add_argument('--resolution', '-r', dest='resolution',default='3',type=str, help='Brains to reconstruct. Default = reconstruct all hemispheres.')
+    parser.add_argument('--clobber', , dest='clobber',default=False,action='store_true', help='Overwrite existing results')
     parser.add_argument('--slab','-s', dest='slab', type=str, default=1, help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--src-dir','-i', dest='src_dir', type=str, default='receptor_dwn', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--out-dir','-o', dest='out_dir', type=str, default='reconstruction_output', help='Slabs to reconstruct. Default = reconstruct all slabs.')
@@ -76,8 +76,7 @@ if __name__ == '__main__':
     brain_list=[args.brain] 
     hemi_list=[args.hemi]
     slab_list=[args.slab] 
-    resolution_list = [ 3, 2, 1] #,0.5,0.25]
-    clobber=False
+    resolution_list = [ 3, 2, 1 , 0.5, 0.25]
 
     slab_list = adjust_slab_list(slab_list)
 
@@ -148,8 +147,8 @@ if __name__ == '__main__':
                     
                 slab_df=df.loc[  (df['hemisphere']==hemi) & (df['mri']==brain) & (df['slab']==int(slab)) ]
 
-                if not os.path.exists( init_align_fn) and not args.remote : 
-                    receptorRegister(brain,hemi,slab, init_align_fn, out_dir_1, slab_df, scale_factors_json=scale_factors_fn, clobber=False)
+                if (not os.path.exists( init_align_fn) or args.clobber) and not args.remote : 
+                    receptorRegister(brain,hemi,slab, init_align_fn, out_dir_1, slab_df, scale_factors_json=scale_factors_fn, clobber=args.clobber)
                
 
                 ### Iterate over progressively finer resolution
@@ -165,11 +164,11 @@ if __name__ == '__main__':
                     ### Step 1.5 : Downsample SRV to current resolution
                     ###
                     srv_rsl_fn = f'{cur_out_dir}/srv_{resolution}mm.nii.gz' 
-                    if not os.path.exists(srv_rsl_fn) or clobber :
+                    if not os.path.exists(srv_rsl_fn) or args.clobber :
                         resample(nib.load(srv_fn), srv_rsl_fn, resolution)
      
                     srv_base_rsl_fn = f'{cur_out_dir}/srv_base_{resolution}mm.nii.gz' 
-                    if not os.path.exists(srv_base_rsl_fn) or clobber :
+                    if not os.path.exists(srv_base_rsl_fn) or args.clobber :
                         resample(nib.load(srv_base_fn), srv_base_rsl_fn, resolution)
 
                     ###
@@ -182,7 +181,7 @@ if __name__ == '__main__':
                     seg_dir=f'{cur_out_dir}/2_segment/'
                     seg_rsl_fn=f'{seg_dir}/brain-{brain}_hemi-{hemi}_slab-{slab}_seg_{resolution}mm.nii.gz'
                     print(seg_rsl_fn, os.path.exists(seg_rsl_fn))
-                    if not os.path.exists(seg_rsl_fn) or clobber:
+                    if not os.path.exists(seg_rsl_fn) or args.clobber:
                         classifyReceptorSlices(align_fn, seg_dir, seg_rsl_fn, rsl_dim=resolution)
                     
                     ###
@@ -224,30 +223,11 @@ if __name__ == '__main__':
                     print('\tNL 2D volume:', nl_2d_vol, os.path.exists( nl_2d_vol ))
                     if not os.path.exists( nl_2d_vol ) :
 
-                        if not os.path.exists(srv_base_rsl_crop_fn) or clobber :
+                        if not os.path.exists(srv_base_rsl_crop_fn) or args.clobber :
                             shell(f'antsApplyTransforms -v 1 -d 3 -i {srv_base_rsl_fn} -r {init_align_fn} -t {nl_3d_tfm_inv_fn} -o {srv_base_rsl_crop_fn}', verbose=True)
 
                         receptor_2d_alignment( slab_df, init_align_fn, init_align_rsl_fn, srv_base_rsl_crop_fn, nl_2d_dir, nl_2d_vol, resolution, resolution_itr, direction=direction)
                
-                ###
-                ### Remove aligned portion of aligned autoradiographs from the MRI GM super-resolution volume (SRV)
-                ###
-                # SRV fn
-                #new_srv_fn=f'{out_dir}/{brain}_{hemi}_{slab}/srv_slab-{slab}.nii.gz'
-                #if not os.path.exists(new_srv_fn) or clobber : 
-                #    srv_img = nib.load( srv_fn )
-                #    srv_vol = srv_img.get_fdata()
-                #    rec_img = nib.load(rec_3d_lin)
-                #    rec_vol = rec_img.get_fdata()
-                #    y0 = w2v(rec_img.affine[1,3], srv_img.affine[1,1], srv_img.affine[1,3] )
-                #    width = np.rint(rec_vol.shape[1]/srv_img.affine[1,1])
-                #    y1 = int(y0 + width)
-                #    srv_vol_crop[:,y0:y1,:] = 0
-                #    nib.Nifti1Image(srv_vol, srv_img.affine).to_filename(new_srv_fn)
-                #    del srv_vol
-                #    del rec_vol
-                #srv_fn=new_srv_fn
-                    
             ###
             ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
             ###
@@ -255,4 +235,4 @@ if __name__ == '__main__':
             interp_dir=f'{out_dir}/5_surf_interp/'
             nl_2d_list = [ files[brain][hemi][i][resolution_list[-1]]['nl_2d_vol'] for i in slab_list ]
             nl_tfm_list = [ files[brain][hemi][i][resolution_list[-1]]['nl_3d_tfm_inv'] for i in slab_list ] 
-            surface_interpolation(nl_tfm_list,  nl_2d_list, interp_dir, brain, hemi, resolution, df, n_depths=1)
+            surface_interpolation(nl_tfm_list,  nl_2d_list, interp_dir, brain, hemi, resolution, df, n_depths=100)
