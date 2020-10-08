@@ -46,7 +46,8 @@ def receptor_2d_alignment( df, rec_fn, rec_rsl_fn, srv_fn, output_dir,  out_3d_f
 
     #Set strings for alignment parameters
     lin_itr_str='x'.join([str(i) for i in range(resolution_level*100,0,-100)])
-    nl_itr_str='x'.join([str(i) for i in range(resolution_level*10*(resolution_itr+1),0,-20*(resolution_itr+1))])
+    base_n_itr=10
+    nl_itr_str='x'.join([str(i) for i in range(resolution_level*base_n_itr*(resolution_itr+1),0,-base_n_itr*(resolution_itr+1))])
 
     f_str='x'.join([ str(i) for i in range(resolution_level,0,-1)])
     f = lambda x : x/2 if x > 1  else 0
