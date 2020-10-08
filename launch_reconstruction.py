@@ -63,7 +63,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--brains','-b', dest='brain', type=str, default='MR1', help='Brains to reconstruct. Default = run all.')
     parser.add_argument('--hemispheres', '--hemi', dest='hemi',default='R',type=str, help='Brains to reconstruct. Default = reconstruct all hemispheres.')
-    parser.add_argument('--clobber', , dest='clobber',default=False,action='store_true', help='Overwrite existing results')
+    parser.add_argument('--clobber', dest='clobber',default=False,action='store_true', help='Overwrite existing results')
     parser.add_argument('--slab','-s', dest='slab', type=str, default=1, help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--src-dir','-i', dest='src_dir', type=str, default='receptor_dwn', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--out-dir','-o', dest='out_dir', type=str, default='reconstruction_output', help='Slabs to reconstruct. Default = reconstruct all slabs.')
