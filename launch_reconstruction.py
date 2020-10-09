@@ -58,8 +58,7 @@ def calculate_section_order(autoradiograph_info_fn, source_dir, out_dir, in_df_f
 
     df.to_csv(autoradiograph_info_fn)
 
-
-if __name__ == '__main__':
+def setup_argparse():
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--brains','-b', dest='brain', type=str, default='MR1', help='Brains to reconstruct. Default = run all.')
     parser.add_argument('--hemispheres', '--hemi', dest='hemi',default='R',type=str, help='Brains to reconstruct. Default = reconstruct all hemispheres.')
@@ -73,7 +72,11 @@ if __name__ == '__main__':
     parser.add_argument('--nonlinear-only', dest='nonlinear_only', default=False, action='store_true',  help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--resolutions','-r', dest='resolution_list', nargs='+', default=[ 3, 2, 1 , 0.5, 0.25],  help='List of resolutions to process')
 
-    args = parser.parse_args()
+    return parser
+
+if __name__ == '__main__':
+    args = setup_argparse().parse_args()
+    def setup_parameters() : 
     ###
     ### Parameters
     ###
@@ -229,9 +232,9 @@ if __name__ == '__main__':
                         
                         if args.nonlinear_only :
                             chunk_size = slab_df.shape[0] * args.slab_chunk_perc
-                            print(chunk_size)
                             a = np.round(chunk_size*args.slab_chunk_i).astype(int)
                             b = np.round(chunk_size*(args.slab_chunk_i+1)).astype(int)
+                            print('\tRunning 2D NL alignment between',a,'and',b)
                             slab_df = slab_df.iloc[ a:b ]
                         
                         if not os.path.exists(srv_base_rsl_crop_fn) or args.clobber :
@@ -244,8 +247,8 @@ if __name__ == '__main__':
             ###
             ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
             ###
-
-            interp_dir=f'{out_dir}/5_surf_interp/'
-            nl_2d_list = [ files[brain][hemi][i][resolution_list[-1]]['nl_2d_vol'] for i in slab_list ]
-            nl_tfm_list = [ files[brain][hemi][i][resolution_list[-1]]['nl_3d_tfm_inv'] for i in slab_list ] 
-            surface_interpolation(nl_tfm_list,  nl_2d_list, interp_dir, brain, hemi, resolution, df, n_depths=100)
+            if not args.nonlinear_only :
+                interp_dir=f'{out_dir}/5_surf_interp/'
+                nl_2d_list = [ files[brain][hemi][i][resolution_list[-1]]['nl_2d_vol'] for i in slab_list ]
+                nl_tfm_list = [ files[brain][hemi][i][resolution_list[-1]]['nl_3d_tfm_inv'] for i in slab_list ] 
+                surface_interpolation(nl_tfm_list,  nl_2d_list, interp_dir, brain, hemi, resolution, df, n_depths=100)
