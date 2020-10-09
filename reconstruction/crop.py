@@ -28,13 +28,9 @@ def get_base(fn) :
     return fn
 
 
-def crop(src_dir, out_dir, df, out_df_fn, remote=False,clobber=False):
+def crop(src_dir, out_dir, df, remote=False,clobber=False):
     pad = 50
     p = int(pad/2)
-    
-    df['lin_fn'] = df['lin_fn'].apply( lambda x: os.path.splitext(os.path.basename(x))[0] ) 
-    df['crop_fn']= df['lin_fn'].apply(lambda x: f'{out_dir}/{x}.nii.gz')
-    df.to_csv(out_df_fn)
     
     if not False in df['crop_fn'].apply(lambda x: os.path.exists(x) ) : return 0
 
@@ -76,7 +72,7 @@ def crop(src_dir, out_dir, df, out_df_fn, remote=False,clobber=False):
                     pass
 
                 nib.Nifti1Image(img, [[0.2,0,0,0],[0,0.2,0,0],[0,0,0.2,0],[0,0,0,1]]).to_filename(crop_fn)
-    return df
+    return 0
 
 
 

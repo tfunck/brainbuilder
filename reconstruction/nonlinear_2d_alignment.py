@@ -5,45 +5,66 @@ import sys
 import os
 import json
 import re
-import matplotlib
-import matplotlib.pyplot as plt
 import pandas as pd
 import time
-import stripy as stripy
 import shutil
 import tempfile
+from section_2d import section_2d
 from sys import argv
 from glob import glob
-from ants import  apply_transforms, from_numpy, from_numpy, image_read, registration
 from utils.ANTs import ANTs
 from utils.utils import splitext, shell, w2v , v2w
-from scipy.ndimage.measurements import center_of_mass
 
-#matplotlib.use('TKAgg')
+def gen_2d_fn(prefix,x):
+    return f'{prefix}_{x}_0.2mm.nii.gz'
 
+def save_sections(file_list, vol, aff) :
+    for fn, y in file_list:
+        # Create 2D srv section
+        nib.Nifti1Image(vol[ :, int(y), : ] , aff).to_filename(fn)
 
-def receptor_2d_alignment( df, rec_fn, rec_rsl_fn, srv_fn, output_dir,  out_3d_fn, resolution, resolution_itr, dont_write_output=False, direction='rostral_to_caudal', clobber=False): 
-    if not os.path.exists(output_dir) :
-        os.makedirs(output_dir)
+def create_2d_sections( df, rec_fn, rec_rsl_fn, srv_fn, output_dir,clobber=False) :
+    fx_to_do=[]
+    mv_to_do=[]
     
-    temp_hires_fn=re.sub('.nii.gz','_hires_temp.nii.gz', out_3d_fn) 
-
     tfm_dir=output_dir + os.sep + 'tfm'
-    if not os.path.exists(tfm_dir) : os.makedirs(tfm_dir)
+    os.makedirs(tfm_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
 
-    srv_img = nib.load(srv_fn)
-    srv = srv_img.get_fdata()
-    
-    rec_hires_img = nib.load(rec_fn)
-    rec_hires_vol = rec_hires_img.get_fdata()
-    xstep = rec_hires_img.affine[0,0]
-    zstep = rec_hires_img.affine[2,2]
+    for idx, (i, row) in enumerate(df.iterrows()):
+        y=row['volume_order'] 
+        prefix=f'{tfm_dir}/y-{y}' 
+        mv_rsl_fn=gen_2d_fn(prefix,'mv')
+        fx_fn=gen_2d_fn(prefix,'fx')
 
-    out_hires = np.zeros_like(rec_hires_vol)
+        if not os.path.exists(fx_fn) : fx_to_do.append( [fx_fn, y])
+        if not os.path.exists(mv_rsl_fn) : mv_to_do.append( [mv_rsl_fn, y])
+
+    if len(mv_to_do + fx_to_do) > 0 :
+
+        rec_hires_img = nib.load(rec_fn)
+        srv_img = nib.load(srv_fn)
+
+        rec_hires_vol = rec_hires_img.get_fdata()
+        srv = srv_img.get_fdata()
+        
+        xstep = rec_hires_img.affine[0,0]
+        zstep = rec_hires_img.affine[2,2]
+
+        aff_hires = np.array([[xstep,  0, 0, 0],
+                        [0, zstep, 0, 0],
+                        [0, 0, 1, 0],
+                        [0, 0, 0, 1]])
+
+        save_sections(fx_to_do, srv, aff_hires)
+        save_sections(mv_to_do, rec_hires_vol, aff_hires)
+
+def receptor_2d_alignment( df, rec_fn, rec_rsl_fn, srv_fn, output_dir, resolution, resolution_itr, batch_processing=False, direction='rostral_to_caudal', clobber=False): 
     
-    avg_step = (xstep+zstep)/2 
+    tfm_dir=output_dir + os.sep + 'tfm'
 
     #don't remember what resolution_level does, so setting to 3 to cancel out it's effect
+    #avg_step = (xstep+zstep)/2 
     resolution_level = 1 # np.ceil(np.log2(3/avg_step )+ 1 ).astype(int)
 
     #Set strings for alignment parameters
@@ -57,63 +78,47 @@ def receptor_2d_alignment( df, rec_fn, rec_rsl_fn, srv_fn, output_dir,  out_3d_f
     lin_itr_str='x'.join([str(i) for i in range(max_lin_itr,0,lin_step)])
     nl_itr_str='x'.join([str(i) for i in range(max_nl_itr,0,nl_step)])
 
-
     f_str='x'.join([ str(i) for i in range(resolution_itr+1,0,-1)])
     f = lambda x : x/2 if x > 1  else 0
     s_list = map(f,  range(resolution_itr+1,0,-1) ) 
     s_str='x'.join( [str(i) for i in s_list] ) + 'vox'
-    
-    fx_fn=tempfile.NamedTemporaryFile().name+'.nii.gz'
 
-    aff_hires = np.array([[xstep,  0, 0, 0],
-                        [0, zstep, 0, 0],
-                        [0, 0, 1, 0],
-                        [0, 0, 0, 1]])
-    
+
     for idx, (i, row) in enumerate(df.iterrows()):
         y=row['volume_order'] 
         prefix=f'{tfm_dir}/y-{y}' 
-        
-        out_hires_fn=f'{prefix}.nii.gz'
+        # Create 2d rec section
+        mv_rsl_fn=gen_2d_fn(prefix,'mv')
+        # Create 2D srv section
+        fx_fn=gen_2d_fn(prefix,'fx')
+
+        out_vol_fn=f'{prefix}.nii.gz'
         out_inv_fn=f'{prefix}_inv.nii.gz'
         tfm_fn=f'{prefix}_Composite.h5'
-        if not os.path.exists(tfm_fn) or not os.path.exists(out_hires_fn) or clobber : 
-            # Create 2d rec section
-            mv_rsl_fn=f'{prefix}_mv_0.2mm.nii.gz'
-            rec_np = rec_hires_vol[:,int(y),:]
-            img = nib.Nifti1Image(rec_np, aff_hires )
-            img.to_filename(mv_rsl_fn)
 
-            # Create 2D srv section
-            srv_np = srv[ :, int(y), : ]
-            nib.Nifti1Image(srv_np, aff_hires).to_filename(fx_fn)
+        if not os.path.exists(tfm_fn) or not os.path.exists(out_vol_fn) or clobber : 
+            print('\t\t',y)
+            args=[ prefix, mv_rsl_fn, fx_fn, out_vol_fn, s_str, f_str, lin_itr_str, nl_itr_str]
+            if not batch_processing :
+                section_2d(*args)
+            else : 
+                shell('sh section_2d.sh '+' '.join(args))
+                exit(0)
 
-            # calculate 2d nonlinear transform between receptor slice and mri gm srv volume
-            if not os.path.exists(tfm_fn) or not os.path.exists(out_hires_fn)  or clobber : 
-                print('\t\t',y)
+def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn):
+    
+    tfm_dir=output_dir + os.sep + 'tfm'
 
-                stout, sterr, errorcode = shell(f'antsRegistration -v 0 -d 2 --write-composite-transform 1  --initial-moving-transform [{fx_fn},{mv_rsl_fn},1] -o [{prefix}_,{out_hires_fn},/tmp/out_inv.nii.gz] -t Similarity[.1] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_rsl_fn},1,20,Regular,1] -s {s_str} -f {f_str}   -t Affine[.1]   -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_rsl_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t SyN[0.1] -m Mattes[{fx_fn},{mv_rsl_fn},1,20,Regular,1] -c [{nl_itr_str}] -s {s_str} -f {f_str}', exit_on_failure=True,verbose=False)
+    hires_img = nib.load(rec_fn)
+    out_vol=np.zeros(hires_img.shape)
 
-                #Create QC image
-                out_2d_np = nib.load(out_hires_fn).get_fdata()
-                plt.imshow(srv_np,cmap='gray',origin='lower')
-                plt.imshow(out_2d_np,cmap='hot',alpha=0.45,origin='lower')
-                plt.tight_layout()
-                plt.savefig(f'{prefix}qc.png',fc='black')
-                plt.clf()
-                plt.cla()
+    for idx, (i, row) in enumerate(df.iterrows()):
+        prefix=f'{tfm_dir}/y-{y}'
+        y=row['volume_order'] 
+        fn=f'{tfm_dir}/y-{y}.nii.gz' 
 
-        img_hires = nib.load(out_hires_fn)
-        warpedmovout_hires = img_hires.get_fdata()
-        out_hires[:,int(y),:] = warpedmovout_hires
-        del warpedmovout_hires
+        out_vol[:,int(y),:] = nib.load(fn).get_fdata()
 
-        if not dont_write_output :
-            if idx % 50 == 0 :
-                print(f'\r{idx} writing temp file to {temp_hires_fn}')
-                nib.Nifti1Image(out_hires, rec_hires_img.affine).to_filename(temp_hires_fn)
-
-    if not dont_write_output :
-        print('\t\tWriting 3D non-linear:', out_3d_fn)
-        nib.Nifti1Image(out_hires, srv_img.affine).to_filename(out_3d_fn)
+    print('\t\tWriting 3D non-linear:', out_fn)
+    nib.Nifti1Image(out_vol, hires.affine).to_filename(out_fn)
 
