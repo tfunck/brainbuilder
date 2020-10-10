@@ -159,7 +159,7 @@ if __name__ == '__main__':
     resolution_list = [ '3', '2', '1' , '0.5', '0.25']
 
     args, files = setup_parameters(setup_argparse().parse_args() )
-
+    slabs=range(1,7)
     #Process the base autoradiograph csv
     if not os.path.exists(args.autoradiograph_info_fn) : 
         calculate_section_order(args.autoradiograph_info_fn, args.crop_dir, args.out_dir, in_df_fn=file_dir+os.sep+'autoradiograph_info.csv')
@@ -236,7 +236,11 @@ if __name__ == '__main__':
                         files[brain][hemi][slab][resolution]['nl_3d_tfm']
                         files[brain][hemi][slab][resolution]['nl_3d_tfm_inv']
                     except KeyError :
-                        nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_lin, srv_3d_lin = align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, align_to_mri_dir, hemi_df, args.slab[slab_i:], tfm  )
+
+                        nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_lin, srv_3d_lin = align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, align_to_mri_dir, hemi_df, slabs, tfm  )
+                        #This version works when removing alignes sections from srv 
+                        #nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_lin, srv_3d_lin = align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, align_to_mri_dir, hemi_df, args.slab[slab_i:], tfm  )
+
                         files[brain][hemi][slab][resolution]['nl_3d_tfm'] = nl_3d_tfm_fn
                         files[brain][hemi][slab][resolution]['nl_3d_tfm_inv'] = nl_3d_tfm_inv_fn
 
@@ -270,9 +274,17 @@ if __name__ == '__main__':
 
                     if not os.path.exists( nl_2d_vol ) :
                         print('\tNL 2D volume:', nl_2d_vol, os.path.exists( nl_2d_vol ))
+                        if args.nonlinear_only :
+                            exit_early=False
+                            for fn in [ init_align_fn, init_align_rsl_fn, srv_base_rsl_crop_fn, nl_2d_dir ] : 
+                                if not os.path.exists(fn) :
+                                    print('Error: could not run 2d nonlinear in batch mode, missing', fn)
+                                    exit_early=True
+                            if exit_early : exit(1)
+                            
                         receptor_2d_alignment( slab_df, init_align_fn, init_align_rsl_fn, srv_base_rsl_crop_fn, nl_2d_dir,  resolution, resolution_itr, batch_processing=args.nonlinear_only, direction=direction)
                     
-                        if args.nonlinear_only : exit(0)
+                        if args.nonlinear_only : continue
                
                         concatenate_sections_to_volume(df, init_align_fn, output_dir, out_fn)
             ###

@@ -1,4 +1,3 @@
-import numpy as np
 import bisect
 import contextlib
 import re
@@ -11,6 +10,7 @@ import PIL
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import numpy as np
 from glob import glob
 from re import sub
 from nibabel.processing import resample_to_output
