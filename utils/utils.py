@@ -23,6 +23,7 @@ from scipy.ndimage import zoom
 from skimage.transform import resize
 
 def resample(img, out_fn, res, factor=2):
+    res=float(res)
     xres = (res/factor) / img.affine[0,0]
     yres = (res/factor) / img.affine[1,1]
     zres = (res/factor) / img.affine[2,2]

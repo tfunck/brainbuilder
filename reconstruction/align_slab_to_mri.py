@@ -63,7 +63,7 @@ def get_start_end_slab_world_coordinates(df,slabs,ystep,ystart):
     return slab_minima, slab_maxima, slab_width
 
 
-def align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, out_dir, df, slabs, tfm=None, clobber=False, verbose=True ) :
+def align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, out_dir, df, slabs,out_tfm_fn, out_tfm_inv_fn, out_fn, out_inv_fn, clobber=False, verbose=True ) :
     # Load super-resolution GM volume extracted from donor MRI.
     slab=int(slab)
     srv_img = nib.load(srv_rsl_fn)
@@ -109,11 +109,7 @@ def align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, out_dir, df, slabs, tfm=None
     if verbose :
         print(y0w,y1w,y0,y1) 
     srv_slab_fn=f'{out_dir}/srv_{y0}_{y1}.nii.gz' 
-    prefix=f'{out_dir}/{y0}_{y1}_'
-    out_fn=f'{prefix}rec_seg.nii.gz'
-    out_inv_fn=f'{prefix}srv.nii.gz'
-    out_tfm_fn=f'{prefix}Composite.h5'
-    out_tfm_inv_fn=f'{prefix}InverseComposite.h5'
+    prefix=re.sub('Composite.h5','',out_tfm_fn)
 
     if not os.path.exists(out_fn) or not os.path.exists(out_tfm_fn) or clobber:
         # write srv slab if it does not exist
@@ -122,15 +118,12 @@ def align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, out_dir, df, slabs, tfm=None
             srv_slab=srv_vol[:,y0:y1,:]
             nib.Nifti1Image(srv_slab, aff).to_filename(srv_slab_fn)
         # set initial transform
-        #if tfm == None:
         init_moving=f'--initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]'
-        #else :
-        #    init_moving=f'--initial-moving-transform {tfm}'
         
         # calculate registration
         # 
         shell(f'antsRegistration -v 0 -a 1 -d 3 {init_moving} -t Rigid[.1] -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -c [1000] -s 0vox -f 1  -t Similarity[.1] -c [500] -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s 0vox -f 1  -t Affine[.1] -c [500] -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s 0vox -f 1 -t SyN[.1] -c [500] -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s 0vox -f 1  -o [{prefix},{out_fn},{out_inv_fn}]', verbose=True)
-    return out_tfm_fn, out_tfm_inv_fn, out_fn, out_inv_fn
+    return 0
 
 
 

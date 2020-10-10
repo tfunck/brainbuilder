@@ -23,7 +23,7 @@ def save_sections(file_list, vol, aff) :
         # Create 2D srv section
         nib.Nifti1Image(vol[ :, int(y), : ] , aff).to_filename(fn)
 
-def create_2d_sections( df, rec_fn, rec_rsl_fn, srv_fn, output_dir,clobber=False) :
+def create_2d_sections( df, rec_fn, srv_fn, output_dir,clobber=False) :
     fx_to_do=[]
     mv_to_do=[]
     
@@ -59,7 +59,7 @@ def create_2d_sections( df, rec_fn, rec_rsl_fn, srv_fn, output_dir,clobber=False
         save_sections(fx_to_do, srv, aff_hires)
         save_sections(mv_to_do, rec_hires_vol, aff_hires)
 
-def receptor_2d_alignment( df, rec_fn, rec_rsl_fn, srv_fn, output_dir, resolution, resolution_itr, batch_processing=False, direction='rostral_to_caudal', clobber=False): 
+def receptor_2d_alignment( df, rec_fn, srv_fn, output_dir, resolution, resolution_itr, batch_processing=False, direction='rostral_to_caudal', clobber=False): 
     
     tfm_dir=output_dir + os.sep + 'tfm'
 

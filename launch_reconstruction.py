@@ -157,9 +157,9 @@ def setup_parameters(args) :
 
 if __name__ == '__main__':
     resolution_list = [ '3', '2', '1' , '0.5', '0.25']
+    slabs=['1','2','3','4','5','6']
 
     args, files = setup_parameters(setup_argparse().parse_args() )
-    slabs=range(1,7)
     #Process the base autoradiograph csv
     if not os.path.exists(args.autoradiograph_info_fn) : 
         calculate_section_order(args.autoradiograph_info_fn, args.crop_dir, args.out_dir, in_df_fn=file_dir+os.sep+'autoradiograph_info.csv')
@@ -169,7 +169,9 @@ if __name__ == '__main__':
     crop(args.src_dir,args.crop_dir, df,  remote=args.remote)
 
     for brain in args.brain :
-        for hemi in args.hemi : 
+        for hemi in args.hemi :                     
+            hemi_df = df.loc[ (df['mri']==brain) & (df['hemisphere']==hemi) ]
+
             for slab_i, slab in enumerate(args.slab) : 
                 ###
                 ###  Step 1: Initial Alignment
@@ -179,41 +181,59 @@ if __name__ == '__main__':
                 init_align_fn=f'{args.out_dir_1}/brain-{brain}_hemi-{hemi}_slab-{slab}_init_align.nii.gz'
                 files[brain][hemi][slab][resolution_list[0]]['init_align_fn'] = init_align_fn
                     
-                slab_df=df.loc[  (df['hemisphere']==hemi) & (df['mri']==brain) & (df['slab']==int(slab)) ]
+                slab_df=df.loc[(df['hemisphere']==hemi) & (df['mri']==brain) & (df['slab']==int(slab)) ]
 
                 if (not os.path.exists( init_align_fn) or args.clobber) and not args.remote and not args.nonlinear_only :
                     receptorRegister(brain,hemi,slab, init_align_fn, args.out_dir_1, slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
                
                 ### Iterate over progressively finer resolution
                 for resolution_itr, resolution in enumerate(resolution_list) :
-                    
                     print('Resolution',resolution)
                     
                     cur_out_dir=f'{args.out_dir}/{brain}_{hemi}_{slab}/{resolution}mm/'
-                    os.makedirs(cur_out_dir,exist_ok=True)
-                    lin_dir=f'{cur_out_dir}/3_align_slab_to_mri/'
-                    files[brain][hemi][slab]['lin_dir'] = lin_dir
-                    
+                    srv_rsl_fn = f'{args.out_dir}/{brain}_{hemi}_mri_gm_{resolution}mm.nii.gz' 
+                    #
+                    seg_dir=f'{cur_out_dir}/2_segment/'
+                    seg_rsl_fn=f'{seg_dir}/brain-{brain}_hemi-{hemi}_slab-{slab}_seg_{resolution}mm.nii.gz'
+                    #
+                    align_to_mri_dir = f'{cur_out_dir}/3_align_slab_to_mri/' 
+                    nl_3d_tfm_fn=f'{align_to_mri_dir}/rec_to_mri_Composite.h5'
+                    nl_3d_tfm_inv_fn=f'{align_to_mri_dir}/rec_to_mri_InverseComposite.h5'
+                    rec_3d_lin=f'{align_to_mri_dir}/{brain}_{hemi}_{slab}_rec_space-mri.nii.gz'
+                    srv_3d_lin=f'{align_to_mri_dir}/{brain}_{hemi}_{slab}_mri_gm_space-rec.nii.gz'
+                    #
+                    nl_2d_dir= f'{cur_out_dir}/4_nonlinear_2d'
+                    srv_base_rsl_crop_fn=f"{nl_2d_dir}/{brain}_{hemi}_{slab}_srv_rsl.nii.gz"
+                    nl_2d_vol = f"{nl_2d_dir}/{brain}_{hemi}_{slab}_nl_2d.nii.gz"
+
+                    files[brain][hemi][slab][resolution]['nl_2d_dir']=nl_2d_dir
+                    files[brain][hemi][slab][resolution]['nl_2d_vol']=nl_2d_vol
+                    files[brain][hemi][slab][resolution]['srv_base_rsl_crop_fn'] = srv_base_rsl_crop_fn   
+                    files[brain][hemi][slab][resolution]['nl_3d_tfm'] = nl_3d_tfm_fn
+                    files[brain][hemi][slab][resolution]['nl_3d_tfm_inv'] = nl_3d_tfm_inv_fn
+                    json.dump(files,open(args.files_json,'w'))
+
+                    for dir_name in [cur_out_dir, align_to_mri_dir , seg_dir, nl_2d_dir ] :
+                        os.makedirs(dir_name, exist_ok=True)
+
+                    prev_resolution=resolution_list[resolution_itr-1]
+                    if resolution_itr > 0 : align_fn = nl_2d_vol
+                    else : align_fn = init_align_fn
+
                     ###
                     ### Step 1.5 : Downsample SRV to current resolution
                     ###
-                    srv_rsl_fn = f'{cur_out_dir}/srv_{resolution}mm.nii.gz' 
                     if not os.path.exists(srv_rsl_fn) or args.clobber :
                         resample(nib.load(args.srv_fn), srv_rsl_fn, resolution)
      
-                    srv_base_rsl_fn = f'{cur_out_dir}/srv_base_{resolution}mm.nii.gz' 
-                    if not os.path.exists(srv_base_rsl_fn) or args.clobber :
-                        resample(nib.load(srv_fn), srv_base_rsl_fn, resolution)
+                    #Combine 2d sections from previous resolution level into a single volume
+                    if resolution != resolution_list[0] and not os.path.exists(nl_2d_vol) :
+                        concatenate_sections_to_volume(df, init_align_fn, nl_2d_dir, nl_2d_vol)
 
                     ###
                     ### Step 2 : Autoradiograph segmentation
                     ###
-                    print('\tAutoradiograph segmentation')
-                    if resolution_itr > 0 : align_fn = nl_2d_vol
-                    else : align_fn = init_align_fn
-
-                    seg_dir=f'{cur_out_dir}/2_segment/'
-                    seg_rsl_fn=f'{seg_dir}/brain-{brain}_hemi-{hemi}_slab-{slab}_seg_{resolution}mm.nii.gz'
+                    print('\tStep 2: Autoradiograph segmentation')
                     if (not os.path.exists(seg_rsl_fn) or args.clobber) and not args.nonlinear_only :
                         classifyReceptorSlices(align_fn, seg_dir, seg_rsl_fn, rsl_dim=resolution)
                     
@@ -221,77 +241,39 @@ if __name__ == '__main__':
                     ### Step 3 : Align slabs to MRI
                     ###
                     print('\tStep 3: align slabs to MRI')
-                    hemi_df = df.loc[ (df['mri']==brain) & (df['hemisphere']==hemi) ]
-
-                    align_to_mri_dir = f'{cur_out_dir}/3_align_slab_to_mri/' 
-                    os.makedirs(align_to_mri_dir, exist_ok=True)
-                    prev_resolution=resolution_list[resolution_itr-1]
-
-                    if resolution_itr == 0:
-                        tfm=None
-                    else :
-                        tfm=files[brain][hemi][slab][prev_resolution]['nl_3d_tfm']
-
-                    try :
-                        files[brain][hemi][slab][resolution]['nl_3d_tfm']
-                        files[brain][hemi][slab][resolution]['nl_3d_tfm_inv']
-                    except KeyError :
-
-                        nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_lin, srv_3d_lin = align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, align_to_mri_dir, hemi_df, slabs, tfm  )
-                        #This version works when removing alignes sections from srv 
-                        #nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_lin, srv_3d_lin = align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, align_to_mri_dir, hemi_df, args.slab[slab_i:], tfm  )
-
-                        files[brain][hemi][slab][resolution]['nl_3d_tfm'] = nl_3d_tfm_fn
-                        files[brain][hemi][slab][resolution]['nl_3d_tfm_inv'] = nl_3d_tfm_inv_fn
-
+                    dir_list = [nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_lin, srv_3d_lin]
+                    if False in [ os.path.exists(fn) for fn in dir_list ]:
+                        #If removing aligned sections from srv set slabs= args.slab[slab_i:]
+                        align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, align_to_mri_dir, hemi_df, slabs, nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_lin, srv_3d_lin  )
+   
                     ###
                     ### Step 4 : 2D alignment of receptor to resample MRI GM vol
                     ###
-                    nl_2d_dir= f'{cur_out_dir}/4_nonlinear_2d'
-                    os.makedirs(nl_2d_dir, exist_ok=True)
-                    srv_base_rsl_crop_fn=f"{nl_2d_dir}/{brain}_{hemi}_{slab}_srv_rsl.nii.gz"
-                    files[brain][hemi][slab][resolution]['nl_2d_dir']=nl_2d_dir
-                    files[brain][hemi][slab][resolution]['nl_2d_vol']=f"{nl_2d_dir}/{brain}_{hemi}_{slab}_nl_2d.nii.gz"
-                    files[brain][hemi][slab][resolution]['srv_base_rsl_crop_fn'] = srv_base_rsl_crop_fn   
-
-                    init_align_rsl_fn=f"{nl_2d_dir}/{brain}_{hemi}_{slab}_init_align_{resolution}mm.nii.gz"
-
-                    df_fn=f"reconstruction_output/1_init_align/{brain}_{hemi}_{slab}/final/{brain}_{hemi}_{slab}_final.csv"
-
-                    files[brain][hemi][slab][resolution]['init_align_rsl_fn']=init_align_rsl_fn
-                    nl_2d_vol=files[brain][hemi][slab][resolution]['nl_2d_vol']
-
-                    direction=json.load(open(args.scale_factors_fn,'r'))[brain][hemi][slab]["direction"]
-
-
-                    json.dump(files,open(args.files_json,'w'))
-                    
-                    #create 2d sections that will be nonlinearly aliged in 2d
-                    create_2d_sections( slab_df, init_align_fn, init_align_rsl_fn, srv_base_rsl_crop_fn, nl_2d_dir )
-                    
                     if not os.path.exists(srv_base_rsl_crop_fn) or args.clobber :
-                        shell(f'antsApplyTransforms -v 1 -d 3 -i {srv_base_rsl_fn} -r {init_align_fn} -t {nl_3d_tfm_inv_fn} -o {srv_base_rsl_crop_fn}', verbose=True)                   
+                        shell(f'antsApplyTransforms -v 1 -d 3 -i {srv_rsl_fn} -r {init_align_fn} -t {nl_3d_tfm_inv_fn} -o {srv_base_rsl_crop_fn}', verbose=True)                   
 
+                    #create 2d sections that will be nonlinearly aliged in 2d
+                    create_2d_sections( slab_df, init_align_fn, srv_base_rsl_crop_fn, nl_2d_dir )
                     if not os.path.exists( nl_2d_vol ) :
-                        print('\tNL 2D volume:', nl_2d_vol, os.path.exists( nl_2d_vol ))
-                        if args.nonlinear_only :
-                            exit_early=False
-                            for fn in [ init_align_fn, init_align_rsl_fn, srv_base_rsl_crop_fn, nl_2d_dir ] : 
-                                if not os.path.exists(fn) :
-                                    print('Error: could not run 2d nonlinear in batch mode, missing', fn)
-                                    exit_early=True
-                            if exit_early : exit(1)
+                        #Check if necessary files exist to proceed to 2d nl alignment
+                        exit_early=False
+                        for fn in [ init_align_fn, srv_base_rsl_crop_fn, nl_2d_dir ] : 
+                            if not os.path.exists(fn) :
+                                print('Error: could not run 2d nonlinear alignment, missing', fn)
+                                exit_early=True
+                        if exit_early : exit(1)
                             
-                        receptor_2d_alignment( slab_df, init_align_fn, init_align_rsl_fn, srv_base_rsl_crop_fn, nl_2d_dir,  resolution, resolution_itr, batch_processing=args.nonlinear_only, direction=direction)
+                        print('\tStep 4: 2d nl alignment')
+                       
+                        receptor_2d_alignment( slab_df, init_align_fn, srv_base_rsl_crop_fn, nl_2d_dir,  resolution, resolution_itr, batch_processing=args.nonlinear_only)
                     
                         if args.nonlinear_only : continue
                
-                        concatenate_sections_to_volume(df, init_align_fn, output_dir, out_fn)
             ###
             ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
             ###
             if not args.nonlinear_only :
                 interp_dir=f'{args.out_dir}/5_surf_interp/'
-                nl_2d_list = [ files[brain][hemi][i][resolution_list[-1]]['nl_2d_vol'] for i in args.slab ]
+                nl_2d_list  = [ files[brain][hemi][i][resolution_list[-1]]['nl_2d_vol'] for i in args.slab ]
                 nl_tfm_list = [ files[brain][hemi][i][resolution_list[-1]]['nl_3d_tfm_inv'] for i in args.slab ] 
                 surface_interpolation(nl_tfm_list,  nl_2d_list, interp_dir, brain, hemi, resolution, df, n_depths=100)
