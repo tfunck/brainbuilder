@@ -7,7 +7,7 @@ from utils.ANTs import ANTs
 from nibabel.processing import resample_to_output
 from reconstruction.align_slab_to_mri import align_slab_to_mri
 from reconstruction.receptor_segment import classifyReceptorSlices
-from reconstruction.nonlinear_2d_alignment import receptor_2d_alignment, create_2d_sections
+from reconstruction.nonlinear_2d_alignment import receptor_2d_alignment, create_2d_sections, concatenate_sections_to_volume
 from reconstruction.init_alignment import receptorRegister
 from reconstruction.surface_interpolation import surface_interpolation
 from reconstruction.crop import crop
@@ -217,8 +217,10 @@ if __name__ == '__main__':
                         os.makedirs(dir_name, exist_ok=True)
 
                     prev_resolution=resolution_list[resolution_itr-1]
-                    if resolution_itr > 0 : align_fn = nl_2d_vol
-                    else : align_fn = init_align_fn
+                    if resolution_itr > 0 : 
+                        align_fn = nl_2d_vol
+                    else : 
+                        align_fn = init_align_fn
 
                     ###
                     ### Step 1.5 : Downsample SRV to current resolution
@@ -228,7 +230,9 @@ if __name__ == '__main__':
      
                     #Combine 2d sections from previous resolution level into a single volume
                     if resolution != resolution_list[0] and not os.path.exists(nl_2d_vol) :
-                        concatenate_sections_to_volume(df, init_align_fn, nl_2d_dir, nl_2d_vol)
+                        
+                        last_nl_2d_dir = files[brain][hemi][slab][prev_resolution]['nl_2d_dir']
+                        concatenate_sections_to_volume(slab_df, init_align_fn, last_nl_2d_dir, nl_2d_vol)
 
                     ###
                     ### Step 2 : Autoradiograph segmentation
@@ -254,20 +258,19 @@ if __name__ == '__main__':
 
                     #create 2d sections that will be nonlinearly aliged in 2d
                     create_2d_sections( slab_df, init_align_fn, srv_base_rsl_crop_fn, nl_2d_dir )
-                    if not os.path.exists( nl_2d_vol ) :
-                        #Check if necessary files exist to proceed to 2d nl alignment
-                        exit_early=False
-                        for fn in [ init_align_fn, srv_base_rsl_crop_fn, nl_2d_dir ] : 
-                            if not os.path.exists(fn) :
-                                print('Error: could not run 2d nonlinear alignment, missing', fn)
-                                exit_early=True
-                        if exit_early : exit(1)
-                            
-                        print('\tStep 4: 2d nl alignment')
-                       
-                        receptor_2d_alignment( slab_df, init_align_fn, srv_base_rsl_crop_fn, nl_2d_dir,  resolution, resolution_itr, batch_processing=args.nonlinear_only)
                     
-                        if args.nonlinear_only : continue
+                    #Check if necessary files exist to proceed to 2d nl alignment
+                    exit_early=False
+                    for fn in [ init_align_fn, srv_base_rsl_crop_fn, nl_2d_dir ] : 
+                        if not os.path.exists(fn) :
+                            print('Error: could not run 2d nonlinear alignment, missing', fn)
+                            exit_early=True
+                    if exit_early : exit(1)
+                        
+                    print('\tStep 4: 2d nl alignment')
+                   
+                    receptor_2d_alignment( slab_df, init_align_fn, srv_base_rsl_crop_fn, nl_2d_dir,  resolution, resolution_itr, batch_processing=args.nonlinear_only)
+                    
                
             ###
             ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
