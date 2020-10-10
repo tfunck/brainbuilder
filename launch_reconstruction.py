@@ -77,7 +77,7 @@ def setup_argparse():
     parser.add_argument('--autoradiograph-info', dest='autoradiograph_info_fn', type=str, default=None, help='csv file with section info for each autoradiograph')
     parser.add_argument('--remote','-p', dest='remote', default=False, action='store_true',  help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--nonlinear-only', dest='nonlinear_only', default=False, action='store_true',  help='Slabs to reconstruct. Default = reconstruct all slabs.')
-    parser.add_argument('--resolutions','-r', dest='resolution_list', nargs='+', default=[ '3', '2', '1' , '0.5', '0.25'],  help='List of resolutions to process')
+    parser.add_argument('--resolution','-r', dest='resolution', type=str, default='3',  help='List of resolutions to process')
 
     return parser
 
@@ -91,7 +91,7 @@ def setup_files_json(args):
                 files[brain][hemi]={}
                 for slab in args.slab : 
                     files[brain][hemi][slab]={}
-                    for resolution in args.resolution_list :
+                    for resolution in resolution_list :
                         files[brain][hemi][slab][resolution] = {}
     else :
         files = json.load(open(args.files_json, 'r'))
@@ -113,7 +113,7 @@ def setup_files_json(args):
                     except KeyError :
                         files[brain][hemi][slab]={}
 
-                    for resolution in args.resolution_list :
+                    for resolution in resolution_list :
                         try:
                             files[brain][hemi][slab][resolution] 
                         except KeyError :
@@ -156,7 +156,7 @@ def setup_parameters(args) :
 #   7. Interpolate missing vertices on sphere, interpolate back to 3D volume
 
 if __name__ == '__main__':
-
+    resolution_list = [ '3', '2', '1' , '0.5', '0.25']
 
     args, files = setup_parameters(setup_argparse().parse_args() )
 
@@ -165,7 +165,6 @@ if __name__ == '__main__':
         calculate_section_order(args.autoradiograph_info_fn, args.crop_dir, args.out_dir, in_df_fn=file_dir+os.sep+'autoradiograph_info.csv')
 
     df = pd.read_csv(args.autoradiograph_info_fn)
-
     ### Step 0 :
     crop(args.src_dir,args.crop_dir, df,  remote=args.remote)
 
@@ -178,7 +177,7 @@ if __name__ == '__main__':
                 print('\tInitial rigid inter-autoradiograph alignment')
                 args.out_dir_1=f'{args.out_dir}/{brain}_{hemi}_{slab}/1_init_align/'
                 init_align_fn=f'{args.out_dir_1}/brain-{brain}_hemi-{hemi}_slab-{slab}_init_align.nii.gz'
-                files[brain][hemi][slab][args.resolution_list[0]]['init_align_fn'] = init_align_fn
+                files[brain][hemi][slab][resolution_list[0]]['init_align_fn'] = init_align_fn
                     
                 slab_df=df.loc[  (df['hemisphere']==hemi) & (df['mri']==brain) & (df['slab']==int(slab)) ]
 
@@ -186,7 +185,8 @@ if __name__ == '__main__':
                     receptorRegister(brain,hemi,slab, init_align_fn, args.out_dir_1, slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
                
                 ### Iterate over progressively finer resolution
-                for resolution_itr, resolution in enumerate(args.resolution_list) :
+                for resolution_itr, resolution in enumerate(resolution_list) :
+                    
                     print('Resolution',resolution)
                     
                     cur_out_dir=f'{args.out_dir}/{brain}_{hemi}_{slab}/{resolution}mm/'
@@ -225,7 +225,7 @@ if __name__ == '__main__':
 
                     align_to_mri_dir = f'{cur_out_dir}/3_align_slab_to_mri/' 
                     os.makedirs(align_to_mri_dir, exist_ok=True)
-                    prev_resolution=args.resolution_list[resolution_itr-1]
+                    prev_resolution=resolution_list[resolution_itr-1]
 
                     if resolution_itr == 0:
                         tfm=None
@@ -280,6 +280,6 @@ if __name__ == '__main__':
             ###
             if not args.nonlinear_only :
                 interp_dir=f'{args.out_dir}/5_surf_interp/'
-                nl_2d_list = [ files[brain][hemi][i][args.resolution_list[-1]]['nl_2d_vol'] for i in args.slab ]
-                nl_tfm_list = [ files[brain][hemi][i][args.resolution_list[-1]]['nl_3d_tfm_inv'] for i in args.slab ] 
+                nl_2d_list = [ files[brain][hemi][i][resolution_list[-1]]['nl_2d_vol'] for i in args.slab ]
+                nl_tfm_list = [ files[brain][hemi][i][resolution_list[-1]]['nl_3d_tfm_inv'] for i in args.slab ] 
                 surface_interpolation(nl_tfm_list,  nl_2d_list, interp_dir, brain, hemi, resolution, df, n_depths=100)
