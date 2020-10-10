@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --nodes 2
 #SBATCH --mem 12G
-#SBATCH --time=0:05:00
+#SBATCH --time=0:02:00
 #SBATCH --job-name=job_reconstruct
 #SBATCH --output=%j.out
 #SBATCH --account=rpp-aevans-ab

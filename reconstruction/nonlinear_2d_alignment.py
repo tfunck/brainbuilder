@@ -102,8 +102,7 @@ def receptor_2d_alignment( df, rec_fn, rec_rsl_fn, srv_fn, output_dir, resolutio
             if not batch_processing :
                 section_2d(*args)
             else : 
-                shell('sh section_2d.sh '+' '.join(args))
-                exit(0)
+                shell('sbatch section_2d.sh '+' '.join(args))
 
 def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn):
     
