@@ -62,7 +62,7 @@ def create_2d_sections( df, rec_fn, srv_fn, output_dir,clobber=False) :
         save_sections(fx_to_do, srv, aff_hires)
         save_sections(mv_to_do, rec_hires_vol, aff_hires)
 
-def receptor_2d_alignment( df, rec_fn, srv_fn, output_dir, resolution, resolution_itr, batch_processing=False, direction='rostral_to_caudal', clobber=False): 
+def receptor_2d_alignment( df, rec_fn, srv_fn, output_dir, resolution, resolution_itr, batch_processing=False, clobber=False): 
     
     tfm_dir=output_dir + os.sep + 'tfm'
 
@@ -74,6 +74,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, output_dir, resolution, resolutio
         exit(1)
 
     if len(out_to_do + tfm_to_do) != 0 :
+
 
         #don't remember what resolution_level does, so setting to 3 to cancel out it's effect
         #This is done because you always want to start the registration from 5mm and end at 250um
@@ -106,11 +107,16 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, output_dir, resolution, resolutio
 
             print('\t\t',y)
             args=[ prefix, mv_fn, fx_fn, out_fn, s_str, f_str, lin_itr_str, nl_itr_str]
-            if not batch_processing :
-                section_2d(*args)
-            else : 
-                shell('sbatch section_2d.sh '+' '.join(args))
+            batch_fn=None
+            if batch_processing :
+                batch_fn=f'{tfm_dir}/batch_{y}.sh'
+            args.append(batch_fn)
 
+            section_2d(*args)
+
+        if batch_processing == True : 
+            print('\nCompleted all processing up to nl 2d alignment. This should be run remotely with with --nl-2d-only argument\n')
+            exit(0)
 def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn):
     
     tfm_dir=output_dir + os.sep + 'tfm'
