@@ -40,7 +40,9 @@ def vol_surf_interp(src, coords, affine,  clobber=0 ):
     vz=np.array([ w2v(i, steps[2], starts[2]) for i in coords[:,2]]).astype(int)
     
     idx = (vx >= 0) & (vy >= 0) & (vz >= 0) & (vx < src.shape[0]) & ( vy < src.shape[1]) & ( vz < src.shape[2] )
-    if np.sum(idx) == 0 : exit(1)
+    if np.sum(idx) == 0 : 
+        print('Error: no voxels found to interpolate over')
+        exit(1)
 
     val=np.zeros(vx.shape)
     val[idx] = src[vx[idx], vy[idx], vz[idx]].reshape(-1,)
@@ -66,9 +68,7 @@ def get_profiles(sphere_obj_fn, surf_mid_list, surf_wm_list, surf_gm_list, n_dep
 
     nslabs=len(slab_list)
     for slab, slab_df in df_ligand.groupby(['slab']) :
-        if slab != 1 : continue
 
-        slab_df["volume_order"] = slab_df["global_order"].max() - slab_df["global_order"] 
         i = int(slab) - 1
 
         surf_mid_dict = pd.read_csv(surf_mid_list[i])
@@ -77,13 +77,16 @@ def get_profiles(sphere_obj_fn, surf_mid_list, surf_wm_list, surf_gm_list, n_dep
         
         gm_coords = surf_gm_dict.loc[ :, ['x','y','z'] ].values
         wm_coords = surf_wm_dict.loc[ :, ['x','y','z'] ].values
-        print('wm coords shape', wm_coords.shape)
         
         d_coords = gm_coords - wm_coords
+        print('\tobj',surf_mid_list[i])
+        print('\tnii',slab_list[i])
         array_img = nib.load(slab_list[i])
         array_src = array_img.get_fdata()
         rec_vol = np.zeros_like(array_src)
-        rec_vol=array_src[:, slab_df['volume_order'].values, :]
+
+        #put ligand sections into rec_vol
+        rec_vol[:, slab_df['volume_order'].values.astype(int), :] = array_src[:, slab_df['volume_order'].values.astype(int), :]
         
         for i, depth in enumerate(depth_list) :
             print('\tDepth',depth)
@@ -96,7 +99,6 @@ def get_profiles(sphere_obj_fn, surf_mid_list, surf_wm_list, surf_gm_list, n_dep
         
     #define a mask of verticies where we have receptor densitiies
     surface_mask = surface_val != 0 
-    print( np.sum(surface_val == 0 ))
     #define vector with receptor densities 
     surface_val_src = surface_val[ surface_mask.astype(bool) ]
     #define vector without receptor densities
@@ -107,11 +109,8 @@ def get_profiles(sphere_obj_fn, surf_mid_list, surf_wm_list, surf_gm_list, n_dep
     sphere = load_mesh_geometry(sphere_obj_fn) 
     # get coordinates from dicitonary with mesh info
     spherical_coords = surface_tools.spherical_np(sphere['coords'])
-    print('sphere[coords]',sphere['coords'].shape)
     # get coordinates for vertices in mask
-    print(surface_mask.shape, spherical_coords.shape)
     spherical_coords_src = spherical_coords[ surface_mask.astype(bool), : ]
-    print(spherical_coords_src)
 
     # get spherical coordinates from cortical mesh vertex coordinates
     lats_src, lons_src = spherical_coords_src[:,1]-np.pi/2, spherical_coords_src[:,2]
@@ -139,6 +138,7 @@ def transform_surf_to_slab(out_dir,brain,hemi,tfm_list, surf_mid_fn, surf_wm_fn,
         surf_mid_rsl_csv=f'{out_dir}/{brain}_{hemi}_{slab}_mid_rsl.csv'
         surf_gm_rsl_csv=f'{out_dir}/{brain}_{hemi}_{slab}_gm_rsl.csv'
         surf_wm_rsl_csv=f'{out_dir}/{brain}_{hemi}_{slab}_wm_rsl.csv'
+        print('Applying transform', tfm_list[i])
         if not os.path.exists(surf_mid_rsl_fn) or clobber >= 1 : 
             apply_ants_transform_to_obj(surf_mid_fn, [tfm_list[i]], surf_mid_rsl_fn, [0])
         
@@ -153,17 +153,20 @@ def transform_surf_to_slab(out_dir,brain,hemi,tfm_list, surf_mid_fn, surf_wm_fn,
         surf_gm_list.append(surf_gm_rsl_csv)
     return surf_mid_list, surf_wm_list, surf_gm_list
 
-def surface_interpolation(tfm_list,  slab_list, out_dir, brain, hemi, resolution, autoradiograph_info_fn, mni_fn='civet/mri1/final/mri1_t1_tal_mask.nii', n_depths=3, obj_str='civet/mri1/surfaces/mri1_{}_surface_right_{}{}.obj', n_vertices = 327696, clobber=0):
+def surface_interpolation(tfm_list,  slab_list, out_dir, brain, hemi, resolution, df, mni_fn, n_depths=3, surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, clobber=0):
+    #make sure resolution is interpreted as float
+    resolution=float(resolution) 
+
+    obj_str='{}/mri1_{}_surface_right_{}{}.obj'
+    
     if not os.path.exists(out_dir) : os.makedirs(out_dir)
 
-    df = pd.read_csv(autoradiograph_info_fn)
-    df = df.loc[(df['hemisphere']==hemi) & (df['mri']==brain) ]
-
     #Interpolate at coordinate locations
-    surf_mid_fn = obj_str.format('mid', n_vertices,'')
-    surf_gm_fn = obj_str.format('gray', n_vertices,'')
-    surf_wm_fn = obj_str.format('white', n_vertices,'')
-    sphere_obj_fn = obj_str.format('mid', n_vertices,'_sphere')
+    surf_mid_fn = obj_str.format(surf_dir,'mid', n_vertices,'')
+    surf_gm_fn = obj_str.format(surf_dir,'gray', n_vertices,'')
+    surf_wm_fn = obj_str.format(surf_dir,'white', n_vertices,'')
+    sphere_obj_fn = obj_str.format(surf_dir,'mid', n_vertices,'_sphere')
+    
     print('Sphere obj:', sphere_obj_fn)
 
     print('Get surface mask and surface values')
@@ -180,15 +183,13 @@ def surface_interpolation(tfm_list,  slab_list, out_dir, brain, hemi, resolution
 
     #For each slab, transform the mesh surface to the receptor space
     #TODO: transform points into space of individual autoradiographs
-    surf_mid_list, surf_wm_list, surf_gm_list = transform_surf_to_slab(out_dir,brain,hemi,tfm_list,surf_mid_fn,surf_gm_fn,surf_wm_fn,nslabs)
+    surf_mid_list, surf_wm_list, surf_gm_list = transform_surf_to_slab(out_dir, brain, hemi, tfm_list, surf_mid_fn, surf_gm_fn, surf_wm_fn, nslabs)
     
     # Create an object that will be used to interpolate over the surfaces
     mapper = SurfaceVolumeMapper(white_surf=surf_wm_fn, gray_surf=surf_gm_fn, resolution=[resolution]*3, mask=None,dimensions=dimensions, origin=starts, filename=None, save_in_absence=False, out_dir=out_dir )
 
     for ligand, df_ligand in df.groupby(['ligand']):
         print('\tInterpolating for ligand:',ligand)
-
-
         # Extract profiles from the slabs using the surfaces 
         profile_fn  = f'{out_dir}/{brain}_{hemi}_{ligand}_{resolution}mm_profiles.csv'
         if not os.path.exists(profile_fn) or clobber >= 1 :
