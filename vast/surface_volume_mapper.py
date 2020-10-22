@@ -80,7 +80,6 @@ class SurfaceVolumeMapper(object):
                 print('precomputed coordinates file not found, recomputing...')
         
         #check resolution is 1D or 3D
-        print(resolution)
         if resolution is not None:
             if isinstance(resolution, float):
                 self.resolution = np.array([resolution,resolution,resolution])
@@ -95,8 +94,6 @@ class SurfaceVolumeMapper(object):
             self.triangles_to_include = self.white_surface['faces']
         if gray_surf is not None:
             self.gray_surface = io.load_mesh_geometry(gray_surf)
-        
-        
         
         #check if mask. Calculate dimensions and origins from mask, unless these are specified.
         print('masking triangles')
@@ -128,7 +125,7 @@ class SurfaceVolumeMapper(object):
         print('calculating coordinates')
         
         t1=time.time()
-       # self.calculate_volume_surf_coordinates()
+        # self.calculate_volume_surf_coordinates()
         t2=time.time()
         self.volume_surf_coordinates={'voxel_coordinates':[],
                                'triangles':[],
@@ -215,11 +212,11 @@ class SurfaceVolumeMapper(object):
             x = profiles[triangles[:,0],depths[:]]
             y = profiles[triangles[:,1],depths[:]]
             z = profiles[triangles[:,2],depths[:]]
-        
+       
             triangle_values=np.array([x,y,z]).T
+            
             if interpolation == 'linear':
                 vol = np.einsum('ij,ij->i', tri_coords, triangle_values)
-                print(np.sum(vol))
                 block[vc[:,0],vc[:,1],vc[:,2]] = vol
             elif 'nearest' in interpolation:
                 #nearest is the maximum of the 3 coordinates
@@ -231,6 +228,7 @@ class SurfaceVolumeMapper(object):
             del depths
 
         return block        
+
     def map_profiles_to_block(self, profiles,  interpolation='linear'):
         """map values from vector file to voxel coordinates
         interpolation between vertices can either be:
@@ -292,6 +290,8 @@ class SurfaceVolumeMapper(object):
             bbox = SurfaceVolumeMapper.prism_bounding_box(prism)
             world_coords, voxel_coords= SurfaceVolumeMapper.voxel_world_coords_in_box(bbox,self.origin, self.resolution, self.dimensions)
             wc, vc, depths, tri_coords=SurfaceVolumeMapper.get_depth_and_barycentric_coordinates_for_prism(world_coords,voxel_coords,prism)
+            print(depths)
+
             if len(vc)>0:
                 self.volume_surf_coordinates['voxel_coordinates'].extend(vc.tolist())
                 self.volume_surf_coordinates['depths'].extend(depths.tolist())
@@ -299,8 +299,10 @@ class SurfaceVolumeMapper(object):
                 self.volume_surf_coordinates['triangle_coordinates'].extend(tri_coords.tolist())
         lv=len(self.volume_surf_coordinates['voxel_coordinates'])
         ld=len(self.volume_surf_coordinates['depths'])
+
         for key in self.volume_surf_coordinates.keys():
             self.volume_surf_coordinates[key] = np.array(self.volume_surf_coordinates[key])
+
         assert lv==ld,'lengths dont match depths={}voxel_coords{}'.format(ld,lv)
         return
     
@@ -389,10 +391,8 @@ class SurfaceVolumeMapper(object):
                 t1=t2
             
             prism = SurfaceVolumeMapper.generate_prism(gray_surface_coords, white_surface_coords, triangles[tri_index])
-        
             bbox = SurfaceVolumeMapper.prism_bounding_box(prism)
-            
-            world_coords, voxel_coords= SurfaceVolumeMapper.voxel_world_coords_in_box(bbox,origin, resolution, dimensions)
+            world_coords, voxel_coords=SurfaceVolumeMapper.voxel_world_coords_in_box(bbox,origin,resolution,dimensions)
             wc, vc, depths, tri_coords=SurfaceVolumeMapper.get_depth_and_barycentric_coordinates_for_prism(world_coords,voxel_coords,prism)
             
             #if some coordinates are returned, then store these
@@ -403,7 +403,7 @@ class SurfaceVolumeMapper(object):
                 triangles_list.append(temp_triangles.tolist())
                 vc_list.append(vc)
             
-            if len(vc_list) >  1000 : #10000 :
+            if len(vc_list) >  1000 :
                 print('Saving to',npz_fn_str.format(k,counter))
                 np.savez(npz_fn_str.format(k,counter), vc=vc_list, triangles=triangles_list, tri_coords=tri_coords_list, depths=depths_list)
                 del vc_list

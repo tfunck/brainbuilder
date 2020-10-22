@@ -74,8 +74,6 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, output_dir, resolution, resolutio
         exit(1)
 
     if len(out_to_do + tfm_to_do) != 0 :
-
-
         #don't remember what resolution_level does, so setting to 3 to cancel out it's effect
         #This is done because you always want to start the registration from 5mm and end at 250um
         #avg_step = (xstep+zstep)/2 

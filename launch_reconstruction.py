@@ -14,8 +14,6 @@ from reconstruction.crop import crop
 import pandas as pd
 import numpy as np
 import nibabel as nib
-global nl_2d_ext
-nl_2d_ext='nl_2d.nii.gz'
 
 global file_dir
 base_file_dir, fn =os.path.split( os.path.abspath(__file__) )
@@ -23,18 +21,6 @@ file_dir = base_file_dir +os.sep +'section_numbers' +os.sep
 def w2v(c, step, start):
     return np.round( (c-start)/step ).astype(int)
 
-def adjust_slab(ll) :
-    ll = [int(i) for i in ll ]
-    ll.sort()
-    oo=[]
-    for i in range(len(ll)):
-        j = int(i/2)
-        if i % 2 :
-            oo.append(ll[ -(j+1)]  )
-        else :
-            oo.append(ll[j])
-    oo = [ str(i) for i in oo ]
-    return oo
 
 def calculate_section_order(autoradiograph_info_fn, source_dir, out_dir, in_df_fn='section_order/autoradiograph_info.csv') :
     
@@ -81,54 +67,58 @@ def setup_argparse():
     parser.add_argument('--autoradiograph-info', dest='autoradiograph_info_fn', type=str, default=None, help='csv file with section info for each autoradiograph')
     parser.add_argument('--remote','-p', dest='remote', default=False, action='store_true',  help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--interpolation-only', dest='interpolation_only', default=False, action='store_true',  help='Slabs to reconstruct. Default = reconstruct all slabs.')
-    parser.add_argument('--resolution','-r', dest='resolution', type=str, default='3',  help='List of resolutions to process')
 
     return parser
 
 
 def setup_files_json(args):
-    if not os.path.exists(args.files_json) or args.clobber :
-        files={}
-        for brain in args.brain :
-            files[brain]={}
-            for hemi in args.hemi :
-                files[brain][hemi]={}
-                for slab in args.slab : 
-                    files[brain][hemi][slab]={}
-                    for resolution in resolution_list :
-                        files[brain][hemi][slab][resolution] = {}
-    else :
-        files = json.load(open(args.files_json, 'r'))
-        for brain in args.brain :
-            try :
-                files[brain]
-            except KeyError :
-                files[brain]={}
+    print(args.files_json)
+    files={}
+    for brain in args.brain :
+        files[brain]={}
+        for hemi in args.hemi :
+            files[brain][hemi]={}
+            for slab in args.slabs : 
+                files[brain][hemi][slab]={}
 
-            for hemi in args.hemi :
-                try :
-                    files[brain][hemi]
-                except KeyError:
-                    files[brain][hemi]={}
 
-                for slab in args.slab :
-                    try :
-                        files[brain][hemi][slab]
-                    except KeyError :
-                        files[brain][hemi][slab]={}
+                for resolution in resolution_list :
+                    cdict={} #current dictionary
+                    cdict['brain']=brain        
+                    cdict['hemi']=hemi        
+                    cdict['slab']=slab        
 
-                    for resolution in resolution_list :
-                        try:
-                            files[brain][hemi][slab][resolution] 
-                        except KeyError :
-                            files[brain][hemi][slab][resolution] = {}
+                    # Directories
+                    cdict['cur_out_dir']=f'{args.out_dir}/{brain}_{hemi}_{slab}/{resolution}mm/'
+                    cdict['seg_dir']='{}/2_segment/'.format(cdict['cur_out_dir'])
+                    cdict['align_to_mri_dir']='{}/3_align_slab_to_mri/'.format(cdict['cur_out_dir'])
+                    cdict['nl_2d_dir']='{}/4_nonlinear_2d'.format(cdict['cur_out_dir'])
+                   
+                    if resolution == resolution_list[0]:
+                        cdict['init_align_dir']=f'{args.out_dir}/{brain}_{hemi}_{slab}/1_init_align/'
+                        cdict['init_align_fn']=cdict['init_align_dir'] + f'/brain-{brain}_hemi-{hemi}_slab-{slab}_init_align.nii.gz'
+
+                    # Filenames
+                    cdict['seg_rsl_fn']='{}/brain-{}_hemi-{}_slab-{}_seg_{}mm.nii.gz'.format(cdict['seg_dir'],brain, hemi, slab, resolution)
+                    cdict['srv_rsl_fn'] = f'{args.out_dir}/{brain}_{hemi}_mri_gm_{resolution}mm.nii.gz' 
+                    cdict['rec_3d_lin_fn'] = '{}/{}_{}_{}_rec_space-mri.nii.gz'.format(cdict['align_to_mri_dir'],brain,hemi,slab)
+                    cdict['srv_3d_lin_fn'] = '{}/{}_{}_{}_mri_gm_space-rec.nii.gz'.format(cdict['align_to_mri_dir'],brain,hemi,slab)
+                    cdict['nl_2d_vol_fn'] = "{}/{}_{}_{}_nl_2d.nii.gz".format(cdict['nl_2d_dir'] ,brain,hemi,slab) 
+                    cdict['srv_base_rsl_crop_fn'] = "{}/{}_{}_{}_srv_rsl.nii.gz".format(cdict['nl_2d_dir'], brain, hemi, slab)   
+                    cdict['nl_3d_tfm_fn'] = '{}/rec_to_mri_Composite.h5'.format(cdict['align_to_mri_dir'])
+                    cdict['nl_3d_tfm_inv_fn'] = '{}/rec_to_mri_InverseComposite.h5'.format(cdict['align_to_mri_dir'])
+
+                    files[brain][hemi][slab][resolution]=cdict
+
+    json.dump(files,open(args.files_json,'w+'))
+    
     return files
 
 def setup_parameters(args) : 
     ###
     ### Parameters
     ###
-    args.slab = adjust_slab(args.slab)
+    args.slabs=['1','2','3','4','5','6'] #FIXME shouldnt be hard coded
 
     if args.scale_factors_fn == None :
         args.scale_factors_fn=base_file_dir+'/scale_factors.json'
@@ -142,8 +132,9 @@ def setup_parameters(args) :
     args.crop_dir=f'{args.out_dir}/0_crop'
     os.makedirs(args.crop_dir,exist_ok=True)
 
-    args.files_json=args.out_dir+"reconstruction_files.json"
+    args.files_json=args.out_dir+"/reconstruction_files.json"
     files = setup_files_json(args)
+
 
     return args, files 
 
@@ -153,36 +144,28 @@ def multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args, files, 
     ### Iterate over progressively finer resolution
     for resolution_itr, resolution in enumerate(resolution_list) :
         print('Resolution',resolution)
+        cfiles = files[brain][hemi][slab][resolution] #Current files
         
-        cur_out_dir=f'{args.out_dir}/{brain}_{hemi}_{slab}/{resolution}mm/'
-        srv_rsl_fn = f'{args.out_dir}/{brain}_{hemi}_mri_gm_{resolution}mm.nii.gz' 
-        #
-        seg_dir=f'{cur_out_dir}/2_segment/'
-        seg_rsl_fn=f'{seg_dir}/brain-{brain}_hemi-{hemi}_slab-{slab}_seg_{resolution}mm.nii.gz'
-        #
-        align_to_mri_dir = f'{cur_out_dir}/3_align_slab_to_mri/' 
-        nl_3d_tfm_fn=f'{align_to_mri_dir}/rec_to_mri_Composite.h5'
-        nl_3d_tfm_inv_fn=f'{align_to_mri_dir}/rec_to_mri_InverseComposite.h5'
-        rec_3d_lin=f'{align_to_mri_dir}/{brain}_{hemi}_{slab}_rec_space-mri.nii.gz'
-        srv_3d_lin=f'{align_to_mri_dir}/{brain}_{hemi}_{slab}_mri_gm_space-rec.nii.gz'
-        #
-        nl_2d_dir= f'{cur_out_dir}/4_nonlinear_2d'
-        srv_base_rsl_crop_fn=f"{nl_2d_dir}/{brain}_{hemi}_{slab}_srv_rsl.nii.gz"
-        nl_2d_vol = f"{nl_2d_dir}/{brain}_{hemi}_{slab}_{nl_2d_ext}"
+        cur_out_dir = cfiles['cur_out_dir']
+        seg_dir = cfiles['seg_dir'] 
+        align_to_mri_dir = cfiles['align_to_mri_dir'] 
+        nl_2d_dir = cfiles['nl_2d_dir']
 
-        files[brain][hemi][slab][resolution]['nl_2d_dir']=nl_2d_dir
-        files[brain][hemi][slab][resolution]['nl_2d_vol']=nl_2d_vol
-        files[brain][hemi][slab][resolution]['srv_base_rsl_crop_fn'] = srv_base_rsl_crop_fn   
-        files[brain][hemi][slab][resolution]['nl_3d_tfm'] = nl_3d_tfm_fn
-        files[brain][hemi][slab][resolution]['nl_3d_tfm_inv'] = nl_3d_tfm_inv_fn
-        json.dump(files,open(args.files_json,'w'))
+        srv_rsl_fn = cfiles['srv_rsl_fn']  
+        seg_rsl_fn = cfiles['seg_rsl_fn']
+        nl_3d_tfm_fn = cfiles['nl_3d_tfm_fn']
+        nl_3d_tfm_fn_inv_fn = cfiles['nl_3d_tfm_inv_fn']
+        rec_3d_lin_fn = cfiles['rec_3d_lin_fn']
+        srv_3d_lin_fn = cfiles['srv_3d_lin_fn']
+        srv_base_rsl_crop_fn = cfiles['srv_base_rsl_crop_fn']
+        nl_2d_vol_fn = cfiles['nl_2d_vol_fn']
 
         for dir_name in [cur_out_dir, align_to_mri_dir , seg_dir, nl_2d_dir ] :
             os.makedirs(dir_name, exist_ok=True)
 
         prev_resolution=resolution_list[resolution_itr-1]
         if resolution_itr > 0 : 
-            align_fn = nl_2d_vol
+            align_fn = nl_2d_vol_fn
         else : 
             align_fn = init_align_fn
 
@@ -193,9 +176,9 @@ def multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args, files, 
             resample(nib.load(args.srv_fn), srv_rsl_fn, resolution)
 
         #Combine 2d sections from previous resolution level into a single volume
-        if (resolution != resolution_list[0] and not os.path.exists(nl_2d_vol))  :
+        if (resolution != resolution_list[0] and not os.path.exists(nl_2d_vol_fn))  :
             last_nl_2d_dir = files[brain][hemi][slab][prev_resolution]['nl_2d_dir']
-            concatenate_sections_to_volume(slab_df, init_align_fn, last_nl_2d_dir, nl_2d_vol)
+            concatenate_sections_to_volume(slab_df, init_align_fn, last_nl_2d_dir, nl_2d_vol_fn)
 
         ###
         ### Step 2 : Autoradiograph segmentation
@@ -208,16 +191,15 @@ def multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args, files, 
         ### Step 3 : Align slabs to MRI
         ###
         print('\tStep 3: align slabs to MRI')
-        dir_list = [nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_lin, srv_3d_lin]
+        dir_list = [nl_3d_tfm_fn, nl_3d_tfm_fn_inv_fn, rec_3d_lin_fn, srv_3d_lin_fn]
         if False in [ os.path.exists(fn) for fn in dir_list ]  :
-            #If removing aligned sections from srv set slabs= args.slab[slab_i:]
-            align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, align_to_mri_dir, hemi_df, slabs, nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_lin, srv_3d_lin  )
+            align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, align_to_mri_dir, hemi_df, args.slabs, nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_lin_fn, srv_3d_lin_fn  )
 
         ###
         ### Step 4 : 2D alignment of receptor to resample MRI GM vol
         ###
         if not os.path.exists(srv_base_rsl_crop_fn) or args.clobber :
-            shell(f'antsApplyTransforms -v 1 -d 3 -i {srv_rsl_fn} -r {init_align_fn} -t {nl_3d_tfm_inv_fn} -o {srv_base_rsl_crop_fn}', verbose=True)                   
+            shell(f'antsApplyTransforms -v 1 -d 3 -i {srv_rsl_fn} -r {init_align_fn} -t {nl_3d_tfm_fn_inv_fn} -o {srv_base_rsl_crop_fn}', verbose=True)                   
 
         #create 2d sections that will be nonlinearly aliged in 2d
         create_2d_sections( slab_df, init_align_fn, srv_base_rsl_crop_fn, nl_2d_dir )
@@ -234,54 +216,50 @@ def multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args, files, 
        
         receptor_2d_alignment( slab_df, init_align_fn, srv_base_rsl_crop_fn, nl_2d_dir,  resolution, resolution_itr, batch_processing=args.remote)
     #Concatenate 2D nonlinear aligned sections into output volume
-    if (resolution != resolution_list[0] and not os.path.exists(nl_2d_vol))  :
-        concatenate_sections_to_volume(slab_df, init_align_fn, nl_2d_dir, nl_2d_vol)
+    if (resolution != resolution_list[0] and not os.path.exists(nl_2d_vol_fn))  :
+        concatenate_sections_to_volume(slab_df, init_align_fn, nl_2d_dir, nl_2d_vol_fn)
 
-def reconstruct_slab(slab_df, hemi_df, brain, hemi, slab, args, files, resolution_list):
 
-        ###  Step 1: Initial Alignment
-        print('\tInitial rigid inter-autoradiograph alignment')
-        args.out_dir_1=f'{args.out_dir}/{brain}_{hemi}_{slab}/1_init_align/'
-        init_align_fn=f'{args.out_dir_1}/brain-{brain}_hemi-{hemi}_slab-{slab}_init_align.nii.gz'
-        files[brain][hemi][slab][resolution_list[0]]['init_align_fn'] = init_align_fn
-
-        if (not os.path.exists( init_align_fn) or args.clobber) and not args.remote  :
-            receptorRegister(brain,hemi,slab, init_align_fn, args.out_dir_1, slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
-
-        multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args,files, resolution_list, init_align_fn)
-
-def reconstruct_hemisphere(df, brain, hemi,  args, files, resolution_list):
-
-    
+def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     hemi_df = df.loc[ (df['mri']==brain) & (df['hemisphere']==hemi) ]
     highest_resolution=resolution_list[-1]
 
-    if not args.interpolation_only :
-        ### Reconstruct slab
-        for slab in args.slab :
+    ### Reconstruct slab
+    for slab in args.slab :
+        if not args.interpolation_only :
             slab_df=df.loc[(df['hemisphere']==hemi) & (df['mri']==brain) & (df['slab']==int(slab)) ]
-            reconstruct_slab(slab_df, hemi_df, brain, hemi, slab, args, files, resolution_list)
+            
+            ###  Step 1: Initial Alignment
+            print('\tInitial rigid inter-autoradiograph alignment')
+            if (not os.path.exists( init_align_fn) or args.clobber) and not args.remote  :
+                receptorRegister(brain,hemi,slab, files['init_align_fn'], files['init_align_dir'], slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
+            
+            ### Steps 2-4 : Multiresolution alignment
+            multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args,files, resolution_list,  init_align_fn)
 
     ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
     interp_dir=f'{args.out_dir}/5_surf_interp/'
 
     nl_tfm_list= []
     nl_2d_list = []
+    slab_list = []
+    
     for slab_dict in files[brain][hemi].values() :
-        print( slab_dict[highest_resolution] )
         try :
-            nl_2d_fn  = slab_dict[highest_resolution]['nl_2d_vol']
-            nl_tfm_fn = slab_dict[highest_resolution]['nl_3d_tfm']
+            if os.path.exists(slab_dict[highest_resolution]['nl_2d_vol_fn']) and os.path.exists(slab_dict[highest_resolution]['nl_3d_tfm_fn']) :
+                nl_tfm_list.append(slab_dict[highest_resolution]['nl_3d_tfm_fn'])
+                nl_2d_list.append(slab_dict[highest_resolution]['nl_2d_vol_fn'])
+                slab_list.append( slab_dict[highest_resolution]['slab']  )
         except KeyError:
             continue
 
-        if os.path.exists(nl_2d_fn) and os.path.exists(nl_tfm_fn) :
-            nl_tfm_list.append(nl_tfm_fn)
-            nl_2d_list.append(nl_2d_fn)
-    
+    if len(slab_list) == 0 : 
+        print('No slabs to interpolate over')
+        exit(0)
+
     # Surface interpolation
     if not args.remote or args.interpolation_only:
-        surface_interpolation(nl_tfm_list,  nl_2d_list, interp_dir, brain, hemi, highest_resolution, hemi_df, args.srv_fn, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=100)
+        surface_interpolation(nl_tfm_list,  nl_2d_list, slab_list, interp_dir, brain, hemi, highest_resolution, hemi_df, args.srv_fn, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=3)
 
 ###---------------------###
 ###  PROCESSING STEPS   ###

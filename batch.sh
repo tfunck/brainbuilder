@@ -1,5 +1,6 @@
 
-for slab in `seq 6 6`; do
-    sbatch launch_reconstruction.sh -s $slab
+for slab in "1 2 6"; do
+    sbatch launch_reconstruction.sh -s $slab -b MR1 -h R
+    #sh launch_reconstruction.sh -s $slab -b MR1 -h R
 done
 

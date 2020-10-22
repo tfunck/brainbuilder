@@ -100,14 +100,13 @@ def align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, out_dir, df, slabs,out_tfm_f
 
     print('Current slab width:',cur_slab_width)
 
-    print(slab_prior_position)
-    print(slab)
     y0w= ( slab_prior_position[str(slab)] - cur_slab_width/2 * 1.3)
     y1w= ( slab_prior_position[str(slab)] + cur_slab_width/2 * 1.3)
     y0=w2v(y0w, srv_ystep, srv_ystart)
     y1=w2v(y1w, srv_ystep, srv_ystart)
-    if verbose :
-        print(y0w,y1w,y0,y1) 
+
+    if verbose : print(y0w,y1w,y0,y1) 
+
     srv_slab_fn=f'{out_dir}/srv_{y0}_{y1}.nii.gz' 
     prefix=re.sub('Composite.h5','',out_tfm_fn)
 
@@ -121,8 +120,8 @@ def align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, out_dir, df, slabs,out_tfm_f
         init_moving=f'--initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]'
         
         # calculate registration
-        # 
         shell(f'antsRegistration -v 0 -a 1 -d 3 {init_moving} -t Rigid[.1] -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -c [1000] -s 0vox -f 1  -t Similarity[.1] -c [500] -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s 0vox -f 1  -t Affine[.1] -c [500] -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s 0vox -f 1 -t SyN[.1] -c [500] -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s 0vox -f 1  -o [{prefix},{out_fn},{out_inv_fn}]', verbose=True)
+
     return 0
 
 
