@@ -28,7 +28,6 @@ test_ngh=[  [1,2,3],   #0
             [2,3]      #4
               ]
 
-
 def get_poly_idx(idx ):
     idx.sort()
     idx = [str(i) for i in idx]

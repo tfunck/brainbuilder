@@ -2,6 +2,9 @@ import os
 import json
 import re
 import argparse
+import pandas as pd
+import numpy as np
+import nibabel as nib
 from utils.utils import shell, resample
 from utils.ANTs import ANTs
 from nibabel.processing import resample_to_output
@@ -9,11 +12,9 @@ from reconstruction.align_slab_to_mri import align_slab_to_mri
 from reconstruction.receptor_segment import classifyReceptorSlices
 from reconstruction.nonlinear_2d_alignment import receptor_2d_alignment, create_2d_sections, concatenate_sections_to_volume
 from reconstruction.init_alignment import receptorRegister
-from reconstruction.surface_interpolation import surface_interpolation
+from reconstruction.surface_interpolation import surface_interpolation, obj_str
 from reconstruction.crop import crop
-import pandas as pd
-import numpy as np
-import nibabel as nib
+
 
 global file_dir
 base_file_dir, fn =os.path.split( os.path.abspath(__file__) )
@@ -21,6 +22,47 @@ file_dir = base_file_dir +os.sep +'section_numbers' +os.sep
 def w2v(c, step, start):
     return np.round( (c-start)/step ).astype(int)
 
+def prepare_surfaces(out_dir, surf_dir, resolution, n_depths, n_vertices=81920) :
+
+    # upsample mesh to given resolution
+    rsl_surf_dir = out_dir + '/surfaces'
+    os.makedirs(rsl_surf_dir, exist_ok=True)
+    
+    surf_gm_fn = obj_str.format(surf_dir,'gray', n_vertices,'')
+    surf_wm_fn = obj_str.format(surf_dir,'white', n_vertices,'')
+    
+    wm_surf = Surface(surf_wm_fn)
+    gm_surf = Surface(surf_gm_fn)
+
+    wm_surf.upsample(max_length)
+    gm_surf.upsample(max_length)
+
+    wm_rsl_fn = rsl_surf_dir + re.sub('.obj',f'_{resolution}mm_{depth}.obj',surf_wm_fn)
+    gm_rsl_fn = rsl_surf_dir + re.sub('.obj',f'_{resolution}mm_{depth}.obj',surf_gm_fn)
+
+    wm_surf.to_filename(wm_rsl_fn)
+    gm_surf.to_filename(gm_rsl_fn)
+
+    wm_dict = load_mesh_geometry(wm_rsl_fn)
+    gm_dict = load_mesh_geometry(gm_rsl_fn)
+
+    # create depth mesh
+    dt = 1.0/ n_depths
+    depth_list = np.arange(dt, 1, dt)
+    
+    gm_dict =  pd.read_csv(surf_gm_list[i])
+    wm_dict =  pd.read_csv(surf_wm_list[i])
+
+    d_coords = gm_dict['coords'] - wm_dict['coords']
+
+    faces = np.array([ poly.index for poly in wm_dict.polygons.values() ])
+    
+    for depth in depth_list :
+        coords = wm_coords + depth * d_coords
+        out_fn = rsl_surf_dir + re.sub('.obj',f'_{resolution}mm_{depth}.obj',surf_wm_fn)
+        save_mesh_geometry(out_fn, {'coords':coords, 'neighbours':wm_dict['neighbours'], 'neighbour_counts':wm_dict['neighbour_count'] 'faces':faces})
+
+    # inflate surface?
 
 def calculate_section_order(autoradiograph_info_fn, source_dir, out_dir, in_df_fn='section_order/autoradiograph_info.csv') :
     
@@ -261,6 +303,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     if not args.remote or args.interpolation_only:
         surface_interpolation(nl_tfm_list,  nl_2d_list, slab_list, interp_dir, brain, hemi, highest_resolution, hemi_df, args.srv_fn, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=3)
 
+
 ###---------------------###
 ###  PROCESSING STEPS   ###
 ###---------------------###
@@ -283,6 +326,10 @@ if __name__ == '__main__':
 
     ### Step 0 : Crop downsampled autoradiographs
     crop(args.src_dir,args.crop_dir, df,  remote=args.remote)
+
+    args.surf_dir = upsample_mesh(args.out_dir, args.surf_dir)
+
+    prepare_surfaces(args.out_dir, args.surf_dir, args.resolution, args.n_depths, n_vertices=args.n_vertices)
 
     for brain in args.brain :
         for hemi in args.hemi :                     

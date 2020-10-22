@@ -22,6 +22,9 @@ from ants import image_read, registration
 from utils.utils import shell, w2v, v2w
 from vast.surface_volume_mapper import SurfaceVolumeMapper
 
+global obj_str
+obj_str='{}/mri1_{}_surface_right_{}{}.obj'
+
 def load_slabs(slab_fn_list) :
     slabs=[]
     for slab_fn in slab_fn_list :
@@ -31,13 +34,11 @@ def load_slabs(slab_fn_list) :
 
 
 def vol_surf_interp(src, coords, affine,  clobber=0 ):
-
     steps = [ affine[0,0], affine[1,1], affine[2,2]   ]
     starts =  [ affine[0,3], affine[1,3], affine[2,3]   ] #[-72, -126,-90 ] #
     vx=np.array([ w2v(i, steps[0], starts[0]) for i in coords[:,0]]).astype(int)
     vy=np.array([ w2v(i, steps[1], starts[1]) for i in coords[:,1]]).astype(int)
     vz=np.array([ w2v(i, steps[2], starts[2]) for i in coords[:,2]]).astype(int)
-    
 
     idx = (vx >= 0) & (vy >= 0) & (vz >= 0) & (vx < src.shape[0]) & ( vy < src.shape[1]) & ( vz < src.shape[2] )
     if np.sum(idx) == 0 : 
@@ -53,16 +54,21 @@ def write_nii(ar, fn, affine, dtype, clobber):
     if not os.path.exists(fn) or clobber >= 1 :
         nib.Nifti1Image(ar['data'][:].astype(dtype), affine).to_filename(fn)
 
-def thicken_sections(array_src, slab_df, width=10):
+def thicken_sections(array_src, slab_df, resolution ):
+    width = resolution/(0.02*2)
     print('\t\tThickening sections to ',0.02*width*2)
     dim=[array_src.shape[0], 1, array_src.shape[2]]
     rec_vol = np.zeros_like(array_src)
-    for i in slab_df['volume_order'].values.astype(int) :
-        section = array_src[:, i, :].reshape(dim)
+    for row_i, row in slab_df.iterrows() : 
+        i = row['volume_order'].values.astype(int)
+        
+        # Conversion of radioactivity values to receptor density values
+        section = array_src[:, i, :].reshape(dim) * row['conversion_factor'].values[0]
+
         assert np.sum(section) !=0, f'Error: empty frame {i}'
         i0 = (i-width) if i-width > 0 else 0
         i1 = (i+width) if i+width <= array_src.shape[1] else array_src.shape[1]
-        #print(i, i0, i1)
+        
         #put ligand sections into rec_vol
         rec_vol[:, i0:i1, :] = np.repeat(section,i1-i0, axis=1)
         
@@ -70,9 +76,9 @@ def thicken_sections(array_src, slab_df, width=10):
 
     return rec_vol
 
-def get_slab_profile(wm_coords,gm_coords, d_coords, slab_df, depth_list, array_src, affine, profiles ):
+def get_slab_profile(wm_coords,gm_coords, d_coords, slab_df, depth_list, array_src, affine, profiles, resolution):
     
-    rec_vol = thicken_sections(array_src, slab_df)
+    rec_vol = thicken_sections(array_src, slab_df, resolution)
     nib.Nifti1Image(rec_vol, affine).to_filename('/project/def-aevans/tfunck/test.nii.gz')
     print('\t\t {}\n\t\t Depth:'.format( np.mean(np.sum(np.abs(wm_coords-gm_coords),axis=1)) ) )
     for depth_i, depth in enumerate(depth_list) :
@@ -84,7 +90,7 @@ def get_slab_profile(wm_coords,gm_coords, d_coords, slab_df, depth_list, array_s
         #print('coords',coords[idx][0], profiles[idx,depth_i][0])
     return profiles
                  
-def get_profiles(sphere_obj_fn, surf_mid_list, surf_wm_list, surf_gm_list, n_depths,  profiles_fn,vol_list, slab_list, df_ligand ):
+def get_profiles(sphere_obj_fn, surf_mid_list, surf_wm_list, surf_gm_list, n_depths,  profiles_fn,vol_list, slab_list, df_ligand, resolution ):
     dt = 1.0/ n_depths
     depth_list = np.arange(0., 1+dt, dt)
     
@@ -108,7 +114,7 @@ def get_profiles(sphere_obj_fn, surf_mid_list, surf_wm_list, surf_gm_list, n_dep
         array_src = array_img.get_fdata()
         assert np.sum(array_src) != 0 , f'Error: input receptor volume has is empym {vol_list[i]}'
 
-        profiles += get_slab_profile(wm_coords, gm_coords, d_coords, slab_df, depth_list, array_src, array_img.affine, profiles)
+        profiles += get_slab_profile(wm_coords, gm_coords, d_coords, slab_df, depth_list, array_src, array_img.affine, profiles, resolution)
 
     profiles[ profiles < 0.1 ] = 0
    
@@ -140,8 +146,10 @@ def interpolate_over_surface(sphere_obj_fn,profiles):
 
         # get coordinates for vertices in mask
         spherical_coords_src = spherical_coords[ surface_mask.astype(bool), : ]
+
         # get spherical coordinates from cortical mesh vertex coordinates
         lats_src, lons_src = spherical_coords_src[:,1]-np.pi/2, spherical_coords_src[:,2]
+
         # create mesh data structure
         mesh = stripy.sTriangulation(lons_src, lats_src)
         lats, lons = spherical_coords[:,1]-np.pi/2, spherical_coords[:,2]
@@ -184,7 +192,6 @@ def surface_interpolation(tfm_list, vol_list, slab_list, out_dir, brain, hemi, r
     #make sure resolution is interpreted as float
     resolution=float(resolution) 
 
-    obj_str='{}/mri1_{}_surface_right_{}{}.obj'
     
     if not os.path.exists(out_dir) : os.makedirs(out_dir)
 
@@ -224,10 +231,11 @@ def surface_interpolation(tfm_list, vol_list, slab_list, out_dir, brain, hemi, r
 
         # Extract profiles from the slabs using the surfaces 
         if not os.path.exists(profiles_fn) or clobber >= 1 :
-            get_profiles(sphere_obj_fn, surf_mid_list, surf_wm_list, surf_gm_list, n_depths, profiles_fn, vol_list, slab_list, df_ligand)
+            get_profiles(sphere_obj_fn, surf_mid_list, surf_wm_list, surf_gm_list, n_depths, profiles_fn, vol_list, slab_list, df_ligand, resolution)
             
         # Interpolate a 3D receptor volume from the surface mesh profiles
         if not os.path.exists(interp_fn) or clobber : 
+
             print('Map Vector to Block')
             profiles = pd.read_csv(profiles_fn, header=None).values
             vol_interp = mapper.map_profiles_to_block(profiles)
@@ -237,10 +245,11 @@ def surface_interpolation(tfm_list, vol_list, slab_list, out_dir, brain, hemi, r
             receptor_img = nib.Nifti1Image(vol_interp, np.array([[resolution, 0, 0, starts[0]],
                                                                  [0, resolution, 0, starts[1]],
                                                                  [0, 0, resolution, starts[2]],
-                                                                 [0,0,0,1]]) )
+                                                                 [0, 0, 0, 1]]) )
 
             print(f'\n\tResample interpolated volume to {resolution}')
             receptor_img_rsl = resample_to_output(receptor_img, [resolution]*3, order=1)
+
             print(f'\tWrite volumetric interpolated values to {interp_fn} ',end='\t')
             receptor_img.to_filename(interp_fn)
             #receptor_img_rsl.to_filename(interp_fn)
