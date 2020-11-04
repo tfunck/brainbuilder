@@ -217,7 +217,7 @@ def multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args, files, 
     ### Iterate over progressively finer resolution
     for resolution_itr, resolution in enumerate(resolution_list) :
         print('Resolution',resolution)
-        cfiles = files[brain][hemi][slab][resolution] #Current files
+        cfiles = files[brain][hemi][str(slab)][str(resolution)] #Current files
         
         cur_out_dir = cfiles['cur_out_dir']
         seg_dir = cfiles['seg_dir'] 
@@ -301,11 +301,11 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     for slab in args.slab :
         if not args.interpolation_only :
             slab_df=df.loc[(df['hemisphere']==hemi) & (df['mri']==brain) & (df['slab']==int(slab)) ]
-            
+            init_align_fn=files[brain][hemi][str(slab)][str(resolution_list[0])]['init_align_fn']
             ###  Step 1: Initial Alignment
             print('\tInitial rigid inter-autoradiograph alignment')
             if (not os.path.exists( init_align_fn) or args.clobber) and not args.remote  :
-                receptorRegister(brain,hemi,slab, files['init_align_fn'], files['init_align_dir'], slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
+                receptorRegister(brain,hemi,slab, init_align_fn, init_align_dir, slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
             
             ### Steps 2-4 : Multiresolution alignment
             multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args,files, resolution_list,  init_align_fn)
