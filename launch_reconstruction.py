@@ -8,12 +8,14 @@ import nibabel as nib
 from utils.utils import shell, resample
 from utils.ANTs import ANTs
 from nibabel.processing import resample_to_output
+from utils.mesh_io import load_mesh_geometry, save_mesh_data, save_obj, read_obj
 from reconstruction.align_slab_to_mri import align_slab_to_mri
 from reconstruction.receptor_segment import classifyReceptorSlices
 from reconstruction.nonlinear_2d_alignment import receptor_2d_alignment, create_2d_sections, concatenate_sections_to_volume
 from reconstruction.init_alignment import receptorRegister
 from reconstruction.surface_interpolation import surface_interpolation, obj_str
 from reconstruction.crop import crop
+from c_upsample_mesh import upsample
 
 
 global file_dir
@@ -22,47 +24,75 @@ file_dir = base_file_dir +os.sep +'section_numbers' +os.sep
 def w2v(c, step, start):
     return np.round( (c-start)/step ).astype(int)
 
+def upsample_obj(coords,ngh,ngh_count,surf_dir, out_dir, surf_fn, resolution):
+    rsl_fn = '{}/surfaces/{}'.format( out_dir, re.sub('.obj',f'_{resolution}mm.csv', os.path.basename(surf_fn)))
+   
+    print(rsl_fn);
+    if not os.path.exists(rsl_fn ) :
+
+        upsample(np.array(coords).flatten().astype(np.float32), 
+                 ngh, 
+                 np.array(ngh_count).flatten().astype(np.int32), 
+                 rsl_fn, float(resolution), 
+                 int(coords.shape[0]))
+
+    coords_dict={}
+    with open(rsl_fn,'r') as F :
+        for l in F.readlines() :
+            coords_str = l.rstrip().split(",")
+            coords = [ float(i) for i in coords_str]
+            try :
+                coords_dict[coords[0]][coords[1]]=coords[2]
+            except KeyError :
+                try :
+                    coords_dict[coords[0]]={}
+                    coords_dict[coords[0]][coords[1]]=coords[2]
+                except KeyError :
+                    print("error here")
+                    exit(0)
+    
+    coords=[]
+    for x, xy_dict in coords_dict.items():
+        for y, z in xy_dict.items():
+            coords.append([x,y,z])
+
+    return np.array(coords)
+
+
 def prepare_surfaces(out_dir, surf_dir, resolution, n_depths, n_vertices=81920) :
-
-    # upsample mesh to given resolution
-    rsl_surf_dir = out_dir + '/surfaces'
-    os.makedirs(rsl_surf_dir, exist_ok=True)
-    
-    surf_gm_fn = obj_str.format(surf_dir,'gray', n_vertices,'')
-    surf_wm_fn = obj_str.format(surf_dir,'white', n_vertices,'')
-    
-    wm_surf = Surface(surf_wm_fn)
-    gm_surf = Surface(surf_gm_fn)
-
-    wm_surf.upsample(max_length)
-    gm_surf.upsample(max_length)
-
-    wm_rsl_fn = rsl_surf_dir + re.sub('.obj',f'_{resolution}mm_{depth}.obj',surf_wm_fn)
-    gm_rsl_fn = rsl_surf_dir + re.sub('.obj',f'_{resolution}mm_{depth}.obj',surf_gm_fn)
-
-    wm_surf.to_filename(wm_rsl_fn)
-    gm_surf.to_filename(gm_rsl_fn)
-
-    wm_dict = load_mesh_geometry(wm_rsl_fn)
-    gm_dict = load_mesh_geometry(gm_rsl_fn)
 
     # create depth mesh
     dt = 1.0/ n_depths
     depth_list = np.arange(dt, 1, dt)
-    
-    gm_dict =  pd.read_csv(surf_gm_list[i])
-    wm_dict =  pd.read_csv(surf_wm_list[i])
 
-    d_coords = gm_dict['coords'] - wm_dict['coords']
+    wm_surf_fn = obj_str.format(surf_dir,'white', n_vertices,'')
+    gm_surf_fn = obj_str.format(surf_dir,'gray', n_vertices,'')
 
-    faces = np.array([ poly.index for poly in wm_dict.polygons.values() ])
+    gm_dict = load_mesh_geometry(gm_surf_fn) 
+    wm_dict = load_mesh_geometry(wm_surf_fn)
     
+    
+    rsl_surf_dir = out_dir + '/surfaces'
+    os.makedirs(rsl_surf_dir, exist_ok=True)
+
+    d_coords = gm_dict['coords'] - wm_dict['coords'] 
+    
+    ngh = np.array([i for j in wm_dict['neighbours']  for i in j  ]).astype(np.int32)
+    ngh_count = wm_dict['neighbour_count']
+
     for depth in depth_list :
-        coords = wm_coords + depth * d_coords
-        out_fn = rsl_surf_dir + re.sub('.obj',f'_{resolution}mm_{depth}.obj',surf_wm_fn)
-        save_mesh_geometry(out_fn, {'coords':coords, 'neighbours':wm_dict['neighbours'], 'neighbour_counts':wm_dict['neighbour_count'] 'faces':faces})
 
-    # inflate surface?
+        coords = wm_dict['coords'] + depth * d_coords
+        out_fn = f'{rsl_surf_dir}/surf_{resolution}mm_{depth}.csv'
+        if not os.path.exists(out_fn) :
+            upsample(np.array(coords).flatten().astype(np.float32), 
+             ngh, 
+             np.array(ngh_count).flatten().astype(np.int32), 
+             out_fn, float(resolution), 
+             int(coords.shape[0]))
+        del coords
+
+    return rsl_surf_dir
 
 def calculate_section_order(autoradiograph_info_fn, source_dir, out_dir, in_df_fn='section_order/autoradiograph_info.csv') :
     
@@ -100,7 +130,8 @@ def setup_argparse():
     parser.add_argument('--slab','-s', dest='slab', nargs='+', default=[1], help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--chunk-perc','-u', dest='slab_chunk_perc', type=float, default=1., help='Subslab size (use with --nonlinear-only option) ')
     parser.add_argument('--chunk','-c', dest='slab_chunk_i', type=int, default=1, help='Subslab to align (use with --nonlinear-only option).')
-    parser.add_argument('--nvertices', dest='n_vertices', type=int, default=327696, help='n vertices for mesh')
+    parser.add_argument('--nvertices', dest='n_vertices', type=int, default=81920, help='n vertices for mesh')
+    parser.add_argument('--ndepths', dest='n_depths', type=int, default=100, help='n depths for mesh')
     parser.add_argument('--src-dir','-i', dest='src_dir', type=str, default='receptor_dwn', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--out-dir','-o', dest='out_dir', type=str, default='reconstruction_output', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--scale-factors', dest='scale_factors_fn', type=str, default=None, help='json file with scaling and ordering info for each slab')
@@ -301,7 +332,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 
     # Surface interpolation
     if not args.remote or args.interpolation_only:
-        surface_interpolation(nl_tfm_list,  nl_2d_list, slab_list, interp_dir, brain, hemi, highest_resolution, hemi_df, args.srv_fn, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=3)
+        surface_interpolation(nl_tfm_list,  nl_2d_list, slab_list, interp_dir, brain, hemi, highest_resolution, hemi_df, args.srv_fn, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
 
 
 ###---------------------###
@@ -327,9 +358,7 @@ if __name__ == '__main__':
     ### Step 0 : Crop downsampled autoradiographs
     crop(args.src_dir,args.crop_dir, df,  remote=args.remote)
 
-    args.surf_dir = upsample_mesh(args.out_dir, args.surf_dir)
-
-    prepare_surfaces(args.out_dir, args.surf_dir, args.resolution, args.n_depths, n_vertices=args.n_vertices)
+    args.surf_dir = prepare_surfaces(args.out_dir, args.surf_dir, resolution_list[-1], args.n_depths, n_vertices=args.n_vertices)
 
     for brain in args.brain :
         for hemi in args.hemi :                     

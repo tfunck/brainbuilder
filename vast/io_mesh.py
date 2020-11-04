@@ -232,6 +232,7 @@ def read_obj(file):
 # function to save mesh geometry
 def save_mesh_geometry(fname,surf_dict):
     # if input is a filename, try to load it with nibabel
+
     if isinstance(fname, str) and isinstance(surf_dict,dict):
         if (fname.endswith('orig') or fname.endswith('pial') or
                 fname.endswith('white') or fname.endswith('sphere') or
@@ -242,6 +243,7 @@ def save_mesh_geometry(fname,surf_dict):
                 nb.freesurfer.io.write_geometry(fname,surf_dict['coords'],surf_dict['faces'])
 #            save_freesurfer(fname,surf_dict['coords'],surf_dict['faces'])
         elif fname.endswith('gii'):
+            print('Writing Gifti', fname)
             write_gifti(fname,surf_dict['coords'],surf_dict['faces'])
         elif fname.endswith('vtk'):
             if 'data' in surf_dict.keys():

@@ -8,7 +8,6 @@ import pandas as pd
 import stripy as stripy
 import numpy as np
 import vast.surface_tools as surface_tools
-import vast.surface_tools as io_mesh
 from nibabel.processing import resample_to_output
 from utils.apply_ants_transform_to_obj import apply_ants_transform_to_obj
 from re import sub
@@ -76,13 +75,12 @@ def thicken_sections(array_src, slab_df, resolution ):
 
     return rec_vol
 
-def get_slab_profile(wm_coords,gm_coords, d_coords, slab_df, depth_list, array_src, affine, profiles, resolution):
+def get_slab_profile( slab_df, depth_list, array_src, affine, profiles, resolution):
     
     rec_vol = thicken_sections(array_src, slab_df, resolution)
     nib.Nifti1Image(rec_vol, affine).to_filename('/project/def-aevans/tfunck/test.nii.gz')
     print('\t\t {}\n\t\t Depth:'.format( np.mean(np.sum(np.abs(wm_coords-gm_coords),axis=1)) ) )
     for depth_i, depth in enumerate(depth_list) :
-        #print(f' {depth} ',end=' ')
         coords = wm_coords + depth * d_coords
         profiles[:,depth_i] += vol_surf_interp( rec_vol, coords, affine, clobber=1)
         if depth_i == 0 :
@@ -101,20 +99,12 @@ def get_profiles(sphere_obj_fn, surf_mid_list, surf_wm_list, surf_gm_list, n_dep
     for i, slab in enumerate(slab_list) :
         print(f'\tslab: {slab}')
         slab_df=df_ligand.loc[df_ligand['slab'].astype(int)==int(slab)]
-
-        surf_mid_dict = pd.read_csv(surf_mid_list[i])
-        surf_gm_dict =  pd.read_csv(surf_gm_list[i])
-        surf_wm_dict =  pd.read_csv(surf_wm_list[i])
-        gm_coords = surf_gm_dict.loc[ :, ['x','y','z'] ].values
-        wm_coords = surf_wm_dict.loc[ :, ['x','y','z'] ].values
-        
-        d_coords = gm_coords - wm_coords
         
         array_img = nib.load(vol_list[i])
         array_src = array_img.get_fdata()
         assert np.sum(array_src) != 0 , f'Error: input receptor volume has is empym {vol_list[i]}'
 
-        profiles += get_slab_profile(wm_coords, gm_coords, d_coords, slab_df, depth_list, array_src, array_img.affine, profiles, resolution)
+        profiles += get_slab_profile( slab_df, depth_list, array_src, array_img.affine, profiles, resolution)
 
     profiles[ profiles < 0.1 ] = 0
    
