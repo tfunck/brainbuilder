@@ -84,7 +84,7 @@ def prepare_surfaces(out_dir, surf_dir, resolution, n_depths, n_vertices=81920) 
 
         coords = wm_dict['coords'] + depth * d_coords
         out_fn = f'{rsl_surf_dir}/surf_{resolution}mm_{depth}.csv'
-        if not os.path.exists(out_fn) :
+        if not os.path.exists(out_fn) or True:
             upsample(np.array(coords).flatten().astype(np.float32), 
              ngh, 
              np.array(ngh_count).flatten().astype(np.int32), 

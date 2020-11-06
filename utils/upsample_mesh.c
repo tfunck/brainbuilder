@@ -45,26 +45,30 @@ int* vertex_in_array(float** vtx, float** ar, int n){
     return exists;
 }
 
-float** add_vertex_to_final(float **vtx, float** ar, int *n, int *n_alloc_to_final){
+int add_vertex_to_final(float **vtx, float*** final_vtx, int *n,  unsigned int*** final_ngh, int *n_alloc_to_final){
     int n_new_elements=40000;
-
+    
     for(int i=0; i < 3; i++){
-       *n = *n + 1;
        if(*n >= *n_alloc_to_final){
-           ar=realloc(ar, (*n_alloc_to_final + n_new_elements) * sizeof(*ar));
-           for(int j = *n_alloc_to_final; j < *n_alloc_to_final+n_new_elements; j++){
-                ar[j] = malloc(sizeof(**ar)*3);   
+           *final_vtx = realloc(*final_vtx, (*n_alloc_to_final + n_new_elements) * sizeof(**final_vtx));
+           *final_ngh = realloc(*final_ngh, (*n_alloc_to_final + n_new_elements) * sizeof(**final_ngh));
+           for(int j = *n_alloc_to_final; j < *n_alloc_to_final + n_new_elements; j++){
+                (*final_vtx)[j] = malloc(sizeof(***final_vtx)*3);   
+                (*final_ngh)[j] = malloc(sizeof(***final_ngh)*2);   
            }
            *n_alloc_to_final = *n_alloc_to_final + n_new_elements;
         }
-        ar[*n][0] = vtx[i][0];
-        ar[*n][1] = vtx[i][1];
-        ar[*n][2] = vtx[i][2];
+        (*final_vtx)[*n][0] = vtx[i][0];
+        (*final_vtx)[*n][1] = vtx[i][1];
+        (*final_vtx)[*n][2] = vtx[i][2];
+
+       (*final_ngh)[*n][0] = *n + (i+1)%3; // *n + 1; 
+       (*final_ngh)[*n][1] = *n + (i+2)%3; // *n + 1; 
+       *n = *n + 1;
     }
-    return ar;
 }
 
-polygon* subdivide(polygon cur_poly, polygon* new_poly, int* n_new_poly, float resolution, float*** final_vtx, int* n_final_vtx, int* n_alloc_to_final){
+polygon* subdivide(polygon cur_poly, polygon* new_poly, int* n_new_poly, float resolution, float*** final_vtx, int* n_final_vtx, unsigned int*** final_ngh, int* n_alloc_to_final){
     // First step is to define 4 new points in the current triangle.
     // The first 3 are on edges between existing points of triangle.
     // 4th point is in the center of the triangle.
@@ -116,7 +120,11 @@ polygon* subdivide(polygon cur_poly, polygon* new_poly, int* n_new_poly, float r
             vtx_to_add[0]=temp_coords[i];
             vtx_to_add[1]=temp_coords[j];
             vtx_to_add[2]=temp_coords[6];
-            *final_vtx = add_vertex_to_final(vtx_to_add, *final_vtx, n_final_vtx, n_alloc_to_final);
+            //ngh[n_final_vtx]=temp_ngh[i];
+            //ngh[n_final_vtx]=temp_ngh[j];
+            //ngh[n_final_vtx+2]={temp_index[0:8]}
+            //when read, concatenate all neighbours together
+            add_vertex_to_final(vtx_to_add, final_vtx, n_final_vtx, final_ngh, n_alloc_to_final);
         }
     }
     
@@ -253,11 +261,14 @@ int upsample(int nvtx, float* vtx_coords_flat, long unsigned int* vtx_ngh_flat, 
     int n_poly = get_polygons( nvtx, vtx_coords, vtx_ngh, vtx_nngh, polygons);
     int n_alloc_to_final=nvtx;
     int n_final_vtx=0; 
+    unsigned int** final_ngh=malloc(sizeof(*final_ngh)*n_alloc_to_final);
     float** final_vtx=malloc(sizeof(*final_vtx)*n_alloc_to_final);
     float** new_vtx=malloc(sizeof(*new_vtx));
     
-    for(int i=0; i<n_alloc_to_final; i++) final_vtx[i]=malloc(sizeof(**final_vtx)*3);
-
+    for(int i=0; i<n_alloc_to_final; i++){ 
+        final_vtx[i]=malloc(sizeof(**final_vtx)*3);
+        final_ngh[i]=malloc(sizeof(**final_ngh)*2);
+    }
     printf("\tupsampling polygons\n");
     for(int i=0; i<n_poly;i++){
         //printf("\r%3.2f",(float) 100.0 *i/n_poly);
@@ -279,7 +290,7 @@ int upsample(int nvtx, float* vtx_coords_flat, long unsigned int* vtx_ngh_flat, 
             new_poly = malloc(sizeof(*cur_poly));
             
             for(int j=0; j < n_cur_poly; j++){
-                new_poly = subdivide(cur_poly[j], new_poly, &n_new_poly, resolution, &final_vtx, &n_final_vtx, &n_alloc_to_final );
+                new_poly = subdivide(cur_poly[j], new_poly, &n_new_poly, resolution, &final_vtx, &n_final_vtx, &final_ngh, &n_alloc_to_final );
             }
             free(cur_poly); 
             cur_poly = new_poly;
@@ -294,7 +305,7 @@ int upsample(int nvtx, float* vtx_coords_flat, long unsigned int* vtx_ngh_flat, 
     printf("\twriting %d vertices to %s\n",n_final_vtx, out_fn);
     FILE* out_file = fopen(out_fn, "w");
     for(int i=0; i<n_final_vtx;i++){
-        fprintf(out_file,"%f,%f,%f\n",final_vtx[i][0],final_vtx[i][1],final_vtx[i][2]);
+        fprintf(out_file,"%f,%f,%f,%d,%d\n",final_vtx[i][0],final_vtx[i][1],final_vtx[i][2],final_ngh[i][0],final_ngh[i][1]);
     }
     fclose(out_file); 
     printf("\r\tdone.\n"); 
