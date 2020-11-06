@@ -59,43 +59,7 @@ def upsample_obj(coords,ngh,ngh_count,surf_dir, out_dir, surf_fn, resolution):
     return np.array(coords)
 
 
-def prepare_surfaces(out_dir, surf_dir, resolution, n_depths, n_vertices=81920) :
-
-    # create depth mesh
-    dt = 1.0/ n_depths
-    depth_list = np.arange(dt, 1, dt)
-
-    wm_surf_fn = obj_str.format(surf_dir,'white', n_vertices,'')
-    gm_surf_fn = obj_str.format(surf_dir,'gray', n_vertices,'')
-
-    gm_dict = load_mesh_geometry(gm_surf_fn) 
-    wm_dict = load_mesh_geometry(wm_surf_fn)
-    
-    
-    rsl_surf_dir = out_dir + '/surfaces'
-    os.makedirs(rsl_surf_dir, exist_ok=True)
-
-    d_coords = gm_dict['coords'] - wm_dict['coords'] 
-    
-    ngh = np.array([i for j in wm_dict['neighbours']  for i in j  ]).astype(np.int32)
-    ngh_count = wm_dict['neighbour_count']
-
-    for depth in depth_list :
-
-        coords = wm_dict['coords'] + depth * d_coords
-        out_fn = f'{rsl_surf_dir}/surf_{resolution}mm_{depth}.csv'
-        if not os.path.exists(out_fn) :
-            upsample(np.array(coords).flatten().astype(np.float32), 
-             ngh, 
-             np.array(ngh_count).flatten().astype(np.int32), 
-             out_fn, float(resolution), 
-             int(coords.shape[0]))
-        del coords
-
-    return rsl_surf_dir
-
 def calculate_section_order(autoradiograph_info_fn, source_dir, out_dir, in_df_fn='section_order/autoradiograph_info.csv') :
-    
     df=pd.read_csv(in_df_fn)
     df['volume_order']=-1
     for (brain,hemi), tdf in df.groupby(['mri', 'hemisphere']):
@@ -332,7 +296,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 
     # Surface interpolation
     if not args.remote or args.interpolation_only:
-        surface_interpolation(nl_tfm_list,  nl_2d_list, slab_list, interp_dir, brain, hemi, highest_resolution, hemi_df, args.srv_fn, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+        surface_interpolation(nl_tfm_list,  nl_2d_list, slab_list,args.out_dir, interp_dir, brain, hemi, highest_resolution, hemi_df, args.srv_fn, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
 
 
 ###---------------------###
@@ -358,7 +322,6 @@ if __name__ == '__main__':
     ### Step 0 : Crop downsampled autoradiographs
     crop(args.src_dir,args.crop_dir, df,  remote=args.remote)
 
-    args.surf_dir = prepare_surfaces(args.out_dir, args.surf_dir, resolution_list[-1], args.n_depths, n_vertices=args.n_vertices)
 
     for brain in args.brain :
         for hemi in args.hemi :                     

@@ -6,20 +6,21 @@ import tempfile
 from sys import argv
 from utils.mesh_io import  save_obj, read_obj
 from re import sub
-from utils.utils import shell, splitext
+from utils.utils import shell, splitext, read_coords
 
 
 def apply_ants_transform_to_obj( in_obj_fn, tfm_list, out_obj_fn, invert):
+    print("transforming", in_obj_fn)
     coords, faces = read_obj(in_obj_fn)
     tfm = ants.read_transform(tfm_list[0])
     flip = 1
     if np.sum(tfm.fixed_parameters) != 0 : flip=-1
     
     in_file = open(in_obj_fn, 'r')
-    out_file=open(out_obj_fn, 'w+')
+    #out_file=open(out_obj_fn, 'w+')
 
-    coord_fn = sub('.obj', '.csv', in_obj_fn)
-    out_coord_fn = sub('.obj', '.csv', out_obj_fn)
+    coord_fn = sub('.obj', '_ants_reformat.csv', in_obj_fn)
+    #out_coord_fn = sub('.obj', '.csv', out_obj_fn)
 
     #read the csv with transformed vertex points
     with open(coord_fn, 'w+') as f :  
@@ -39,11 +40,11 @@ def apply_ants_transform_to_obj( in_obj_fn, tfm_list, out_obj_fn, invert):
             x,y,z,a,b = l.rstrip().split(',')
             coords[i-1] = [flip*float(x),flip*float(y),float(z)]
     
-    with open(out_coord_fn, 'w+') as f :
-        #read the csv with transformed vertex points
-        f.write('x,y,z,t,label\n')
-        for i, ( x,y,z ) in enumerate(coords) :
-           f.write('{},{},{},0,0\n'.format(x,y,z))
+    #with open(out_coord_fn, 'w+') as f :
+    #    #read the csv with transformed vertex points
+    #    f.write('x,y,z,t,label\n')
+    #    for i, ( x,y,z ) in enumerate(coords) :
+    #       f.write('{},{},{},0,0\n'.format(x,y,z))
 
     save_obj(out_obj_fn, coords, faces)
 
