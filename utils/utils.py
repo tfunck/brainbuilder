@@ -21,7 +21,21 @@ from subprocess import call, Popen, PIPE, STDOUT
 from sklearn.cluster import KMeans
 from scipy.ndimage import zoom
 from skimage.transform import resize
-
+def read_coords(fn):
+    coords_dict={}
+    with open(fn,'r') as F :
+        for l in F.readlines() :
+            coords_str = l.rstrip().split(",")
+            coords = [ float(i) for i in coords_str]
+            try :
+                coords_dict[coords[0]][coords[1]]=coords[2]
+            except KeyError :
+                try :
+                    coords_dict[coords[0]]={}
+                    coords_dict[coords[0]][coords[1]]=coords[2]
+                except KeyError :
+                    print("error here")
+                    exit(0)
 def resample(img, out_fn, res, factor=2):
     res=float(res)
     xres = (res/factor) / img.affine[0,0]

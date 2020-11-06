@@ -1,8 +1,8 @@
 import setuptools
 from distutils.core import setup, Extension
-import numpy as np
+#import numpy as np
 
-setup(name='c_upsample_mesh', version='1.0',   ext_modules=[Extension('c_upsample_mesh', ["c_upsample_mesh.c", "upsample_mesh.c"], include_dirs=[np.get_include()])], 
+setup(name='c_upsample_mesh', version='1.0',   ext_modules=[Extension('c_upsample_mesh', ["c_upsample_mesh.c", "upsample_mesh.c"], include_dirs=['/usr/local/lib/python3.6/dist-packages/numpy/core/include'  ])], #np.get_include()
         author="Thomas Funck",
         author_email="tffunck@gmail.com",
         description="upsample obj mesh",
