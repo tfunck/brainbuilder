@@ -7,7 +7,7 @@ struct temp_polygon;
 
 typedef struct temp_polygon {
     float coords[3][3];
-    char* index;
+    long unsigned int index;
 } polygon;
 
 
@@ -45,9 +45,9 @@ int* vertex_in_array(float** vtx, float** ar, int n){
     return exists;
 }
 
-int add_vertex_to_final(float **vtx, float*** final_vtx, int *n,  unsigned int*** final_ngh, int *n_alloc_to_final){
+int add_vertex_to_final(float **vtx,  int *n, float*** final_vtx, unsigned int*** final_ngh, int *n_alloc_to_final){
     int n_new_elements=40000;
-    
+    //printf("\t%d %d\n",*n,*n_alloc_to_final); 
     for(int i=0; i < 3; i++){
        if(*n >= *n_alloc_to_final){
            *final_vtx = realloc(*final_vtx, (*n_alloc_to_final + n_new_elements) * sizeof(**final_vtx));
@@ -68,7 +68,7 @@ int add_vertex_to_final(float **vtx, float*** final_vtx, int *n,  unsigned int**
     }
 }
 
-polygon* subdivide(polygon cur_poly, polygon* new_poly, int* n_new_poly, float resolution, float*** final_vtx, int* n_final_vtx, unsigned int*** final_ngh, int* n_alloc_to_final){
+polygon* subdivide(polygon cur_poly, polygon* new_poly, int* n_new_poly, float resolution, float*** final_vtx, unsigned int*** final_ngh, int* n_final_vtx, int* n_alloc_to_final){
     // First step is to define 4 new points in the current triangle.
     // The first 3 are on edges between existing points of triangle.
     // 4th point is in the center of the triangle.
@@ -111,7 +111,7 @@ polygon* subdivide(polygon cur_poly, polygon* new_poly, int* n_new_poly, float r
                 //printf("new poly %d: %f %f %f\n", *n_new_poly, new_poly[*n_new_poly].coords[q][0], new_poly[*n_new_poly].coords[q][1], new_poly[*n_new_poly].coords[q][2] );
             //}
             *n_new_poly += 1;
-            new_poly = realloc(new_poly, sizeof(*new_poly) * (int) (*n_new_poly+1));
+            new_poly = realloc(new_poly, sizeof(*new_poly) * (int) (*n_new_poly+2));
         }
         else {
             //since the edges in the polygon are below the resolution, we can save the vertex locations
@@ -124,8 +124,7 @@ polygon* subdivide(polygon cur_poly, polygon* new_poly, int* n_new_poly, float r
             //ngh[n_final_vtx]=temp_ngh[j];
             //ngh[n_final_vtx+2]={temp_index[0:8]}
             //when read, concatenate all neighbours together
-            
-            add_vertex_to_final(vtx_to_add, final_vtx, n_final_vtx, final_ngh, n_alloc_to_final);
+            add_vertex_to_final(vtx_to_add,  n_final_vtx,final_vtx, final_ngh, n_alloc_to_final);
         }
     }
     
@@ -151,34 +150,52 @@ polygon* subdivide(polygon cur_poly, polygon* new_poly, int* n_new_poly, float r
     */
 }
 
-int match_index(char* index, polygon* polygons, int n ){
+int match_index(unsigned long int index, polygon* polygons, int n ){
     for( int i = 0 ; i<n; i++){
-        if( strcmp(index,polygons[i].index)==1 ){
+        if( index == polygons[i].index){
             return 1;
         }
     }
     return 0;
 }
 
-char* create_index(int i0, int i1, int i2){
-    int max, mid, min;
-    
-    if (i0 > i1 && i0 > i2) max=i0;
-    else if (i1 > i2 && i1 > i0) max=i1;
-    else max=i2;
+unsigned long int get_sig_digits(int i){
+    unsigned long int n=1;
 
-    if (i0 < i1 && i0 < i2) min=i0;
-    else if (i1 < i2 && i1 < i0) min=i1;
-    else  min=i2;
+    while( i > pow(10,n)) n++;
+    return (long int) pow(10,n);
+}
 
-    if ( !( i0==min || i0 == max)) mid=i0;
-    else if ( !( i1==min || i1 == max)) mid=i1;
-    else mid=i2;
+int max_int(int i0, int i1, int i2){
+    if( i0>i1 && i0 > i2 ) return i0;
+    if( i1>i2 && i1 > i0 ) return i1;
+    return i2;
+}
+int min_int(int i0, int i1, int i2){
+    int out=0;
+    if(i0 <= i1 && i0 <= i2) out=i0;
+    else if(i1 <= i2 && i1 <= i0) out=i1;
+    else out=i2;
+    return out;
+}
+int mid_int(int i0, int i1, int i2){
+    if( (i0 <= i1 && i0 >= i2) ||  (i0 <= i2 && i0 >= i1)) return i0;
+    if( (i1 <= i0 && i1 >= i2) ||  (i1 <= i2 && i1 >= i0)  ) return i1;
+    return i2;
+}
 
-    int str_size = (int)(((ceil(log10(i0+1))+1)+(ceil(log10(i1+1))+1)+(ceil(log10(i2+1))+1)) *sizeof(char)); 
+unsigned long int create_index(int i0, int i1, int i2){
+    int max=max_int(i0,i1,i2);
+    int mid=mid_int(i0,i1,i2);
+    int min=min_int(i0,i1,i2);
+
+    //int str_size = (int)(((ceil(log10(i0+1))+1)+(ceil(log10(i1+1))+1)+(ceil(log10(i2+1))+1)) *sizeof(char)); 
     //int str_size = (int)1000 *sizeof(char); 
-    char *index=malloc(str_size);
-    sprintf(index,"%d%d%d",min,mid,max);
+    unsigned long int u1 = get_sig_digits(max)*mid;
+    unsigned long int u2 = get_sig_digits(u1)*min;
+    unsigned long int index = u2 + u1 + max;
+    //printf("%d %d %d\n",i0,i1,i2);
+    //printf("%d %d %d --> %ld %ld --> %ld\n", min, mid, max, u1, u2, index);
     return index;
 }
 
@@ -200,36 +217,31 @@ polygon* get_polygons(int nvtx,int* npoly, float** vtx_coords, long unsigned int
                 if(idx0 >= nvtx || idx1 >= nvtx || idx2 >= nvtx ){
                     printf("\nError: invalid index %d %d %d, is greater than %d\n",idx0, idx1, idx2, nvtx);
                     printf("\twith nngh %d %d\n", j, k);
-                    exit(1);
                 }
-                
+
+                //printf("\noo %d %d %d | %d %d \n", idx0, idx1, idx2, j, k); //, vtx_nngh[idx1], vtx_nngh[idx2] ); 
                 for( int p=0; p< vtx_nngh[idx0]; p++) {
                     if ( idx2 == vtx_ngh[idx0][p] ){
                         //found polygon between points i, ngh_idx1, ngh_idx0
-                        char* index = create_index(idx0, idx1, idx2);
-                        
+                        long unsigned int index = create_index(idx0, idx1, idx2);
                         //check if it is already in list of polygons
                         if ( match_index( index, polygons, *npoly) == 0){
                             polygons[*npoly].index = index; 
-                            //for(int q=0; q<3; q++){
-                                //polygons[*npoly].coords[0][q]=vtx_coords[idx0][q];
-                                //polygons[*npoly].coords[1][q]=vtx_coords[idx1][q];
-                                //polygons[*npoly].coords[2][q]=vtx_coords[idx2][q];
-                            //}
-                            //*npoly = *npoly + 1;
-                            if(*npoly >= nvtx) {printf("Error: More polygons (%d) than vertices (%d)!\n",*npoly,nvtx);exit(1);}
-                       }
-                       //free(index);
+                            for(int q=0; q<3; q++){
+                                polygons[*npoly].coords[0][q]=vtx_coords[idx0][q];
+                                polygons[*npoly].coords[1][q]=vtx_coords[idx1][q];
+                                polygons[*npoly].coords[2][q]=vtx_coords[idx2][q];
+                            }
+                            *npoly = *npoly + 1;
+                            if(*npoly >= nvtx) {printf("Error: More polygons (%d) than vertices (%d)!\n",*npoly,nvtx);}//exit(1);}
+                        }
                     }
                 }
             }
         }
     }
-    printf("okay\n");
-    printf("n polygons: %d\n", *npoly);
-    printf("1-->%d\n", polygons);
+    printf("done\n");
     polygons = realloc(polygons, *npoly * sizeof(*polygons) );
-    printf("2-->%d\n", polygons);
     return polygons;
 }
 
@@ -239,9 +251,10 @@ long unsigned int** reformat_ngh(int nvtx, long unsigned int *vtx_ngh_flat, long
     for(int i = 0; i < nvtx; i++) {
         vtx_ngh[i] = malloc(vtx_nngh[i]*sizeof(**vtx_ngh));
         for( int j = 0; j<vtx_nngh[i]; j++){
-            index += 1; 
             vtx_ngh[i][j] = vtx_ngh_flat[index] ;    
+            index += 1; 
         }
+        printf("\n");
     }
     return vtx_ngh;
 }
@@ -258,12 +271,12 @@ float** reformat_coords(int nvtx, float* vtx_coords_flat){
         vtx_coords[i][0] =vtx_coords_flat[i*3];
         vtx_coords[i][1] =vtx_coords_flat[i*3+1];
         vtx_coords[i][2] =vtx_coords_flat[i*3+2];
+        printf("%f %f %f\n", vtx_coords[i][0], vtx_coords[i][1], vtx_coords[i][2]);
     }
     return vtx_coords;
 }
 
-int upsample_polygons(polygon* polygons,float** final_vtx, unsigned int** final_ngh, int n_poly, int nvtx,int* n_final_vtx, int n_alloc_to_final, float resolution){
-     
+int upsample_polygons(polygon* polygons,float*** final_vtx, unsigned int*** final_ngh, int n_poly, int nvtx,int* n_final_vtx, int* n_alloc_to_final, float resolution){
 
     for(int i=0; i<n_poly;i++){
         int n_cur_poly=1;
@@ -274,7 +287,6 @@ int upsample_polygons(polygon* polygons,float** final_vtx, unsigned int** final_
         for( int j=0; j < 3; j++) {
             for( int k=0; k<3; k++ ){
                 cur_poly[0].coords[j][k] = polygons[i].coords[j][k];
-                if(polygons[i].coords[j][k] == 0) { printf("Found 0 coordinate."); exit(0);} 
             }
         }
 
@@ -284,7 +296,7 @@ int upsample_polygons(polygon* polygons,float** final_vtx, unsigned int** final_
             new_poly = malloc(sizeof(*cur_poly));
             
             for(int j=0; j < n_cur_poly; j++){
-                new_poly = subdivide(cur_poly[j], new_poly, &n_new_poly, resolution, &final_vtx, n_final_vtx, &final_ngh, &n_alloc_to_final );
+                new_poly = subdivide(cur_poly[j], new_poly, &n_new_poly, resolution, final_vtx,final_ngh, n_final_vtx,  n_alloc_to_final );
             }
             free(cur_poly); 
             cur_poly = new_poly;
@@ -298,7 +310,6 @@ int upsample_polygons(polygon* polygons,float** final_vtx, unsigned int** final_
 }
 
 int upsample(int nvtx, float* vtx_coords_flat, long unsigned int* vtx_ngh_flat, long unsigned int *vtx_nngh, float resolution, char* out_fn){
-    printf("Hello\n");
     float** vtx_coords = reformat_coords(nvtx, vtx_coords_flat);
     long unsigned int** vtx_ngh = reformat_ngh(nvtx, vtx_ngh_flat, vtx_nngh );
     int n_poly = 0;
@@ -319,21 +330,19 @@ int upsample(int nvtx, float* vtx_coords_flat, long unsigned int* vtx_ngh_flat, 
     float** final_vtx = malloc(sizeof(*final_vtx) * n_alloc_to_final);
     
     for(int i=0; i<n_alloc_to_final; i++){ 
-        final_vtx[i]=malloc(sizeof(**final_vtx)*3);
-        final_ngh[i]=malloc(sizeof(**final_ngh)*2);
+        final_vtx[i] = malloc(sizeof(**final_vtx)*3);
+        final_ngh[i] = malloc(sizeof(**final_ngh)*2);
     }
 
     //Iterate over polygons and subsample them
-    //upsample_polygons(polygons, final_vtx, final_ngh, n_poly, nvtx, &n_final_vtx, n_alloc_to_final, resolution);
+    upsample_polygons(polygons, &final_vtx, &final_ngh, n_poly, nvtx, &n_final_vtx, &n_alloc_to_final, resolution);
 
     printf("\twriting %d vertices to %s\n",n_final_vtx, out_fn);
     FILE* out_file = fopen(out_fn, "w");
-    //for(int i=0; i<n_final_vtx;i++){
-        //fprintf(out_file,"%f,%f,%f,%d,%d\n",final_vtx[i][0],final_vtx[i][1],final_vtx[i][2],final_ngh[i][0],final_ngh[i][1]);
-    //} 
-    printf("\tdone writing 1\n");
-    //fclose(out_file); 
-    printf("\tdone writing 2\n");
+    for(int i=0; i<n_final_vtx;i++){
+        fprintf(out_file,"%f,%f,%f,%d,%d\n",final_vtx[i][0],final_vtx[i][1],final_vtx[i][2],final_ngh[i][0],final_ngh[i][1]);
+    } 
+    fclose(out_file); 
     
     for(int i=0; i<n_alloc_to_final;i++){
         free(final_vtx[i]);
@@ -343,10 +352,22 @@ int upsample(int nvtx, float* vtx_coords_flat, long unsigned int* vtx_ngh_flat, 
     printf("\r\tdone.\n"); 
     free(final_vtx);
     free(final_ngh);
-    //free(polygons);
+    free(polygons);
 
 
    
     return 0;
 }
 
+int main(int argc, char** argv){
+    float vtx_coords_flat[9]={0,0,0, 10,0,0, 0,10,0};
+    long unsigned int vtx_ngh_flat[6]={ 1,2, 0,2, 0,1  };
+    long unsigned int vtx_nngh[3]={2, 2, 2};
+    float resolution=1;
+    char* out_fn="test_upsample.txt";
+    int nvtx=3;
+
+    upsample(nvtx, vtx_coords_flat, vtx_ngh_flat, vtx_nngh, resolution, out_fn);
+    
+    return 0;
+}
