@@ -124,6 +124,7 @@ polygon* subdivide(polygon cur_poly, polygon* new_poly, int* n_new_poly, float r
             //ngh[n_final_vtx]=temp_ngh[j];
             //ngh[n_final_vtx+2]={temp_index[0:8]}
             //when read, concatenate all neighbours together
+            
             add_vertex_to_final(vtx_to_add, final_vtx, n_final_vtx, final_ngh, n_alloc_to_final);
         }
     }
@@ -174,55 +175,62 @@ char* create_index(int i0, int i1, int i2){
     else if ( !( i1==min || i1 == max)) mid=i1;
     else mid=i2;
 
-
     int str_size = (int)(((ceil(log10(i0+1))+1)+(ceil(log10(i1+1))+1)+(ceil(log10(i2+1))+1)) *sizeof(char)); 
+    //int str_size = (int)1000 *sizeof(char); 
     char *index=malloc(str_size);
     sprintf(index,"%d%d%d",min,mid,max);
     return index;
 }
 
-int get_polygons(int nvtx, float** vtx_coords, long unsigned int** vtx_ngh, long unsigned int *vtx_nngh, polygon* polygons ){
-    int npoly=0;
+polygon* get_polygons(int nvtx,int* npoly, float** vtx_coords, long unsigned int** vtx_ngh, long unsigned int *vtx_nngh){
+    polygon* polygons = malloc( sizeof(*polygons) * nvtx ); 
     //for vertices...
     printf("\tgetting polygons... ");
+
     for(int idx0=0; idx0 < nvtx; idx0++) {
+
         //for ngh over current vertex
-        
         for(int j=0; j< vtx_nngh[idx0]; j++){
             int idx1 = vtx_ngh[idx0][j];
-            //for neighours of idx1
 
+            //for neighours of idx1
             for(int k=0; k < vtx_nngh[idx1]; k++){
                 int idx2 = vtx_ngh[idx1][k];
 
                 if(idx0 >= nvtx || idx1 >= nvtx || idx2 >= nvtx ){
                     printf("\nError: invalid index %d %d %d, is greater than %d\n",idx0, idx1, idx2, nvtx);
+                    printf("\twith nngh %d %d\n", j, k);
+                    exit(1);
                 }
                 
                 for( int p=0; p< vtx_nngh[idx0]; p++) {
-                    if (idx2 == vtx_ngh[idx0][p]){
+                    if ( idx2 == vtx_ngh[idx0][p] ){
                         //found polygon between points i, ngh_idx1, ngh_idx0
                         char* index = create_index(idx0, idx1, idx2);
+                        
                         //check if it is already in list of polygons
-                        if ( match_index( index, polygons, npoly) == 0){
-                            polygons[npoly].index=index;
-                            for(int q=0; q<3; q++){
-                                polygons[npoly].coords[0][q]=vtx_coords[idx0][q];
-                                polygons[npoly].coords[1][q]=vtx_coords[idx1][q];
-                                polygons[npoly].coords[2][q]=vtx_coords[idx2][q];
-                                //printf("%f %f %f\n",polygons[npoly].coords[0][q], polygons[npoly].coords[1][q],polygons[npoly].coords[2][q] );
-                            }
-                            npoly += 1;
-
-                        }
+                        if ( match_index( index, polygons, *npoly) == 0){
+                            polygons[*npoly].index = index; 
+                            //for(int q=0; q<3; q++){
+                                //polygons[*npoly].coords[0][q]=vtx_coords[idx0][q];
+                                //polygons[*npoly].coords[1][q]=vtx_coords[idx1][q];
+                                //polygons[*npoly].coords[2][q]=vtx_coords[idx2][q];
+                            //}
+                            //*npoly = *npoly + 1;
+                            if(*npoly >= nvtx) {printf("Error: More polygons (%d) than vertices (%d)!\n",*npoly,nvtx);exit(1);}
+                       }
+                       //free(index);
                     }
                 }
             }
         }
     }
-    printf("n polygons: %d\n", npoly);
-    polygons = realloc(polygons, npoly*sizeof(*polygons) );
-    return npoly;
+    printf("okay\n");
+    printf("n polygons: %d\n", *npoly);
+    printf("1-->%d\n", polygons);
+    polygons = realloc(polygons, *npoly * sizeof(*polygons) );
+    printf("2-->%d\n", polygons);
+    return polygons;
 }
 
 long unsigned int** reformat_ngh(int nvtx, long unsigned int *vtx_ngh_flat, long unsigned int* vtx_nngh ){
@@ -254,24 +262,10 @@ float** reformat_coords(int nvtx, float* vtx_coords_flat){
     return vtx_coords;
 }
 
-int upsample(int nvtx, float* vtx_coords_flat, long unsigned int* vtx_ngh_flat, long unsigned int *vtx_nngh, float resolution, char* out_fn){
-    polygon* polygons=malloc(sizeof(*polygons)*nvtx); 
-    float** vtx_coords = reformat_coords(nvtx, vtx_coords_flat);
-    long unsigned int** vtx_ngh = reformat_ngh(nvtx, vtx_ngh_flat, vtx_nngh );
-    int n_poly = get_polygons( nvtx, vtx_coords, vtx_ngh, vtx_nngh, polygons);
-    int n_alloc_to_final=nvtx;
-    int n_final_vtx=0; 
-    unsigned int** final_ngh=malloc(sizeof(*final_ngh)*n_alloc_to_final);
-    float** final_vtx=malloc(sizeof(*final_vtx)*n_alloc_to_final);
-    float** new_vtx=malloc(sizeof(*new_vtx));
-    
-    for(int i=0; i<n_alloc_to_final; i++){ 
-        final_vtx[i]=malloc(sizeof(**final_vtx)*3);
-        final_ngh[i]=malloc(sizeof(**final_ngh)*2);
-    }
-    printf("\tupsampling polygons\n");
+int upsample_polygons(polygon* polygons,float** final_vtx, unsigned int** final_ngh, int n_poly, int nvtx,int* n_final_vtx, int n_alloc_to_final, float resolution){
+     
+
     for(int i=0; i<n_poly;i++){
-        //printf("\r%3.2f",(float) 100.0 *i/n_poly);
         int n_cur_poly=1;
         polygon* cur_poly = malloc(sizeof(*cur_poly)*n_cur_poly);
         polygon* new_poly=NULL;
@@ -290,26 +284,69 @@ int upsample(int nvtx, float* vtx_coords_flat, long unsigned int* vtx_ngh_flat, 
             new_poly = malloc(sizeof(*cur_poly));
             
             for(int j=0; j < n_cur_poly; j++){
-                new_poly = subdivide(cur_poly[j], new_poly, &n_new_poly, resolution, &final_vtx, &n_final_vtx, &final_ngh, &n_alloc_to_final );
+                new_poly = subdivide(cur_poly[j], new_poly, &n_new_poly, resolution, &final_vtx, n_final_vtx, &final_ngh, &n_alloc_to_final );
             }
             free(cur_poly); 
             cur_poly = new_poly;
             n_cur_poly = n_new_poly;
-            //printf("n_cur_poly = %d\n", n_cur_poly); 
-            //if (n_new_poly > 100) exit(0);
         }
 
         //should save the new polygon locations here
         free(new_poly);
     }
+    return 0;
+}
+
+int upsample(int nvtx, float* vtx_coords_flat, long unsigned int* vtx_ngh_flat, long unsigned int *vtx_nngh, float resolution, char* out_fn){
+    printf("Hello\n");
+    float** vtx_coords = reformat_coords(nvtx, vtx_coords_flat);
+    long unsigned int** vtx_ngh = reformat_ngh(nvtx, vtx_ngh_flat, vtx_nngh );
+    int n_poly = 0;
+    polygon* polygons = get_polygons( nvtx, &n_poly, vtx_coords, vtx_ngh, vtx_nngh);
+    int n_final_vtx=0;
+    int n_alloc_to_final=nvtx;
+
+    //Free the input coords and ngh
+    for(int i=0; i<nvtx; i++){
+        free(vtx_coords[i]);
+        free(vtx_ngh[i]);
+    }
+    free(vtx_coords);
+    free(vtx_ngh);
+    
+    //Allocate final vtx and ngh arrays
+    unsigned int** final_ngh = malloc(sizeof(*final_ngh) * n_alloc_to_final);
+    float** final_vtx = malloc(sizeof(*final_vtx) * n_alloc_to_final);
+    
+    for(int i=0; i<n_alloc_to_final; i++){ 
+        final_vtx[i]=malloc(sizeof(**final_vtx)*3);
+        final_ngh[i]=malloc(sizeof(**final_ngh)*2);
+    }
+
+    //Iterate over polygons and subsample them
+    //upsample_polygons(polygons, final_vtx, final_ngh, n_poly, nvtx, &n_final_vtx, n_alloc_to_final, resolution);
+
     printf("\twriting %d vertices to %s\n",n_final_vtx, out_fn);
     FILE* out_file = fopen(out_fn, "w");
-    for(int i=0; i<n_final_vtx;i++){
-        fprintf(out_file,"%f,%f,%f,%d,%d\n",final_vtx[i][0],final_vtx[i][1],final_vtx[i][2],final_ngh[i][0],final_ngh[i][1]);
+    //for(int i=0; i<n_final_vtx;i++){
+        //fprintf(out_file,"%f,%f,%f,%d,%d\n",final_vtx[i][0],final_vtx[i][1],final_vtx[i][2],final_ngh[i][0],final_ngh[i][1]);
+    //} 
+    printf("\tdone writing 1\n");
+    //fclose(out_file); 
+    printf("\tdone writing 2\n");
+    
+    for(int i=0; i<n_alloc_to_final;i++){
+        free(final_vtx[i]);
+        free(final_ngh[i]);
     }
-    fclose(out_file); 
+
     printf("\r\tdone.\n"); 
-    //free(final_vtx);
-    free(polygons);
+    free(final_vtx);
+    free(final_ngh);
+    //free(polygons);
+
+
+   
+    return 0;
 }
 

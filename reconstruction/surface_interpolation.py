@@ -8,6 +8,9 @@ import pandas as pd
 import stripy as stripy
 import numpy as np
 import vast.surface_tools as surface_tools
+import ants
+import tempfile
+import time
 from c_upsample_mesh import upsample
 from nibabel.processing import resample_to_output
 from utils.apply_ants_transform_to_obj import apply_ants_transform_to_obj
@@ -19,42 +22,93 @@ from nibabel.processing import resample_to_output
 from skimage.filters import threshold_otsu, threshold_li
 from ants import  from_numpy,  apply_transforms, apply_ants_transform, read_transform
 from ants import image_read, registration
-from utils.utils import shell, w2v, v2w, read_coords
+from utils.utils import shell, w2v, v2w
 from vast.surface_volume_mapper import SurfaceVolumeMapper
 
-global obj_str
-obj_str='{}/mri1_{}_surface_right_{}{}.obj'
+global surf_fn_str
+surf_fn_str='{}/mri1_{}_surface_right_{}{}.surf.gii'
 
-def upsample_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, n_depths, slab, n_vertices=81920) :
 
+def save_gii(coords, triangles, reference_fn, out_fn):
+    img =nib.load(reference_fn) 
+    ar1 = nib.gifti.gifti.GiftiDataArray(data=coords, intent='NIFTI_INTENT_POINTSET') 
+    ar2 = nib.gifti.gifti.GiftiDataArray(data=triangles, intent='NIFTI_INTENT_TRIANGLE') 
+    out = nib.gifti.GiftiImage(darrays=[ar1,ar2], header=img.header, file_map=img.file_map, extra=img.extra, meta=img.meta, labeltable=img.labeltable) 
+    out.to_filename(out_fn) 
+ 
+def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert):
+    print("transforming", in_gii_fn)
+    faces, coords = nib.load(in_gii_fn).agg_data(('triangle', 'pointset'))
+
+    tfm = ants.read_transform(tfm_list[0])
+    flip = 1
+    if np.sum(tfm.fixed_parameters) != 0 : flip=-1
+    
+    in_file = open(in_gii_fn, 'r')
+    
+    path, ext = os.path.splitext(in_gii_fn)
+    coord_fn = path+ '_ants_reformat.csv'
+
+    #read the csv with transformed vertex points
+    with open(coord_fn, 'w+') as f :  
+        f.write('x,y,z,t,label\n') 
+        for x,y,z in coords :  
+            f.write('{},{},{},{},{}\n'.format(flip*x,flip*y,z,0,0 ))
+
+    temp_out_fn=tempfile.NamedTemporaryFile().name+'.csv'
+    shell(f'antsApplyTransformsToPoints -d 3 -i {coord_fn} -t [{tfm_list[0]},{invert[0]}]  -o {temp_out_fn}',verbose=True)
+
+    # save transformed surfaced as an gii file
+    with open(temp_out_fn, 'r') as f :
+        #read the csv with transformed vertex points
+        for i, l in enumerate( f.readlines() ):
+            if i == 0 : continue
+            x,y,z,a,b = l.rstrip().split(',')
+            coords[i-1] = [flip*float(x),flip*float(y),float(z)]
+    
+    save_gii(coords,faces,in_gii_fn,out_gii_fn)
+
+def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, depth_list, slab, surf_upsample_fn, n_vertices=81920) :
     # create depth mesh
-    dt = 1.0/ n_depths
-    depth_list = np.arange(dt, 1, dt)
-
-
     gm_dict = load_mesh_geometry(gm_surf_fn) 
     wm_dict = load_mesh_geometry(wm_surf_fn)
     
-    
-
     d_coords = gm_dict['coords'] - wm_dict['coords'] 
     
     ngh = np.array([i for j in wm_dict['neighbours']  for i in j  ]).astype(np.int32)
     ngh_count = wm_dict['neighbour_count']
-
+    
     for depth in depth_list :
-
         coords = wm_dict['coords'] + depth * d_coords
         out_fn = f'{surf_dir}/surf_{slab}_{resolution}mm_{depth}.csv'
-        if not os.path.exists(out_fn) :
+        print("Upsampling depth:", depth, np.max(ngh_count), np.max(ngh))
+        if not os.path.exists(out_fn)  :
+            t1=time.time()
             upsample(np.array(coords).flatten().astype(np.float32), 
              ngh, 
              np.array(ngh_count).flatten().astype(np.int32), 
              out_fn, float(resolution), 
              int(coords.shape[0]))
-        del coords
+            t2=time.time()
+            print('time:',round(t2-t1,3))
+    exit(0) 
+    #this second loop over depth_list is split from the previous one because of a seg fault from the upsample C code
+    #in the future, this should be fixed and should only have 1 loop
+    for depth in depth_list :
+        coords = wm_dict['coords'] + depth * d_coords
+        out_fn = f'{surf_dir}/surf_{slab}_{resolution}mm_{depth}.csv'
+        surf_upsample_fn = surf_upsample_str.format(surf_dir,slab,resolution,depth)
+        path, ext = os.path.splitext(surf_upsample_fn)
+        surf_sphere_fn = path + '_sphere.' + ext
 
-    return rsl_surf_dir
+        coords_rsl, ngh_rsl, faces_rsl = read_coords(out_fn)
+        save_gii( coords_rsl, faces_rsl, wm_surf_fn, surf_upsample_fn )
+        shell('mris_inflate {} {}'.format(surf_upsample_fn, surf_sphere_fn))
+        del coords_rsl
+        del ngh_rsl
+        del faces_rsl
+
+
 
 def load_slabs(slab_fn_list) :
     slabs=[]
@@ -111,40 +165,49 @@ def thicken_sections(array_src, slab_df, resolution ):
 
 def read_coords(fn):
     coords_dict={}
+    faces=[]
     with open(fn,'r') as F :
-        for l in F.readlines() :
+        for line_i , l in enumerate(F.readlines()) :
             coords_str = l.rstrip().split(",")
             coords = [ float(i) for i in coords_str]
+            ngh = [ int(i) for i in coords_str[3:5]]
+            faces += [[ngh[0],ngh[1]]]
             try :
-                coords_dict[coords[0]][coords[1]]=coords[2]
+                # if x,y,z already exists, append coords
+                coords_dict[coords[0]][coords[1]][coords[2]] += ngh
             except KeyError :
                 try :
-                    coords_dict[coords[0]]={}
-                    coords_dict[coords[0]][coords[1]]=coords[2]
+                    # if x, y is already in dict, add a new z with ngh
+                    coords_dict[coords[0]][coords[1]]={coords[2]:ngh}
                 except KeyError :
-                    print("error here")
-                    exit(0)
-    
+                    try :
+                        coords_dict[coords[0]]={coords[1]:{coords[2]:ngh}}
+                    except KeyError:
+                        coords_dict[coords[0]]={}
+                        print("error in converting coords")
+                        exit(0)
     coords=[]
-    for x, xy_dict in coords_dict.items():
-        for y, z in xy_dict.items():
-            coords.append([x,y,z])
+    ngh_list=[]
+    for x, y_dict in coords_dict.items():
+        for y, z_dict  in y_dict.items():
+            for z, ngh  in z_dict.items():
+                coords.append([x,y,z])
+                ngh_list.append( np.unique(ngh))
+    return np.array(coords), ngh_list, np.array(faces)
 
-    return np.array(coords)
-
-def get_slab_profile( slab_df, depth_fn_list, array_src, affine, profiles, resolution):
+def get_slab_profile( slab_df, depth_index, surf_upsample_fn, array_src, affine, profiles, resolution):
     
     rec_vol = thicken_sections(array_src, slab_df, resolution)
     #nib.Nifti1Image(rec_vol, affine).to_filename('/project/def-aevans/tfunck/test.nii.gz')
     print('\t\t {}\n\t\t Depth:'.format( np.mean(np.sum(np.abs(wm_coords-gm_coords),axis=1)) ) )
-    for depth_i, depth_fn in enumerate(depth_fn_list) :
-        coords=read_coords(depth_fn)
-        profiles[:,depth_i] += vol_surf_interp( rec_vol, coords, affine, clobber=1)
-        if depth_i == 0 :
-            idx = profiles[:,depth_i]>0
+    #for depth_i, depth_fn in enumerate(depth_fn_list) :
+    coords, ngh, faces = read_coords(surf_upsample_fn)
+    profiles[:,depth_i] += vol_surf_interp( rec_vol, coords, affine, clobber=2)
+    if depth_i == 0 :
+        idx = profiles[:,depth_i]>0
     return profiles
                  
-def get_profiles(sphere_obj_fn, surf_mid_list, surf_wm_list, surf_gm_list, n_depths,  profiles_fn,vol_list, slab_list, df_ligand, resolution ):
+def get_profiles(surf_dir, surf_mid_list, surf_wm_list, surf_gm_list, depth_list,  profiles_fn,vol_list, slab_list, df_ligand, surf_upsample_str, resolution ):
     dt = 1.0/ n_depths
     depth_list = np.arange(0., 1+dt, dt)
     
@@ -153,14 +216,18 @@ def get_profiles(sphere_obj_fn, surf_mid_list, surf_wm_list, surf_gm_list, n_dep
     profiles=np.zeros([nrows, len(depth_list)])
 
     for i, slab in enumerate(slab_list) :
-        print(f'\tslab: {slab}')
-        slab_df=df_ligand.loc[df_ligand['slab'].astype(int)==int(slab)]
-        
+
         array_img = nib.load(vol_list[i])
         array_src = array_img.get_fdata()
+
         assert np.sum(array_src) != 0 , f'Error: input receptor volume has is empym {vol_list[i]}'
 
-        profiles += get_slab_profile( slab_df, depth_fn_list, array_src, array_img.affine, profiles, resolution)
+        for depth_index, depth in enumerate(depth_list):
+            surf_upsample_fn=surf_upsample_str.format(surf_dir,slab,resolution,depth)
+            print(f'\tslab: {slab}')
+            slab_df=df_ligand.loc[df_ligand['slab'].astype(int)==int(slab)]
+        
+            profiles += get_slab_profile( slab_df, depth_index, surf_upsample_fn, array_src, array_img.affine, profiles, resolution)
 
     profiles[ profiles < 0.1 ] = 0
    
@@ -209,15 +276,14 @@ def interpolate_over_surface(sphere_obj_fn,profiles):
 
 def transform_surf_to_slab(interp_dir, surf_gm_fn, surf_wm_fn, brain, hemi, tfm_list, slab_list, clobber=0):
     surf_rsl_dict={}
-    print("Transforming",surf_gm_fn, surf_wm_fn) 
     for i, slab in enumerate( slab_list ) :
         gm_rsl_fn="{}/slab-{}_{}".format(interp_dir,slab,os.path.basename(surf_gm_fn))
-        if not os.path.exists(gm_rsl_fn) or clobber >= 1 or True : 
-            apply_ants_transform_to_obj(surf_gm_fn, [tfm_list[i]], gm_rsl_fn, [0])
+        if not os.path.exists(gm_rsl_fn) or clobber >= 1 : 
+            apply_ants_transform_to_gii(surf_gm_fn, [tfm_list[i]], gm_rsl_fn, [0])
     
         wm_rsl_fn="{}/slab-{}_{}".format(interp_dir,slab,os.path.basename(surf_wm_fn))
-        if not os.path.exists(wm_rsl_fn) or clobber >= 1 or True: 
-            apply_ants_transform_to_obj(surf_wm_fn, [tfm_list[i]], wm_rsl_fn, [0])
+        if not os.path.exists(wm_rsl_fn) or clobber >= 1 : 
+            apply_ants_transform_to_gii(surf_wm_fn, [tfm_list[i]], wm_rsl_fn, [0])
 
         surf_rsl_dict[slab]={'wm':wm_rsl_fn, 'gm':gm_rsl_fn}
         
@@ -229,39 +295,42 @@ def surface_interpolation(tfm_list, vol_list, slab_list, out_dir, interp_dir, br
 
     surf_rsl_dir = interp_dir +'/surfaces/' 
     os.makedirs(interp_dir, exist_ok=True)
-    os.makedirs(surf_dir, exist_ok=True)
+    os.makedirs(surf_rsl_dir, exist_ok=True)
     
     #Interpolate at coordinate locations
-    surf_gm_fn = obj_str.format(surf_dir,'gray', n_vertices,'')
-    surf_wm_fn = obj_str.format(surf_dir,'white', n_vertices,'')
-    sphere_obj_fn = obj_str.format(surf_dir,'mid', n_vertices,'_sphere')
+    surf_gm_fn = surf_fn_str.format(surf_dir,'gray', n_vertices,'')
+    surf_wm_fn = surf_fn_str.format(surf_dir,'white', n_vertices,'')
+    sphere_obj_fn = surf_fn_str.format(surf_dir,'mid', n_vertices,'_sphere')
     
-    print("Transforming",surf_gm_fn, surf_wm_fn) 
-    print('Sphere obj:', sphere_obj_fn)
 
-    print('Get surface mask and surface values')
-    surface_mask_fn = f'surface_slab_mask_{n_vertices}.txt'
-    surface_val_fn  = f'surface_slab_val_{n_vertices}.txt'
-    
+    print("\tGet surface mask and surface values")
     # Load dimensions for output volume
     starts = np.array([-72, -126,-90 ])
     mni_vol = nib.load(mni_fn).get_fdata()
     dwn_res = 0.25
     nat_res = 0.02
+
+    #set depths
+    dt = 1.0/ n_depths
+    depth_list = np.arange(dt, 1, dt)
+
     dimensions = np.array([ mni_vol.shape[0] * dwn_res/resolution, 
                             mni_vol.shape[1] * dwn_res/resolution, 
                             mni_vol.shape[2] * dwn_res/resolution]).astype(int)
     del mni_vol
 
-    print("Transforming",surf_gm_fn, surf_wm_fn) 
+    print("\tTransforming surfaces to slab space") 
     #For each slab, transform the mesh surface to the receptor space
     #TODO: transform points into space of individual autoradiographs
     surf_rsl_dict = transform_surf_to_slab(surf_rsl_dir, surf_gm_fn, surf_wm_fn, brain, hemi, tfm_list,  slab_list)
 
+    surf_upsample_str = '{}/surf_{}_{}mm_{}.surf.gii'
+    surf_upsample_str = '{}/surf_{}_{}mm_{}.obj'
 
     #upsample transformed surfaces to given resolution
     for slab, surf_dict in surf_rsl_dict.items() :
-        upsample_surfaces(interp_dir, surf_dict['wm'],surf_dict['gm'], resolution, n_depths, slab)
+        upsample_and_inflate_surfaces(surf_rsl_dir, surf_dict['wm'],surf_dict['gm'], resolution, depth_list, surf_upsample_str, slab)
+    exit(0)
     
     # Create an object that will be used to interpolate over the surfaces
     mapper = SurfaceVolumeMapper(white_surf=surf_wm_fn, gray_surf=surf_gm_fn, resolution=[resolution]*3, mask=None, dimensions=dimensions, origin=starts, filename=None, save_in_absence=False, interp_dir=interp_dir )
@@ -273,7 +342,7 @@ def surface_interpolation(tfm_list, vol_list, slab_list, out_dir, interp_dir, br
 
         # Extract profiles from the slabs using the surfaces 
         if not os.path.exists(profiles_fn) or clobber >= 1 :
-            get_profiles(sphere_obj_fn, surf_rsl, n_depths, profiles_fn, vol_list, slab_list, df_ligand, resolution)
+            get_profiles( surf_rsl_dir, depth_list, profiles_fn, vol_list, slab_list, df_ligand, surf_filename_str, resolution)
             
         # Interpolate a 3D receptor volume from the surface mesh profiles
         if not os.path.exists(interp_fn) or clobber : 

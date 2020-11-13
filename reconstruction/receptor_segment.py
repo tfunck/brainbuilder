@@ -134,7 +134,6 @@ def classifyReceptorSlices(in_fn, out_dir, out_fn, morph_iterations=5, clobber=F
             s0 = ar1[:, i, :]
             if np.max(s0) > 0 :
 
-
                 cls = local_kmeans(s0, 100,25, sd=1) #myKMeansOriginal(s0)
                 #mask=np.zeros_like(s0)
                 #mask[:,:] = 1

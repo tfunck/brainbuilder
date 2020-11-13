@@ -6,7 +6,7 @@ import tempfile
 from sys import argv
 from utils.mesh_io import  save_obj, read_obj
 from re import sub
-from utils.utils import shell, splitext, read_coords
+from utils.utils import shell, splitext 
 
 
 def apply_ants_transform_to_obj( in_obj_fn, tfm_list, out_obj_fn, invert):

@@ -13,7 +13,7 @@ from reconstruction.align_slab_to_mri import align_slab_to_mri
 from reconstruction.receptor_segment import classifyReceptorSlices
 from reconstruction.nonlinear_2d_alignment import receptor_2d_alignment, create_2d_sections, concatenate_sections_to_volume
 from reconstruction.init_alignment import receptorRegister
-from reconstruction.surface_interpolation import surface_interpolation, obj_str
+from reconstruction.surface_interpolation import surface_interpolation, surf_fn_str
 from reconstruction.crop import crop
 from c_upsample_mesh import upsample
 
@@ -21,44 +21,9 @@ from c_upsample_mesh import upsample
 global file_dir
 base_file_dir, fn =os.path.split( os.path.abspath(__file__) )
 file_dir = base_file_dir +os.sep +'section_numbers' +os.sep
+
 def w2v(c, step, start):
     return np.round( (c-start)/step ).astype(int)
-
-def upsample_obj(coords,ngh,ngh_count,surf_dir, out_dir, surf_fn, resolution):
-    rsl_fn = '{}/surfaces/{}'.format( out_dir, re.sub('.obj',f'_{resolution}mm.csv', os.path.basename(surf_fn)))
-   
-    print(rsl_fn);
-    if not os.path.exists(rsl_fn ) :
-
-        upsample(np.array(coords).flatten().astype(np.float32), 
-                 ngh, 
-                 np.array(ngh_count).flatten().astype(np.int32), 
-                 rsl_fn, float(resolution), 
-                 int(coords.shape[0]))
-
-    coords_dict={}
-    with open(rsl_fn,'r') as F :
-        for l in F.readlines() :
-            coords_str = l.rstrip().split(",")
-            coords = [ float(i) for i in coords_str]
-            try :
-                coords_dict[coords[0]][coords[1]]=coords[2]
-            except KeyError :
-                try :
-                    coords_dict[coords[0]]={}
-                    coords_dict[coords[0]][coords[1]]=coords[2]
-                except KeyError :
-                    print("error here")
-                    exit(0)
-    
-    coords=[]
-    for x, xy_dict in coords_dict.items():
-        for y, z in xy_dict.items():
-            coords.append([x,y,z])
-
-    return np.array(coords)
-
-
 
 def calculate_section_order(autoradiograph_info_fn, source_dir, out_dir, in_df_fn='section_order/autoradiograph_info.csv') :
     df=pd.read_csv(in_df_fn)
