@@ -30,7 +30,7 @@ surf_fn_str='{}/mri1_{}_surface_right_{}{}.surf.gii'
 
 
 def save_gii(coords, triangles, reference_fn, out_fn):
-    img =nib.load(reference_fn) 
+    img = nib.load(reference_fn) 
     ar1 = nib.gifti.gifti.GiftiDataArray(data=coords, intent='NIFTI_INTENT_POINTSET') 
     ar2 = nib.gifti.gifti.GiftiDataArray(data=triangles, intent='NIFTI_INTENT_TRIANGLE') 
     out = nib.gifti.GiftiImage(darrays=[ar1,ar2], header=img.header, file_map=img.file_map, extra=img.extra, meta=img.meta, labeltable=img.labeltable) 
@@ -68,7 +68,7 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert):
     
     save_gii(coords,faces,in_gii_fn,out_gii_fn)
 
-def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, depth_list, slab, surf_upsample_fn, n_vertices=81920) :
+def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, depth_list, slab, n_vertices=81920) :
     # create depth mesh
     gm_dict = load_mesh_geometry(gm_surf_fn) 
     wm_dict = load_mesh_geometry(wm_surf_fn)
@@ -80,34 +80,30 @@ def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, 
     
     for depth in depth_list :
         coords = wm_dict['coords'] + depth * d_coords
-        out_fn = f'{surf_dir}/surf_{slab}_{resolution}mm_{depth}.csv'
         print("Upsampling depth:", depth, np.max(ngh_count), np.max(ngh))
-        if not os.path.exists(out_fn)  :
-            t1=time.time()
+       
+        #upsample surface and save in an intermediate .csv file
+        upsample_fn="{}/surf_{}_{}mm_{}.csv".format(surf_dir,slab,resolution,depth)
+        if not os.path.exists(upsample_fn)  :
             upsample(np.array(coords).flatten().astype(np.float32), 
              ngh, 
              np.array(ngh_count).flatten().astype(np.int32), 
-             out_fn, float(resolution), 
+             upsample_fn, float(resolution), 
              int(coords.shape[0]))
-            t2=time.time()
-            print('time:',round(t2-t1,3))
-    exit(0) 
-    #this second loop over depth_list is split from the previous one because of a seg fault from the upsample C code
-    #in the future, this should be fixed and should only have 1 loop
-    for depth in depth_list :
-        coords = wm_dict['coords'] + depth * d_coords
-        out_fn = f'{surf_dir}/surf_{slab}_{resolution}mm_{depth}.csv'
-        surf_upsample_fn = surf_upsample_str.format(surf_dir,slab,resolution,depth)
-        path, ext = os.path.splitext(surf_upsample_fn)
-        surf_sphere_fn = path + '_sphere.' + ext
-
-        coords_rsl, ngh_rsl, faces_rsl = read_coords(out_fn)
-        save_gii( coords_rsl, faces_rsl, wm_surf_fn, surf_upsample_fn )
-        shell('mris_inflate {} {}'.format(surf_upsample_fn, surf_sphere_fn))
-        del coords_rsl
-        del ngh_rsl
-        del faces_rsl
-
+            
+        #convert the upsampled .csv points into a proper gifti surfer
+        surf_upsample_fn = "{}/surf_{}_{}mm_{}.surf.gii".format(surf_dir,slab,resolution,depth)
+        if not os.path.exists(surf_upsample_fn)  :
+            coords_rsl, ngh_rsl, faces_rsl = read_coords(upsample_fn)
+            save_gii( coords_rsl, faces_rsl, wm_surf_fn, surf_upsample_fn )
+            del coords_rsl
+            del ngh_rsl
+            del faces_rsl
+        
+        #inflate surface to sphere using freesurfer software
+        surf_sphere_fn = "{}/surf_{}_{}mm_{}_inflate.surf.gii".format(surf_dir,slab,resolution,depth)
+        if not os.path.exists(surf_sphere_fn):
+            shell('~/freesurfer/bin/mris_inflate {} {}'.format(surf_upsample_fn, surf_sphere_fn))
 
 
 def load_slabs(slab_fn_list) :
@@ -115,8 +111,6 @@ def load_slabs(slab_fn_list) :
     for slab_fn in slab_fn_list :
         slabs.append( nib.load(slab_fn) )
     return slabs
-
-
 
 def vol_surf_interp(src, coords, affine,  clobber=0 ):
     steps = [ affine[0,0], affine[1,1], affine[2,2]   ]
@@ -324,12 +318,12 @@ def surface_interpolation(tfm_list, vol_list, slab_list, out_dir, interp_dir, br
     #TODO: transform points into space of individual autoradiographs
     surf_rsl_dict = transform_surf_to_slab(surf_rsl_dir, surf_gm_fn, surf_wm_fn, brain, hemi, tfm_list,  slab_list)
 
-    surf_upsample_str = '{}/surf_{}_{}mm_{}.surf.gii'
-    surf_upsample_str = '{}/surf_{}_{}mm_{}.obj'
+    #surf_upsample_fn = '{}/surf_{}_{}mm_{}.surf.gii'
+    #surf_upsample_str = '{}/surf_{}_{}mm_{}.obj'
 
     #upsample transformed surfaces to given resolution
     for slab, surf_dict in surf_rsl_dict.items() :
-        upsample_and_inflate_surfaces(surf_rsl_dir, surf_dict['wm'],surf_dict['gm'], resolution, depth_list, surf_upsample_str, slab)
+        upsample_and_inflate_surfaces(surf_rsl_dir, surf_dict['wm'],surf_dict['gm'], resolution, depth_list, slab)
     exit(0)
     
     # Create an object that will be used to interpolate over the surfaces

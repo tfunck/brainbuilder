@@ -150,7 +150,7 @@ polygon* subdivide(polygon cur_poly, polygon* new_poly, int* n_new_poly, float r
     */
 }
 
-int match_index(unsigned long int index, polygon* polygons, int n ){
+int match_index(unsigned long int index, polygon* polygons, unsigned long int n ){
     for( int i = 0 ; i<n; i++){
         if( index == polygons[i].index){
             return 1;
@@ -183,7 +183,10 @@ int mid_int(int i0, int i1, int i2){
     if( (i1 <= i0 && i1 >= i2) ||  (i1 <= i2 && i1 >= i0)  ) return i1;
     return i2;
 }
+unsigned long int cantor(unsigned long int x, unsigned long int y){
+ return (unsigned long int) 0.5 * (x+y)*(x+y+1)+y;
 
+}
 unsigned long int create_index(int i0, int i1, int i2){
     int max=max_int(i0,i1,i2);
     int mid=mid_int(i0,i1,i2);
@@ -191,16 +194,18 @@ unsigned long int create_index(int i0, int i1, int i2){
 
     //int str_size = (int)(((ceil(log10(i0+1))+1)+(ceil(log10(i1+1))+1)+(ceil(log10(i2+1))+1)) *sizeof(char)); 
     //int str_size = (int)1000 *sizeof(char); 
-    unsigned long int u1 = get_sig_digits(max)*mid;
-    unsigned long int u2 = get_sig_digits(u1)*min;
-    unsigned long int index = u2 + u1 + max;
+    //unsigned long int u1 = get_sig_digits(max)*mid;
+    //unsigned long int u2 = get_sig_digits(u1)*min;
+    unsigned long int index = cantor(cantor(min,mid),max); 
+    //u2 + u1 + max;
     //printf("%d %d %d\n",i0,i1,i2);
     //printf("%d %d %d --> %ld %ld --> %ld\n", min, mid, max, u1, u2, index);
     return index;
 }
 
-polygon* get_polygons(int nvtx,int* npoly, float** vtx_coords, long unsigned int** vtx_ngh, long unsigned int *vtx_nngh){
+polygon* get_polygons(int nvtx, long unsigned int* npoly, float** vtx_coords, long unsigned int** vtx_ngh, long unsigned int *vtx_nngh){
     polygon* polygons = malloc( sizeof(*polygons) * nvtx ); 
+
     //for vertices...
     printf("\tgetting polygons... ");
 
@@ -219,7 +224,6 @@ polygon* get_polygons(int nvtx,int* npoly, float** vtx_coords, long unsigned int
                     printf("\twith nngh %d %d\n", j, k);
                 }
 
-                //printf("\noo %d %d %d | %d %d \n", idx0, idx1, idx2, j, k); //, vtx_nngh[idx1], vtx_nngh[idx2] ); 
                 for( int p=0; p< vtx_nngh[idx0]; p++) {
                     if ( idx2 == vtx_ngh[idx0][p] ){
                         //found polygon between points i, ngh_idx1, ngh_idx0
@@ -233,7 +237,7 @@ polygon* get_polygons(int nvtx,int* npoly, float** vtx_coords, long unsigned int
                                 polygons[*npoly].coords[2][q]=vtx_coords[idx2][q];
                             }
                             *npoly = *npoly + 1;
-                            if(*npoly >= nvtx) {printf("Error: More polygons (%d) than vertices (%d)!\n",*npoly,nvtx);}//exit(1);}
+                            if(*npoly >= nvtx) {printf("Error: More polygons (%ld) than vertices (%d)!\n",*npoly,nvtx);exit(1);}
                         }
                     }
                 }
@@ -254,7 +258,6 @@ long unsigned int** reformat_ngh(int nvtx, long unsigned int *vtx_ngh_flat, long
             vtx_ngh[i][j] = vtx_ngh_flat[index] ;    
             index += 1; 
         }
-        printf("\n");
     }
     return vtx_ngh;
 }
@@ -271,7 +274,6 @@ float** reformat_coords(int nvtx, float* vtx_coords_flat){
         vtx_coords[i][0] =vtx_coords_flat[i*3];
         vtx_coords[i][1] =vtx_coords_flat[i*3+1];
         vtx_coords[i][2] =vtx_coords_flat[i*3+2];
-        printf("%f %f %f\n", vtx_coords[i][0], vtx_coords[i][1], vtx_coords[i][2]);
     }
     return vtx_coords;
 }
@@ -312,7 +314,7 @@ int upsample_polygons(polygon* polygons,float*** final_vtx, unsigned int*** fina
 int upsample(int nvtx, float* vtx_coords_flat, long unsigned int* vtx_ngh_flat, long unsigned int *vtx_nngh, float resolution, char* out_fn){
     float** vtx_coords = reformat_coords(nvtx, vtx_coords_flat);
     long unsigned int** vtx_ngh = reformat_ngh(nvtx, vtx_ngh_flat, vtx_nngh );
-    int n_poly = 0;
+    long unsigned int n_poly = 0;
     polygon* polygons = get_polygons( nvtx, &n_poly, vtx_coords, vtx_ngh, vtx_nngh);
     int n_final_vtx=0;
     int n_alloc_to_final=nvtx;
