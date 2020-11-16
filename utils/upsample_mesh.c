@@ -47,6 +47,8 @@ int* vertex_in_array(float** vtx, float** ar, int n){
 
 int add_vertex_to_final(float **vtx,  int *n, float*** final_vtx, unsigned int*** final_ngh, int *n_alloc_to_final){
     int n_new_elements=40000;
+    int step[3][2]={{1,2},{-1,1},{-2,-1}};
+
     //printf("\t%d %d\n",*n,*n_alloc_to_final); 
     for(int i=0; i < 3; i++){
        if(*n >= *n_alloc_to_final){
@@ -62,8 +64,8 @@ int add_vertex_to_final(float **vtx,  int *n, float*** final_vtx, unsigned int**
         (*final_vtx)[*n][1] = vtx[i][1];
         (*final_vtx)[*n][2] = vtx[i][2];
 
-       (*final_ngh)[*n][0] = *n + (i+1)%3; // *n + 1; 
-       (*final_ngh)[*n][1] = *n + (i+2)%3; // *n + 1; 
+       (*final_ngh)[*n][0] = *n + step[i][0]; // *n + 1; 
+       (*final_ngh)[*n][1] = *n + step[i][1]; // *n + 1; 
        *n = *n + 1;
     }
 }

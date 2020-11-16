@@ -35,6 +35,7 @@ def save_gii(coords, triangles, reference_fn, out_fn):
     ar2 = nib.gifti.gifti.GiftiDataArray(data=triangles, intent='NIFTI_INTENT_TRIANGLE') 
     out = nib.gifti.GiftiImage(darrays=[ar1,ar2], header=img.header, file_map=img.file_map, extra=img.extra, meta=img.meta, labeltable=img.labeltable) 
     out.to_filename(out_fn) 
+    print(out.print_summary())
  
 def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert):
     print("transforming", in_gii_fn)
@@ -159,35 +160,59 @@ def thicken_sections(array_src, slab_df, resolution ):
 
 def read_coords(fn):
     coords_dict={}
+    index_dict={}
+    #faces_dict={}
     faces=[]
     with open(fn,'r') as F :
         for line_i , l in enumerate(F.readlines()) :
             coords_str = l.rstrip().split(",")
             coords = [ float(i) for i in coords_str]
             ngh = [ int(i) for i in coords_str[3:5]]
-            faces += [[ngh[0],ngh[1]]]
+            face = [line_i, ngh[0], ngh[1]]
+            face.sort()
+            faces.append([face])
             try :
-                # if x,y,z already exists, append coords
+                # if x,y,z already exist,s append coords
+
                 coords_dict[coords[0]][coords[1]][coords[2]] += ngh
+                index_dict[coords[0]][coords[1]][coords[2]] += [line_i]
             except KeyError :
                 try :
                     # if x, y is already in dict, add a new z with ngh
-                    coords_dict[coords[0]][coords[1]]={coords[2]:ngh}
+                    coords_dict[coords[0]][coords[1]]={coords[2]: ngh}
+                    index_dict[coords[0]][coords[1]] ={coords[2]: [line_i]}
                 except KeyError :
                     try :
                         coords_dict[coords[0]]={coords[1]:{coords[2]:ngh}}
+                        index_dict[coords[0]]={coords[1]:{coords[2]:[line_i]}}
                     except KeyError:
                         coords_dict[coords[0]]={}
                         print("error in converting coords")
                         exit(0)
-    coords=[]
+
+    coords_list=[]
     ngh_list=[]
+    index_map_dict={}
+    index=0
     for x, y_dict in coords_dict.items():
         for y, z_dict  in y_dict.items():
             for z, ngh  in z_dict.items():
-                coords.append([x,y,z])
-                ngh_list.append( np.unique(ngh))
-    return np.array(coords), ngh_list, np.array(faces)
+                coords_list.append([x,y,z])
+                ngh_list.append( np.unique(ngh) )
+                for orig_index in index_dict[x][y][z] : 
+                    index_map_dict[orig_index] = index
+                index += 1
+
+    coords = np.array(coords_list)
+    
+    #faces = np.array(faces)
+    remap=np.vectorize(lambda x: index_map_dict[x])
+    faces = remap(faces) 
+    faces = np.unique(faces,axis=0).reshape(-1,3)
+    print(faces.shape)
+    ngh_list = [ [ index_map_dict[x] for x in row] for row in ngh_list ]
+
+    return np.array(coords), ngh_list, faces.astype(np.double)
 
 def get_slab_profile( slab_df, depth_index, surf_upsample_fn, array_src, affine, profiles, resolution):
     
