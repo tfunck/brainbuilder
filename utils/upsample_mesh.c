@@ -8,6 +8,7 @@ struct temp_polygon;
 typedef struct temp_polygon {
     float coords[3][3];
     long unsigned int index;
+    unsigned long int ngh[3]
 } polygon;
 
 
@@ -56,7 +57,7 @@ int add_vertex_to_final(float **vtx,  int *n, float*** final_vtx, unsigned int**
            *final_ngh = realloc(*final_ngh, (*n_alloc_to_final + n_new_elements) * sizeof(**final_ngh));
            for(int j = *n_alloc_to_final; j < *n_alloc_to_final + n_new_elements; j++){
                 (*final_vtx)[j] = malloc(sizeof(***final_vtx)*3);   
-                (*final_ngh)[j] = malloc(sizeof(***final_ngh)*2);   
+                (*final_ngh)[j] = malloc(sizeof(***final_ngh)*3);   
            }
            *n_alloc_to_final = *n_alloc_to_final + n_new_elements;
         }
@@ -64,8 +65,9 @@ int add_vertex_to_final(float **vtx,  int *n, float*** final_vtx, unsigned int**
         (*final_vtx)[*n][1] = vtx[i][1];
         (*final_vtx)[*n][2] = vtx[i][2];
 
-       (*final_ngh)[*n][0] = *n + step[i][0]; // *n + 1; 
-       (*final_ngh)[*n][1] = *n + step[i][1]; // *n + 1; 
+       (*final_ngh)[*n][0] = *n ; 
+       (*final_ngh)[*n][1] = *n + step[i][0]; 
+       (*final_ngh)[*n][2] = *n + step[i][1];  
        *n = *n + 1;
     }
 }
@@ -90,7 +92,7 @@ polygon* subdivide(polygon cur_poly, polygon* new_poly, int* n_new_poly, float r
 
     // Next step is to create lists with indices/coords for the points of subdivided triangles
     //float* curr_poly_index = {index[0], new_index[0], index[1], new_index[1], index[2], new_index[2], new_index[3] }
-    float* temp_coords[7]; // = malloc(sizeof(*temp_coords)*7); 
+    float* temp_coords[7]; 
     temp_coords[0]=cur_poly.coords[0];
     temp_coords[1]=new_coords[0];
     temp_coords[2]=cur_poly.coords[1];
@@ -116,17 +118,7 @@ polygon* subdivide(polygon cur_poly, polygon* new_poly, int* n_new_poly, float r
             new_poly = realloc(new_poly, sizeof(*new_poly) * (int) (*n_new_poly+2));
         }
         else {
-            //since the edges in the polygon are below the resolution, we can save the vertex locations
-            //to an output array
-            float* vtx_to_add[3];
-            vtx_to_add[0]=temp_coords[i];
-            vtx_to_add[1]=temp_coords[j];
-            vtx_to_add[2]=temp_coords[6];
-            //ngh[n_final_vtx]=temp_ngh[i];
-            //ngh[n_final_vtx]=temp_ngh[j];
-            //ngh[n_final_vtx+2]={temp_index[0:8]}
-            //when read, concatenate all neighbours together
-            add_vertex_to_final(vtx_to_add,  n_final_vtx,final_vtx, final_ngh, n_alloc_to_final);
+
         }
     }
     
@@ -237,7 +229,11 @@ polygon* get_polygons(int nvtx, long unsigned int* npoly, float** vtx_coords, lo
                                 polygons[*npoly].coords[0][q]=vtx_coords[idx0][q];
                                 polygons[*npoly].coords[1][q]=vtx_coords[idx1][q];
                                 polygons[*npoly].coords[2][q]=vtx_coords[idx2][q];
+
                             }
+                            polygons[*npoly].ngh[0]=idx0;
+                            polygons[*npoly].ngh[1]=idx1;
+                            polygons[*npoly].ngh[2]=idx2;
                             *npoly = *npoly + 1;
                             if(*npoly >= nvtx) {printf("Error: More polygons (%ld) than vertices (%d)!\n",*npoly,nvtx);exit(1);}
                         }
@@ -300,11 +296,23 @@ int upsample_polygons(polygon* polygons,float*** final_vtx, unsigned int*** fina
             new_poly = malloc(sizeof(*cur_poly));
             
             for(int j=0; j < n_cur_poly; j++){
-                new_poly = subdivide(cur_poly[j], new_poly, &n_new_poly, resolution, final_vtx,final_ngh, n_final_vtx,  n_alloc_to_final );
-            }
+                if( calc_max_dist(cur_poly[j].coords[0],cur_poly[j].coords[1],cur_poly[j].coords[2] ) > resolution ){
+                    printf("\nSHOULD NOT SEE THIS\n"); exit(1);
+                    new_poly = subdivide(cur_poly[j], new_poly, &n_new_poly, resolution, final_vtx,final_ngh, n_final_vtx,  n_alloc_to_final );
+                } else {
+                    //since the edges in the polygon are below the resolution, we can save the vertex locations
+                    //to an output array
+                    float* vtx_to_add[3];
+                    vtx_to_add[0]=cur_poly[j].coords[0];
+                    vtx_to_add[1]=cur_poly[j].coords[1];
+                    vtx_to_add[2]=cur_poly[j].coords[2];
+                    //when read, concatenate all neighbours together
+                    add_vertex_to_final(vtx_to_add,  n_final_vtx,final_vtx, final_ngh, n_alloc_to_final);
+                }
             free(cur_poly); 
             cur_poly = new_poly;
             n_cur_poly = n_new_poly;
+            }
         }
 
         //should save the new polygon locations here
@@ -320,6 +328,7 @@ int upsample(int nvtx, float* vtx_coords_flat, long unsigned int* vtx_ngh_flat, 
     polygon* polygons = get_polygons( nvtx, &n_poly, vtx_coords, vtx_ngh, vtx_nngh);
     int n_final_vtx=0;
     int n_alloc_to_final=nvtx;
+    resolution=9999;
 
     //Free the input coords and ngh
     for(int i=0; i<nvtx; i++){
@@ -335,7 +344,7 @@ int upsample(int nvtx, float* vtx_coords_flat, long unsigned int* vtx_ngh_flat, 
     
     for(int i=0; i<n_alloc_to_final; i++){ 
         final_vtx[i] = malloc(sizeof(**final_vtx)*3);
-        final_ngh[i] = malloc(sizeof(**final_ngh)*2);
+        final_ngh[i] = malloc(sizeof(**final_ngh)*3);
     }
 
     //Iterate over polygons and subsample them
@@ -344,8 +353,9 @@ int upsample(int nvtx, float* vtx_coords_flat, long unsigned int* vtx_ngh_flat, 
     printf("\twriting %d vertices to %s\n",n_final_vtx, out_fn);
     FILE* out_file = fopen(out_fn, "w");
     for(int i=0; i<n_final_vtx;i++){
-        fprintf(out_file,"%f,%f,%f,%d,%d\n",final_vtx[i][0],final_vtx[i][1],final_vtx[i][2],final_ngh[i][0],final_ngh[i][1]);
+        fprintf(out_file,"%f,%f,%f,%d,%d,%d\n",final_vtx[i][0],final_vtx[i][1],final_vtx[i][2],final_ngh[i][0],final_ngh[i][1],final_ngh[i][2]);
     } 
+
     fclose(out_file); 
     
     for(int i=0; i<n_alloc_to_final;i++){

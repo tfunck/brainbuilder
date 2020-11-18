@@ -95,12 +95,13 @@ def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, 
         #convert the upsampled .csv points into a proper gifti surfer
         surf_upsample_fn = "{}/surf_{}_{}mm_{}.surf.gii".format(surf_dir,slab,resolution,depth)
         if not os.path.exists(surf_upsample_fn)  :
-            coords_rsl, ngh_rsl, faces_rsl = read_coords(upsample_fn)
+            coords_rsl, ngh_rsl, faces_rsl = read_coords(upsample_fn,coords)
             save_gii( coords_rsl, faces_rsl, wm_surf_fn, surf_upsample_fn )
             del coords_rsl
             del ngh_rsl
             del faces_rsl
         
+        exit(0)
         #inflate surface to sphere using freesurfer software
         surf_sphere_fn = "{}/surf_{}_{}mm_{}_inflate.surf.gii".format(surf_dir,slab,resolution,depth)
         if not os.path.exists(surf_sphere_fn):
@@ -158,38 +159,43 @@ def thicken_sections(array_src, slab_df, resolution ):
     return rec_vol
 
 
-def read_coords(fn):
+def read_coords(fn,orig_coords=None):
     coords_dict={}
     index_dict={}
-    #faces_dict={}
-    faces=[]
+    face_list=[]
+    coords_list=[]
     with open(fn,'r') as F :
         for line_i , l in enumerate(F.readlines()) :
             coords_str = l.rstrip().split(",")
-            coords = [ float(i) for i in coords_str]
-            ngh = [ int(i) for i in coords_str[3:5]]
-            face = [line_i, ngh[0], ngh[1]]
-            face.sort()
-            faces.append([face])
-            try :
-                # if x,y,z already exist,s append coords
+            coords = [ float(i) for i in coords_str[0:3]]
+            ngh = [ int(i) for i in coords_str[3:6]]
+            face = [ngh[0], ngh[0], ngh[1]]
+            #face.sort()
+            coords_list.append([coords])
+            face_list.append([face])
 
-                coords_dict[coords[0]][coords[1]][coords[2]] += ngh
-                index_dict[coords[0]][coords[1]][coords[2]] += [line_i]
-            except KeyError :
-                try :
-                    # if x, y is already in dict, add a new z with ngh
-                    coords_dict[coords[0]][coords[1]]={coords[2]: ngh}
-                    index_dict[coords[0]][coords[1]] ={coords[2]: [line_i]}
-                except KeyError :
-                    try :
-                        coords_dict[coords[0]]={coords[1]:{coords[2]:ngh}}
-                        index_dict[coords[0]]={coords[1]:{coords[2]:[line_i]}}
-                    except KeyError:
-                        coords_dict[coords[0]]={}
-                        print("error in converting coords")
-                        exit(0)
+    faces = np.unique(np.array(face_list),axis=0).reshape(-1,3)
+    coords = np.unique(np.array(coords_list),axis=0).reshape(-1,3)
+    #orig_coords=np.round(orig_coords,4).astype(np.float16)
+    #coords = np.round(coords,4).astype(np.float16)
 
+    print(orig_coords.shape, coords.shape) 
+    #with open('test.csv','w') as F:
+    #    for x,y,z in coords :
+    #        F.write("{},{},{}\n".format(x,y,z))
+    #with open('test2.csv','w') as F:
+    #    for x,y,z in orig_coords :
+    #        F.write("{},{},{}\n".format(x,y,z))
+    tol=0.0001
+    for coord in orig_coords :
+        matches = coords[ ( abs(coords[:,0] - coord[0])<tol) & ( abs(coords[:,1] - coord[1])<tol) & (abs(coords[:,2] - coord[2])<tol) ] 
+        nmatches = len(matches)
+        #print(np.sum((coords[:,0] - coord[0]<tol)) , np.sum(coords[:,1]- coord[1]<tol) , np.sum(coords[:,2] - coord[2]<tol),np.sum((coords[:,0] - coord[0]<tol) & (coords[:,1] - coord[1]<tol) & (coords[:,2] - coord[2]<tol)) )
+        if nmatches==0  :
+            print("Missing coord:", coord)
+
+    print("unique faces", faces.shape,"shape max",np.max(faces), "coords unique",coords.shape)
+    exit(0)
     coords_list=[]
     ngh_list=[]
     index_map_dict={}
@@ -204,14 +210,15 @@ def read_coords(fn):
                 index += 1
 
     coords = np.array(coords_list)
-    
     #faces = np.array(faces)
     remap=np.vectorize(lambda x: index_map_dict[x])
+    print('old faces max:', np.max(faces))
     faces = remap(faces) 
-    faces = np.unique(faces,axis=0).reshape(-1,3)
-    print(faces.shape)
+    faces = np.unique(faces,axis=0)
+    faces=faces.reshape(-1,3)
+    print(faces.shape, np.max(faces))
     ngh_list = [ [ index_map_dict[x] for x in row] for row in ngh_list ]
-
+    exit(0)
     return np.array(coords), ngh_list, faces.astype(np.double)
 
 def get_slab_profile( slab_df, depth_index, surf_upsample_fn, array_src, affine, profiles, resolution):
