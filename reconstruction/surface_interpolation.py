@@ -11,7 +11,6 @@ import vast.surface_tools as surface_tools
 import ants
 import tempfile
 import time
-from c_upsample_mesh import upsample
 from nibabel.processing import resample_to_output
 from utils.apply_ants_transform_to_obj import apply_ants_transform_to_obj
 from re import sub
@@ -29,13 +28,7 @@ global surf_fn_str
 surf_fn_str='{}/mri1_{}_surface_right_{}{}.surf.gii'
 
 
-def save_gii(coords, triangles, reference_fn, out_fn):
-    img = nib.load(reference_fn) 
-    ar1 = nib.gifti.gifti.GiftiDataArray(data=coords, intent='NIFTI_INTENT_POINTSET') 
-    ar2 = nib.gifti.gifti.GiftiDataArray(data=triangles, intent='NIFTI_INTENT_TRIANGLE') 
-    out = nib.gifti.GiftiImage(darrays=[ar1,ar2], header=img.header, file_map=img.file_map, extra=img.extra, meta=img.meta, labeltable=img.labeltable) 
-    out.to_filename(out_fn) 
-    print(out.print_summary())
+
  
 def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert):
     print("transforming", in_gii_fn)
@@ -83,23 +76,8 @@ def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, 
         coords = wm_dict['coords'] + depth * d_coords
         print("Upsampling depth:", depth, np.max(ngh_count), np.max(ngh))
        
-        #upsample surface and save in an intermediate .csv file
         upsample_fn="{}/surf_{}_{}mm_{}.csv".format(surf_dir,slab,resolution,depth)
-        if not os.path.exists(upsample_fn)  :
-            upsample(np.array(coords).flatten().astype(np.float32), 
-             ngh, 
-             np.array(ngh_count).flatten().astype(np.int32), 
-             upsample_fn, float(resolution), 
-             int(coords.shape[0]))
-            
-        #convert the upsampled .csv points into a proper gifti surfer
-        surf_upsample_fn = "{}/surf_{}_{}mm_{}.surf.gii".format(surf_dir,slab,resolution,depth)
-        if not os.path.exists(surf_upsample_fn)  :
-            coords_rsl, ngh_rsl, faces_rsl = read_coords(upsample_fn,coords)
-            save_gii( coords_rsl, faces_rsl, wm_surf_fn, surf_upsample_fn )
-            del coords_rsl
-            del ngh_rsl
-            del faces_rsl
+        upsample_gifti(upsample_fn, coords, ngh, resolution)
         
         exit(0)
         #inflate surface to sphere using freesurfer software
@@ -158,68 +136,6 @@ def thicken_sections(array_src, slab_df, resolution ):
 
     return rec_vol
 
-
-def read_coords(fn,orig_coords=None):
-    coords_dict={}
-    index_dict={}
-    face_list=[]
-    coords_list=[]
-    with open(fn,'r') as F :
-        for line_i , l in enumerate(F.readlines()) :
-            coords_str = l.rstrip().split(",")
-            coords = [ float(i) for i in coords_str[0:3]]
-            ngh = [ int(i) for i in coords_str[3:6]]
-            face = [ngh[0], ngh[0], ngh[1]]
-            #face.sort()
-            coords_list.append([coords])
-            face_list.append([face])
-
-    faces = np.unique(np.array(face_list),axis=0).reshape(-1,3)
-    coords = np.unique(np.array(coords_list),axis=0).reshape(-1,3)
-    #orig_coords=np.round(orig_coords,4).astype(np.float16)
-    #coords = np.round(coords,4).astype(np.float16)
-
-    print(orig_coords.shape, coords.shape) 
-    #with open('test.csv','w') as F:
-    #    for x,y,z in coords :
-    #        F.write("{},{},{}\n".format(x,y,z))
-    #with open('test2.csv','w') as F:
-    #    for x,y,z in orig_coords :
-    #        F.write("{},{},{}\n".format(x,y,z))
-    tol=0.0001
-    for coord in orig_coords :
-        matches = coords[ ( abs(coords[:,0] - coord[0])<tol) & ( abs(coords[:,1] - coord[1])<tol) & (abs(coords[:,2] - coord[2])<tol) ] 
-        nmatches = len(matches)
-        #print(np.sum((coords[:,0] - coord[0]<tol)) , np.sum(coords[:,1]- coord[1]<tol) , np.sum(coords[:,2] - coord[2]<tol),np.sum((coords[:,0] - coord[0]<tol) & (coords[:,1] - coord[1]<tol) & (coords[:,2] - coord[2]<tol)) )
-        if nmatches==0  :
-            print("Missing coord:", coord)
-
-    print("unique faces", faces.shape,"shape max",np.max(faces), "coords unique",coords.shape)
-    exit(0)
-    coords_list=[]
-    ngh_list=[]
-    index_map_dict={}
-    index=0
-    for x, y_dict in coords_dict.items():
-        for y, z_dict  in y_dict.items():
-            for z, ngh  in z_dict.items():
-                coords_list.append([x,y,z])
-                ngh_list.append( np.unique(ngh) )
-                for orig_index in index_dict[x][y][z] : 
-                    index_map_dict[orig_index] = index
-                index += 1
-
-    coords = np.array(coords_list)
-    #faces = np.array(faces)
-    remap=np.vectorize(lambda x: index_map_dict[x])
-    print('old faces max:', np.max(faces))
-    faces = remap(faces) 
-    faces = np.unique(faces,axis=0)
-    faces=faces.reshape(-1,3)
-    print(faces.shape, np.max(faces))
-    ngh_list = [ [ index_map_dict[x] for x in row] for row in ngh_list ]
-    exit(0)
-    return np.array(coords), ngh_list, faces.astype(np.double)
 
 def get_slab_profile( slab_df, depth_index, surf_upsample_fn, array_src, affine, profiles, resolution):
     

@@ -4,23 +4,17 @@
 #include "upsample_mesh.h"
 
 static PyObject*  c_upsample_mesh(PyObject* self,  PyObject* args) {
-    printf("Entered c_upsample_mesh\n");
     char* out_fn ;
     float resolution;
-    int nvtx;
-	PyObject* coords_obj, *ngh_obj, *nngh_obj;
+    int nvtx, npoly;
+	PyObject* coords_obj, *polygons_obj;
 
-    PyArg_ParseTuple(args, "OOOsfi", &coords_obj, &ngh_obj, &nngh_obj, &out_fn, &resolution, &nvtx );
-    printf("Resolution %f\n", resolution);
-    printf("n vertices %d\n", nvtx);
-    printf("Output file %s\n",out_fn);
+    PyArg_ParseTuple(args, "OOsfii", &coords_obj, &polygons_obj, &out_fn, &resolution, &nvtx, &npoly );
 	PyObject *coords_array = PyArray_FROM_OTF(coords_obj, NPY_FLOAT, NPY_IN_ARRAY);
-	PyObject *ngh_array = PyArray_FROM_OTF(ngh_obj, NPY_INT64, NPY_IN_ARRAY);
-	PyObject *nngh_array = PyArray_FROM_OTF(nngh_obj, NPY_INT64, NPY_IN_ARRAY);
-    long unsigned int *ngh = (long unsigned int*) PyArray_DATA(ngh_array);
-	long unsigned int *nngh = (long unsigned int*) PyArray_DATA(nngh_array);
+	PyObject *polygons_array = PyArray_FROM_OTF(polygons_obj, NPY_INT64, NPY_IN_ARRAY);
+    long unsigned int *polygons = (long unsigned int*) PyArray_DATA(polygons_array);
 	float *coords = (float*) PyArray_DATA(coords_array);
-    upsample(nvtx, coords, ngh, nngh, resolution, out_fn) ;
+    upsample(nvtx, npoly, coords, polygons, resolution, out_fn) ;
 	Py_RETURN_NONE;
 }
 

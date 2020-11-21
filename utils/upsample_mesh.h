@@ -1,2 +1,2 @@
 
-int upsample(int nvtx, float* vtx_coords_flat, long unsigned int* vtx_ngh_flat, long unsigned int *vtx_nngh, float resolution, char* out_fn);
+int upsample(int nvtx, int npoly, float* vtx_coords_flat, long unsigned int* polygons_flat, const float resolution, char* out_fn);
