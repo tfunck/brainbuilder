@@ -64,26 +64,31 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert):
 
 def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, depth_list, slab, n_vertices=81920) :
     # create depth mesh
-    gm_dict = load_mesh_geometry(gm_surf_fn) 
-    wm_dict = load_mesh_geometry(wm_surf_fn)
-    
+    gm_mesh = nib.load(gm_surf_fn) 
+    wm_mesh = nib.load(wm_surf_fn)
+   
+    gm_coords = gm_mesh.agg_data('NIFTI_INTENT_POINTSET')
+    gm_faces =  gm_mesh.agg_data('NIFTI_INTENT_TRIANGLE')
+
+    wm_coords = wm_mesh.agg_data('NIFTI_INTENT_POINTSET')
+    wm_faces =  wm_mesh.agg_data('NIFTI_INTENT_TRIANGLE')
+
     d_coords = gm_dict['coords'] - wm_dict['coords'] 
     
-    ngh = np.array([i for j in wm_dict['neighbours']  for i in j  ]).astype(np.int32)
-    ngh_count = wm_dict['neighbour_count']
-    
     for depth in depth_list :
+
+        print("\tDepth", depth)
         coords = wm_dict['coords'] + depth * d_coords
-        print("Upsampling depth:", depth, np.max(ngh_count), np.max(ngh))
-       
-        upsample_fn="{}/surf_{}_{}mm_{}.csv".format(surf_dir,slab,resolution,depth)
-        upsample_gifti(upsample_fn, coords, ngh, resolution)
-        
-        exit(0)
-        #inflate surface to sphere using freesurfer software
+        depth_surf_dn="{}/surf_{}_{}mm_{}.surf.gii".format(surf_dir,slab,resolution,depth)
+        upsample_fn="{}/surf_{}_{}mm_{}_rsl.surf.gii".format(surf_dir,slab,resolution,depth)
         surf_sphere_fn = "{}/surf_{}_{}mm_{}_inflate.surf.gii".format(surf_dir,slab,resolution,depth)
-        if not os.path.exists(surf_sphere_fn):
-            shell('~/freesurfer/bin/mris_inflate {} {}'.format(surf_upsample_fn, surf_sphere_fn))
+        surf_sphere_rsl_fn = "{}/surf_{}_{}mm_{}_inflate_rsl.surf.gii".format(surf_dir,slab,resolution,depth)
+        write_gii( coords, faces, depth_surf_fn, depth_fn )
+    
+        create_high_res_sphere(depth_surf_fn, upsample_fn, sphere_fn, sphere_rsl_fn, resolution)
+
+
+
 
 
 def load_slabs(slab_fn_list) :
@@ -272,7 +277,6 @@ def surface_interpolation(tfm_list, vol_list, slab_list, out_dir, interp_dir, br
     #upsample transformed surfaces to given resolution
     for slab, surf_dict in surf_rsl_dict.items() :
         upsample_and_inflate_surfaces(surf_rsl_dir, surf_dict['wm'],surf_dict['gm'], resolution, depth_list, slab)
-    exit(0)
     
     # Create an object that will be used to interpolate over the surfaces
     mapper = SurfaceVolumeMapper(white_surf=surf_wm_fn, gray_surf=surf_gm_fn, resolution=[resolution]*3, mask=None, dimensions=dimensions, origin=starts, filename=None, save_in_absence=False, interp_dir=interp_dir )
