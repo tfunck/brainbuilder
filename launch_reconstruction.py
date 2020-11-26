@@ -157,7 +157,7 @@ def multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args, files, 
         srv_rsl_fn = cfiles['srv_rsl_fn']  
         seg_rsl_fn = cfiles['seg_rsl_fn']
         nl_3d_tfm_fn = cfiles['nl_3d_tfm_fn']
-        nl_3d_tfm_fn_inv_fn = cfiles['nl_3d_tfm_inv_fn']
+        nl_3d_tfm_inv_fn = cfiles['nl_3d_tfm_inv_fn']
         rec_3d_lin_fn = cfiles['rec_3d_lin_fn']
         srv_3d_lin_fn = cfiles['srv_3d_lin_fn']
         srv_base_rsl_crop_fn = cfiles['srv_base_rsl_crop_fn']
@@ -194,7 +194,7 @@ def multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args, files, 
         ### Step 3 : Align slabs to MRI
         ###
         print('\tStep 3: align slabs to MRI')
-        dir_list = [nl_3d_tfm_fn, nl_3d_tfm_fn_inv_fn, rec_3d_lin_fn, srv_3d_lin_fn]
+        dir_list = [nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_lin_fn, srv_3d_lin_fn]
         if False in [ os.path.exists(fn) for fn in dir_list ]  :
             align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, align_to_mri_dir, hemi_df, args.slabs, nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_lin_fn, srv_3d_lin_fn  )
 
@@ -202,7 +202,7 @@ def multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args, files, 
         ### Step 4 : 2D alignment of receptor to resample MRI GM vol
         ###
         if not os.path.exists(srv_base_rsl_crop_fn) or args.clobber :
-            shell(f'antsApplyTransforms -v 1 -d 3 -i {srv_rsl_fn} -r {init_align_fn} -t {nl_3d_tfm_fn_inv_fn} -o {srv_base_rsl_crop_fn}', verbose=True)                   
+            shell(f'antsApplyTransforms -v 1 -d 3 -i {srv_rsl_fn} -r {init_align_fn} -t {nl_3d_tfm_inv_fn} -o {srv_base_rsl_crop_fn}', verbose=True)                   
 
         #create 2d sections that will be nonlinearly aliged in 2d
         create_2d_sections( slab_df, init_align_fn, srv_base_rsl_crop_fn, nl_2d_dir )
@@ -232,9 +232,11 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
         if not args.interpolation_only :
             slab_df=df.loc[(df['hemisphere']==hemi) & (df['mri']==brain) & (df['slab']==int(slab)) ]
             init_align_fn=files[brain][hemi][str(slab)][str(resolution_list[0])]['init_align_fn']
+            init_align_dir=files[brain][hemi][str(slab)][resolution_list[0]]['init_align_dir']
             ###  Step 1: Initial Alignment
             print('\tInitial rigid inter-autoradiograph alignment')
-            if (not os.path.exists( init_align_fn) or args.clobber) and not args.remote  :
+            print('\t\t',init_align_fn, 'exists:',os.path.exists(init_align_fn))
+            if (not os.path.exists( init_align_fn) or args.clobber) and not args.interpolation_only  :
                 receptorRegister(brain,hemi,slab, init_align_fn, init_align_dir, slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
             
             ### Steps 2-4 : Multiresolution alignment
