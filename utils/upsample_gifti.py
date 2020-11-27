@@ -4,7 +4,7 @@ import sys
 import nibabel as nib
 from c_upsample_mesh import upsample, resample
 from re import sub
-from utils import shell
+from utils.utils import shell
 
 def read_coords(fn):
     lines_list=[]
@@ -84,7 +84,7 @@ def create_high_res_sphere(input_fn, upsample_fn, sphere_fn, sphere_rsl_fn, reso
     print('\tInflate to sphere')
     if not os.path.exists(sphere_fn) or clobber :
         #inflate surface to sphere using freesurfer software
-        shell('mris_inflate -n 100  {} {}'.format(input_fn, sphere_fn))
+        shell('~/freesurfer/bin/mris_inflate -n 100  {} {}'.format(input_fn, sphere_fn))
     
     print("Resample to reference")
     if not os.path.exists(sphere_rsl_fn) or clobber :

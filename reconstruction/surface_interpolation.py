@@ -74,17 +74,17 @@ def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, 
     wm_coords = wm_mesh.agg_data('NIFTI_INTENT_POINTSET')
     wm_faces =  wm_mesh.agg_data('NIFTI_INTENT_TRIANGLE')
 
-    d_coords = gm_dict['coords'] - wm_dict['coords'] 
+    d_coords = gm_coords - wm_coords 
     
     for depth in depth_list :
 
         print("\tDepth", depth)
-        coords = wm_dict['coords'] + depth * d_coords
-        depth_surf_dn="{}/surf_{}_{}mm_{}.surf.gii".format(surf_dir,slab,resolution,depth)
+        coords = wm_coords + depth * d_coords
+        depth_surf_fn="{}/surf_{}_{}mm_{}.surf.gii".format(surf_dir,slab,resolution,depth)
         upsample_fn="{}/surf_{}_{}mm_{}_rsl.surf.gii".format(surf_dir,slab,resolution,depth)
-        surf_sphere_fn = "{}/surf_{}_{}mm_{}_inflate.surf.gii".format(surf_dir,slab,resolution,depth)
-        surf_sphere_rsl_fn = "{}/surf_{}_{}mm_{}_inflate_rsl.surf.gii".format(surf_dir,slab,resolution,depth)
-        write_gii( coords, faces, depth_surf_fn, depth_fn )
+        sphere_fn = "{}/surf_{}_{}mm_{}_inflate.surf.gii".format(surf_dir,slab,resolution,depth)
+        sphere_rsl_fn = "{}/surf_{}_{}mm_{}_inflate_rsl.surf.gii".format(surf_dir,slab,resolution,depth)
+        save_gii( coords, wm_faces, wm_surf_fn, depth_surf_fn )
     
         create_high_res_sphere(depth_surf_fn, upsample_fn, sphere_fn, sphere_rsl_fn, resolution)
 
@@ -259,7 +259,7 @@ def surface_interpolation(tfm_list, vol_list, slab_list, out_dir, interp_dir, br
 
     #set depths
     dt = 1.0/ n_depths
-    depth_list = np.arange(dt, 1, dt)
+    depth_list = np.arange(0, 1+dt, dt)
 
     dimensions = np.array([ mni_vol.shape[0] * dwn_res/resolution, 
                             mni_vol.shape[1] * dwn_res/resolution, 
