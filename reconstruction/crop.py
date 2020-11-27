@@ -33,7 +33,6 @@ def crop(src_dir, out_dir, df, remote=False,clobber=False):
     p = int(pad/2)
     
     if not False in df['crop_fn'].apply(lambda x: os.path.exists(x) ) : return 0
-
     if not os.path.exists(out_dir) : os.makedirs(out_dir)
     files = glob('{}/*'.format(src_dir))
     basenames = [ get_base(fn) for fn in files ]
@@ -42,10 +41,10 @@ def crop(src_dir, out_dir, df, remote=False,clobber=False):
     if not remote :
         for index, (fn, base) in enumerate(zip(files, basenames)) : 
 
-            if 'MR1' not in base : continue
+            if 'MR1' not in base : continue #WILL NEED TO REMOVE
             crop_fn = '{}/{}.nii.gz'.format(out_dir , base)
-
             if not os.path.exists(crop_fn) or clobber :
+
                 mask_fn=glob(f'crop/combined_final/mask/{base}*.png')
                 #print(mask_fn)
                 if len(mask_fn) > 0 : 

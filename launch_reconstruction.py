@@ -40,7 +40,7 @@ def calculate_section_order(autoradiograph_info_fn, source_dir, out_dir, in_df_f
 
     df['filename']=source_dir+'/'+df['lin_fn'].apply(lambda x : os.path.splitext(os.path.basename(x))[0]) +'.png'
     df['filename']=df['filename'].apply(lambda x : re.sub('#L.png','.png',x))
-    df['filename_rsl'] = df['filename'].apply(lambda x: out_dir+'/reconstruction_output/0_crop/'+os.path.splitext(os.path.basename(x))[0]+'#L.nii.gz')
+    df['filename_rsl'] = df['filename'].apply(lambda x: out_dir+'/0_crop/'+os.path.splitext(os.path.basename(x))[0]+'#L.nii.gz')
 
     df.sort_values(["mri","hemisphere","slab","volume_order"], inplace=True)
 
@@ -63,7 +63,7 @@ def setup_argparse():
     parser.add_argument('--nvertices', dest='n_vertices', type=int, default=81920, help='n vertices for mesh')
     parser.add_argument('--ndepths', dest='n_depths', type=int, default=100, help='n depths for mesh')
     parser.add_argument('--src-dir','-i', dest='src_dir', type=str, default='receptor_dwn', help='Slabs to reconstruct. Default = reconstruct all slabs.')
-    parser.add_argument('--out-dir','-o', dest='out_dir', type=str, default='reconstruction_output', help='Slabs to reconstruct. Default = reconstruct all slabs.')
+    parser.add_argument('--out-dir','-o', dest='out_dir', type=str, default='output', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--scale-factors', dest='scale_factors_fn', type=str, default=None, help='json file with scaling and ordering info for each slab')
     parser.add_argument('--mri-gm', dest='srv_fn', type=str, default=None, help='mri gm super-resolution volume (srv)')
     parser.add_argument('--surf-dir', dest='surf_dir', type=str, default='civet/mri1/surfaces/surfaces/', help='surface directory')
@@ -289,7 +289,6 @@ if __name__ == '__main__':
 
     ### Step 0 : Crop downsampled autoradiographs
     crop(args.src_dir,args.crop_dir, df,  remote=args.remote)
-
 
     for brain in args.brain :
         for hemi in args.hemi :                     

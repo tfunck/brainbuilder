@@ -22,6 +22,7 @@ from skimage.filters import threshold_otsu, threshold_li
 from ants import  from_numpy,  apply_transforms, apply_ants_transform, read_transform
 from ants import image_read, registration
 from utils.utils import shell, w2v, v2w
+from utils.upsample_gifti import *
 from vast.surface_volume_mapper import SurfaceVolumeMapper
 
 global surf_fn_str
@@ -145,7 +146,6 @@ def thicken_sections(array_src, slab_df, resolution ):
 def get_slab_profile( slab_df, depth_index, surf_upsample_fn, array_src, affine, profiles, resolution):
     
     rec_vol = thicken_sections(array_src, slab_df, resolution)
-    #nib.Nifti1Image(rec_vol, affine).to_filename('/project/def-aevans/tfunck/test.nii.gz')
     print('\t\t {}\n\t\t Depth:'.format( np.mean(np.sum(np.abs(wm_coords-gm_coords),axis=1)) ) )
     #for depth_i, depth_fn in enumerate(depth_fn_list) :
     coords, ngh, faces = read_coords(surf_upsample_fn)
