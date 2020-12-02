@@ -237,7 +237,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
             print('\tInitial rigid inter-autoradiograph alignment')
             print('\t\t',init_align_fn, 'exists:',os.path.exists(init_align_fn))
             if (not os.path.exists( init_align_fn) or args.clobber) and not args.interpolation_only  :
-                receptorRegister(brain,hemi,slab, init_align_fn, init_align_dir, slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
+                receptorRegister(brain, hemi, slab, init_align_fn, init_align_dir, slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
             
             ### Steps 2-4 : Multiresolution alignment
             multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args,files, resolution_list,  init_align_fn)
@@ -245,26 +245,29 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
     interp_dir=f'{args.out_dir}/5_surf_interp/'
 
-    nl_tfm_list= []
-    nl_2d_list = []
-    slab_list = []
-    
-    for slab_dict in files[brain][hemi].values() :
+    slab_dict={} 
+    for slab, temp_slab_dict in files[brain][hemi].items() :
+        if os.path.exists(temp_slab_dict[resolution_list[-1]]['nl_3d_tfm_fn']) and os.path.exists(temp_slab_dict[resolution_list[-1]]['nl_2d_vol_fn']) :
+            slab_dict[slab] = temp_slab_dict[resolution_list[-1]] 
+        
+    '''
+    for slab, slab_dict in files[brain][hemi].items() :
         try :
             if os.path.exists(slab_dict[highest_resolution]['nl_2d_vol_fn']) and os.path.exists(slab_dict[highest_resolution]['nl_3d_tfm_fn']) :
-                nl_tfm_list.append(slab_dict[highest_resolution]['nl_3d_tfm_fn'])
-                nl_2d_list.append(slab_dict[highest_resolution]['nl_2d_vol_fn'])
-                slab_list.append( slab_dict[highest_resolution]['slab']  )
+                nl_tfm_list[slab]=slab_dict[highest_resolution]['nl_3d_tfm_fn']
+                nl_2d_list[slab] = slab_dict[highest_resolution]['nl_2d_vol_fn']
+                slab_list = slab_dict[highest_resolution]['slab']  
         except KeyError:
             continue
+    '''
 
-    if len(slab_list) == 0 : 
+    if len(slab_dict.keys()) == 0 : 
         print('No slabs to interpolate over')
         exit(0)
-
+    
     # Surface interpolation
     if not args.remote or args.interpolation_only:
-        surface_interpolation(nl_tfm_list,  nl_2d_list, slab_list,args.out_dir, interp_dir, brain, hemi, highest_resolution, hemi_df, args.srv_fn, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+        surface_interpolation(slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, hemi_df, args.srv_fn, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
 
 
 ###---------------------###
