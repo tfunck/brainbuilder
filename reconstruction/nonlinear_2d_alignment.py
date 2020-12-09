@@ -95,7 +95,6 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, output_dir, resolution, resolutio
         s_list = map(f,  range(resolution_itr+1,0,-1) ) 
         s_str='x'.join( [str(i) for i in s_list] ) + 'vox'
 
-
         for (out_fn, y), (tfm_fn,y1) in zip(out_to_do,tfm_to_do):
             if y != y1 :
                 print('Error: mismatched y for {} {} and {} {}',y, out_fn, y1, tfm_fn)

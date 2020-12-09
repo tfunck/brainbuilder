@@ -216,8 +216,8 @@ def multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args, files, 
         if exit_early : exit(1)
             
         print('\tStep 4: 2d nl alignment')
-       
         receptor_2d_alignment( slab_df, init_align_fn, srv_base_rsl_crop_fn, nl_2d_dir,  resolution, resolution_itr, batch_processing=args.remote)
+
     #Concatenate 2D nonlinear aligned sections into output volume
     if (resolution != resolution_list[0] and not os.path.exists(nl_2d_vol_fn))  :
         concatenate_sections_to_volume(slab_df, init_align_fn, nl_2d_dir, nl_2d_vol_fn)
@@ -249,17 +249,6 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     for slab, temp_slab_dict in files[brain][hemi].items() :
         if os.path.exists(temp_slab_dict[resolution_list[-1]]['nl_3d_tfm_fn']) and os.path.exists(temp_slab_dict[resolution_list[-1]]['nl_2d_vol_fn']) :
             slab_dict[slab] = temp_slab_dict[resolution_list[-1]] 
-        
-    '''
-    for slab, slab_dict in files[brain][hemi].items() :
-        try :
-            if os.path.exists(slab_dict[highest_resolution]['nl_2d_vol_fn']) and os.path.exists(slab_dict[highest_resolution]['nl_3d_tfm_fn']) :
-                nl_tfm_list[slab]=slab_dict[highest_resolution]['nl_3d_tfm_fn']
-                nl_2d_list[slab] = slab_dict[highest_resolution]['nl_2d_vol_fn']
-                slab_list = slab_dict[highest_resolution]['slab']  
-        except KeyError:
-            continue
-    '''
 
     if len(slab_dict.keys()) == 0 : 
         print('No slabs to interpolate over')

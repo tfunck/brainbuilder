@@ -117,6 +117,7 @@ def classifyReceptorSlices(in_fn, out_dir, out_fn, morph_iterations=5, clobber=F
         #
         # Read Input HDF5 Minc File and create output volume
         #
+        print("\tInput HDF5",in_fn)
         vol1 = nib.load(in_fn)
         ar1 = vol1.get_data()
         data=np.zeros(ar1.shape)

@@ -222,7 +222,8 @@ def combine_sections_to_vol(df,z_mm,direction,out_fn):
     zstep= z_mm/4164. * 10
 
     print("\n\tWriting Volume",out_fn,"\n")
-    slab_ymin=-126+df["volume_order"].min()*0.02 
+    slab_ymin=-126+df["global_order"].min()*0.02 
+    print("slab ymin:", slab_ymin)
     ystep = 0.02 
     affine=np.array([[xstep, 0, 0, -72],
                     [0,  ystep, 0, slab_ymin],
