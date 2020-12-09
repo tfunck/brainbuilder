@@ -24,10 +24,39 @@ from ants import image_read, registration
 from utils.utils import shell, w2v, v2w
 from utils.upsample_gifti import *
 from vast.surface_volume_mapper import SurfaceVolumeMapper
+from pykrige.ok import OrdinaryKriging
 
 global surf_fn_str
 surf_fn_str='{}/mri1_{}_surface_right_{}{}.surf.gii'
 
+
+def krig(lons_src, lats_src, lats_src, lats_src, values ):
+    # Make this example reproducible:
+    #np.random.seed(89239413)
+
+    # Generate random data following a uniform spatial distribution
+    # of nodes and a uniform distribution of values in the interval
+    # [2.0, 5.5]:
+
+    # Generate a regular grid with 60° longitude and 30° latitude steps:
+    grid_lon = np.linspace(0.0, 360.0, 7)
+    grid_lat = np.linspace(-90.0, 90.0, 7)
+
+    # Create ordinary kriging object:
+    OK = OrdinaryKriging(
+        lon,
+        lat,
+        values,
+        variogram_model="linear",
+        verbose=False,
+        enable_plotting=False,
+        coordinates_type="geographic"
+        )
+
+    # Execute on grid:
+    z1, ss1 = OK.execute("grid", lons_tgt, lats_tgt)
+
+    return z1
 
 
  
@@ -215,7 +244,10 @@ def interpolate_over_surface(sphere_obj_fn,profiles):
         lats, lons = spherical_coords[:,1]-np.pi/2, spherical_coords[:,2]
 
         # interpolate over the sphere
-        interp_val, interp_type = mesh.interpolate(lons,lats, zdata=surface_val[surface_mask], order=1)
+        if False :
+            interp_val, interp_type = mesh.interpolate(lons,lats, zdata=surface_val[surface_mask], order=1)
+        else :
+            interp_val = krig(lons, lats, lats_src, lats_src, values )
             
         profiles[:,i] = interp_val
 
