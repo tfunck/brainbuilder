@@ -15,12 +15,12 @@ def section_2d( prefix, mv_rsl_fn, fx_fn,  out_hires_fn, s_str, f_str, lin_itr_s
         F.write("#!/bin/bash\n")
         F.write("#SBATCH --nodes 4\n")
         F.write("#SBATCH --mem 6G\n")
-        F.write("#SBATCH --time=00:03:00\n")
+        F.write("#SBATCH --time=00:04:00\n")
         F.write("#SBATCH --job-name=job_reconstruct\n")
         F.write("#SBATCH --output=%j.out\n")
         F.write("#SBATCH --account=rpp-aevans-ab\n")
         F.write("module load singularity/3.6\n")
-        F.write(f"singularity exec -B /project/def-aevans/tfunck:/project/def-aevans/tfunck  ~/receptor.simg {command_str}\n")
+        F.write(f"singularity exec -B /project/def-aevans/tfunck:/project/def-aevans/tfunck -B /scratch/tfunck:/scratch/tfunck ~/receptor.simg {command_str}\n")
 
 
 if __name__ == '__main__' :

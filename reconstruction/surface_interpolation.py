@@ -70,14 +70,15 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert):
     
     in_file = open(in_gii_fn, 'r')
     
-    path, ext = os.path.splitext(in_gii_fn)
-    coord_fn = path+ '_ants_reformat.csv'
+    out_path, out_ext = os.path.splitext(out_gii_fn)
+    coord_fn = out_path+ '_ants_reformat.csv'
 
     #read the csv with transformed vertex points
     with open(coord_fn, 'w+') as f :  
         f.write('x,y,z,t,label\n') 
         for x,y,z in coords :  
-            f.write('{},{},{},{},{}\n'.format(flip*x,flip*y,z,0,0 ))
+            #f.write('{},{},{},{},{}\n'.format(flip*x,flip*y,z,0,0 ))
+            f.write('{},{},{},{},{}\n'.format(x,y,z,0,0 ))
 
     temp_out_fn=tempfile.NamedTemporaryFile().name+'.csv'
     shell(f'antsApplyTransformsToPoints -d 3 -i {coord_fn} -t [{tfm_list[0]},{invert[0]}]  -o {temp_out_fn}',verbose=True)
@@ -89,10 +90,24 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert):
             if i == 0 : continue
             x,y,z,a,b = l.rstrip().split(',')
             coords[i-1] = [flip*float(x),flip*float(y),float(z)]
+            #coords[i-1] = [float(x),flip*float(y),float(z)]
     
     save_gii(coords,faces,in_gii_fn,out_gii_fn)
+    
+    obj_fn = out_path+ '.obj'
+    print(obj_fn)
+    save_obj(obj_fn,coords,faces)
 
-def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, depth_list, slab, n_vertices=81920) :
+def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, depth_list, n_vertices=81920) :
+    depth_fn_dict={}
+    # Upsampling of meshes at various depths across cortex produces meshes with different n vertices.
+    # To create a set of meshes across the surfaces across the cortex that have the same number of 
+    # vertices, we first upsample and inflate the wm mesh.
+    # Then, for each mesh across the cortex we resample that mesh so that it has the same polygons
+    # and hence the same number of vertices as the wm mesh.
+    # Each mesh across the cortical depth is inflated (from low resolution, not the upsampled version)
+    # and then resampled so that it has the high resolution number of vertices.
+
     # create depth mesh
     gm_mesh = nib.load(gm_surf_fn) 
     wm_mesh = nib.load(wm_surf_fn)
@@ -105,19 +120,34 @@ def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, 
 
     d_coords = gm_coords - wm_coords 
     
+    wm_upsample_fn="{}/surf_{}mm_{}_rsl.surf.gii".format(surf_dir,resolution,0)
+    wm_upsample_csv="{}/surf_{}mm_{}_rsl.surf.csv".format(surf_dir,resolution,0)
+    wm_sphere_fn = "{}/surf_{}mm_{}_inflate.surf.gii".format(surf_dir,resolution,0)
+    wm_sphere_rsl_fn = "{}/surf_{}mm_{}_inflate_rsl.surf.gii".format(surf_dir,resolution,0)
+
+    depth_fn_dict[0]={'upsample_fn':wm_upsample_fn, 'sphere_rsl_fn':wm_sphere_rsl_fn}
+
+    if False in [ os.path.exists(fn) for fn in [wm_upsample_fn, wm_sphere_fn, wm_sphere_rsl_fn]] :
+        create_high_res_sphere(wm_surf_fn, wm_upsample_fn, wm_sphere_fn, wm_sphere_rsl_fn, resolution, wm_upsample_csv)
+
     for depth in depth_list :
-
         print("\tDepth", depth)
+        depth_surf_fn="{}/surf_{}mm_{}.surf.gii".format(surf_dir,resolution,depth)
+        upsample_fn="{}/surf_{}mm_{}_rsl.surf.gii".format(surf_dir,resolution,depth)
+        sphere_fn = "{}/surf_{}mm_{}_inflate.surf.gii".format(surf_dir,resolution,depth)
+        sphere_rsl_fn = "{}/surf_{}mm_{}_inflate_rsl.surf.gii".format(surf_dir,resolution,depth)
         coords = wm_coords + depth * d_coords
-        depth_surf_fn="{}/surf_{}_{}mm_{}.surf.gii".format(surf_dir,slab,resolution,depth)
-        upsample_fn="{}/surf_{}_{}mm_{}_rsl.surf.gii".format(surf_dir,slab,resolution,depth)
-        sphere_fn = "{}/surf_{}_{}mm_{}_inflate.surf.gii".format(surf_dir,slab,resolution,depth)
-        sphere_rsl_fn = "{}/surf_{}_{}mm_{}_inflate_rsl.surf.gii".format(surf_dir,slab,resolution,depth)
-        save_gii( coords, wm_faces, wm_surf_fn, depth_surf_fn )
-    
-        create_high_res_sphere(depth_surf_fn, upsample_fn, sphere_fn, sphere_rsl_fn, resolution)
+        depth_fn_dict[depth]={'upsample_fn':upsample_fn, 'sphere_rsl_fn':sphere_rsl_fn}
+
+        if not os.path.exists(depth_surf_fn) :
+            save_gii( coords, wm_faces, wm_surf_fn, depth_surf_fn)
+   
+        if False in [ os.path.exists(fn) for fn in [upsample_fn, sphere_fn, sphere_rsl_fn]] :
+            print("okay")
+            create_high_res_sphere(depth_surf_fn, upsample_fn, sphere_fn, sphere_rsl_fn, resolution, optional_reference=wm_upsample_csv )
 
 
+    return depth_fn_dict
 
 
 
@@ -129,18 +159,30 @@ def load_slabs(slab_fn_list) :
 
 def vol_surf_interp(src, coords, affine,  clobber=0 ):
     steps = [ affine[0,0], affine[1,1], affine[2,2]   ]
-    starts =  [ affine[0,3], affine[1,3], affine[2,3]   ] #[-72, -126,-90 ] #
-    vx=np.array([ w2v(i, steps[0], starts[0]) for i in coords[:,0]]).astype(int)
-    vy=np.array([ w2v(i, steps[1], starts[1]) for i in coords[:,1]]).astype(int)
-    vz=np.array([ w2v(i, steps[2], starts[2]) for i in coords[:,2]]).astype(int)
-
+    starts =  [ affine[0,3], affine[1,3], affine[2,3]   ] 
+    xmax=starts[0] + src.shape[0] * steps[0]
+    ymax=starts[1] + src.shape[1] * steps[1]
+    zmax=starts[2] + src.shape[2] * steps[2]
+    #coords = coords=np.array([[  -5.90495, -113.724,    -14.9132 ], [-6.2502, -108.154,  -60.1352 ] ])
+    vx = np.array([ w2v(i, steps[0], starts[0]) for i in coords[:,0]]).astype(int)
+    vy = np.array([ w2v(i, steps[1], starts[1]) for i in coords[:,1]]).astype(int)
+    vz = np.array([ w2v(i, steps[2], starts[2]) for i in coords[:,2]]).astype(int)
     idx = (vx >= 0) & (vy >= 0) & (vz >= 0) & (vx < src.shape[0]) & ( vy < src.shape[1]) & ( vz < src.shape[2] )
-    if np.sum(idx) == 0 : 
-        print('Error: no voxels found to interpolate over')
-        exit(1)
+    #print(coords[0,:])
+    #print(starts)
+    #print(xmax,ymax,zmax)
+    #print((coords[:,0] > starts[0]) & (coords[:,0]<xmax) )
+    #print((coords[:,1] > starts[1]) & (coords[:,1]<ymax) )
+    #print( (coords[:,2] > starts[2]) & (coords[:,2]<zmax))
+    #idx = (coords[:,0] > starts[0]) & (coords[:,0]<xmax) & (coords[:,1] > starts[1]) & (coords[:,1]<ymax) & (coords[:,2] > starts[2]) & (coords[:,2]<zmax) 
+    #print(idx)
+    #print(np.sum(idx))
+    assert np.sum(idx) != 0 , 'Error: no voxels found to interpolate over'
+    #print("sum idx", np.sum(idx))
+
     val=np.zeros(vx.shape)
     val[idx] = src[vx[idx], vy[idx], vz[idx]]#.reshape(-1,)
-    df = pd.DataFrame({'x':coords[:,0], 'y':coords[:,1],'z':coords[:,2],'vx':vx,'vy':vy,'vz':vz,'val':val})
+    assert np.sum(val) != 0, "Error: no surface values projected onto surface"
     return val
 
 
@@ -158,13 +200,13 @@ def thicken_sections(array_src, slab_df, resolution ):
         
         # Conversion of radioactivity values to receptor density values
         section = array_src[:, i, :].reshape(dim) * row['conversion_factor']
+        #print('row',i ,'min', section.min(),'mean', section.mean(), 'max', section.max() )
 
         assert np.sum(section) !=0, f'Error: empty frame {i}'
         i0 = (i-width) if i-width > 0 else 0
         i1 = (i+width) if i+width <= array_src.shape[1] else array_src.shape[1]
         
         #put ligand sections into rec_vol
-        print('i0 i1', i0,i1)
         rec_vol[:, i0:i1, :] = np.repeat(section,i1-i0, axis=1)
         
     assert np.sum(rec_vol) != 0, 'Error: receptor volume for single ligand is empty'
@@ -172,103 +214,107 @@ def thicken_sections(array_src, slab_df, resolution ):
     return rec_vol
 
 
-def get_slab_profile( slab_df, depth_index, surf_upsample_fn, array_src, affine, profiles, resolution):
-    
+def get_slab_profile( slab_df,  surf_upsample_fn, array_src, affine, profile, resolution):
     rec_vol = thicken_sections(array_src, slab_df, resolution)
-    print('\t\t {}\n\t\t Depth:'.format( np.mean(np.sum(np.abs(wm_coords-gm_coords),axis=1)) ) )
-    #for depth_i, depth_fn in enumerate(depth_fn_list) :
-    coords, ngh, faces = read_coords(surf_upsample_fn)
-    profiles[:,depth_i] += vol_surf_interp( rec_vol, coords, affine, clobber=2)
-    if depth_i == 0 :
-        idx = profiles[:,depth_i]>0
-    return profiles
-                 
-def get_profiles(surf_dir, surf_mid_list, surf_wm_list, surf_gm_list, depth_list,  profiles_fn,vol_list, slab_list, df_ligand, surf_upsample_str, resolution ):
-    dt = 1.0/ n_depths
-    depth_list = np.arange(0., 1+dt, dt)
+    coords = nib.load(surf_upsample_fn).agg_data('NIFTI_INTENT_POINTSET')
+    profile += vol_surf_interp( rec_vol, coords, affine, clobber=2)
+    assert np.sum(profile) != 0, "Error: empty profile"
     
-    nrows = pd.read_csv(surf_mid_list[0]).shape[0]
+    return profile
+                 
+def get_profiles(surf_dir, depth_list, profiles_fn, slab_dict, df_ligand, depth_fn_mni_space, depth_fn_slab_space, resolution, clobber=False):
+    example_depth_fn=depth_fn_mni_space[depth_list[0]]['upsample_fn']
+    nrows = nib.load(example_depth_fn).agg_data('NIFTI_INTENT_POINTSET').shape[0]
 
     profiles=np.zeros([nrows, len(depth_list)])
+    depth_fn_list = [ sub('.csv', f'_{depth}_raw.csv', profiles_fn) for depth in depth_list ]
 
-    for i, slab in enumerate(slab_list) :
+    #if not os.path.exists(profiles_raw_fn) or clobber :
+    if False in [os.path.exists(fn) for fn in depth_fn_list ] :
+        for i, slab in slab_dict.items() :
+            print("loading volume", slab['nl_2d_vol_fn']) 
+            array_img = nib.load(slab['nl_2d_vol_fn'])
+            array_src = array_img.get_fdata()
 
-        array_img = nib.load(vol_list[i])
-        array_src = array_img.get_fdata()
+            assert np.sum(array_src) != 0 , 'Error: input receptor volume has is empty {}'.format(slab['nl_2d_vol_fn'])
 
-        assert np.sum(array_src) != 0 , f'Error: input receptor volume has is empym {vol_list[i]}'
+            for depth_index, (depth, depth_fn) in enumerate(zip(depth_list,depth_fn_list)):
+                if not os.path.exists(depth_fn) :
+                    surf_upsample_fn = depth_fn_slab_space[i][depth]
 
-        for depth_index, depth in enumerate(depth_list):
-            surf_upsample_fn=surf_upsample_str.format(surf_dir,slab,resolution,depth)
-            print(f'\tslab: {slab}')
-            slab_df=df_ligand.loc[df_ligand['slab'].astype(int)==int(slab)]
-        
-            profiles += get_slab_profile( slab_df, depth_index, surf_upsample_fn, array_src, array_img.affine, profiles, resolution)
+                    print(f'\tslab: {i}')
+                    print(surf_upsample_fn)
+                    slab_df=df_ligand.loc[df_ligand['slab'].astype(int)==int(i)]
+                
+                    profiles[:,depth_index] = get_slab_profile( slab_df, surf_upsample_fn, array_src, array_img.affine, profiles[:,depth_index], resolution)
 
-    profiles[ profiles < 0.1 ] = 0
-   
-    profiles_raw_fn = sub('.csv','_raw.csv', profiles_fn) 
-    pd.DataFrame(profiles).to_csv(profiles_raw_fn, index=False, header=False)
+                #profiles[ profiles < 0.01 ] = 0
+        for depth_index, depth_fn in enumerate(depth_fn_list):
+            pd.DataFrame(profiles[:,depth_index]).to_csv(depth_fn, index=False, header=False)
 
-    profiles = interpolate_over_surface(sphere_obj_fn,profiles)
-
+    for depth_index, (depth, depth_fn) in enumerate(zip(depth_list, depth_fn_list)):
+        profiles_raw = pd.read_csv(depth_fn,header=None,index_col=None)
+        sphere_rsl_fn = depth_fn_mni_space[depth]['sphere_rsl_fn'] 
+        surface_val = profiles_raw.values.reshape(-1,) #iloc[:,depth_index].values
+        profiles[:,depth_index] = interpolate_over_surface(sphere_rsl_fn, surface_val)
+    
+    print('profiles', profiles.min(), profiles.mean(), profiles.max())
     pd.DataFrame(profiles).to_csv(profiles_fn, index=False, header=False)
      
-def interpolate_over_surface(sphere_obj_fn,profiles):
-        
-    sphere = load_mesh_geometry(sphere_obj_fn) 
-
+def interpolate_over_surface(sphere_obj_fn,surface_val):
     # get coordinates from dicitonary with mesh info
-    spherical_coords = surface_tools.spherical_np(sphere['coords'])
+    coords = nib.load(sphere_obj_fn).agg_data('NIFTI_INTENT_POINTSET') #surface_tools.spherical_np(sphere['coords'])
+    spherical_coords = surface_tools.spherical_np(coords)
+    #define a mask of verticies where we have receptor densitiies
+    surface_mask = surface_val != 0
+    assert np.sum(surface_mask) != 0, "Error, empty profiles {}".format(np.sum(surface_mask))
+    #define vector with receptor densities 
+    surface_val_src = surface_val[ surface_mask.astype(bool) ]
 
-    for i in range(profiles.shape[1]):
-        surface_val = profiles[:,i]
+    #define vector without receptor densities
+    surface_val_tgt = surface_val[ ~surface_mask.astype(bool) ]
 
-        #define a mask of verticies where we have receptor densitiies
-        surface_mask = profiles[:,i] != 0
+    # get coordinates for vertices in mask
+    spherical_coords_src = spherical_coords[ surface_mask.astype(bool), : ]
 
-        #define vector with receptor densities 
-        surface_val_src = surface_val[ surface_mask.astype(bool) ]
+    # get spherical coordinates from cortical mesh vertex coordinates
+    lats_src, lons_src = spherical_coords_src[:,1]-np.pi/2, spherical_coords_src[:,2]
 
-        #define vector without receptor densities
-        surface_val_tgt = surface_val[ ~surface_mask.astype(bool) ]
-
-        # get coordinates for vertices in mask
-        spherical_coords_src = spherical_coords[ surface_mask.astype(bool), : ]
-
-        # get spherical coordinates from cortical mesh vertex coordinates
-        lats_src, lons_src = spherical_coords_src[:,1]-np.pi/2, spherical_coords_src[:,2]
-
-        # create mesh data structure
-        mesh = stripy.sTriangulation(lons_src, lats_src)
-        lats, lons = spherical_coords[:,1]-np.pi/2, spherical_coords[:,2]
-
-        # interpolate over the sphere
-        if False :
-            interp_val, interp_type = mesh.interpolate(lons,lats, zdata=surface_val[surface_mask], order=1)
-        else :
-            interp_val = krig(lons, lats, lats_src, lats_src, values )
-            
-        profiles[:,i] = interp_val
-
-    return profiles
-
-def transform_surf_to_slab(interp_dir, surf_gm_fn, surf_wm_fn, brain, hemi, tfm_list, slab_list, clobber=0):
-    surf_rsl_dict={}
-    for i, slab in enumerate( slab_list ) :
-        gm_rsl_fn="{}/slab-{}_{}".format(interp_dir,slab,os.path.basename(surf_gm_fn))
-        if not os.path.exists(gm_rsl_fn) or clobber >= 1 : 
-            apply_ants_transform_to_gii(surf_gm_fn, [tfm_list[i]], gm_rsl_fn, [0])
+    # create mesh data structure
+    mesh = stripy.sTriangulation(lons_src, lats_src)
+    lats, lons = spherical_coords[:,1]-np.pi/2, spherical_coords[:,2]
     
-        wm_rsl_fn="{}/slab-{}_{}".format(interp_dir,slab,os.path.basename(surf_wm_fn))
-        if not os.path.exists(wm_rsl_fn) or clobber >= 1 : 
-            apply_ants_transform_to_gii(surf_wm_fn, [tfm_list[i]], wm_rsl_fn, [0])
+    # interpolate over the sphere
+    if False :
+        interp_val, interp_type = mesh.interpolate(lons,lats, zdata=surface_val[surface_mask], order=1)
+    else :
+        interp_val = krig(lons, lats, lats_src, lats_src, values )
+    # interpolate over the sphere
+        
+    return interp_val
 
-        surf_rsl_dict[slab]={'wm':wm_rsl_fn, 'gm':gm_rsl_fn}
+def transform_surf_to_slab(interp_dir, slab_dict, depth_fn_space_mni, clobber=0):
+    surf_rsl_dict={}
+    
+    for slab, cur_slab_dict in slab_dict.items() :
+        surf_rsl_dict[slab]={}
+
+        for depth, depth_dict in depth_fn_space_mni.items() :
+            print(f"\t{slab} {depth}")
+            upsample_fn = depth_dict['upsample_fn']
+            sphere_rsl_fn = depth_dict['sphere_rsl_fn']
+            
+            upsample_slab_space_fn="{}/slab-{}_{}".format(interp_dir,slab,os.path.basename(upsample_fn))
+            surf_rsl_dict[slab][depth]=upsample_slab_space_fn
+
+            if not os.path.exists(upsample_slab_space_fn) or clobber >= 1 : 
+                apply_ants_transform_to_gii(upsample_fn, [cur_slab_dict['nl_3d_tfm_fn']], upsample_slab_space_fn, [0])
         
     return surf_rsl_dict
 
-def surface_interpolation(tfm_list, vol_list, slab_list, out_dir, interp_dir, brain, hemi, resolution, df, mni_fn, n_depths=3, surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, clobber=0):
+def surface_interpolation(slab_dict, out_dir, interp_dir, brain, hemi, resolution, df, mni_fn, n_depths=3, surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, clobber=0):
+    # tfm_list, vol_list, slab_list
+
     #make sure resolution is interpreted as float
     resolution=float(resolution) 
 
@@ -288,10 +334,9 @@ def surface_interpolation(tfm_list, vol_list, slab_list, out_dir, interp_dir, br
     mni_vol = nib.load(mni_fn).get_fdata()
     dwn_res = 0.25
     nat_res = 0.02
-
     #set depths
     dt = 1.0/ n_depths
-    depth_list = np.arange(0, 1+dt, dt)
+    depth_list = np.arange(dt, 1+dt, dt)
 
     dimensions = np.array([ mni_vol.shape[0] * dwn_res/resolution, 
                             mni_vol.shape[1] * dwn_res/resolution, 
@@ -299,20 +344,18 @@ def surface_interpolation(tfm_list, vol_list, slab_list, out_dir, interp_dir, br
     del mni_vol
 
     print("\tTransforming surfaces to slab space") 
-    #For each slab, transform the mesh surface to the receptor space
-    #TODO: transform points into space of individual autoradiographs
-    surf_rsl_dict = transform_surf_to_slab(surf_rsl_dir, surf_gm_fn, surf_wm_fn, brain, hemi, tfm_list,  slab_list)
-
-    #surf_upsample_fn = '{}/surf_{}_{}mm_{}.surf.gii'
-    #surf_upsample_str = '{}/surf_{}_{}mm_{}.obj'
 
     #upsample transformed surfaces to given resolution
-    for slab, surf_dict in surf_rsl_dict.items() :
-        upsample_and_inflate_surfaces(surf_rsl_dir, surf_dict['wm'],surf_dict['gm'], resolution, depth_list, slab)
+    depth_fn_mni_space = upsample_and_inflate_surfaces(surf_rsl_dir, surf_wm_fn, surf_gm_fn, resolution, depth_list)
     
-    # Create an object that will be used to interpolate over the surfaces
-    mapper = SurfaceVolumeMapper(white_surf=surf_wm_fn, gray_surf=surf_gm_fn, resolution=[resolution]*3, mask=None, dimensions=dimensions, origin=starts, filename=None, save_in_absence=False, interp_dir=interp_dir )
+    #For each slab, transform the mesh surface to the receptor space
+    #TODO: transform points into space of individual autoradiographs
+    depth_fn_slab_space = transform_surf_to_slab(surf_rsl_dir, slab_dict, depth_fn_mni_space)
 
+    # Create an object that will be used to interpolate over the surfaces
+    mapper = SurfaceVolumeMapper(white_surf=surf_wm_fn, gray_surf=surf_gm_fn, resolution=[resolution]*3, mask=None, dimensions=dimensions, origin=starts, filename=None, save_in_absence=False, out_dir=interp_dir, left_oriented=True )
+
+    depth_list = np.insert(depth_list,0, 0)
     for ligand, df_ligand in df.groupby(['ligand']):
         print('\tInterpolating for ligand:',ligand)
         profiles_fn  = f'{interp_dir}/{brain}_{hemi}_{ligand}_{resolution}mm_profiles.csv'
@@ -320,11 +363,11 @@ def surface_interpolation(tfm_list, vol_list, slab_list, out_dir, interp_dir, br
 
         # Extract profiles from the slabs using the surfaces 
         if not os.path.exists(profiles_fn) or clobber >= 1 :
-            get_profiles( surf_rsl_dir, depth_list, profiles_fn, vol_list, slab_list, df_ligand, surf_filename_str, resolution)
+            print('Getting profiles')
+            get_profiles( surf_rsl_dir, depth_list, profiles_fn, slab_dict, df_ligand, depth_fn_mni_space, depth_fn_slab_space, resolution)
             
         # Interpolate a 3D receptor volume from the surface mesh profiles
         if not os.path.exists(interp_fn) or clobber : 
-
             print('Map Vector to Block')
             profiles = pd.read_csv(profiles_fn, header=None).values
             vol_interp = mapper.map_profiles_to_block(profiles)
@@ -341,7 +384,6 @@ def surface_interpolation(tfm_list, vol_list, slab_list, out_dir, interp_dir, br
 
             print(f'\tWrite volumetric interpolated values to {interp_fn} ',end='\t')
             receptor_img.to_filename(interp_fn)
-            #receptor_img_rsl.to_filename(interp_fn)
             print('Done')
 
 

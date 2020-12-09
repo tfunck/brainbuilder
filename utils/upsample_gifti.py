@@ -8,6 +8,7 @@ from utils.utils import shell
 
 def read_coords(fn):
     lines_list=[]
+    print("reading",fn)
     with open(fn,'r') as F :
         for line_i , l in enumerate(F.readlines()) :
             lines_list.append(l.rstrip().split(","))
@@ -26,10 +27,10 @@ def save_gii(coords, triangles, reference_fn, out_fn):
     out.to_filename(out_fn) 
     #print(out.print_summary())
 
-def upsample_gifti(upsample_fn, input_fn, resolution, clobber=False):
+def upsample_gifti(upsample_fn, input_fn, resolution, clobber=False, upsample_csv_fn=None):
     
-    #upsample surface and save in an intermediate .csv file
-    upsample_csv_fn = os.path.splitext(upsample_fn)[0] + '.csv'
+
+
     if not os.path.exists(upsample_fn) or not os.path.exists(upsample_csv_fn) or clobber :
         #flatten ngh list to pass to c cod 
         mesh = nib.load(input_fn)
@@ -53,8 +54,13 @@ def upsample_gifti(upsample_fn, input_fn, resolution, clobber=False):
 
     return upsample_csv_fn
 
-def resample_to_reference(sphere_rsl_fn, resample_fn, new_coords, reference_csv_fn, lores_nvtx):
+def resample_to_reference(sphere_rsl_fn, gifti_example_fn, new_coords, reference_csv_fn, lores_nvtx):
     #flatten ngh list to pass to c cod 
+    print("Resampling to", reference_csv_fn)
+    if os.path.splitext(reference_csv_fn)[0] =='csv' : 
+        print("Error: should be csv but got", reference_csv_fn)
+        exit(1)
+
     coords, root_index, faces = read_coords(reference_csv_fn);
 
     #upsample surface and save in an intermediate .csv file
@@ -70,26 +76,40 @@ def resample_to_reference(sphere_rsl_fn, resample_fn, new_coords, reference_csv_
 
     #convert the upsampled .csv points into a proper gifti surfer
     sphere_coords_rsl, [], [] = read_coords(sphere_rsl_csv_fn)
-    print("-->",sphere_coords_rsl.shape, coords.shape)
-    save_gii( sphere_coords_rsl, faces, resample_fn, sphere_rsl_fn )
+    save_gii( sphere_coords_rsl, faces, gifti_example_fn, sphere_rsl_fn )
 
     return 0
 
-def create_high_res_sphere(input_fn, upsample_fn, sphere_fn, sphere_rsl_fn, resolution, clobber=False):
+def create_high_res_sphere(input_fn, upsample_fn, sphere_fn, sphere_rsl_fn, resolution, clobber=False, optional_reference=None, upsample_csv_fn=None):
     nvtx = nib.load(input_fn).agg_data('NIFTI_INTENT_POINTSET').shape[0]
-
-    print("\tUpsample")
-    upsample_csv_fn = upsample_gifti(upsample_fn, input_fn, resolution, clobber=clobber)
+    gifti_example_fn=input_fn
     
-    print('\tInflate to sphere')
+    #upsample surface and save in an intermediate .csv file
+    if upsample_csv_fn == None :
+        upsample_csv_fn = os.path.splitext(upsample_fn)[0] + '.csv'
+
+    if optional_reference == None :
+        print("\tUpsample")
+        upsample_gifti(upsample_fn, input_fn, resolution, clobber=clobber, upsample_csv_fn=upsample_csv_fn)
+    else :
+        #Instead of directly upsampling the mesh, we resample it according to a 
+        #reference mesh that is (presumably) at higher resolution.
+        depth_mesh_coords = nib.load(input_fn).agg_data('NIFTI_INTENT_POINTSET')
+        resample_to_reference( upsample_fn, gifti_example_fn, depth_mesh_coords, optional_reference, nvtx )
+    
     if not os.path.exists(sphere_fn) or clobber :
+        print('\tInflate to sphere')
         #inflate surface to sphere using freesurfer software
         shell('~/freesurfer/bin/mris_inflate -n 100  {} {}'.format(input_fn, sphere_fn))
     
-    print("Resample to reference")
     if not os.path.exists(sphere_rsl_fn) or clobber :
+        print("Resample to reference")
         sphere_coords = nib.load(sphere_fn).agg_data('NIFTI_INTENT_POINTSET')
-        resample_to_reference( sphere_rsl_fn,  input_fn, sphere_coords, upsample_csv_fn, nvtx )
+        if optional_reference == None:
+            ref_fn = upsample_csv_fn
+        else :
+            ref_fn = optional_reference
+        resample_to_reference( sphere_rsl_fn, gifti_example_fn, sphere_coords, ref_fn, nvtx )
 
 if __name__ == "__main__" :
     if len(sys.argv) != 3 or sys.argv[1] == '-h'  :

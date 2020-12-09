@@ -35,7 +35,7 @@ def load_list_from_pickle(filename) :
 class SurfaceVolumeMapper(object):
     
     def __init__(self, white_surf=None, gray_surf=None, resolution=None, mask=None, dimensions=None,
-                  origin=None, filename=None, save_in_absence=False, out_dir='./' ):
+                  origin=None, filename=None, save_in_absence=False, out_dir='./', left_oriented=False):
         """Class for mapping surface data to voxels
         Always assumes axis order is xyz
         Args:
@@ -92,8 +92,14 @@ class SurfaceVolumeMapper(object):
         if white_surf is not None:
             self.white_surface = io.load_mesh_geometry(white_surf)
             self.triangles_to_include = self.white_surface['faces']
+            if left_oriented :
+                self.white_surface['coords'][:,0] = -1 * self.white_surface['coords'][:,0]
+                self.white_surface['coords'][:,1] = -1 * self.white_surface['coords'][:,1]
         if gray_surf is not None:
             self.gray_surface = io.load_mesh_geometry(gray_surf)
+            if left_oriented :
+                self.gray_surface['coords'][:,0] = -1 * self.gray_surface['coords'][:,0]
+                self.gray_surface['coords'][:,1] = -1 * self.gray_surface['coords'][:,1]
         
         #check if mask. Calculate dimensions and origins from mask, unless these are specified.
         print('masking triangles')
