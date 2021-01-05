@@ -8,6 +8,7 @@ import imageio
 import nibabel as nib
 import PIL
 import matplotlib
+import psutil
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,6 +23,10 @@ from sklearn.cluster import KMeans
 from scipy.ndimage import zoom
 from skimage.transform import resize
 
+def memory_useage():
+    avail = psutil.virtual_memory().available
+    total = psutil.virtual_memory().total
+    print('Current memory useage:',np.round(avail  * 100 / total,1))
 def resample(img, out_fn, res, factor=2):
     res=float(res)
     xres = (res/factor) / img.affine[0,0]

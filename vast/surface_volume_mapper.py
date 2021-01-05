@@ -15,9 +15,6 @@ import concurrent.futures
 import os
 import vast.math_helpers as mh
 import tracemalloc
-from sys import getsizeof
-from guppy import hpy
-
 import time
 
 
@@ -421,7 +418,7 @@ class SurfaceVolumeMapper(object):
                 triangles_list=[]
                 tri_coords_list=[]
 
-        
+        np.savez(npz_fn_str.format(k,counter), vc=vc_list, triangles=triangles_list, tri_coords=tri_coords_list, depths=depths_list)
             
     @staticmethod
     def generate_prism(gray_surface_coords,white_surface_coords,triangle):

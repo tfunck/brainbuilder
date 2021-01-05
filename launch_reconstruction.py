@@ -5,7 +5,7 @@ import argparse
 import pandas as pd
 import numpy as np
 import nibabel as nib
-from utils.utils import shell, resample
+from utils.utils import shell, resample, memory_useage
 from utils.ANTs import ANTs
 from nibabel.processing import resample_to_output
 from utils.mesh_io import load_mesh_geometry, save_mesh_data, save_obj, read_obj
@@ -254,6 +254,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
         print('No slabs to interpolate over')
         exit(0)
     
+    memory_useage()
     # Surface interpolation
     if not args.remote or args.interpolation_only:
         surface_interpolation(slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, hemi_df, args.srv_fn, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
