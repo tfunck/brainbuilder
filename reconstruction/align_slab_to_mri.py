@@ -64,6 +64,7 @@ def get_start_end_slab_world_coordinates(df,slabs,ystep,ystart):
 
 
 def align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, out_dir, df, slabs,out_tfm_fn, out_tfm_inv_fn, out_fn, out_inv_fn, clobber=False, verbose=True ) :
+    print('\tRunning')
     # Load super-resolution GM volume extracted from donor MRI.
     slab=int(slab)
     srv_img = nib.load(srv_rsl_fn)

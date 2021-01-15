@@ -68,22 +68,19 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, output_dir, resolution, resolutio
 
     out_to_do=get_to_do_list(df, tfm_dir, '')
     tfm_to_do=get_to_do_list(df, tfm_dir, '_Composite', ext='.h5')
-
+    
     if len(out_to_do) != len(tfm_to_do) :
-        print('Error: number of output 2d nii.gz does not match number of tfm .h5 files, {} vs {}', len(out_to_do), len(tfm_to_do))
-        exit(1)
-
+        print('Error: number of output 2d nii.gz does not match number of tfm .h5 files, {} vs {}'.format( len(out_to_do), len(tfm_to_do)))
+        #exit(1)
+    
     if len(out_to_do + tfm_to_do) != 0 :
-        #don't remember what resolution_level does, so setting to 3 to cancel out it's effect
-        #This is done because you always want to start the registration from 5mm and end at 250um
-        #avg_step = (xstep+zstep)/2 
-        resolution_level = 1 # np.ceil(np.log2(3/avg_step )+ 1 ).astype(int)
+        resolution_level = 1 # 
 
         #Set strings for alignment parameters
-        base_lin_itr= 100
-        base_nl_itr = 10
-        max_lin_itr = resolution_level * base_lin_itr * (resolution_itr+1)
-        max_nl_itr  = resolution_level * base_nl_itr * (resolution_itr+1)
+        base_lin_itr= 1000
+        base_nl_itr = 100
+        max_lin_itr = base_lin_itr * (resolution_itr+1)*5
+        max_nl_itr  = base_nl_itr * (resolution_itr+1)*5
         lin_step = -base_lin_itr #*(resolution_itr)
         nl_step  = -base_nl_itr #*(resolution_itr)
 
@@ -126,7 +123,7 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn):
         prefix=f'{tfm_dir}/y-{y}'
         y=row['volume_order'] 
         fn=f'{tfm_dir}/y-{y}.nii.gz' 
-
+       
         out_vol[:,int(y),:] = nib.load(fn).get_fdata()
 
     print('\t\tWriting 3D non-linear:', out_fn)

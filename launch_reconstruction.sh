@@ -25,4 +25,4 @@ while getopts "s:b:m:i:o:r:c:p:s:" arg; do
   esac
 done
 
-singularity exec -B ${out_dir}:${out_dir}  ~/receptor.simg bash -c "python3 ~/julich-receptor-atlas/launch_reconstruction.py --remote -i $in_dir  --mri-gm ~/srv/mri1_gm_bg_srv.nii.gz  -o $out_dir -s $slab -b $brain --hemi $hemisphere   "
+singularity exec -B ${out_dir}:${out_dir}  ~/receptor.simg bash -c "python3.7 ~/julich-receptor-atlas/launch_reconstruction.py --remote -i $in_dir  --mri-gm ~/srv/mri1_gm_bg_srv.nii.gz  -o $out_dir -s $slab -b $brain --hemi $hemisphere   "

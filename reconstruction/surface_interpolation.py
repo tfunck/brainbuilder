@@ -29,8 +29,7 @@ from pykrige.ok import OrdinaryKriging
 global surf_fn_str
 surf_fn_str='{}/mri1_{}_surface_right_{}{}.surf.gii'
 
-
-def krig(lons_src, lats_src, lats_src, lats_src, values ):
+def krig(lons_src, lats_src, lats, lons, values ):
     # Make this example reproducible:
     #np.random.seed(89239413)
 
@@ -39,6 +38,7 @@ def krig(lons_src, lats_src, lats_src, lats_src, values ):
     # [2.0, 5.5]:
 
     # Generate a regular grid with 60° longitude and 30° latitude steps:
+    '''
     grid_lon = np.linspace(0.0, 360.0, 7)
     grid_lat = np.linspace(-90.0, 90.0, 7)
 
@@ -55,9 +55,19 @@ def krig(lons_src, lats_src, lats_src, lats_src, values ):
 
     # Execute on grid:
     z1, ss1 = OK.execute("grid", lons_tgt, lats_tgt)
+    '''
+    X0 = np.array([lons_src,lats_src]).T
+    X1 = np.array([lons,lats]).T
 
+    gpr = GaussianProcessRegressor().fit(X0, values.astype(np.float16))
+    print("Finished creating regressor")
+    d=1000
+    z1=np.zeros(X1.shape[0])
+    for i in range(0,X1.shape[0],d):
+        j=i+d
+        z1[i:j] = gpr.predict(X1[i:j]).reshape(-1,)
+    print("finished regressing")
     return z1
-
 
  
 def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert):
@@ -157,28 +167,19 @@ def load_slabs(slab_fn_list) :
         slabs.append( nib.load(slab_fn) )
     return slabs
 
-def vol_surf_interp(src, coords, affine,  clobber=0 ):
+def vol_surf_interp(val, src, coords, affine,  clobber=0 ):
     steps = [ affine[0,0], affine[1,1], affine[2,2]   ]
     starts =  [ affine[0,3], affine[1,3], affine[2,3]   ] 
     xmax=starts[0] + src.shape[0] * steps[0]
     ymax=starts[1] + src.shape[1] * steps[1]
     zmax=starts[2] + src.shape[2] * steps[2]
-    #coords = coords=np.array([[  -5.90495, -113.724,    -14.9132 ], [-6.2502, -108.154,  -60.1352 ] ])
+    
     vx = np.array([ w2v(i, steps[0], starts[0]) for i in coords[:,0]]).astype(int)
     vy = np.array([ w2v(i, steps[1], starts[1]) for i in coords[:,1]]).astype(int)
     vz = np.array([ w2v(i, steps[2], starts[2]) for i in coords[:,2]]).astype(int)
+    
     idx = (vx >= 0) & (vy >= 0) & (vz >= 0) & (vx < src.shape[0]) & ( vy < src.shape[1]) & ( vz < src.shape[2] )
-    #print(coords[0,:])
-    #print(starts)
-    #print(xmax,ymax,zmax)
-    #print((coords[:,0] > starts[0]) & (coords[:,0]<xmax) )
-    #print((coords[:,1] > starts[1]) & (coords[:,1]<ymax) )
-    #print( (coords[:,2] > starts[2]) & (coords[:,2]<zmax))
-    #idx = (coords[:,0] > starts[0]) & (coords[:,0]<xmax) & (coords[:,1] > starts[1]) & (coords[:,1]<ymax) & (coords[:,2] > starts[2]) & (coords[:,2]<zmax) 
-    #print(idx)
-    #print(np.sum(idx))
     assert np.sum(idx) != 0 , 'Error: no voxels found to interpolate over'
-    #print("sum idx", np.sum(idx))
 
     val=np.zeros(vx.shape)
     val[idx] = src[vx[idx], vy[idx], vz[idx]]#.reshape(-1,)
@@ -217,7 +218,7 @@ def thicken_sections(array_src, slab_df, resolution ):
 def get_slab_profile( slab_df,  surf_upsample_fn, array_src, affine, profile, resolution):
     rec_vol = thicken_sections(array_src, slab_df, resolution)
     coords = nib.load(surf_upsample_fn).agg_data('NIFTI_INTENT_POINTSET')
-    profile += vol_surf_interp( rec_vol, coords, affine, clobber=2)
+    profile =  vol_surf_interp(profile, rec_vol, coords, affine, clobber=2)
     assert np.sum(profile) != 0, "Error: empty profile"
     
     return profile
@@ -229,7 +230,6 @@ def get_profiles(surf_dir, depth_list, profiles_fn, slab_dict, df_ligand, depth_
     profiles=np.zeros([nrows, len(depth_list)])
     depth_fn_list = [ sub('.csv', f'_{depth}_raw.csv', profiles_fn) for depth in depth_list ]
 
-    #if not os.path.exists(profiles_raw_fn) or clobber :
     if False in [os.path.exists(fn) for fn in depth_fn_list ] :
         for i, slab in slab_dict.items() :
             print("loading volume", slab['nl_2d_vol_fn']) 
@@ -285,10 +285,11 @@ def interpolate_over_surface(sphere_obj_fn,surface_val):
     lats, lons = spherical_coords[:,1]-np.pi/2, spherical_coords[:,2]
     
     # interpolate over the sphere
-    if False :
-        interp_val, interp_type = mesh.interpolate(lons,lats, zdata=surface_val[surface_mask], order=1)
-    else :
-        interp_val = krig(lons, lats, lats_src, lats_src, values )
+    #if False :
+    interp_val, interp_type = mesh.interpolate(lons,lats, zdata=surface_val[surface_mask], order=1)
+    #else :
+    #    interp_val = krig(lons, lats, lats_src, lats_src, values )
+
     # interpolate over the sphere
         
     return interp_val
@@ -313,7 +314,6 @@ def transform_surf_to_slab(interp_dir, slab_dict, depth_fn_space_mni, clobber=0)
     return surf_rsl_dict
 
 def surface_interpolation(slab_dict, out_dir, interp_dir, brain, hemi, resolution, df, mni_fn, n_depths=3, surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, clobber=0):
-    # tfm_list, vol_list, slab_list
 
     #make sure resolution is interpreted as float
     resolution=float(resolution) 
@@ -326,11 +326,10 @@ def surface_interpolation(slab_dict, out_dir, interp_dir, brain, hemi, resolutio
     surf_gm_fn = surf_fn_str.format(surf_dir,'gray', n_vertices,'')
     surf_wm_fn = surf_fn_str.format(surf_dir,'white', n_vertices,'')
     sphere_obj_fn = surf_fn_str.format(surf_dir,'mid', n_vertices,'_sphere')
-    
 
     print("\tGet surface mask and surface values")
     # Load dimensions for output volume
-    starts = np.array([-72, -126,-90 ])
+    starts = np.array([-72, -126, -90 ])
     mni_vol = nib.load(mni_fn).get_fdata()
     dwn_res = 0.25
     nat_res = 0.02
@@ -353,8 +352,9 @@ def surface_interpolation(slab_dict, out_dir, interp_dir, brain, hemi, resolutio
     depth_fn_slab_space = transform_surf_to_slab(surf_rsl_dir, slab_dict, depth_fn_mni_space)
 
     # Create an object that will be used to interpolate over the surfaces
-    mapper = SurfaceVolumeMapper(white_surf=surf_wm_fn, gray_surf=surf_gm_fn, resolution=[resolution]*3, mask=None, dimensions=dimensions, origin=starts, filename=None, save_in_absence=False, out_dir=interp_dir, left_oriented=True )
-
+    print( depth_fn_mni_space[1]['upsample_fn'] )
+    mapper = SurfaceVolumeMapper(white_surf=depth_fn_mni_space[1]['upsample_fn'], gray_surf=depth_fn_mni_space[0]['upsample_fn'], resolution=[resolution]*3, mask=None, dimensions=dimensions, origin=starts, filename=None, save_in_absence=False, out_dir=interp_dir, left_oriented=True )
+    
     depth_list = np.insert(depth_list,0, 0)
     for ligand, df_ligand in df.groupby(['ligand']):
         print('\tInterpolating for ligand:',ligand)
@@ -370,7 +370,7 @@ def surface_interpolation(slab_dict, out_dir, interp_dir, brain, hemi, resolutio
         if not os.path.exists(interp_fn) or clobber : 
             print('Map Vector to Block')
             profiles = pd.read_csv(profiles_fn, header=None).values
-            vol_interp = mapper.map_profiles_to_block(profiles)
+            vol_interp = mapper.map_profiles_to_block(profiles,interpolation='nearest')
 
             assert np.sum(vol_interp) != 0 , 'Error: interpolated volume is empty'
 

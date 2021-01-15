@@ -56,6 +56,7 @@ def setup_argparse():
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--brains','-b', dest='brain', nargs='+', default=['MR1'], help='Brains to reconstruct. Default = run all.')
     parser.add_argument('--hemispheres', '--hemi', dest='hemi',default=['R'], nargs='+', help='Brains to reconstruct. Default = reconstruct all hemispheres.')
+    parser.add_argument('--ligand', dest='ligand',default='afdx', help='Ligand to reconstruct for final volume.')
     parser.add_argument('--clobber', dest='clobber',default=False,action='store_true', help='Overwrite existing results')
     parser.add_argument('--slab','-s', dest='slab', nargs='+', default=[1], help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--chunk-perc','-u', dest='slab_chunk_perc', type=float, default=1., help='Subslab size (use with --nonlinear-only option) ')
@@ -171,6 +172,7 @@ def multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args, files, 
             align_fn = nl_2d_vol_fn
         else : 
             align_fn = init_align_fn
+        print('\t',nl_2d_dir); 
 
         ###
         ### Step 1.5 : Downsample SRV to current resolution
@@ -220,6 +222,7 @@ def multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args, files, 
 
     #Concatenate 2D nonlinear aligned sections into output volume
     if (resolution != resolution_list[0] and not os.path.exists(nl_2d_vol_fn))  :
+        print('\t',nl_2d_dir,'test')
         concatenate_sections_to_volume(slab_df, init_align_fn, nl_2d_dir, nl_2d_vol_fn)
 
 
@@ -256,7 +259,8 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     
     # Surface interpolation
     if not args.remote or args.interpolation_only:
-        surface_interpolation(slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, hemi_df, args.srv_fn, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+        ligand_df = hemi_df.loc[ args.ligand == hemi_df['ligand'] ]
+        surface_interpolation(slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, ligand_df, args.srv_fn, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
 
 
 ###---------------------###
@@ -270,7 +274,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 #   5. Interpolate missing vertices on sphere, interpolate back to 3D volume
 
 if __name__ == '__main__':
-    resolution_list = [ '3', '2', '1' , '0.5']#, '0.25']
+    resolution_list = [ '3', '2', '1' ,'0.75', '0.5', '0.25']
 
     args, files = setup_parameters(setup_argparse().parse_args() )
     #Process the base autoradiograph csv
