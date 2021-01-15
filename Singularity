@@ -1,18 +1,18 @@
-Bootstrap: docker
-From: ubuntu:18.04
+Bootstrap: localimage
+From: receptor.base.simg
 
 %post
+apt install -y  python3.7 python3.7-dev python3-setuptools
+curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+python3.7 get-pip.py
 
-apt update
-apt install -y gfortran build-essential wget git python3 python3-dev python3-distutils python3-pip ants libgsl-dev
+pip3.7 install psutil statsmodels configparser stripy SimpleITK scipy numpy pyminc h5py imageio keras pydot pandas==0.24.2 matplotlib nibabel sklearn scikit-image seaborn pykrige guppy
 
-pip3 install stripy configparser  SimpleITK scipy numpy guppy3 pyminc h5py imageio keras pydot pandas==0.24.2 matplotlib nibabel sklearn scikit-image seaborn 
-pip3 install https://github.com/ANTsX/ANTsPy/releases/download/v0.1.4/antspy-0.1.4-cp36-cp36m-linux_x86_64.whl
-pip3 install webcolors
+pip3.7 install https://github.com/ANTsX/ANTsPy/releases/download/v0.2.0/antspyx-0.2.0-cp37-cp37m-linux_x86_64.whl
+pip3.7 install webcolors
+
 
 %environment
-%export LC_ALL=C
-%export PATH=/usr/games:$PATH
 
 %runscript
 
