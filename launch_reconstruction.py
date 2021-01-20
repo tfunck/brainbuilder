@@ -64,10 +64,11 @@ def setup_argparse():
     parser.add_argument('--nvertices', dest='n_vertices', type=int, default=81920, help='n vertices for mesh')
     parser.add_argument('--ndepths', dest='n_depths', type=int, default=100, help='n depths for mesh')
     parser.add_argument('--src-dir','-i', dest='src_dir', type=str, default='receptor_dwn', help='Slabs to reconstruct. Default = reconstruct all slabs.')
+    parser.add_argument('--mask-dir', dest='mask_dir', type=str, default='crop', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--out-dir','-o', dest='out_dir', type=str, default='output', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--scale-factors', dest='scale_factors_fn', type=str, default=None, help='json file with scaling and ordering info for each slab')
     parser.add_argument('--mri-gm', dest='srv_fn', type=str, default=None, help='mri gm super-resolution volume (srv)')
-    parser.add_argument('--surf-dir', dest='surf_dir', type=str, default='civet/mri1/surfaces/surfaces/', help='surface directory')
+    parser.add_argument('--surf-dir', dest='surf_dir', type=str, default='civet/mri1/surfaces/', help='surface directory')
     parser.add_argument('--autoradiograph-info', dest='autoradiograph_info_fn', type=str, default=None, help='csv file with section info for each autoradiograph')
     parser.add_argument('--remote','-p', dest='remote', default=False, action='store_true',  help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--interpolation-only', dest='interpolation_only', default=False, action='store_true',  help='Slabs to reconstruct. Default = reconstruct all slabs.')
@@ -284,8 +285,8 @@ if __name__ == '__main__':
     df = pd.read_csv(args.autoradiograph_info_fn)
 
     ### Step 0 : Crop downsampled autoradiographs
-    crop(args.src_dir,args.crop_dir, df,  remote=args.remote)
-
+    crop(args.src_dir,args.mask_dir, args.crop_dir, df,  remote=args.remote)
+    exit(0)
     for brain in args.brain :
         for hemi in args.hemi :                     
             reconstruct_hemisphere(df, brain, hemi,  args, files, resolution_list)

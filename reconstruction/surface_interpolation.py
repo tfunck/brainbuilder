@@ -24,7 +24,7 @@ from ants import image_read, registration
 from utils.utils import shell, w2v, v2w
 from utils.upsample_gifti import *
 from vast.surface_volume_mapper import SurfaceVolumeMapper
-from pykrige.ok import OrdinaryKriging
+#from pykrige.ok import OrdinaryKriging
 
 global surf_fn_str
 surf_fn_str='{}/mri1_{}_surface_right_{}{}.surf.gii'

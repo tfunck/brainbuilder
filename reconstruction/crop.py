@@ -28,7 +28,7 @@ def get_base(fn) :
     return fn
 
 
-def crop(src_dir, out_dir, df, remote=False,clobber=False):
+def crop(src_dir, mask_dir, out_dir, df, remote=False,clobber=False):
     pad = 50
     p = int(pad/2)
     
@@ -37,7 +37,7 @@ def crop(src_dir, out_dir, df, remote=False,clobber=False):
     files = glob('{}/*'.format(src_dir))
     basenames = [ get_base(fn) for fn in files ]
     n=len(files)
-
+    print(src_dir)
     if not remote :
         for index, (fn, base) in enumerate(zip(files, basenames)) : 
 
@@ -45,13 +45,13 @@ def crop(src_dir, out_dir, df, remote=False,clobber=False):
             crop_fn = '{}/{}.nii.gz'.format(out_dir , base)
             if not os.path.exists(crop_fn) or clobber :
 
-                mask_fn=glob(f'crop/combined_final/mask/{base}*.png')
+                mask_fn=glob(f'{mask_dir}/combined_final/mask/{base}*.png')
                 #print(mask_fn)
                 if len(mask_fn) > 0 : 
                     mask_fn = mask_fn[0]
                 else : 
                     print('Skipping', mask_fn)
-                    mask_fn = f'crop/combined_final/mask/{base}.png'
+                    mask_fn = f'{mask_dir}/crop/combined_final/mask/{base}.png'
                 
                 
                 mask = imageio.imread(mask_fn)
@@ -72,8 +72,5 @@ def crop(src_dir, out_dir, df, remote=False,clobber=False):
 
                 nib.Nifti1Image(img, [[0.2,0,0,0],[0,0.2,0,0],[0,0,0.2,0],[0,0,0,1]]).to_filename(crop_fn)
     return 0
-
-
-
 
 
