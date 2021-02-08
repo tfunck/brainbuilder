@@ -64,11 +64,10 @@ def setup_argparse():
     parser.add_argument('--nvertices', dest='n_vertices', type=int, default=81920, help='n vertices for mesh')
     parser.add_argument('--ndepths', dest='n_depths', type=int, default=100, help='n depths for mesh')
     parser.add_argument('--src-dir','-i', dest='src_dir', type=str, default='receptor_dwn', help='Slabs to reconstruct. Default = reconstruct all slabs.')
-    parser.add_argument('--mask-dir', dest='mask_dir', type=str, default='crop', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--out-dir','-o', dest='out_dir', type=str, default='output', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--scale-factors', dest='scale_factors_fn', type=str, default=None, help='json file with scaling and ordering info for each slab')
     parser.add_argument('--mri-gm', dest='srv_fn', type=str, default=None, help='mri gm super-resolution volume (srv)')
-    parser.add_argument('--surf-dir', dest='surf_dir', type=str, default='civet/mri1/surfaces/', help='surface directory')
+    parser.add_argument('--surf-dir', dest='surf_dir', type=str, default='civet/mri1/surfaces/surfaces/', help='surface directory')
     parser.add_argument('--autoradiograph-info', dest='autoradiograph_info_fn', type=str, default=None, help='csv file with section info for each autoradiograph')
     parser.add_argument('--remote','-p', dest='remote', default=False, action='store_true',  help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--interpolation-only', dest='interpolation_only', default=False, action='store_true',  help='Slabs to reconstruct. Default = reconstruct all slabs.')
@@ -169,22 +168,27 @@ def multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args, files, 
             os.makedirs(dir_name, exist_ok=True)
 
         prev_resolution=resolution_list[resolution_itr-1]
+
+        last_nl_2d_vol_fn = files[brain][hemi][str(slab)][str(resolution_list[resolution_itr-1])]['nl_2d_vol_fn']
         if resolution_itr > 0 : 
-            align_fn = nl_2d_vol_fn
+            align_fn = last_nl_2d_vol_fn
         else : 
             align_fn = init_align_fn
-        print('\t',nl_2d_dir); 
 
         ###
         ### Step 1.5 : Downsample SRV to current resolution
         ###
         if not os.path.exists(srv_rsl_fn) or args.clobber :
             resample(nib.load(args.srv_fn), srv_rsl_fn, resolution)
+        
+        #FIXME temporary, remove
+        if str(resolution) != str(0.75) : continue
 
+        print('last nl 2d vol',last_nl_2d_vol_fn)
         #Combine 2d sections from previous resolution level into a single volume
-        if (resolution != resolution_list[0] and not os.path.exists(nl_2d_vol_fn))  :
+        if (resolution != resolution_list[0] and not os.path.exists(last_nl_2d_vol_fn))  :
             last_nl_2d_dir = files[brain][hemi][slab][prev_resolution]['nl_2d_dir']
-            concatenate_sections_to_volume(slab_df, init_align_fn, last_nl_2d_dir, nl_2d_vol_fn)
+            concatenate_sections_to_volume(slab_df, init_align_fn, last_nl_2d_dir, last_nl_2d_vol_fn)
 
         ###
         ### Step 2 : Autoradiograph segmentation
@@ -220,10 +224,10 @@ def multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args, files, 
             
         print('\tStep 4: 2d nl alignment')
         receptor_2d_alignment( slab_df, init_align_fn, srv_base_rsl_crop_fn, nl_2d_dir,  resolution, resolution_itr, batch_processing=args.remote)
-
+    print('should not see this either')
     #Concatenate 2D nonlinear aligned sections into output volume
     if (resolution != resolution_list[0] and not os.path.exists(nl_2d_vol_fn))  :
-        print('\t',nl_2d_dir,'test')
+        print('\t',nl_2d_dir,'test', resolution)
         concatenate_sections_to_volume(slab_df, init_align_fn, nl_2d_dir, nl_2d_vol_fn)
 
 
@@ -275,7 +279,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 #   5. Interpolate missing vertices on sphere, interpolate back to 3D volume
 
 if __name__ == '__main__':
-    resolution_list = [ '3', '2', '1' ,'0.75', '0.5', '0.25']
+    resolution_list = [ '3', '2', '1' ,'0.75']#, '0.5'] #, '0.25']
 
     args, files = setup_parameters(setup_argparse().parse_args() )
     #Process the base autoradiograph csv
@@ -285,8 +289,8 @@ if __name__ == '__main__':
     df = pd.read_csv(args.autoradiograph_info_fn)
 
     ### Step 0 : Crop downsampled autoradiographs
-    crop(args.src_dir,args.mask_dir, args.crop_dir, df,  remote=args.remote)
-    exit(0)
+    crop(args.src_dir, args.crop_dir, args.out_dir, df,  remote=args.remote)
+
     for brain in args.brain :
         for hemi in args.hemi :                     
             reconstruct_hemisphere(df, brain, hemi,  args, files, resolution_list)

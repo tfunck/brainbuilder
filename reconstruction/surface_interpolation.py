@@ -198,12 +198,16 @@ def thicken_sections(array_src, slab_df, resolution ):
     rec_vol = np.zeros_like(array_src)
     for row_i, row in slab_df.iterrows() : 
         i = int(row['volume_order'])
-        
         # Conversion of radioactivity values to receptor density values
-        section = array_src[:, i, :].reshape(dim) * row['conversion_factor']
+        section = array_src[:, i, :].copy()
+        section = section.reshape(dim)
+        if row['conversion_factor'] > 0 :
+             section *= row['conversion_factor']
+        else :
+            continue
+        #    print('Warning, conversion factor is <= 0', row['conversion_factor'])
         #print('row',i ,'min', section.min(),'mean', section.mean(), 'max', section.max() )
-
-        assert np.sum(section) !=0, f'Error: empty frame {i}'
+        assert np.sum(section) !=0, f'Error: empty frame {i} '
         i0 = (i-width) if i-width > 0 else 0
         i1 = (i+width) if i+width <= array_src.shape[1] else array_src.shape[1]
         
@@ -230,28 +234,26 @@ def get_profiles(surf_dir, depth_list, profiles_fn, slab_dict, df_ligand, depth_
     profiles=np.zeros([nrows, len(depth_list)])
     depth_fn_list = [ sub('.csv', f'_{depth}_raw.csv', profiles_fn) for depth in depth_list ]
 
-    if False in [os.path.exists(fn) for fn in depth_fn_list ] :
+    if False in [os.path.exists(fn) for fn in depth_fn_list ] : 
         for i, slab in slab_dict.items() :
             print("loading volume", slab['nl_2d_vol_fn']) 
             array_img = nib.load(slab['nl_2d_vol_fn'])
             array_src = array_img.get_fdata()
 
             assert np.sum(array_src) != 0 , 'Error: input receptor volume has is empty {}'.format(slab['nl_2d_vol_fn'])
-
             for depth_index, (depth, depth_fn) in enumerate(zip(depth_list,depth_fn_list)):
                 if not os.path.exists(depth_fn) :
                     surf_upsample_fn = depth_fn_slab_space[i][depth]
-
+                    
                     print(f'\tslab: {i}')
                     print(surf_upsample_fn)
                     slab_df=df_ligand.loc[df_ligand['slab'].astype(int)==int(i)]
-                
+                     
                     profiles[:,depth_index] = get_slab_profile( slab_df, surf_upsample_fn, array_src, array_img.affine, profiles[:,depth_index], resolution)
 
                 #profiles[ profiles < 0.01 ] = 0
         for depth_index, depth_fn in enumerate(depth_fn_list):
             pd.DataFrame(profiles[:,depth_index]).to_csv(depth_fn, index=False, header=False)
-
     for depth_index, (depth, depth_fn) in enumerate(zip(depth_list, depth_fn_list)):
         profiles_raw = pd.read_csv(depth_fn,header=None,index_col=None)
         sphere_rsl_fn = depth_fn_mni_space[depth]['sphere_rsl_fn'] 

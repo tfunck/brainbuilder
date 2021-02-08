@@ -78,9 +78,9 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, output_dir, resolution, resolutio
 
         #Set strings for alignment parameters
         base_lin_itr= 1000
-        base_nl_itr = 100
-        max_lin_itr = base_lin_itr * (resolution_itr+1)*5
-        max_nl_itr  = base_nl_itr * (resolution_itr+1)*5
+        base_nl_itr = 200
+        max_lin_itr = base_lin_itr * (resolution_itr+1)
+        max_nl_itr  = base_nl_itr * (resolution_itr+1)
         lin_step = -base_lin_itr #*(resolution_itr)
         nl_step  = -base_nl_itr #*(resolution_itr)
 
@@ -91,6 +91,12 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, output_dir, resolution, resolutio
         f = lambda x : x/2 if x > 1  else 0
         s_list = map(f,  range(resolution_itr+1,0,-1) ) 
         s_str='x'.join( [str(i) for i in s_list] ) + 'vox'
+        n0 = len(lin_itr_str.split('x'))
+        n1 = len(f_str.split('x'))
+        n2 = len(s_str.split('x'))-1
+        n3 = len(nl_itr_str.split('x'))
+        print(n0,n1,n2,n3)
+        assert n0==n1==n2==n3 , "Error: Incorrect lengths for ANTs parameters"
 
         for (out_fn, y), (tfm_fn,y1) in zip(out_to_do,tfm_to_do):
             if y != y1 :
@@ -102,9 +108,9 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, output_dir, resolution, resolutio
             print('\t\t',y)
             args=[ prefix, mv_fn, fx_fn, out_fn, s_str, f_str, lin_itr_str, nl_itr_str]
             batch_fn=None
-            if batch_processing :
-                batch_fn=f'{tfm_dir}/batch_{y}.sh'
+            if batch_processing : batch_fn=f'{tfm_dir}/batch_{y}.sh'
             args.append(batch_fn)
+            args.append(12)
 
             section_2d(*args)
 
@@ -112,7 +118,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, output_dir, resolution, resolutio
             print('\nCompleted all processing up to nl 2d alignment. This should be run remotely with with --nl-2d-only argument\n')
             exit(0)
 def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn):
-    
+    exit_flag=False
     tfm_dir=output_dir + os.sep + 'tfm'
 
     hires_img = nib.load(rec_fn)
@@ -123,9 +129,14 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn):
         prefix=f'{tfm_dir}/y-{y}'
         y=row['volume_order'] 
         fn=f'{tfm_dir}/y-{y}.nii.gz' 
-       
-        out_vol[:,int(y),:] = nib.load(fn).get_fdata()
+        try : 
+            out_vol[:,int(y),:] = nib.load(fn).get_fdata()
+        except EOFError :
+            print('Error:', fn)
+            os.remove(fn)
+            exit_flag=True
 
+        if exit_flag : exit(1)
     print('\t\tWriting 3D non-linear:', out_fn)
     nib.Nifti1Image(out_vol, hires_img.affine).to_filename(out_fn)
 
