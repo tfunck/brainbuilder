@@ -21,35 +21,37 @@ def extract_slices(fn):
     z_slice = np.rot90(vol[:,:,z])
     return x_slice, y_slice, z_slice
 
-receptors=( ('Glutamate',{'ampa':'AMPA'}), 
+receptors=( ('Glutamate',{'ampa':'AMPA', 'kain':'Kainate', 'mk80':'NMDA', 'ly34':'mGluR2/3'}), 
                 ('GABA',{'flum':'GABA$_A$ Benz.', 'cgp5':'GABA$_B$', 'musc':'GABA$_A$ Agonist', 'sr95':'GABA$_A$ Antagonist'}), 
-                ('Acetylcholine', {'afdx':r'Muscarinic M$_2$ (antagonist)','damp':r'Muscarinic M$_3$'}),
-                ('Noradrenalin', {}),
-                ('Serotonin', {}),
-                ('Dopamine', {}),
-                ('Adrenalin', {}),
-                ('Adenosine', {})
+                ('Acetylcholine', {'pire':r'Muscarinic M$_1$', 'afdx':r'Muscarinic M$_2$ (antagonist)','damp':r'Muscarinic M$_2$','epib':r'Nicotinic $\alpha_4\beta_2$','oxot':r'Muscarinic M$_3$ (oxot)'}),
+                ('Noradrenalin', {'praz':r'$\alpha_1$','uk14':r'$\alpha_2$ (agonist)','rx82':r'$\alpha_2$ (antagonist)'}),
+                ('Serotonin', {'dpat':r'5-HT$_{1A}$','keta':r'5HT$_2$'}),
+                ('Dopamine', {'sch2':r"D$_2$"}),
+                ('Adenosine', {'dpmg':'Adenosine 2'})
                 )
 
 file_dir = argv[1]
 i=0
 
-plt.figure(figsize=(6, 8), dpi=600, facecolor='b', edgecolor='b')
+plt.figure(figsize=(8, 6), dpi=600, facecolor='b', edgecolor='b')
 
 for family, family_dict in receptors :
     
     for ligand, receptor in family_dict.items() :
         fn_list =glob(f'{file_dir}/*{ligand}*nii.gz') 
-        if len(fn_list) == 0 : continue
+        if len(fn_list) == 0 : 
+            print('skiping ligand', ligand)
+            continue
         else : fn = fn_list[0]
-        slices = extract_slices(fn)
-        i += 3;
-
+        slices = [extract_slices(fn)[0]]
+        print(i, fn)
         for ii, img in enumerate(slices) :
-            plt.subplot(2, 3*3, i+ii+1)
-            if ii == 1 : plt.title(receptor,color='white',size=4)
+            plt.subplot(4, 5, i+ii+1)
+            
+            if ii == np.floor(len(slices)/2) : plt.title(receptor,color='white',size=10)
             plt.imshow(img,origin='upper', cmap='nipy_spectral' )
             plt.axis('off')
+        i += len(slices);
 
 plt.tight_layout()
 plt.savefig('fig_receptors_all.png',facecolor='black')
