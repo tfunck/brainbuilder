@@ -22,7 +22,7 @@ from skimage.filters import threshold_otsu, threshold_li
 from ants import  from_numpy,  apply_transforms, apply_ants_transform, read_transform
 from ants import image_read, registration
 from utils.utils import shell, w2v, v2w
-from utils.upsample_gifti import *
+from upsample_gifti import *
 from vast.surface_volume_mapper import SurfaceVolumeMapper
 #from pykrige.ok import OrdinaryKriging
 
