@@ -116,7 +116,7 @@ def interpolate_over_sphere(densities, coords_all, faces, idx_core, idx, border,
 def iterate_over_vertices(idx_range, idx, ngh, coords, faces, densities, output_file,ligand,max_depth=5, n_samples=10000):
     for i, (x,y,z) in zip(idx_range, coords[idx,:]): 
         depth = np.random.randint(1,max_depth+1)
-        depth = 5
+        depth = 7
         
         if i % 10 == 0 : print(100*i/idx.shape[0],end='\r')
         #print(f'U(1,{max_depth})->{depth}, {i}',end='\r')
