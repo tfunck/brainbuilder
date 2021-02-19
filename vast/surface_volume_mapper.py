@@ -243,7 +243,7 @@ class SurfaceVolumeMapper(object):
         block = np.zeros(self.dimensions)
         print('writing to block')
         
-        num_process=1
+        num_process=8
         subsets=range(num_process)
         npz_dir=self.out_dir+'/npz/'
         npz_file_list = glob(f'{npz_dir}/tri_coords_subset-*_*.npz')
@@ -318,7 +318,7 @@ class SurfaceVolumeMapper(object):
         """calculate depths and barycentric coordinates for voxels and triangles in volume
         in parallel"""
         from multiprocessing import cpu_count
-        num_process = 1 
+        num_process = 8 
         print('Number of Processes', num_process)
         volume_surf_coordinates={'voxel_coordinates':[],
                                'triangles':[],
