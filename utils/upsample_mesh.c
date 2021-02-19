@@ -375,6 +375,7 @@ int resample(int nvtx, int lores_nvtx, float* coords_flat, unsigned long int* ro
     for( int i=lores_nvtx; i<nvtx; i++){
         //iterate over 3 dimensions 
         for( int j=0; j<3; j++){
+            printf("\t%d %d\n",root_index[i][0],root_index[i][1]);
             resampled_coords[i][j] = (resampled_coords[root_index[i][0]][j] + resampled_coords[root_index[i][1]][j])/2.;
         }
         fprintf(out_file,"v,%f,%f,%f\n",resampled_coords[i][0],resampled_coords[i][1],resampled_coords[i][2]);

@@ -52,41 +52,49 @@ def upsample_gifti(upsample_fn, input_fn, resolution, clobber=False, upsample_cs
 
     return upsample_csv_fn
 
-def resample_to_reference(sphere_rsl_fn, gifti_example_fn, new_coords, reference_fn, lores_nvtx):
+def resample_to_reference(low_rsl_fn, high_res_fn):
     #flatten ngh list to pass to c cod 
-    print("Resampling to", reference_fn)
-    if os.path.splitext(reference_fn)[0] =='csv' : 
-        print("Error: should be csv but got", reference_fn)
+    print("Resampling to", high_res_fn)
+    if os.path.splitext(high_res_fn)[0] =='csv' : 
+        print("Error: should be csv but got", high_res_fn)
         exit(1)
-
-    img = nib.load(reference_fn) 
+    
+    tgt_faces = nib.load(high_res_fn).agg_data('NIFTI_INTENT_TRIANGLE')
+    tgt_coords = nib.load(high_res_fn).agg_data('NIFTI_INTENT_POINTSET')
+    
+    img = nib.load(high_res_fn) 
     coords = img.agg_data('NIFTI_INTENT_POINTSET') 
-    faces = img.agg_data('NIFTI_INTENT_TRIANGLE') 
-    print('\trsl n vertices = ', coords.shape[0])
+    print('\trsl n vertices = ', tgt_coords.shape[0])
 
     #upsample surface and save in an intermediate .csv file
-    sphere_rsl_csv_fn = os.path.splitext(sphere_rsl_fn)[0] + '.csv'
-    
+    sphere_rsl_csv_fn = os.path.splitext(low_rsl_fn)[0] + '.csv'
+   
     resample(
-            np.array(new_coords).flatten().astype(np.float32), 
-            faces.flatten().astype(np.int32), 
+            np.array(coords).flatten().astype(np.float32), 
+            tgt_faces.flatten().astype(np.int32), 
             sphere_rsl_csv_fn,
-            coords.shape[0],
-            lores_nvtx
+            tgt_coords.shape[0],
+            coords.shape[0]
             )
-
     #convert the upsampled .csv points into a proper gifti surfer
-    #sphere_coords_rsl, [], [] = read_coords(sphere_rsl_csv_fn)
+    sphere_coords_rsl, [], [] = read_coords(sphere_rsl_csv_fn)
 
-    sphere_coords_rsl = nib.load(reference_fn).agg_data('NIFTI_INTENT_POINTSET') 
-    save_gii( sphere_coords_rsl, faces, gifti_example_fn, sphere_rsl_fn )
+    #sphere_coords_rsl = nib.load(high_res_fn).agg_data('NIFTI_INTENT_POINTSET') 
+    save_gii( sphere_coords_rsl, tgt_faces, high_res_fn, low_rsl_fn )
 
     return 0
+
+def check_unique(fn) :
+    coords= nib.load(fn).agg_data('NIFTI_INTENT_POINTSET')
+    ar_unq, count = np.unique( coords , axis=0, return_counts=True)
+    print(ar_unq.shape, coords.shape)
+    assert ar_unq.shape == coords.shape, f'Error: mesh inflation produces mesh with duplicates in {fn}'
+
 
 def create_high_res_sphere(input_fn, upsample_fn, sphere_fn, sphere_rsl_fn, resolution, clobber=False, optional_reference=None, upsample_csv_fn=None):
     nvtx = nib.load(input_fn).agg_data('NIFTI_INTENT_POINTSET').shape[0]
     gifti_example_fn=input_fn
-    avg_edge_len = 1 # resolution/2.
+    avg_edge_len = 1 # 0.2 if resolution/2. > 0.2 else resolution/2.
     #upsample surface and save in an intermediate .csv file
     #if upsample_csv_fn == None :
     #    upsample_csv_fn = os.path.splitext(upsample_fn)[0] + '.csv'
@@ -95,26 +103,27 @@ def create_high_res_sphere(input_fn, upsample_fn, sphere_fn, sphere_rsl_fn, reso
         print("\tUpsample")
         #upsample_gifti(upsample_fn, input_fn, resolution, clobber=clobber, upsample_csv_fn=upsample_csv_fn)
         shell(f'~/freesurfer/bin/mris_remesh -i {input_fn} -o {upsample_fn} --edge-len {avg_edge_len} --iters 1' )
+        check_unique( upsample_fn  )
     else :
         #Instead of directly upsampling the mesh, we resample it according to a 
         #reference mesh that is (presumably) at higher resolution.
-        depth_mesh_coords = nib.load(input_fn).agg_data('NIFTI_INTENT_POINTSET')
-        resample_to_reference( upsample_fn, gifti_example_fn, depth_mesh_coords, optional_reference, nvtx )
+        resample_to_reference( upsample_fn, input_fn)
     
     if not os.path.exists(sphere_fn) or clobber :
         print('\tInflate to sphere')
         #inflate surface to sphere using freesurfer software
-        shell('~/freesurfer/bin/mris_inflate -n 200  {} {}'.format(input_fn, sphere_fn))
+        shell('~/freesurfer/bin/mris_inflate -n 30  {} {}'.format(input_fn, sphere_fn))
+    check_unique( sphere_fn  )
         #shell('mris_inflate -n 100  {} {}'.format(input_fn, sphere_fn))
     
-    if not os.path.exists(sphere_rsl_fn) or clobber or True:
+    if not os.path.exists(sphere_rsl_fn) or clobber :
         print("Resample to reference")
-        sphere_coords = nib.load(sphere_fn).agg_data('NIFTI_INTENT_POINTSET')
         if optional_reference == None:
             ref_fn = upsample_fn
         else :
             ref_fn = optional_reference
-        resample_to_reference( sphere_rsl_fn, gifti_example_fn, sphere_coords, ref_fn, nvtx )
+        resample_to_reference( sphere_rsl_fn, ref_fn )
+    check_unique( sphere_rsl_fn  )
 
 if __name__ == "__main__" :
     if len(sys.argv) != 3 or sys.argv[1] == '-h'  :
