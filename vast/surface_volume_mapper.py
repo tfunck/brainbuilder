@@ -9,6 +9,7 @@ import vast.surface_tools as st
 from functools import partial
 from glob import glob
 import matplotlib
+from re import sub
 #matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import concurrent.futures
@@ -16,11 +17,12 @@ import os
 import vast.math_helpers as mh
 import tracemalloc
 from sys import getsizeof
-#from guppy import hpy
-
 import time
+import psutil
+import multiprocessing 
 
-
+global NPZSTRING
+NPZSTRING='temp_tri_coords_subset'
 
 def load_list_from_pickle(filename) :
     out_list=[]
@@ -209,6 +211,10 @@ class SurfaceVolumeMapper(object):
                 print('Completion: {}'.format(np.round(100.*i/n,3)),end='\r')
 
             args = np.load(fn,allow_pickle=True)
+            if len(args['vc']) == 0 : 
+                print('\n\tEmpty npz file', fn)
+                continue
+
             vc = np.concatenate(args['vc']).astype(int)
 
             triangles =np.concatenate(args['triangles']).astype(int) 
@@ -222,6 +228,7 @@ class SurfaceVolumeMapper(object):
        
             triangle_values=np.array([x,y,z]).T
             
+            print('interpolation -->', interpolation)
             if interpolation == 'linear':
                 vol = np.einsum('ij,ij->i', tri_coords, triangle_values)
                 block[vc[:,0],vc[:,1],vc[:,2]] = vol
@@ -242,11 +249,10 @@ class SurfaceVolumeMapper(object):
         nearest neighbour or trilinear (weighted by barycentric)"""
         block = np.zeros(self.dimensions)
         print('writing to block')
-        
-        num_process=8
+        num_process=1 #multiprocessing.cpu_count()
         subsets=range(num_process)
         npz_dir=self.out_dir+'/npz/'
-        npz_file_list = glob(f'{npz_dir}/tri_coords_subset-*_*.npz')
+        npz_file_list = glob(f'{npz_dir}/{NPZSTRING}-*_*.npz')
         print('Allocated func')
 
         print('Running func in parallel')
@@ -318,7 +324,7 @@ class SurfaceVolumeMapper(object):
         """calculate depths and barycentric coordinates for voxels and triangles in volume
         in parallel"""
         from multiprocessing import cpu_count
-        num_process = 8 
+        num_process =  1 #cpu_count()
         print('Number of Processes', num_process)
         volume_surf_coordinates={'voxel_coordinates':[],
                                'triangles':[],
@@ -367,7 +373,7 @@ class SurfaceVolumeMapper(object):
             
     @staticmethod        
     def calculate_volume_surf_coordinates_one_prism( gray_surface_coords,white_surface_coords,
-        triangles,  origin, resolution, dimensions, subset_triangles,k,npz_dir='./', clobber=False):
+        triangles,  origin, resolution, dimensions, subset_triangles,k,npz_dir='./', max_ram=1, clobber=False):
         """calculate on subset of triangles"""
         store_surf_coordinates={'voxel_coordinates':[],
                                'triangles':[],
@@ -377,39 +383,54 @@ class SurfaceVolumeMapper(object):
 
         os.makedirs(npz_dir, exist_ok=True)
         
-        npz_fn_str = npz_dir+'/tri_coords_subset-{}_{}'
-        print(npz_dir) 
+        process = psutil.Process(os.getpid())
+        ram0 = process.memory_info().rss / 1000000000
+        
+        npz_fn_str = npz_dir+ '/'+ NPZSTRING + '-{}_{}'
+        print(npz_dir)
+        print('gray surface coords', gray_surface_coords.shape)
         #If npz files already exist, then return None
         #Warning: this means that if this function was previously run but did not finish,
         #subsequent runs will simply return None.
-        if len(glob(npz_fn_str.format(k,'*'))) > 0 : return None
-        
+        #if len(glob(npz_fn_str.format(k,'*'))) > 0 : return None
+       
+        get_counter = lambda fn : int(os.path.splitext(os.path.basename(fn))[0].split('_')[-1])
+        existing_files =sorted(glob(npz_fn_str.format(k,'*')), key=get_counter)
+        start_counter=0
+        if len(existing_files) > 0 :
+            start_counter = get_counter(existing_files[-1])
         t1=time.time()
         vc_list=[]
         depths_list=[]
         triangles_list=[]
         tri_coords_list=[]
-        for counter,tri_index in enumerate(subset_triangles[k]):
+        for counter,tri_index in enumerate(subset_triangles[k][start_counter:], start=start_counter):
             if counter % percentage_divider ==0 :
                 t2=time.time()
-                print('Process {} is {}% done in {}\r'.format(k,np.round(100*counter/len(subset_triangles[k]),4),np.round(t2-t1,3) ),end='')
+                print('Process {} is {}% done in {}'.format(k,np.round(100*counter/len(subset_triangles[k]),4),np.round(t2-t1,3) ),end='\r')
                 t1=t2
 
-            if not os.path.exists(npz_fn_str.format(k,counter)) : 
+            if not os.path.exists(npz_fn_str.format(k,counter) + '.npz' ) : 
+                #print('\tRAM 0',process.memory_info().rss / 1000000000)
                 prism = SurfaceVolumeMapper.generate_prism(gray_surface_coords, white_surface_coords, triangles[tri_index])
+
                 bbox = SurfaceVolumeMapper.prism_bounding_box(prism)
+
                 world_coords, voxel_coords=SurfaceVolumeMapper.voxel_world_coords_in_box(bbox,origin,resolution,dimensions)
+
                 wc, vc, depths, tri_coords=SurfaceVolumeMapper.get_depth_and_barycentric_coordinates_for_prism(world_coords,voxel_coords,prism)
                 
                 #if some coordinates are returned, then store these
                 if len(vc)>0:
                     temp_triangles = np.tile(triangles[tri_index],(len(depths),1))
+                    triangles_list.append(temp_triangles.tolist())
                     tri_coords_list.append(tri_coords)
                     depths_list.append(depths)
-                    triangles_list.append(temp_triangles.tolist())
                     vc_list.append(vc)
+                    del temp_triangles
                 
-                if len(vc_list) >  1000 :
+                ram = process.memory_info().rss / 1000000000
+                if ram - ram0 > max_ram :
                     np.savez(npz_fn_str.format(k,counter), vc=vc_list, triangles=triangles_list, tri_coords=tri_coords_list, depths=depths_list)
                     del vc_list
                     del depths_list
@@ -419,8 +440,8 @@ class SurfaceVolumeMapper(object):
                     depths_list=[]
                     triangles_list=[]
                     tri_coords_list=[]
-
-        np.savez(npz_fn_str.format(k,counter), vc=vc_list, triangles=triangles_list, tri_coords=tri_coords_list, depths=depths_list)
+        if len(vc_list) > 0 :
+            np.savez(npz_fn_str.format(k,len(subset_triangles[k])), vc=vc_list, triangles=triangles_list, tri_coords=tri_coords_list, depths=depths_list)
         
             
     @staticmethod

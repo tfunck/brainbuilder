@@ -108,7 +108,7 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert):
     print(obj_fn)
     save_obj(obj_fn,coords,faces)
 
-def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, depth_list, n_vertices=81920) :
+def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution,  depth_list,clobber=False, n_vertices=81920) :
     depth_fn_dict={}
     # Upsampling of meshes at various depths across cortex produces meshes with different n vertices.
     # To create a set of meshes across the surfaces across the cortex that have the same number of 
@@ -123,38 +123,40 @@ def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, 
     wm_mesh = nib.load(wm_surf_fn)
    
     gm_coords = gm_mesh.agg_data('NIFTI_INTENT_POINTSET')
-    gm_faces =  gm_mesh.agg_data('NIFTI_INTENT_TRIANGLE')
 
     wm_coords = wm_mesh.agg_data('NIFTI_INTENT_POINTSET')
     wm_faces =  wm_mesh.agg_data('NIFTI_INTENT_TRIANGLE')
 
-    d_coords = gm_coords - wm_coords 
     
     wm_upsample_fn="{}/surf_{}mm_{}_rsl.surf.gii".format(surf_dir,resolution,0)
-    wm_upsample_csv="{}/surf_{}mm_{}_rsl.surf.csv".format(surf_dir,resolution,0)
+    gm_upsample_fn="{}/surf_{}mm_{}_rsl.surf.gii".format(surf_dir,resolution,1)
     wm_sphere_fn = "{}/surf_{}mm_{}_inflate.surf.gii".format(surf_dir,resolution,0)
     wm_sphere_rsl_fn = "{}/surf_{}mm_{}_inflate_rsl.surf.gii".format(surf_dir,resolution,0)
-
+    
     depth_fn_dict[0]={'upsample_fn':wm_upsample_fn, 'sphere_rsl_fn':wm_sphere_rsl_fn}
 
-    if False in [ os.path.exists(fn) for fn in [wm_upsample_fn, wm_sphere_fn, wm_sphere_rsl_fn]] :
-        create_high_res_sphere(wm_surf_fn, wm_upsample_fn, wm_sphere_fn, wm_sphere_rsl_fn, resolution, wm_upsample_csv)
+    d_coords = wm_coords - gm_coords 
+    del wm_coords
+    if False in [ os.path.exists(fn) for fn in [ wm_upsample_fn, wm_sphere_fn, wm_sphere_rsl_fn]] or clobber :
+        create_high_res_sphere(wm_surf_fn, wm_upsample_fn, wm_sphere_fn, wm_sphere_rsl_fn, resolution)
+    
+    test_fn = sub('.surf.gii','_test.surf.gii',wm_upsample_fn)
+    resample_to_reference(wm_surf_fn, wm_upsample_fn, test_fn)
 
     for depth in depth_list :
         print("\tDepth", depth)
-        depth_surf_fn="{}/surf_{}mm_{}.surf.gii".format(surf_dir,resolution,depth)
-        upsample_fn="{}/surf_{}mm_{}_rsl.surf.gii".format(surf_dir,resolution,depth)
+        depth_surf_fn = "{}/surf_{}mm_{}.surf.gii".format(surf_dir,resolution,depth)
+        upsample_fn = "{}/surf_{}mm_{}_rsl.surf.gii".format(surf_dir,resolution,depth)
         sphere_fn = "{}/surf_{}mm_{}_inflate.surf.gii".format(surf_dir,resolution,depth)
         sphere_rsl_fn = "{}/surf_{}mm_{}_inflate_rsl.surf.gii".format(surf_dir,resolution,depth)
-        coords = wm_coords + depth * d_coords
+        coords = gm_coords + depth * d_coords
         depth_fn_dict[depth]={'upsample_fn':upsample_fn, 'sphere_rsl_fn':sphere_rsl_fn}
-
         if not os.path.exists(depth_surf_fn) :
-            save_gii( coords, wm_faces, wm_surf_fn, depth_surf_fn)
+            save_gii( coords, wm_faces, gm_surf_fn, depth_surf_fn)
+        del coords
    
-        if False in [ os.path.exists(fn) for fn in [upsample_fn, sphere_fn, sphere_rsl_fn]] :
-            print("okay")
-            create_high_res_sphere(depth_surf_fn, upsample_fn, sphere_fn, sphere_rsl_fn, resolution, optional_reference=wm_upsample_csv )
+        if False in [ os.path.exists(fn) for fn in [upsample_fn, sphere_fn, sphere_rsl_fn]] or clobber :
+            create_high_res_sphere(depth_surf_fn, upsample_fn, sphere_fn, sphere_rsl_fn, resolution, optional_reference=wm_upsample_fn)
 
 
     return depth_fn_dict
@@ -264,6 +266,7 @@ def get_profiles(surf_dir, depth_list, profiles_fn, slab_dict, df_ligand, depth_
     pd.DataFrame(profiles).to_csv(profiles_fn, index=False, header=False)
      
 def interpolate_over_surface(sphere_obj_fn,surface_val):
+    print('\t\tSphere fn:',sphere_obj_fn)
     # get coordinates from dicitonary with mesh info
     coords = nib.load(sphere_obj_fn).agg_data('NIFTI_INTENT_POINTSET') #surface_tools.spherical_np(sphere['coords'])
     spherical_coords = surface_tools.spherical_np(coords)
@@ -348,14 +351,17 @@ def surface_interpolation(slab_dict, out_dir, interp_dir, brain, hemi, resolutio
 
     #upsample transformed surfaces to given resolution
     depth_fn_mni_space = upsample_and_inflate_surfaces(surf_rsl_dir, surf_wm_fn, surf_gm_fn, resolution, depth_list)
-    
+
+    wm_test_fn = surf_fn_str.format(surf_dir,'white', n_vertices,'_test')
+    gm_test_fn = surf_fn_str.format(surf_dir,'gray', n_vertices,'_test')
+
+
     #For each slab, transform the mesh surface to the receptor space
     #TODO: transform points into space of individual autoradiographs
     depth_fn_slab_space = transform_surf_to_slab(surf_rsl_dir, slab_dict, depth_fn_mni_space)
 
     # Create an object that will be used to interpolate over the surfaces
-    print( depth_fn_mni_space[1]['upsample_fn'] )
-    mapper = SurfaceVolumeMapper(white_surf=depth_fn_mni_space[1]['upsample_fn'], gray_surf=depth_fn_mni_space[0]['upsample_fn'], resolution=[resolution]*3, mask=None, dimensions=dimensions, origin=starts, filename=None, save_in_absence=False, out_dir=interp_dir, left_oriented=True )
+    mapper = SurfaceVolumeMapper(white_surf=surf_wm_fn, gray_surf=surf_gm_fn, resolution=[resolution]*3, mask=None, dimensions=dimensions, origin=starts, filename=None, save_in_absence=False, out_dir=interp_dir, left_oriented=True )
     
     depth_list = np.insert(depth_list,0, 0)
     for ligand, df_ligand in df.groupby(['ligand']):
@@ -372,7 +378,7 @@ def surface_interpolation(slab_dict, out_dir, interp_dir, brain, hemi, resolutio
         if not os.path.exists(interp_fn) or clobber : 
             print('Map Vector to Block')
             profiles = pd.read_csv(profiles_fn, header=None).values
-            vol_interp = mapper.map_profiles_to_block(profiles,interpolation='nearest')
+            vol_interp = mapper.map_profiles_to_block(profiles,interpolation='linear')
 
             assert np.sum(vol_interp) != 0 , 'Error: interpolated volume is empty'
 
