@@ -212,7 +212,7 @@ class SurfaceVolumeMapper(object):
 
             args = np.load(fn,allow_pickle=True)
             if len(args['vc']) == 0 : 
-                print('\tEmpty npz file', fn)
+                print('\n\tEmpty npz file', fn)
                 continue
 
             vc = np.concatenate(args['vc']).astype(int)
@@ -228,6 +228,7 @@ class SurfaceVolumeMapper(object):
        
             triangle_values=np.array([x,y,z]).T
             
+            print('interpolation -->', interpolation)
             if interpolation == 'linear':
                 vol = np.einsum('ij,ij->i', tri_coords, triangle_values)
                 block[vc[:,0],vc[:,1],vc[:,2]] = vol
@@ -378,7 +379,7 @@ class SurfaceVolumeMapper(object):
                                'triangles':[],
                                 'depths':[],
                                'triangle_coordinates':[]}
-        percentage_divider=np.round(len(subset_triangles[k])/1000).astype(int)
+        percentage_divider=np.round(len(subset_triangles[k])/100).astype(int)
 
         os.makedirs(npz_dir, exist_ok=True)
         
@@ -406,8 +407,7 @@ class SurfaceVolumeMapper(object):
         for counter,tri_index in enumerate(subset_triangles[k][start_counter:], start=start_counter):
             if counter % percentage_divider ==0 :
                 t2=time.time()
-                print('Process {} is {}% done in {}'.format(k,np.round(100*counter/len(subset_triangles[k]),4),np.round(t2-t1,3) ),end='\n')
-                print(counter, len(subset_triangles[k]))
+                print('Process {} is {}% done in {}'.format(k,np.round(100*counter/len(subset_triangles[k]),4),np.round(t2-t1,3) ),end='\r')
                 t1=t2
 
             if not os.path.exists(npz_fn_str.format(k,counter) + '.npz' ) : 
@@ -440,8 +440,8 @@ class SurfaceVolumeMapper(object):
                     depths_list=[]
                     triangles_list=[]
                     tri_coords_list=[]
-
-        np.savez(npz_fn_str.format(k,len(subset_triangles[k])), vc=vc_list, triangles=triangles_list, tri_coords=tri_coords_list, depths=depths_list)
+        if len(vc_list) > 0 :
+            np.savez(npz_fn_str.format(k,len(subset_triangles[k])), vc=vc_list, triangles=triangles_list, tri_coords=tri_coords_list, depths=depths_list)
         
             
     @staticmethod
