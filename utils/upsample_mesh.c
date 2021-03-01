@@ -91,72 +91,6 @@ int add_polygon(long unsigned int *cur_poly,  int *n, long unsigned int*** final
     return 0;
 }
 
-unsigned long int** subdivide(long unsigned int* cur_poly_idx, long unsigned int** new_poly_idx, long unsigned int*** root_idx,  int* nvtx, int* total_n_poly, float*** vtx_coords, int* n_alloc_to_vtx,  const float resolution, Coords3D* coords3d){
-    /*    
-    //                  (2)
-    //                  c_1
-    //                 //\\
-    //                //  \\
-    //               //    \\
-    //              //      \\
-    //             //--------\\
-    //    (1) n_0 // \      / \\ n_1 (3)
-    //           //   \    /   \\
-    //          //     \  /     \\
-    //        c_0 ============== c_2 
-    //      (0)         n_2           (4)   
-    //                  (5)
-    */
-    float new_coords[3][3];
-    long unsigned int new_idx[3];
-
-    //define new coordinates within polygon
-    for (int i=0; i < 3; i++){
-        int j = (i+1)%3;
-        for(int p=0; p<3; p++){
-            new_coords[i][p] = ((*vtx_coords)[cur_poly_idx[i]][p] + (*vtx_coords)[cur_poly_idx[j]][p])/2;
-        }
-        //add new vertex index 
-        int vtx_idx = vertex_in_array(new_coords[i], *vtx_coords, *nvtx, coords3d);
-
-        //if the vertex is not already in the list, vtx_idx will == -1
-        if(vtx_idx < 0){
-            int n_alloc_to_root=*n_alloc_to_vtx;
-            new_idx[i]=*nvtx;
-            *nvtx += 1;
-            add_vertex(new_coords[i], new_idx[i], nvtx, vtx_coords, n_alloc_to_vtx, coords3d);
-
-            if( *n_alloc_to_vtx != n_alloc_to_root){
-                *root_idx = realloc(*root_idx, sizeof(**root_idx) * *n_alloc_to_vtx );
-                for(int j=n_alloc_to_root; j < *n_alloc_to_vtx; j++)
-                    (*root_idx)[j] = malloc(sizeof(***root_idx)*3);
-            }
-            (*root_idx)[*nvtx - 1][0]=cur_poly_idx[i];
-            (*root_idx)[*nvtx - 1][1]=cur_poly_idx[j];
-
-        } else{
-        //if vertex is already in list, then vtx_idx == index number of that vertex
-            new_idx[i]=vtx_idx;
-        }
-    }
-    
-    // Next step is to create lists with indices/coords for the points of subdivided triangles
-    int temp_poly_idx[6] = {cur_poly_idx[0], new_idx[0], cur_poly_idx[1], new_idx[1], cur_poly_idx[2], new_idx[2]};
-    int p[4][3]={{0,1,5},{1,2,3},{3,4,5},{1,3,5}};
-    
-    for(int x=0; x< 4; x++){ 
-        int i = p[x][0];
-        int j = p[x][1];
-        int k = p[x][2];
-
-        //new_poly_idx[x]=malloc(3*sizeof(**new_poly_idx));
-        new_poly_idx[ x ][0] = temp_poly_idx[i];
-        new_poly_idx[ x ][1] = temp_poly_idx[j];
-        new_poly_idx[ x ][2] = temp_poly_idx[k];
-    }
-
-    return new_poly_idx ;
-}
 
 long unsigned int** reformat_polygons(int npoly, long unsigned int *polygons_flat){
     long unsigned int** polygons=malloc(npoly*sizeof(*polygons));
@@ -196,30 +130,49 @@ void free_2d(void** ar, int n){
     free(ar);
 }
 
+unsigned int find_opposing_vertex(float* cur_poly, float** polygons, int npoly){
+
+}
 
 
 int upsample_polygons(long unsigned int*** polygons_ptr, float*** vtx_coords,unsigned long int*** root_idx, int npoly, int* nvtx, int* n_alloc_to_poly,  int* n_alloc_to_vtx, const float resolution, Coords3D* coords3d){
     float max_dist=99999;
-    long unsigned int**  new_poly_idx = alloc_2d(4,sizeof(*new_poly_idx),sizeof(**new_poly_idx)); //(unsigned long int **) malloc( 4 * sizeof(*new_poly_idx) );
-    long unsigned int** polygons = *polygons_ptr;
-    while( max_dist > resolution ){
-        max_dist = 0;
-        int total_n_poly=0;
-        int n_alloc_to_poly_0=*n_alloc_to_poly;
-        long unsigned int** new_polygons = (long unsigned int**) alloc_2d(*n_alloc_to_poly, sizeof(*new_polygons), sizeof(**new_polygons));
-        long unsigned int*** new_polygons_ptr = &new_polygons; 
+    int coord_offset=*nvtx;
+    int faces_offset=*npoly;
+    int coord_idx=0;
 
+    while( max_dist > resolution ){
         for(int i=0; i<npoly;i++){
             if ( i % 100 == 0 ) printf("%3.1f\r",(float)i/npoly*100);
             float poly_max_dist = calc_max_dist( (*vtx_coords)[polygons[i][0]], (*vtx_coords)[polygons[i][1]], (*vtx_coords)[polygons[i][2]] );
             max_dist = max_dist > poly_max_dist ? max_dist : poly_max_dist ; 
 
-            subdivide(polygons[i], new_poly_idx, root_idx, nvtx, &total_n_poly, vtx_coords, n_alloc_to_vtx, resolution, coords3d);
-           
-            for(int ii=0; ii < 4; ii++){ 
-                add_polygon(new_poly_idx[ii], &total_n_poly, new_polygons_ptr, n_alloc_to_poly);
-            }
+            //subdivide(polygons[i], new_poly_idx, root_idx, nvtx, &total_n_poly, vtx_coords, n_alloc_to_vtx, resolution, coords3d);
+            if ( poly_max_dist > resolution ) {
+            
+                int index = coord_offset + coord_idx;
+                coord_idx += 1;
+                
+                j = opposing_polygons[i];
 
+                if len_ar == -1 : continue
+
+                opposing_index = get_opposing_poly_index();
+                //the idea is that the new coordinate that was interpolated between vertex a and b is stored in new_coords[index]
+
+                new_faces[counter] = sorted([a,index,c]) ;
+                new_faces[opposite_poly_index] = sorted([index,c,b]) ;
+                new_faces[faces_offset] = sorted([a,index,d]) ;
+                new_faces[faces_offset+1] = sorted([index,b,d]) ;
+                
+                ngh[a][ ngh[int(a)] == int(b) ] = index ;
+                ngh[b][ ngh[int(b)] == int(a) ] = index ;
+                ngh[c]=np.append(ngh[c], [index]) ;
+                ngh[d]=np.append(ngh[d], [index]) ;
+                ngh[index]=np.array(sorted([a,b,c,d])) ;
+
+                faces_offset += 2
+            }
         }
         free_2d((void**) polygons, n_alloc_to_poly_0);
         polygons=*new_polygons_ptr;
