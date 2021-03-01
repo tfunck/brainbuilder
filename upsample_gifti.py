@@ -58,6 +58,13 @@ def find_opposing_polygons(faces):
 
 def sorted_str (l): return ''.join([ str(element) for element in sorted(l) ])
 
+def calculate_new_coords(coords, f_i, f_j, idx):
+    c_i = coords[f_i][idx] 
+    c_j = coords[f_j][idx]
+    new_coords = ( c_i + c_j )/2.
+    new_coords = np.concatenate([coords, new_coords])
+    return new_coords
+
 def upsample_edges(coords, faces, coord_normals,  faces_dict, i,j,k , resolution, temp_alt_coords=None) :
     f_i = faces[:,i]
     f_j = faces[:,j]
@@ -70,24 +77,15 @@ def upsample_edges(coords, faces, coord_normals,  faces_dict, i,j,k , resolution
     d_ij = calc_dist(c_i, c_j)
 
     long_edges = d_ij > resolution
-    f_i = faces[:,i]
+    
+    new_coord_normals = calculate_new_coords(coord_normals, f_i, f_j, long_edges)
 
-
-    n_i = coord_normals[f_i]
-    n_j = coord_normals[f_j]
-    new_coord_normals = (n_i[long_edges] + n_j[long_edges])/2.
-    new_coord_normals = np.concatenate([coord_normals, new_coord_normals ])
-
-    new_coords = (c_i[long_edges] + c_j[long_edges])/2.
-    new_coords = np.concatenate([coords, new_coords])
+    new_coords = calculate_new_coords(coords, f_i, f_j, long_edges)
 
     if temp_alt_coords != None:  
         for fn in temp_alt_coords.values() :
             alt_coords = np.load(fn+'.npy')
-            ac_i = alt_coords[f_i] 
-            ac_j = alt_coords[f_j] 
-            new_alt_coords = (ac_i[f_i][long_edges] + ac_j[f_j][long_edges])/3.
-            new_alt_coords = np.concatenate([alt_coords, new_alt_coords])
+            new_alt_coords = calculate_new_coords(alt_coords, f_i, f_j, long_edges ) 
             np.save(fn, new_alt_coords)
     
     f_i = faces[:,i]
@@ -196,6 +194,24 @@ def setup_coordinate_normals(faces,normals,coords):
         coord_normals[c] += n
     return coord_normals
 
+def fix_normals(faces,coords,coord_normals):
+    for i in range(faces.shape[0]) :
+        a,b,c = faces[i]
+        test_normal = np.cross(coords[b]-coords[a], coords[c]-coords[a])
+        average_normal=coord_normals[a]+coord_normals[b]+coord_normals[c]
+        x=np.dot(average_normal, test_normal)
+        if x < 0 : faces[i]=[c,b,a]
+    return faces
+
+def write_outputs(upsample_fn, coords, faces, input_fn, temp_alt_coords ) :
+    print('\tWriting',upsample_fn)
+    save_gii( coords, faces, input_fn, upsample_fn )
+    if temp_alt_coords != None :
+        for orig_fn, fn in temp_alt_coords.items() :
+            alt_upsample_fn=sub('.surf.gii','_rsl.surf.gii',orig_fn)
+            print('\tWriting',alt_upsample_fn)
+            save_gii( np.load(fn+'.npy'), faces, input_fn, alt_upsample_fn )
+
 def upsample_gifti(input_fn,upsample_fn,  resolution, alt_input_list=[], clobber=False):
 
     if not os.path.exists(upsample_fn) or clobber :
@@ -243,33 +259,14 @@ def upsample_gifti(input_fn,upsample_fn,  resolution, alt_input_list=[], clobber
 
         print('\tFinal coords=', coords.shape, 'starting faces', faces.shape)
 
-        #fix normals
-        for i in range(faces.shape[0]) :
-            a,b,c = faces[i]
-            test_normal = np.cross(coords[b]-coords[a], coords[c]-coords[a])
-            average_normal=coord_normals[a]+coord_normals[b]+coord_normals[c]
-            x=np.dot(average_normal, test_normal)
-            if x < 0 : faces[i]=[c,b,a]
+        faces=fix_normals(faces,coords,coord_normals)
 
-        print('\tWriting',upsample_fn)
-        save_gii( coords, faces, input_fn, upsample_fn )
-        if temp_alt_coords != None :
-            for orig_fn, fn in temp_alt_coords.items() :
-                alt_upsample_fn=sub('.surf.gii','_rsl.surf.gii',orig_fn)
-                print('\tWriting',alt_upsample_fn)
-                save_gii( np.load(fn+'.npy'), faces, input_fn, alt_upsample_fn )
+        write_outputs(upsample_fn, coords, faces, input_fn, temp_alt_coords ) 
 
-def create_high_res_sphere(input_fn, upsample_fn, resolution, niters=200, clobber=False ):
+def create_high_res_sphere(input_fn, upsample_fn, resolution, niters=200, alt_input_list=[], clobber=False ):
     sphere_fn = sub('.surf.gii','_sphere.surf.gii',args.input_fn)
     sphere_rsl_fn = sub('.surf.gii','_sphere_rsl.surf.gii',args.input_fn)
-    alt_input_list=[sphere_fn]
     alt_output_list=[sphere_rsl_fn]
-    if not os.path.exists(sphere_fn) or  clobber :
-        print('\tInflate to sphere')
-        #shell('~/freesurfer/bin/mris_inflate -n {}  {} {}'.format( niters, input_fn, sphere_fn))
-        shell('mris_inflate -n {}  {} {}'.format( niters, input_fn, sphere_fn))
-        #shell('mris_inflate -n 200  {} {}'.format(input_fn, sphere_fn))
-    #resolution=1 #DELETE ME
     clobber=True
     if not os.path.exists(upsample_fn) or clobber :
         upsample_gifti( input_fn, upsample_fn, float(resolution), alt_input_list=alt_input_list,  clobber=clobber)
@@ -288,4 +285,4 @@ if __name__ == "__main__" :
 
     upsample_fn = sub('.surf.gii','_rsl.surf.gii',args.input_fn)
     print('Upsample fn', upsample_fn)
-    create_high_res_sphere(args.input_fn, upsample_fn,  args.resolution,niters=args.niters,clobber=args.clobber)
+    create_high_res_sphere(args.input_fn, upsample_fn,  args.resolution,niters=args.niters,alt_input_list=args.alt_input_list, clobber=args.clobber)
