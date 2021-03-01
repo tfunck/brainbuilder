@@ -109,12 +109,6 @@ def upsample_edges(coords, faces, faces_dict, i,j,k , resolution, alt_coords) :
     #   a,I,B ; b,c,I ; a, d, I ; d, b, I
     faces_range = np.arange(faces.shape[0]).astype(int)
     new_faces_range = np.arange(new_faces.shape[0]).astype(int)
-    time_0=0
-    time_1=0
-    time_2=0
-    time_2a=0
-    time_2b=0
-    time_2c=0
     #iterate over polygons/faces/triangles that have a long edge (i.e., greater than desired resolution)
     #between the ith and jth element of the triangle.
     for coord_idx, counter in enumerate(faces_range[long_edges]):
@@ -126,7 +120,6 @@ def upsample_edges(coords, faces, faces_dict, i,j,k , resolution, alt_coords) :
         
         index = coord_offset + coord_idx
         
-        t0=time.time()
         list_intersect = lambda x, y : list(set([ii for ii in x+y if ii in x and ii in y]))
         ar = list_intersect(ngh[a],ngh[b])
         ar.remove(c)
@@ -136,7 +129,6 @@ def upsample_edges(coords, faces, faces_dict, i,j,k , resolution, alt_coords) :
         assert len_ar == 1, f'Error: {a} and {b} should only have one value but has {ar}\n{ngh[a]}\n{ngh[b]}'
         d = ar[0] 
 
-        t1=time.time()
         ar = list_intersect(ngh[a], ngh[b])
 
         opposite_poly_index=faces_dict[sorted_str([a,b,d])]
@@ -144,18 +136,15 @@ def upsample_edges(coords, faces, faces_dict, i,j,k , resolution, alt_coords) :
         #the idea is that the new coordinate that was interpolated between vertex a and b is stored
         #in new_coords[index]
 
-        t2=time.time()
         #insert new vertex in mesh --> 4 new polygons
         new_faces[counter] = sorted([a,index,c]) 
         new_faces[opposite_poly_index] = sorted([index,c,b]) 
         new_faces[faces_offset] = sorted([a,index,d]) 
         new_faces[faces_offset+1] = sorted([index,b,d])
-        t2b =time.time()
         faces_dict[sorted_str([a,index,c])] = counter 
         faces_dict[sorted_str([index,c,b])] = opposite_poly_index
         faces_dict[sorted_str([a,index,d])] = faces_offset
         faces_dict[sorted_str([index,b,d])] = faces_offset+1
-        t2c =time.time()
         
         #update the neighbours of each vertex to reflect changes to mesh
         ngh[a] = [ ii if ii != b else index for ii in ngh[a] ] 
@@ -164,15 +153,8 @@ def upsample_edges(coords, faces, faces_dict, i,j,k , resolution, alt_coords) :
         ngh[d].append(index) 
         ngh[index]=[a,b,c,d]
 
-        t3=time.time()
 
         faces_offset += 2
-        time_0 += t1-t0
-        time_1 += t2-t1
-        time_2 += t3-t2
-        time_2a += t2b -t2
-        time_2b += t2c -t2b
-        time_2c += t3 -t2c
 
     new_faces = np.unique(new_faces, axis=1)
     return new_coords, new_faces, faces_dict, new_alt_coords
@@ -204,7 +186,7 @@ def upsample_gifti(input_fn,upsample_fn,  resolution, alt_input_fn=False,alt_ups
         max_len = np.round(np.max(d),2)
         avg_len = np.round(np.mean(d),2)
         perc95 = np.round(np.percentile(d, [95])[0],2)
-
+        print('resolution', resolution)
         print('\tmax edge',max_len,'95th percentile',perc95,'\tavg', avg_len,'\tcoords=', coords.shape[0], '\tfaces=', faces.shape[0] )
         start_resolution = max(int(max_len), resolution) 
         for target_resolution in np.arange(start_resolution, resolution-1,-1) :
@@ -239,9 +221,9 @@ def upsample_gifti(input_fn,upsample_fn,  resolution, alt_input_fn=False,alt_ups
 def create_high_res_sphere(input_fn, upsample_fn, sphere_fn, sphere_rsl_fn, resolution, clobber=False ):
     if not os.path.exists(sphere_fn) or  clobber :
         print('\tInflate to sphere')
-        #shell('~/freesurfer/bin/mris_inflate -n 40  {} {}'.format(input_fn, sphere_fn))
-        shell('mris_inflate -n 40  {} {}'.format(input_fn, sphere_fn))
-    clobber=True
+        shell('~/freesurfer/bin/mris_inflate -n 200  {} {}'.format(input_fn, sphere_fn))
+        #shell('mris_inflate -n 200  {} {}'.format(input_fn, sphere_fn))
+    resolution=1
     if not os.path.exists(upsample_fn) or clobber :
         upsample_gifti( input_fn, upsample_fn, float(resolution), alt_input_fn=sphere_fn,  alt_upsample_fn=sphere_rsl_fn, clobber=clobber)
 

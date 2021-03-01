@@ -141,7 +141,6 @@ def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, 
         create_high_res_sphere(wm_surf_fn, wm_upsample_fn, wm_sphere_fn, wm_sphere_rsl_fn, resolution)
     
     test_fn = sub('.surf.gii','_test.surf.gii',wm_upsample_fn)
-    resample_to_reference(wm_surf_fn, wm_upsample_fn, test_fn)
 
     for depth in depth_list :
         print("\tDepth", depth)
@@ -156,7 +155,7 @@ def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, 
         del coords
    
         if False in [ os.path.exists(fn) for fn in [upsample_fn, sphere_fn, sphere_rsl_fn]] or clobber :
-            create_high_res_sphere(depth_surf_fn, upsample_fn, sphere_fn, sphere_rsl_fn, resolution, optional_reference=wm_upsample_fn)
+            create_high_res_sphere(depth_surf_fn, upsample_fn, sphere_fn, sphere_rsl_fn, resolution )
 
 
     return depth_fn_dict
@@ -244,6 +243,7 @@ def get_profiles(surf_dir, depth_list, profiles_fn, slab_dict, df_ligand, depth_
 
             assert np.sum(array_src) != 0 , 'Error: input receptor volume has is empty {}'.format(slab['nl_2d_vol_fn'])
             for depth_index, (depth, depth_fn) in enumerate(zip(depth_list,depth_fn_list)):
+                if depth_index != 0 : continue
                 if not os.path.exists(depth_fn) :
                     surf_upsample_fn = depth_fn_slab_space[i][depth]
                     
@@ -251,7 +251,8 @@ def get_profiles(surf_dir, depth_list, profiles_fn, slab_dict, df_ligand, depth_
                     print(surf_upsample_fn)
                     slab_df=df_ligand.loc[df_ligand['slab'].astype(int)==int(i)]
                      
-                    profiles[:,depth_index] = get_slab_profile( slab_df, surf_upsample_fn, array_src, array_img.affine, profiles[:,depth_index], resolution)
+                    profiles[0:nrows,depth_index] = get_slab_profile( slab_df, surf_upsample_fn, array_src, array_img.affine, profiles[:,depth_index], resolution)
+                    #profiles[:,depth_index] = get_slab_profile( slab_df, surf_upsample_fn, array_src, array_img.affine, profiles[:,depth_index], resolution)
 
                 #profiles[ profiles < 0.01 ] = 0
         for depth_index, depth_fn in enumerate(depth_fn_list):
