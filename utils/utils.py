@@ -183,10 +183,10 @@ def nib_downsample(in_fn, aff, step, order=5) :
     print(out_img.shape)
     return out_img
     
-def downsample(img, subject_fn="", step=0.2, interp=3):
+def downsample(img, subject_fn="", step=0.2, raw_step=0.02, interp=3):
     #Calculate length of image based on assumption that pixels are 0.02 x 0.02 microns
-    l0 = img.shape[0] * 0.02 
-    l1 = img.shape[1] * 0.02
+    l0 = img.shape[0] * raw_step 
+    l1 = img.shape[1] * raw_step
 
     #Calculate the length for the downsampled image
     dim0=int(np.ceil(l0 / step))
@@ -196,8 +196,7 @@ def downsample(img, subject_fn="", step=0.2, interp=3):
     
     #Downsample
     #print('Downsample to', dim0, dim1)
-    img_dwn = resize(img.astype(float), (dim0, dim1), order=int(interp) )
-    print( img.shape , '-->', img_dwn.shape)
+    img_dwn = resize(img.astype(float), (dim0, dim1), order=int(interp) ) 
     #plt.subplot(3,1,1)
     #plt.imshow(img)
     #plt.subplot(3,1,2)
