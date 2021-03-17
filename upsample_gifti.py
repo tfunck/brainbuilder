@@ -33,7 +33,6 @@ def plot_faces(coords, faces, out_fn):
     plt.scatter(coords[:,0],coords[:,1])
     for i in range(coords.shape[0]) :
         ax.annotate(str(i), (coords[i,0], coords[i,1]))
-    print('Plotting',out_fn)
     plt.savefig(out_fn)
 
 
@@ -135,7 +134,7 @@ def get_edges_from_faces(faces):
     edge_face_idx = np.array( [ sorted_indices[ [i, i+1] ] for i in edges_idx ] )
     return edges, edge_face_idx
 
-def upsample_edges(coords, faces, coord_normals,  faces_dict,  resolution, temp_alt_coords=None) :
+def upsample_edges(coords, faces, coord_normals,  faces_dict,  resolution, temp_alt_coords=None, debug=False) :
     edges, edge_face_idx = get_edges_from_faces(faces) 
     e_0, e_1 = edges[:,0], edges[:,1]
     
@@ -148,8 +147,7 @@ def upsample_edges(coords, faces, coord_normals,  faces_dict,  resolution, temp_
 
     long_edges = d_ij > resolution
     mm = np.argmax(long_edges)
-    #long_edges =np.zeros_like(long_edges).astype(bool) 
-    #long_edges[mm]=True
+    
     new_coord_normals = calculate_new_coords(coord_normals, e_0, e_1, long_edges)
     new_coords = calculate_new_coords(coords, e_0, e_1, long_edges)
 
@@ -197,76 +195,34 @@ def upsample_edges(coords, faces, coord_normals,  faces_dict,  resolution, temp_
         a = edges[edge_counter][0]
         b = edges[edge_counter][1]
         ab_ngh = list_intersect(ngh[a],ngh[b]) 
-        assert len(ab_ngh) == 2 , 'more than two neighbours for vertices {} {}'.format(a,b)
+        if debug :
+            assert len(ab_ngh) == 2 , 'more than two neighbours for vertices {} {}'.format(a,b)
 
         c = ab_ngh[0]
         d = ab_ngh[1]
         face_idx=faces_dict[sorted_str([a,b,c])]
-        #face_idx_0 = edge_face_idx[edge_counter][0]
-        #face_idx_1 = edge_face_idx[edge_counter][1]
-        #if a in new_faces[face_idx_0] and b in new_faces[face_idx_0] :
-        #    face_idx = face_idx_0
-        #elif a in new_faces[face_idx_1] and b in new_faces[face_idx_1] :
-        #    face_idx = face_idx_1
-        #    print('using second face')
-        #else :
-        #assert a in new_faces[face_idx] and b in new_faces[face_idx], 'a {} and b {} are not in new face {}'.format(a,b,new_faces[face_idx_0], new_faces[face_idx_1])
 
-        #temp_ar = [ i for i in new_faces[face_idx] if i != a and i != b ]
-
-        #assert len(temp_ar) == 1, 'Error, should only have 1 {} a {} b {} -- {}'.format(temp_ar,a,b,new_faces[face_idx])
-        #c=temp_ar[0]
-
-        #ab_ngh = [ i for i in list_intersect(ngh[a],ngh[b]) if i not in new_faces[face_idx] ]
-        #print('coords a', a, new_coords[a])
-        #print('coords b', b, new_coords[b])
-        #print('coords c', c, new_coords[c])
-
-        #assert len(ab_ngh) == 1 , 'more than two neighbours for vertices {} {}'.format(a,b)
-        #d = ab_ngh[0]
-        #print('coords d', new_coords[d])
-        # print('coords index', index, new_coords[index])
-        
-        #print('a ',a,'\tb ', b,'\tc ', c, '\td', d, '\ti ', index)
-        #assert a in new_faces[face_idx] and b in new_faces[face_idx] , 'Error, edges not in face {} {} {} {} {}'.format(a,b,faces[face_idx], a in new_faces[face_idx], b in new_faces[face_idx])
-
-        #a,b,c = new_faces[face_idx]
-        
         ar = list_intersect(ngh[a], ngh[b])
-        #print('opposing face', a,b,d)
         opposite_poly_index=faces_dict[sorted_str([a,b,d])]
-        #print(face_idx, opposite_poly_index)
-        #print('\topposing face-->',a,b,d, new_faces[opposite_poly_index], new_faces[edge_face_idx[edge_counter][1] ] )
 
         #the idea is that the new coordinate that was interpolated between vertex a and b is stored
         #in new_coords[index]
-        #print('ngh c',c,':', ngh[c])
-        #print('ngh d',d,':', ngh[d])
-        #print(a,b,c,d,face_idx)
-        assert len(list_intersect(ngh[a],ngh[b])) == 2, 'a b index'
-        assert len(list_intersect(ngh[a],ngh[c])) == 2, 'a c index'
-        assert len(list_intersect(ngh[a],ngh[d])) == 2, 'a d index'
-        assert len(list_intersect(ngh[c],ngh[d])) == 2, 'c {} d {} index {}, {}, {}'.format(c,d,ngh[c], ngh[d], list_intersect(ngh[c],ngh[d]) )
-        #insert new vertex in mesh --> 4 new polygons
-        #print('current face',new_faces[face_idx] )
+        if debug :
+            assert len(list_intersect(ngh[a],ngh[b])) == 2, 'a b index'
+            assert len(list_intersect(ngh[a],ngh[c])) == 2, 'a c index'
+            assert len(list_intersect(ngh[a],ngh[d])) == 2, 'a d index'
 
+        #insert new vertex in mesh --> 4 new polygons
         new_faces[face_idx] = sorted([a,index,c]) 
         new_faces[opposite_poly_index] = sorted([index,c,b])
 
-        edge_face_idx[ edge_face_idx == face_idx ] = face_idx
-
         new_faces[faces_offset] = sorted([a,index,d]) 
         new_faces[faces_offset+1] = sorted([index,b,d])
-        print()
         faces_dict[sorted_str([a,index,c])] = face_idx
         faces_dict[sorted_str([index,c,b])] = opposite_poly_index
         faces_dict[sorted_str([a,index,d])] = faces_offset
         faces_dict[sorted_str([index,b,d])] = faces_offset+1
         
-        #for var in [face_idx, opposite_poly_index, faces_offset, faces_offset+1] :
-        #    print(new_faces[var], '-->',var )
-        
-        #print('ngh[c]', ngh[c])
         #update the neighbours of each vertex to reflect changes to mesh
         ngh[a] = [ ii if ii != b else index for ii in ngh[a] ] 
         ngh[b] = [ ii if ii != a else index for ii in ngh[b] ]
@@ -274,22 +230,18 @@ def upsample_edges(coords, faces, coord_normals,  faces_dict,  resolution, temp_
         ngh[d].append(index) 
 
         ngh[index] = [a,b,c,d]
-        #print('\t\tHEYO', new_faces[31744])
-        #print('face idx and opp',face_idx, opposite_poly_index)
-        #for nn, f in enumerate(new_faces):
-        #    if a in f and b in f :
-        #        print('Error should not longer have polygon with',a,'and', b,' in it',f,'for index',nn)
-        #        exit(0)
-        #print('ngh[c]', ngh[c])
-        assert len(list_intersect(ngh[a],ngh[c])) == 2, 'a c'
-        assert len(list_intersect(ngh[c],ngh[b])) == 2, 'c b {} {} {}'.format(ngh[c],ngh[b], list_intersect(ngh[c],ngh[b]))
-        assert len(list_intersect(ngh[a],ngh[d])) == 2, 'a d'
-        assert len(list_intersect(ngh[b],ngh[d])) == 2, 'b d'
-        assert len(list_intersect(ngh[a],ngh[index])) == 2, 'a index'
-        assert len(list_intersect(ngh[b],ngh[index])) == 2, 'b index'
-        assert len(list_intersect(ngh[c],ngh[index])) == 2, 'c index'
-        assert len(list_intersect(ngh[d],ngh[index])) == 2, 'd index'
 
+        if debug :
+            assert len(list_intersect(ngh[a],ngh[c])) == 2, 'a c'
+            assert len(list_intersect(ngh[c],ngh[b])) == 2, 'c b {} {} {}'.format(ngh[c],ngh[b], list_intersect(ngh[c],ngh[b]))
+            assert len(list_intersect(ngh[a],ngh[d])) == 2, 'a d'
+            assert len(list_intersect(ngh[b],ngh[d])) == 2, 'b d'
+            assert len(list_intersect(ngh[a],ngh[index])) == 2, 'a index'
+            assert len(list_intersect(ngh[b],ngh[index])) == 2, 'b index'
+            assert len(list_intersect(ngh[c],ngh[index])) == 2, 'c index'
+            assert len(list_intersect(ngh[d],ngh[index])) == 2, 'd index'
+
+    
         faces_offset += 2
 
         #get_edges_from_faces(new_faces[new_faces[:,0] != -1]) 
@@ -344,42 +296,23 @@ def write_outputs(upsample_fn, coords, faces, input_fn, temp_alt_coords ) :
             print('\tWriting',alt_upsample_fn)
             write_mesh(np.load(fn+'.npy'), faces, input_fn, alt_upsample_fn )
 
-def upsample_gifti(input_fn,upsample_fn,  resolution, alt_input_list=[],test=False, clobber=False):
+def upsample_gifti(input_fn,upsample_fn,  resolution, alt_input_list=[],test=False, clobber=False, debug=False):
 
     if not os.path.exists(upsample_fn) or clobber :
         
-        if test :
-            faces=np.array([[0,1,5], 
-                            [0,3,5], 
-                            [2,3,5], 
-                            [1,2,5],
-                            [0,1,4],
-                            [0,3,4],
-                            [2,3,4],
-                            [1,2,4]] 
-                            ).astype(int) 
-            coords=np.array([[0,0,0],
-                            [0,1,0],
-                            [1,1,0],
-                            [1,0,0],
-                            [.5,.5,1],
-                            [.5,.5,-1]]).astype(float)
-
-            write_outputs('test.obj', coords, faces, input_fn, None ) 
-            upsample_fn='test_rsl.obj'
+  
+        ext = os.path.splitext(input_fn)[1]
+        if ext == '.gii' :
+            mesh = nib.load(input_fn)
+            faces = mesh.agg_data('NIFTI_INTENT_TRIANGLE')
+            coords= mesh.agg_data('NIFTI_INTENT_POINTSET')
+        elif ext == '.obj' :
+            mesh_dict = load_mesh_geometry(input_fn)
+            coords = mesh_dict['coords']
+            faces = mesh_dict['faces']
         else :
-            ext = os.path.splitext(input_fn)[1]
-            if ext == '.gii' :
-                mesh = nib.load(input_fn)
-                faces = mesh.agg_data('NIFTI_INTENT_TRIANGLE')
-                coords= mesh.agg_data('NIFTI_INTENT_POINTSET')
-            elif ext == '.obj' :
-                mesh_dict = load_mesh_geometry(input_fn)
-                coords = mesh_dict['coords']
-                faces = mesh_dict['faces']
-            else :
-                print('Error: could not recognize filetype from extension,',ext)
-                exit(1)
+            print('Error: could not recognize filetype from extension,',ext)
+            exit(1)
         #calculate surface normals
         normals = np.array([ np.cross(coords[b]-coords[a],coords[c]-coords[a]) for a,b,c in faces ])
 
@@ -403,24 +336,22 @@ def upsample_gifti(input_fn,upsample_fn,  resolution, alt_input_list=[],test=Fal
 
         max_len = np.round(np.max(d),2)
         avg_len = np.round(np.mean(d),2)
-        perc95 = np.round(np.percentile(d, [95])[0],2)
         print('resolution', resolution)
-        print('\tmax edge',max_len,'95th percentile',perc95,'\tavg', avg_len,'\tcoords=', coords.shape[0], '\tfaces=', faces.shape[0] )
+        print('\tmax edge',max_len,'\tavg', avg_len,'\tcoords=', coords.shape[0], '\tfaces=', faces.shape[0] )
         counter=0
         start_resolution = max(int(max_len), resolution) 
         for target_resolution in np.arange(start_resolution, resolution-1,-1) :
             print('target reslution:', target_resolution)
             while max_len > target_resolution and max_len > resolution :
                 
-                coords, faces, coord_normals, faces_dict = upsample_edges(coords, faces, coord_normals, faces_dict, target_resolution,temp_alt_coords=temp_alt_coords)
+                coords, faces, coord_normals, faces_dict = upsample_edges(coords, faces, coord_normals, faces_dict, target_resolution,temp_alt_coords=temp_alt_coords,debug=debug)
                 counter+=1
                 d = [   calc_dist(coords[faces[:,0]], coords[faces[:,1]]),
                         calc_dist(coords[faces[:,1]], coords[faces[:,2]]),
                         calc_dist(coords[faces[:,2]], coords[faces[:,0]])]
                 max_len = np.round(np.max(d),2)
                 avg_len = np.round(np.mean(d),2)
-                perc95 = np.round(np.percentile(d, [95])[0],2)
-                print('\tmax edge',max_len,'95th percentile',perc95,'\tavg', avg_len,'\tcoords=', coords.shape[0], '\tfaces=', faces.shape[0] )
+                print('\tmax edge',max_len,'\tavg', avg_len,'\tcoords=', coords.shape[0], '\tfaces=', faces.shape[0] )
         print('\tFinal coords=', coords.shape, 'starting faces', faces.shape)
 
         faces=fix_normals(faces,coords,coord_normals)
@@ -436,6 +367,7 @@ if __name__ == "__main__" :
     parser.add_argument('-a', dest='alt_input_list', nargs='+', default=[], help='optional fn')
     parser.add_argument('-c', action='store_true', default=False, dest='clobber', help='optional fn')
     parser.add_argument('-t', action='store_true', default=False, dest='test', help='test upsampling')
+    parser.add_argument('-d', action='store_true', default=False, dest='debug', help='debug')
     args = parser.parse_args()
     
     upsample_fn=''
@@ -445,4 +377,4 @@ if __name__ == "__main__" :
         print('Upsample fn', upsample_fn)
 
     if not os.path.exists(upsample_fn) or args.clobber or args.test :
-        upsample_gifti( args.input_fn, upsample_fn, float(args.resolution), alt_input_list=args.alt_input_list,  clobber=args.clobber, test=args.test)
+        upsample_gifti( args.input_fn, upsample_fn, float(args.resolution), alt_input_list=args.alt_input_list,  clobber=args.clobber, test=args.test, debug=args.debug)
