@@ -181,8 +181,6 @@ def multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args, files, 
         if not os.path.exists(srv_rsl_fn) or args.clobber :
             resample(nib.load(args.srv_fn), srv_rsl_fn, resolution)
         
-        #FIXME temporary, remove
-        if str(resolution) != str(0.75) : continue
 
         print('last nl 2d vol',last_nl_2d_vol_fn)
         #Combine 2d sections from previous resolution level into a single volume
@@ -224,7 +222,7 @@ def multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args, files, 
             
         print('\tStep 4: 2d nl alignment')
         receptor_2d_alignment( slab_df, init_align_fn, srv_base_rsl_crop_fn, nl_2d_dir,  resolution, resolution_itr, batch_processing=args.remote)
-    print('should not see this either')
+    
     #Concatenate 2D nonlinear aligned sections into output volume
     if (resolution != resolution_list[0] and not os.path.exists(nl_2d_vol_fn))  :
         print('\t',nl_2d_dir,'test', resolution)
@@ -279,7 +277,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 #   5. Interpolate missing vertices on sphere, interpolate back to 3D volume
 
 if __name__ == '__main__':
-    resolution_list = [ '3', '2', '1' ,'0.75']#, '0.5'] #, '0.25']
+    resolution_list = [ '3', '2', '1' ,'0.75', '0.5', '0.25'] #, '0.1'] #0.05
 
     args, files = setup_parameters(setup_argparse().parse_args() )
     #Process the base autoradiograph csv

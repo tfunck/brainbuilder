@@ -121,7 +121,7 @@ def align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, out_dir, df, slabs,out_tfm_f
         init_moving=f'--initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]'
         
         # calculate registration
-        shell(f'antsRegistration -v 0 -a 1 -d 3 {init_moving} -t Rigid[.1] -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -c [1000] -s 0vox -f 1  -t Similarity[.1] -c [500] -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s 0vox -f 1  -t Affine[.1] -c [500] -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s 0vox -f 1 -t SyN[.1] -c [500] -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s 0vox -f 1  -o [{prefix},{out_fn},{out_inv_fn}]', verbose=True)
+        shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3 {init_moving} -t Rigid[.1] -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -c [1000] -s 0vox -f 1  -t Similarity[.1] -c [500] -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s 0vox -f 1  -t Affine[.1] -c [500] -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s 0vox -f 1 -t SyN[.1] -c [500] -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s 0vox -f 1  -o [{prefix},{out_fn},{out_inv_fn}] ', verbose=True)
 
     return 0
 

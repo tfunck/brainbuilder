@@ -70,7 +70,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, output_dir, resolution, resolutio
     tfm_to_do=get_to_do_list(df, tfm_dir, '_Composite', ext='.h5')
     
     if len(out_to_do) != len(tfm_to_do) :
-        print('Error: number of output 2d nii.gz does not match number of tfm .h5 files, {} vs {}'.format( len(out_to_do), len(tfm_to_do)))
+        print('Warning: number of output 2d nii.gz does not match number of tfm .h5 files, {} vs {}'.format( len(out_to_do), len(tfm_to_do)))
         #exit(1)
     
     if len(out_to_do + tfm_to_do) != 0 :

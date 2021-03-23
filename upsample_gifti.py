@@ -10,7 +10,6 @@ import argparse
 from matplotlib.patches import Circle, Wedge, Polygon
 from matplotlib.collections import PatchCollection
 from vast.io_mesh import load_mesh_geometry, save_obj
-from matplotlib_surface_plotting import plot_surf 
 from c_upsample_mesh import upsample, resample
 from re import sub
 from utils.utils import shell,splitext
