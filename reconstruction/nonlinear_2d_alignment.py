@@ -9,114 +9,137 @@ import pandas as pd
 import time
 import shutil
 import tempfile
+import multiprocessing
+from nibabel.processing import resample_to_output
+from joblib import Parallel, delayed
 from section_2d import section_2d
 from sys import argv
 from glob import glob
 from utils.ANTs import ANTs
-from utils.utils import splitext, shell, w2v , v2w
+from utils.utils import *
 
-def gen_2d_fn(prefix,suffix,ext='.nii.gz'):
-    return f'{prefix}{suffix}{ext}'
 
-def save_sections(file_list, vol, aff) :
-    for fn, y in file_list:
-        # Create 2D srv section
-        nib.Nifti1Image(vol[ :, int(y), : ] , aff).to_filename(fn)
 
-def get_to_do_list(df,out_dir,str_var,ext='.nii.gz'):
-    to_do_list=[]
-    for idx, (i, row) in enumerate(df.iterrows()):
-        y=row['volume_order'] 
-        prefix=f'{out_dir}/y-{y}' 
-        fn=gen_2d_fn(prefix,str_var,ext=ext)
-        if not os.path.exists(fn) : to_do_list.append( [fn, y])
-    return to_do_list
 
-def create_2d_sections( df, rec_fn, srv_fn, output_dir,clobber=False) :
-    fx_to_do=[]
-    mv_to_do=[]
+def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
+    #Set strings for alignment parameters
+    f_list = [ '1', '2', '4', '8', '16', '24']
+    s_list = [ '0', '1', '2', '4', '8', '16']
+    max_itr = min(resolution_itr, len(f_list))
+    f_list = f_list[0:(max_itr+1)]
+    s_list = s_list[0:(max_itr+1)]
+    s_list.reverse()
+    f_list.reverse()
+
+    base_lin_itr= 1000
+    base_nl_itr = 200
+    max_lin_itr = base_lin_itr * (resolution_itr+1)
+    max_nl_itr  = base_nl_itr * (resolution_itr+1)
+    lin_step = -base_lin_itr 
+    nl_step  = -base_nl_itr 
+
+    lin_itr_str='x'.join([str(base_lin_itr *(max_itr+1) + i * lin_step) for i in range(max_itr+1)])
+    nl_itr_str='x'.join( [str(base_nl_itr *(max_itr+1) + i * nl_step) for i in range(max_itr+1)])
+
+    f_str='x'.join( [ f_list[i] for i in range(max_itr+1)])
+    s_str='x'.join( [ s_list[i] for i in range(max_itr+1)]) + 'vox'
+
+    f_cc = f_list[-1]
+    s_cc = s_list[-1]
+
+    s_str_final = s_str.split(',')[-1]
+    f_str_final = f_str.split(',')[-1]
     
-    tfm_dir=output_dir + os.sep + 'tfm'
-    os.makedirs(tfm_dir, exist_ok=True)
-    os.makedirs(output_dir, exist_ok=True)
+    n0 = len(lin_itr_str.split('x'))
+    n1 = len(f_str.split('x'))
+    n2 = len(s_str.split('x'))-1
+    n3 = len(nl_itr_str.split('x'))
+    assert n0==n1==n2==n3 , "Error: Incorrect lengths for ANTs parameters"
+
+    y=row['volume_order']
+
+    prefix=f'{tfm_dir}/y-{y}' 
+    fx_fn = gen_2d_fn(prefix,'_fx')
+
+    #mv_fn_list = glob('{}/y-*{}'.format(mv_dir, os.path.basename(row['seg_fn'])) )
+    #if len(mv_fn_list) == 0 : 
+    #    print('Could not find file for ', row['seg_fn'] )
+    #    exit(1)
+    #mv_fn = mv_fn_list[0]
+
+    mv_fn = get_seg_fn(mv_dir, y, resolution, row['seg_fn'], suffix='_rsl')
+
+    print('\t\t',y)
     
-    fx_to_do = get_to_do_list(df, tfm_dir, '_fx_0.2mm') 
-    mv_to_do = get_to_do_list(df, tfm_dir, '_mv_0.2mm') 
+    init_tfm = row['init_tfm']
+    init_str = f'[{fx_fn},{mv_fn},1]'
+    if type(init_tfm) == str :
+        init_str = init_tfm
 
-    if len(mv_to_do + fx_to_do) > 0 :
+    command_str = f'time antsRegistration -v 0 -d 2 --write-composite-transform 1  --initial-moving-transform {init_str} -o [{prefix}_,{prefix}_mv_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[.1] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t Affine[.1] -c {lin_itr_str} -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t SyN[0.1] -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}  -t SyN[0.1]  -m CC[{fx_fn},{mv_fn},1,20,Regular,1] -c 20 -s {s_cc}  -f {f_cc} '
 
-        rec_hires_img = nib.load(rec_fn)
-        srv_img = nib.load(srv_fn)
+    with open(prefix+'_command.txt','w') as f : f.write(command_str)
 
-        rec_hires_vol = rec_hires_img.get_fdata()
-        srv = srv_img.get_fdata()
+    shell(command_str)
+    #init_tfm=row['init_tfm']
+    #if init_tfm != None :
+    #    print(f'antsApplyTransforms -v 1 -d 2 -i {mv_fn} -r {mv_fn}  -t {prefix}_nl_Composite.h5 -t {init_tfm} -o [{prefix}_Composite.h5]')
+    #    shell(f'antsApplyTransforms -v 1 -d 2 -i {mv_fn} -r {mv_fn}  -t {prefix}_nl_Composite.h5 -t {init_tfm} -o [{prefix}_Composite.h5]')
+    #    assert os.path.exists(f'{prefix}_Composite.h5'), f'Error concatenating initial rigid tfm with nl tfm:\n -t {prefix}_nl_Composite.h5 \n-t {init_tfm} \n -o [{prefix}_Composite.h5]' 
+    #else :
+    #    shutil.copy(f'{prefix}_nl_Composite.h5', f'{prefix}_Composite.h5')
+    return 0
+    
+def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, row):
+    y=row['volume_order']
+    prefix=f'{tfm_dir}/y-{y}' 
+    out_fn=prefix+'_rsl.nii.gz'
+    fx_fn = gen_2d_fn(prefix,'_fx')
+
+    crop_fn = row['crop_fn']
+    shell(f'antsApplyTransforms -v 1 -d 2  -i {crop_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
+    assert os.path.exists(f'{out_fn}'), 'Error apply nl 2d tfm to cropped autoradiograph'
+    print('\nDone.\n')
+    return 0
+
+def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, resolution_itr, batch_processing=False, clobber=False): 
+    df.reset_index(drop=True,inplace=True)
+    df.reset_index(drop=True,inplace=True)
+
+    tfm_dir = output_dir + os.sep + 'tfm'
+    os.makedirs(tfm_dir,exist_ok=True)
+
+    num_cores = min(1, multiprocessing.cpu_count() )
+    print('num cores', num_cores)
+    print(df.shape, df.shape)
+    to_do_df = pd.DataFrame([])
+    to_do_resample_df = pd.DataFrame([])
+    for i, row in df.iterrows() :
+        y = row['volume_order']
+        prefix = f'{tfm_dir}/y-{y}' 
+        out_fn = prefix+'_rsl.nii.gz'
+        tfm_fn = prefix+'_Composite.h5'
+        df['tfm'].loc[ df['volume_order'] == df['volume_order'] ] = tfm_fn
+
+        try :
+            init_tfm = df['init_tfm']
+        except IndexError :
+            init_tfm=None
         
-        xstep = rec_hires_img.affine[0,0]
-        zstep = rec_hires_img.affine[2,2]
-
-        aff_hires = np.array([[xstep,  0, 0, 0],
-                        [0, zstep, 0, 0],
-                        [0, 0, 1, 0],
-                        [0, 0, 0, 1]])
-
-        save_sections(fx_to_do, srv, aff_hires)
-        save_sections(mv_to_do, rec_hires_vol, aff_hires)
-
-def receptor_2d_alignment( df, rec_fn, srv_fn, output_dir, resolution, resolution_itr, batch_processing=False, clobber=False): 
+        if not os.path.exists(tfm_fn) :
+            to_do_df = to_do_df.append(row)
+        
+        if not os.path.exists(out_fn) :
+            to_do_resample_df = to_do_resample_df.append(row)
     
-    tfm_dir=output_dir + os.sep + 'tfm'
+    if to_do_df.shape[0] > 0 :
+        Parallel(n_jobs=num_cores)(delayed(align_2d_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, row) for i, row in  to_do_df.iterrows()) 
+        
+    if to_do_resample_df.shape[0] > 0 :
+        Parallel(n_jobs=num_cores)(delayed(apply_transforms_parallel)(tfm_dir, mv_dir, resolution_itr, row) for i, row in  to_do_resample_df.iterrows()) 
 
-    out_to_do=get_to_do_list(df, tfm_dir, '')
-    tfm_to_do=get_to_do_list(df, tfm_dir, '_Composite', ext='.h5')
-    
-    if len(out_to_do) != len(tfm_to_do) :
-        print('Warning: number of output 2d nii.gz does not match number of tfm .h5 files, {} vs {}'.format( len(out_to_do), len(tfm_to_do)))
-        #exit(1)
-    
-    if len(out_to_do + tfm_to_do) != 0 :
-        resolution_level = 1 # 
+    return df
 
-        #Set strings for alignment parameters
-        base_lin_itr= 1000
-        base_nl_itr = 200
-        max_lin_itr = base_lin_itr * (resolution_itr+1)
-        max_nl_itr  = base_nl_itr * (resolution_itr+1)
-        lin_step = -base_lin_itr #*(resolution_itr)
-        nl_step  = -base_nl_itr #*(resolution_itr)
-
-        lin_itr_str='x'.join([str(i) for i in range(max_lin_itr,0,lin_step)])
-        nl_itr_str='x'.join([str(i) for i in range(max_nl_itr,0,nl_step)])
-
-        f_str='x'.join([ str(i) for i in range(resolution_itr+1,0,-1)])
-        f = lambda x : x/2 if x > 1  else 0
-        s_list = map(f,  range(resolution_itr+1,0,-1) ) 
-        s_str='x'.join( [str(i) for i in s_list] ) + 'vox'
-        n0 = len(lin_itr_str.split('x'))
-        n1 = len(f_str.split('x'))
-        n2 = len(s_str.split('x'))-1
-        n3 = len(nl_itr_str.split('x'))
-        print(n0,n1,n2,n3)
-        assert n0==n1==n2==n3 , "Error: Incorrect lengths for ANTs parameters"
-
-        for (out_fn, y), (tfm_fn,y1) in zip(out_to_do,tfm_to_do):
-            if y != y1 :
-                print('Error: mismatched y for {} {} and {} {}',y, out_fn, y1, tfm_fn)
-            prefix=f'{tfm_dir}/y-{y}' 
-            fx_fn = gen_2d_fn(prefix,'_fx_0.2mm')
-            mv_fn = gen_2d_fn(prefix,'_mv_0.2mm')
-
-            print('\t\t',y)
-            args=[ prefix, mv_fn, fx_fn, out_fn, s_str, f_str, lin_itr_str, nl_itr_str]
-            batch_fn=None
-            if batch_processing : batch_fn=f'{tfm_dir}/batch_{y}.sh'
-            args.append(batch_fn)
-            args.append(12)
-
-            section_2d(*args)
-
-        if batch_processing == True : 
-            print('\nCompleted all processing up to nl 2d alignment. This should be run remotely with with --nl-2d-only argument\n')
-            exit(0)
 def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn):
     exit_flag=False
     tfm_dir=output_dir + os.sep + 'tfm'
@@ -125,10 +148,10 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn):
     out_vol=np.zeros(hires_img.shape)
 
     for idx, (i, row) in enumerate(df.iterrows()):
-        y=row['volume_order'] 
-        prefix=f'{tfm_dir}/y-{y}'
-        y=row['volume_order'] 
-        fn=f'{tfm_dir}/y-{y}.nii.gz' 
+        y = row['volume_order'] 
+        prefix = f'{tfm_dir}/y-{y}'
+        y = row['volume_order'] 
+        fn = f'{tfm_dir}/y-{y}_rsl.nii.gz' 
         try : 
             out_vol[:,int(y),:] = nib.load(fn).get_fdata()
         except EOFError :

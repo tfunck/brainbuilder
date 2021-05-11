@@ -10,7 +10,6 @@ import argparse
 from matplotlib.patches import Circle, Wedge, Polygon
 from matplotlib.collections import PatchCollection
 from vast.io_mesh import load_mesh_geometry, save_obj
-from c_upsample_mesh import upsample, resample
 from re import sub
 from utils.utils import shell,splitext
 from glob import glob
@@ -252,7 +251,9 @@ def load_alt_coordinates(alt_input_list):
     #f = h5.File(f'{alt_h5_fn}','w')
     for i, fn in enumerate(alt_input_list) :
         alt_coords = nib.load(fn).agg_data('NIFTI_INTENT_POINTSET')
-        temp_fn='{}{}'.format(tempfile.NamedTemporaryFile().name,os.path.basename(sub('.surf.gii','',fn)))
+        print(tempfile.NamedTemporaryFile().name )
+        temp_fn='/data/{}{}'.format(tempfile.NamedTemporaryFile().name,os.path.basename(sub('.surf.gii','',fn)))
+        print(temp_fn)
         np.save(temp_fn, alt_coords)
         temp_alt_fn[fn] = temp_fn
     print(temp_alt_fn)
@@ -276,10 +277,10 @@ def fix_normals(faces,coords,coord_normals):
         if x < 0 : faces[i]=[c,b,a]
     return faces
 def write_mesh( coords, faces, input_fn, upsample_fn ):
-    ext = splitext(upsample_fn)[1]
-    if ext == '.surf.gii' :
+    ext = upsample_fn.split('.')[-1]
+    if ext == 'gii' :
         save_gii( coords, faces, input_fn, upsample_fn )
-    elif ext == '.obj' :
+    elif ext == 'obj' :
         save_obj(upsample_fn,coords,faces)
     else :
         print('not implemented for ext', ext)
@@ -339,9 +340,10 @@ def upsample_gifti(input_fn,upsample_fn,  resolution, alt_input_list=[],test=Fal
         print('\tmax edge',max_len,'\tavg', avg_len,'\tcoords=', coords.shape[0], '\tfaces=', faces.shape[0] )
         counter=0
         start_resolution = max(int(max_len), resolution) 
-        for target_resolution in np.arange(start_resolution, resolution-1,-1) :
+        resolution_list=[resolution] 
+        for target_resolution in resolution_list : #np.arange(start_resolution, 0,-resolution) :
             print('target reslution:', target_resolution)
-            while max_len > target_resolution and max_len > resolution :
+            while avg_len > target_resolution and avg_len > resolution :
                 
                 coords, faces, coord_normals, faces_dict = upsample_edges(coords, faces, coord_normals, faces_dict, target_resolution,temp_alt_coords=temp_alt_coords,debug=debug)
                 counter+=1
@@ -351,6 +353,7 @@ def upsample_gifti(input_fn,upsample_fn,  resolution, alt_input_list=[],test=Fal
                 max_len = np.round(np.max(d),2)
                 avg_len = np.round(np.mean(d),2)
                 print('\tmax edge',max_len,'\tavg', avg_len,'\tcoords=', coords.shape[0], '\tfaces=', faces.shape[0] )
+                print(resolution, max_len, target_resolution, max_len > target_resolution , max_len > resolution )
         print('\tFinal coords=', coords.shape, 'starting faces', faces.shape)
 
         faces=fix_normals(faces,coords,coord_normals)

@@ -9,6 +9,6 @@ for fn in `find ${output} -name "batch*sh"` ; do
     if [[ ! -f $out_fn ]]; then
         echo $out_fn
         sed -i  's/-c \[1000x800x600x400x200\]/-c 1000x800x600x400x200/g' $fn
-        sbatch $fn 
+        sh $fn 
     fi
 done

@@ -90,7 +90,7 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert):
             #f.write('{},{},{},{},{}\n'.format(flip*x,flip*y,z,0,0 ))
             f.write('{},{},{},{},{}\n'.format(x,y,z,0,0 ))
 
-    temp_out_fn=tempfile.NamedTemporaryFile().name+'.csv'
+    temp_out_fn='/data/'+tempfile.NamedTemporaryFile().name+'.csv'
     shell(f'antsApplyTransformsToPoints -d 3 -i {coord_fn} -t [{tfm_list[0]},{invert[0]}]  -o {temp_out_fn}',verbose=True)
 
     # save transformed surfaced as an gii file
@@ -118,6 +118,7 @@ def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, 
     # Each mesh across the cortical depth is inflated (from low resolution, not the upsampled version)
     # and then resampled so that it has the high resolution number of vertices.
 
+    os.makedirs('/data/tmp/',exist_ok=True)
     # create depth mesh
     gm_mesh = nib.load(gm_surf_fn) 
     wm_mesh = nib.load(wm_surf_fn)
@@ -388,7 +389,8 @@ def surface_interpolation(slab_dict, out_dir, interp_dir, brain, hemi, resolutio
         if not os.path.exists(profiles_fn) or clobber >= 1 :
             print('Getting profiles')
             get_profiles( surf_rsl_dir, depth_list, profiles_fn, slab_dict, df_ligand, depth_fn_mni_space, depth_fn_slab_space, resolution)
-            
+        
+        print(os.path.exists(interp_fn))
         # Interpolate a 3D receptor volume from the surface mesh profiles
         if not os.path.exists(interp_fn) or clobber : 
             print('Map Vector to Block')
@@ -408,6 +410,8 @@ def surface_interpolation(slab_dict, out_dir, interp_dir, brain, hemi, resolutio
             print(f'\tWrite volumetric interpolated values to {interp_fn} ',end='\t')
             receptor_img.to_filename(interp_fn)
             print('Done')
+        else :
+            print(interp_fn, 'already exists')
 
 
 if __name__ == '__main__':
@@ -417,7 +421,6 @@ if __name__ == '__main__':
     parser.add_argument('--brain', dest='brain', type=str, help='brain')
     parser.add_argument('--hemi', dest='hemi', type=str,  help='hemi')
     parser.add_argument('--out-dir', dest='out_dir', type=str,  help='Clobber results')
-    parser.add_argument('--nl-tfm-str', dest='nl_tfm_str', type=str,  help='Clobber results')
     parser.add_argument('--lin-df-fn', dest='lin_df_fn', type=str,  help='Clobber results')
     parser.add_argument('--slab-str', dest='slab_str', type=str,  help='Clobber results')
     parser.add_argument('--n-depths', dest='n_depths', type=int,  default=8, help='Clobber results')
@@ -428,6 +431,5 @@ if __name__ == '__main__':
     brain = args.brain
     hemi = args.hemi
     n_depths = args.n_depths
-    nl_tfm_str = args.nl_tfm_str
     slab_str = args.slab_str
     clobber=args.clobber

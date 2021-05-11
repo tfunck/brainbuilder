@@ -22,6 +22,71 @@ from sklearn.cluster import KMeans
 from scipy.ndimage import zoom
 from skimage.transform import resize
 
+def get_seg_fn(dirname, y, resolution, filename, suffix=''):
+    filename = re.sub('.nii.gz',f'_y-{y}_{resolution}mm{suffix}.nii.gz', os.path.basename(filename))
+    return '{}/{}'.format(dirname, filename )
+
+def gen_2d_fn(prefix,suffix,ext='.nii.gz'):
+    return f'{prefix}{suffix}{ext}'
+
+def save_sections(file_list, vol, aff) :
+    xstep = aff[0,0]
+    ystep = aff[1,1]
+    zstep = aff[2,2]
+
+    xstart = aff[0,3]
+    zstart = aff[2,3]
+
+    for fn, y in file_list:
+
+        ystart = aff[1,3] + y * ystep
+        affine = np.array([  [xstep,  0, 0, xstart ],
+                                [0, zstep, 0, zstart ],
+                                [0, 0,  0.02, ystart ],
+                                [0, 0,  0, 1]])
+        i=0
+        if np.sum(vol[:,int(y),:]) == 0 :
+            # Create 2D srv section
+            #this little while loop thing is so that if we go beyond  brain tissue in vol,
+            # we find the closest y segement in vol with brain tissue
+            while np.sum(vol[:,int(y-i),:]) == 0 :
+                i += 1
+
+        nib.Nifti1Image(vol[ :, int(y-i), : ] , affine).to_filename(fn)
+
+def get_to_do_list(df,out_dir,str_var,ext='.nii.gz'):
+    to_do_list=[]
+    for idx, (i, row) in enumerate(df.iterrows()):
+        y=row['volume_order'] 
+        prefix=f'{out_dir}/y-{y}' 
+        fn=gen_2d_fn(prefix,str_var,ext=ext)
+        if not os.path.exists(fn) : to_do_list.append( [fn, y])
+    return to_do_list
+
+def create_2d_sections( df, rec_fn, srv_fn,resolution, output_dir,clobber=False) :
+    fx_to_do=[]
+    #mv_to_do=[]
+    
+    tfm_dir=output_dir + os.sep + 'tfm'
+    os.makedirs(tfm_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
+    
+    fx_to_do = get_to_do_list(df, tfm_dir, '_fx') 
+    #mv_to_do = get_to_do_list(df, tfm_dir, '_mv') 
+
+    if len( fx_to_do) > 0 :
+        #rec_hires_img = nib.load(rec_fn)
+        srv_img = nib.load(srv_fn)
+
+        #rec_hires_vol = rec_hires_img.get_fdata()
+        srv = srv_img.get_fdata()
+
+        save_sections(fx_to_do, srv, srv_img.affine)
+        
+        #for mv_fn, y in mv_to_do :
+        #    seg_fn = df['seg_fn'].loc[ df['volume_order'] == y ].values[0] 
+        #    resample_to_output(nib.load(seg_fn), [resolution,resolution],order=5).to_filename(mv_fn)
+         
 def resample(img, out_fn, res, factor=2):
     res=float(res)
     xres = (res/factor) / img.affine[0,0]
@@ -33,6 +98,8 @@ def resample(img, out_fn, res, factor=2):
     img2 = nib.Nifti1Image(vol, img.affine)
 
     resample_to_output(img2, [res]*3).to_filename(out_fn)
+
+
 def w2v(i, step, start):
     return np.round( (i-start)/step ).astype(int)
 

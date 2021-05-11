@@ -70,6 +70,7 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
     final_tfm_inv_fn = tfm_prefix + 'level-' + str(nLevels-1) + '_' + metrics[-1] + '_'+ tfm_type[-1]+'_InverseComposite.h5'
 
     #If image volume is empty, write identity matrix
+    print(fixed_fn, moving_fn)
     if np.sum(nib.load(fixed_fn).get_data()) == 0  or np.sum( nib.load(moving_fn).get_data() ) == 0 :
         print("Warning: atleast one of the image volume is empty")
         identity = sitk.Transform(3, sitk.sitkIdentity)
