@@ -86,15 +86,21 @@ def crop_image(crop_dir, y, fn, crop_fn):
     plt.imshow(mask)
     plt.savefig(qc_fn)
 
-def create_section_dataframe(raw_files, ligand_repeat, crop_dir, csv_fn, n_ligands=15):
-    if not os.path.exists(csv_fn) :
+def create_section_dataframe(raw_files, long_repeat_dict, short_repeat_dict, crop_dir, csv_fn, n_ligands=15):
+    if not os.path.exists(csv_fn) or True :
         df_list = []
         for fn in raw_files :
             fn_split = re.sub('.TIF', '', fn).split('#')
             brain, hemisphere, ligand, section = [fn_split[i] for i in [2,3,4,6]]
-            df_list.append(pd.DataFrame({'raw':[fn], 'brain':[brain], 'hemisphere':[hemisphere], 'ligand':[ligand], 'section':[int(section)] }))
-        
+            binding = 'S' if not 'S' in section and not '00' in section else 'UB'
+            section = re.sub('UB','',section)
+            section = re.sub('00[a-z]','0',section)
+            df_list.append(pd.DataFrame({'raw':[fn], 'brain':[brain], 'hemisphere':[hemisphere], 'ligand':[ligand], 'section':[int(section)],'binding':[binding] }))
+
         df = pd.concat(df_list)
+        print(df.groupby(['section'])['ligand'].count())
+        exit(0)
+
         min_section=37
         max_section=df['section'].max()
         
@@ -108,7 +114,6 @@ def create_section_dataframe(raw_files, ligand_repeat, crop_dir, csv_fn, n_ligan
         df['order'] = repeat + (section-1) * n_ligands 
          
         df['crop'] = [None] * df.shape[0]
-        df['downsample'] = [None] * df.shape[0]
 
         #Add downsample and crop, files
         df['crop'] = df['raw'].apply(lambda fn: '{}/{}'.format(crop_dir,os.path.splitext(os.path.basename(fn))[0]+'_crop.nii.gz') )
@@ -118,6 +123,7 @@ def create_section_dataframe(raw_files, ligand_repeat, crop_dir, csv_fn, n_ligan
     else : 
         df = pd.read_csv(csv_fn)
     return df
+
 
 def qc_align(moving_row, fixed_row, init_dir, mv_rsl_fn, qc_fn) :
     title_string = f'mv ({moving_row["order"]},{moving_row["ligand"]}) --> fx ({fixed_row["order"]},{fixed_row["ligand"]})'
@@ -208,22 +214,28 @@ def launch():
     csv_fn = 'macaque/sections.csv'
     volume_fn = 'macaque/volume.nii.gz'
 
-    ligand_order = ['ampa', 'kain', 'mk80', 'musc', 'cgp5', 'flum', 'pire', 'oxot', 'damp', 'epib', 'praz', 'uk14','dpat', 'keta', 'sch2', 'racl', 'dpmg', 'zm24']
-    ligand_contrast_order = ['flum', 'mk80', 'musc', 'cgp5', 'ampa', 'kain', 'pire', 'damp', 'praz', 'uk14', 'keta', 'sch2', 'dpmg',   'dpat',  'zm24', 'racl', 'oxot', 'epib']
-    ligand_repeat = { v:k for k,v in dict(enumerate(ligand_order)).items() }
-    n_ligands = len(ligand_repeat.keys())
+    short_repeat = ['ampa', 'kain', 'mk80', 'hist_cell', 'musc', 'cgp5', 'flum', 'pire', 'hist_myelin', 'oxot', 'damp', 'epib', 'praz', 'uk14','hist_cellbody', 'dpat', 'keta', 'sch2', 'racl', 'hist_myelin', 'dpmg', 'zm24']
+    long_repeat = ['ampa', 'ampa_ub', 'kain', 'kain_ub', 'mk80', 'mk80_ub','hist_cell', 'musc', 'musc_ub', 'cgp5', 'cgp5_ub','flum', 'flum_ub', 'pire', 'pire_ub', 'hist_myelin', 'oxot', 'oxot_ub', 'damp', 'damp_ub', 'epib', 'epib_ub', 'praz', 'praz_ub', 'uk14', 'uk14_ub', 'hist_cellbody', 'dpat', 'dpat_ub', 'keta', 'keta_ub', 'sch2', 'sch2_ub', 'racl', 'racl_ub', 'hist_myelin', 'dpmg', 'dpmg_ub', 'zm24', 'zm24_ub']
+
+    ligand_contrast_order = ['flum', 'mk80', 'musc', 'cgp5', 'ampa', 'kain', 'pire', 'damp', 'praz', 'uk14', 'keta', 'sch2', 'dpmg', 'cellbody', 'dpat',  'zm24', 'racl', 'oxot', 'epib']
+
+    short_repeat_dict = { v:k for k,v in dict(enumerate(short_repeat)).items() }
+    long_repeat_dict = { v:k for k,v in dict(enumerate(long_repeat)).items() }
+
+    n_ligands = len(ligand_contrast_order)
+
     os.makedirs(crop_dir,exist_ok=True)
     os.makedirs(init_dir,exist_ok=True)
 
     num_cores = min(1, multiprocessing.cpu_count() )
 
-    raw_files = [ fn for fn in glob(f'{input_dir}/*TIF') if not 'UB' in fn and not '#00' in fn ]
+    raw_files = [ fn for fn in glob(f'{input_dir}/*TIF') ] #if not 'UB' in fn and not '#00' in fn ]
 
     ### 1. Section Ordering
     print('1. Section Ordering')
-    df = create_section_dataframe(raw_files, ligand_repeat, crop_dir, csv_fn, n_ligands=n_ligands)
+    df = create_section_dataframe(raw_files, short_repeat_dict, long_repeat_dict, crop_dir, csv_fn, n_ligands=n_ligands)
     df = df.loc[df['ligand'].apply(lambda x : not x in [ 'racl', 'oxot','epib','zm24']  ) ] 
-    
+    exit(0)
     ### 2. Crop
     print('2. Cropping')
     crop_to_do = [ (y, raw_fn, crop_fn) for y, raw_fn, crop_fn in zip(df['section'], df['raw'], df['crop']) if not os.path.exists(crop_fn) ]
