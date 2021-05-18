@@ -109,7 +109,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
     tfm_dir = output_dir + os.sep + 'tfm'
     os.makedirs(tfm_dir,exist_ok=True)
 
-    num_cores = min(1, multiprocessing.cpu_count() )
+    num_cores = min(14, multiprocessing.cpu_count() )
     print('num cores', num_cores)
     print(df.shape, df.shape)
     to_do_df = pd.DataFrame([])
