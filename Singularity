@@ -2,7 +2,8 @@ Bootstrap: localimage
 From: receptor.base.simg
 
 %post
-apt install -y  python3.7 python3.7-dev python3-setuptools
+apt update && apt upgrade -y
+apt install -y  python3.7 python3.7-dev python3-setuptools time
 curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
 python3.7 get-pip.py
 pip3.7 install guppy3
