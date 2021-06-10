@@ -19,8 +19,6 @@ from utils.ANTs import ANTs
 from utils.utils import *
 
 
-
-
 def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     #Set strings for alignment parameters
     f_list = [ '1', '2', '4', '8', '16', '24']
@@ -61,12 +59,6 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     prefix=f'{tfm_dir}/y-{y}' 
     fx_fn = gen_2d_fn(prefix,'_fx')
 
-    #mv_fn_list = glob('{}/y-*{}'.format(mv_dir, os.path.basename(row['seg_fn'])) )
-    #if len(mv_fn_list) == 0 : 
-    #    print('Could not find file for ', row['seg_fn'] )
-    #    exit(1)
-    #mv_fn = mv_fn_list[0]
-
     mv_fn = get_seg_fn(mv_dir, y, resolution, row['seg_fn'], suffix='_rsl')
 
     print('\t\t',y)
@@ -76,7 +68,8 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     if type(init_tfm) == str :
         init_str = init_tfm
 
-    command_str = f'time antsRegistration -v 0 -d 2 --write-composite-transform 1  --initial-moving-transform {init_str} -o [{prefix}_,{prefix}_mv_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[.1] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t Affine[.1] -c {lin_itr_str} -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t SyN[0.1] -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}  -t SyN[0.1]  -m CC[{fx_fn},{mv_fn},1,20,Regular,1] -c 20 -s {s_cc}  -f {f_cc} '
+    #--initial-moving-transform {init_str}
+    command_str = f'time antsRegistration -v 0 -d 2 --write-composite-transform 1 -o [{prefix}_,{prefix}_mv_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[.1] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t Affine[.1] -c {lin_itr_str} -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t SyN[0.1] -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}  -t SyN[0.1]  -m CC[{fx_fn},{mv_fn},1,20,Regular,1] -c 20 -s {s_cc}  -f {f_cc} '
 
     with open(prefix+'_command.txt','w') as f : f.write(command_str)
 
@@ -97,7 +90,7 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, row):
     fx_fn = gen_2d_fn(prefix,'_fx')
 
     crop_fn = row['crop_fn']
-    shell(f'antsApplyTransforms -v 1 -d 2  -i {crop_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
+    shell(f'antsApplyTransforms -v 1 -d 2  -i {crop_fn} -r {fx_fn} -t {prefix}_Composite.h5 -t -o {out_fn} ')
     assert os.path.exists(f'{out_fn}'), 'Error apply nl 2d tfm to cropped autoradiograph'
     print('\nDone.\n')
     return 0
@@ -109,7 +102,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
     tfm_dir = output_dir + os.sep + 'tfm'
     os.makedirs(tfm_dir,exist_ok=True)
 
-    num_cores = min(1, multiprocessing.cpu_count() )
+    num_cores = min(14, multiprocessing.cpu_count() )
     print('num cores', num_cores)
     print(df.shape, df.shape)
     to_do_df = pd.DataFrame([])

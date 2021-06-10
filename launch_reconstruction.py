@@ -196,7 +196,6 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, args, files,
         if not os.path.exists(srv_rsl_fn) or args.clobber :
             resample_to_output(nib.load(args.srv_fn), [float(resolution_3d)]*3).to_filename( srv_rsl_fn)
         
-
         #Combine 2d sections from previous resolution level into a single volume
         if (resolution != resolution_list[0] and not os.path.exists(last_nl_2d_vol_fn))  :
             last_nl_2d_dir = files[brain][hemi][slab][prev_resolution]['nl_2d_dir']
@@ -224,7 +223,7 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, args, files,
         ###
         if not os.path.exists(srv_base_rsl_crop_fn) or args.clobber :
             temp_fn=f'/tmp/{brain}-{hemi}-{slab}.nii.gz'
-
+            shell(f'antsApplyTransforms -v 0 -d 3 -i {srv_rsl_fn} -r {seg_rsl_fn} -t {nl_3d_tfm_inv_fn} -o {temp_fn}')
             img = nib.load(temp_fn)
             vol = img.get_fdata()
             vol = gaussian_filter(vol, float(resolution) / (0.2 * 2))
@@ -314,7 +313,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 #   5. Interpolate missing vertices on sphere, interpolate back to 3D volume
 
 if __name__ == '__main__':
-    resolution_list = [  '1.6', '0.8', '0.4', '0.2', '0.1'] #, '0.05' ]
+    resolution_list = [ '2.4', '1.6'] #, '0.8'] #, '0.4']#, '0.2'] #, '0.05' ]
 
     args, files = setup_parameters(setup_argparse().parse_args() )
     #Process the base autoradiograph csv

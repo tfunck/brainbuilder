@@ -215,7 +215,6 @@ def read_obj(file):
     for i, line in enumerate(fp):
          if i==0:
     	#Number of vertices
-            print(line)
             n_vert=int(line.split()[6])
             XYZ=np.zeros([n_vert,3])
          elif i<=n_vert:

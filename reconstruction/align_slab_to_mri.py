@@ -169,7 +169,7 @@ def write_block(fn, start, end, out_fn) :
     block = vol[start[0]:end[0],start[1]:end[1],start[2]:end[2]]
     nib.Nifti1Image(block, affine).to_filename(out_fn)
     return block
-
+'''
 def hi_res_align(moving_fn, fixed_fn, resolution, tfm_dir, init_tfm, prefix, out_fn, out_inv_fn):
     kernel_dim = [10/resolution, 10/resolution, 10/resolution] 
     step = [ int(kernel_dim[0]/3) ] * 3
@@ -204,7 +204,7 @@ def hi_res_align(moving_fn, fixed_fn, resolution, tfm_dir, init_tfm, prefix, out
     final_tfm = ants.transform_from_deformation_field(dfield['field'])
     ants.write_transform(final_tfm, out_tfm_fn)
 
-
+'''
         
 
 

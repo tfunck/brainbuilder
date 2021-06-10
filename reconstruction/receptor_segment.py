@@ -40,8 +40,12 @@ def downsample_2d(in_fn, resolution, out_fn, y=0):
         img.affine[2,3] = -126. + 0.02 * float(y)
 
         #load volume 
-        vol = img.get_fdata()
-        
+        try :
+            vol = img.get_fdata()
+        except EOFError :
+            print('Errror: ', in_fn)
+            exit(1)
+
         #blur volume prior to downsampling
         vol = gaussian_filter(vol, float(resolution)/(0.02*2))
         
