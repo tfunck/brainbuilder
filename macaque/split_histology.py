@@ -28,16 +28,16 @@ for fn in glob('tif_lowres/*'):
     img_left = np.zeros_like(img)
     img_right = np.zeros_like(img)
 
-    img_left[:, :int(cz) ] = img[:, :int(cz)]
-    img_right[:, int(cz): ] = img[:, int(cz):]
+    img_right[:, :int(cz) ] = img[:, :int(cz)]
+    img_left[:, int(cz): ] = img[:, int(cz):]
 
     img_left =  np.rot90(np.flipud(img_left) )
     img_right =  np.rot90(np.flipud(img_right) )
 
-    img_left = img_left.reshape([img_left.shape[0],1,img_left.shape[1]])
-    img_right = img_right.reshape([img_right.shape[0],1,img_right.shape[1]])
+    img_left = img_left.reshape([img_left.shape[0],img_left.shape[1]])
+    img_right = img_right.reshape([img_right.shape[0],img_right.shape[1]])
 
-    affine=np.array([[0.2,0,0,0],[0,0.02,0,0.0],[0,0,0.2,0],[0,0,0,1]])
+    affine=np.array([[0.2,0,0,0],[0,0.2,0,0.0],[0,0,0.02,0],[0,0,0,1]])
     nib.Nifti1Image(img_left, affine).to_filename(left_fn)
     print(left_fn)
     nib.Nifti1Image(img_right, affine).to_filename(right_fn)
