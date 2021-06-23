@@ -267,8 +267,6 @@ def get_profiles(surf_dir, depth_list, profiles_fn, slab_dict, df_ligand, depth_
     for depth_index, (depth, depth_fn) in enumerate(zip(depth_list, depth_fn_list)):
         profiles_raw = pd.read_csv(depth_fn,header=None,index_col=None)
         sphere_rsl_fn = depth_fn_mni_space[depth]['sphere_rsl_fn'] 
-        print('ooo',depth_fn)
-        print(depth_index, depth, np.sum(profiles_raw).values[0])
         surface_val = profiles_raw.values.reshape(-1,) #iloc[:,depth_index].values
         profiles[:,depth_index] = interpolate_over_surface(sphere_rsl_fn, surface_val)
 
