@@ -198,7 +198,11 @@ def write_nii(ar, fn, affine, dtype, clobber):
     if not os.path.exists(fn) or clobber >= 1 :
         nib.Nifti1Image(ar['data'][:].astype(dtype), affine).to_filename(fn)
 
-def thicken_sections(array_src, slab_df, resolution ):
+def thicken_sections(array_src_fn, slab_df, resolution ):
+
+    array_img = nib.load(array_src_fn)
+    array_src = array_img.get_fdata()
+
     width = np.round(resolution/(0.02*2)).astype(int)
     print('\t\tThickening sections to ',0.02*width*2)
     dim=[array_src.shape[0], 1, array_src.shape[2]]
@@ -243,9 +247,9 @@ def get_profiles(surf_dir, depth_list, profiles_fn, slab_dict, df_ligand, depth_
 
     depth_fn_list = [ sub('.csv', f'_{depth}_raw.csv', profiles_fn) for depth in depth_list ]
 
+    '''
     if False in [os.path.exists(fn) for fn in depth_fn_list ] : 
         for depth_index, (depth, depth_fn) in enumerate(zip(depth_list,depth_fn_list)):
-
             if not os.path.exists(depth_fn) :
                 surface_val=np.zeros(nrows)
                 for i, slab in slab_dict.items() :
@@ -261,8 +265,20 @@ def get_profiles(surf_dir, depth_list, profiles_fn, slab_dict, df_ligand, depth_
                     assert np.sum(surface_val>0) > 0, 'empty profile'
 
                 pd.DataFrame(surface_val).to_csv(depth_fn, index=False, header=False)
+    '''
+
+    for depth_index, (depth, depth_fn) in enumerate(zip(depth_list,depth_fn_list)):
+        # Get surfaces transformed into slab space
+        surf_fn_list = [ depth_fn_slab_space[i][depth] for i in slab_dict.keys() ]
+        # Get thickened volume list
+        vol_fn_list = [  thicken_sections(slab['nl_2d_vol_fn'], slab_df, resolution)  for slab in slab_dict.values() ]
 
 
+        
+
+        project_volumes_to_surfaces(surf_fn_list, vol_fn_list, depth_fn)
+   
+    exit(0)
     profiles=np.zeros([nrows, len(depth_list)])
     for depth_index, (depth, depth_fn) in enumerate(zip(depth_list, depth_fn_list)):
         profiles_raw = pd.read_csv(depth_fn,header=None,index_col=None)

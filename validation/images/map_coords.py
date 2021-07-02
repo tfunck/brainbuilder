@@ -56,7 +56,7 @@ def project_volumes_to_surfaces(surf_fn_list, vol_fn_list, interp_csv):
 
             values = section[np.rint(x).astype(int),np.rint(z).astype(int)]
 
-            assert np.mean(values) > 0, 'Error: empty section'
+            if np.mean(values) > 0: 'Warning: empty section'
 
             all_values[valid_coords_idx] = values
 
