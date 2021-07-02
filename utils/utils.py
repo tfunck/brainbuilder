@@ -42,7 +42,7 @@ def save_sections(file_list, vol, aff) :
         ystart = aff[1,3] + y * ystep
         affine = np.array([  [xstep,  0, 0, xstart ],
                                 [0, zstep, 0, zstart ],
-                                [0, 0,  0.02, ystart ],
+                                [0, 0,  0.02, 0 ],
                                 [0, 0,  0, 1]])
         i=0
         if np.sum(vol[:,int(y),:]) == 0 :
@@ -71,12 +71,15 @@ def create_2d_sections( df, rec_fn, srv_fn,resolution, output_dir,clobber=False)
     os.makedirs(output_dir, exist_ok=True)
     
     fx_to_do = get_to_do_list(df, tfm_dir, '_fx') 
+    
+
 
     if len( fx_to_do) > 0 :
         srv_img = nib.load(srv_fn)
         srv = srv_img.get_fdata()
 
-        save_sections(fx_to_do, srv, srv_img.affine)
+        affine = srv_img.affine 
+        save_sections(fx_to_do, srv, affine)
         
 def resample(img, out_fn, res, factor=2):
     res=float(res)

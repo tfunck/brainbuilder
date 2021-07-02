@@ -17,7 +17,7 @@ from re import sub
 from utils.utils import *
 from nibabel.processing import resample_to_output
 from skimage.filters import threshold_otsu, threshold_li
-from scipy.ndimage.filters import gaussian_filter
+from scipy.ndimage.filters import gaussian_filter, gaussian_filter1d
 from sklearn.cluster import KMeans
 from scipy.ndimage import label
 from scipy.ndimage.morphology import binary_dilation, binary_erosion, binary_closing
@@ -47,13 +47,13 @@ def downsample_2d(in_fn, resolution, out_fn, y=0):
             exit(1)
 
         #blur volume prior to downsampling
-        vol = gaussian_filter(vol, float(resolution)/(0.02*2))
+        vol = gaussian_filter(vol, (float(resolution)/0.02)/np.pi)
         
         #create a new Nifti1Image so that we can resample it with nibabel
         img = nib.Nifti1Image(vol,img.affine)
         
         # resample to new resolution
-        img = resample_to_output(img, [float(resolution)]*2,order=5)
+        img = resample_to_output(img, [float(resolution)]*2,order=3)
        
         # get image volume again
         vol = img.get_fdata()
@@ -71,6 +71,7 @@ def downsample_2d(in_fn, resolution, out_fn, y=0):
 
 def resample_and_transform(output_dir, resolution_2d, resolution_3d, row):
     seg_fn = row['seg_fn']
+
     seg_rsl_fn = get_seg_fn(output_dir, row['volume_order'], resolution_2d, seg_fn, '_rsl')
     tfm_input_fn = seg_rsl_fn
     seg_rsl_tfm_fn = get_seg_fn(output_dir, row['volume_order'], resolution_3d, seg_fn, '_rsl_tfm')
@@ -86,7 +87,7 @@ def resample_and_transform(output_dir, resolution_2d, resolution_3d, row):
         tfm_fn = row['tfm']  
         if type(tfm_fn) == str :
             tfm = ants.read_transform(tfm_fn)
-            shell(f'antsApplyTransforms -v 0 -d 2 -i {tfm_input_fn} -r {seg_rsl_fn} -t {tfm_fn} -o {seg_rsl_tfm_fn}')
+            shell(f'antsApplyTransforms -v 0 -d 2 -n BSpline[3] -i {tfm_input_fn} -r {seg_rsl_fn} -t {tfm_fn} -o {seg_rsl_tfm_fn}')
         else :
             shutil.copy(tfm_input_fn, seg_rsl_tfm_fn)
             print('\tNo transform for',row['volume_order'])
@@ -214,7 +215,8 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         # Binary Dilation
         data = binary_dilation(data, iterations=3, structure=structure).astype(np.int16)
         # Gaussian blurring
-        data = gaussian_filter(data.astype(float), float(resolution)/2. ).astype(float)
+        sd = (float(resolution)/0.02)/np.pi
+        data = gaussian_filter1d(data.astype(float), sd, axis=1 ).astype(float)
 
         #
         # Save output volume
@@ -231,7 +233,7 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
                         [0, 0, 0, 1]]).astype(float)
         img_cls = nib.Nifti1Image(data, aff )     
         print("Writing output to", out_fn)
-        img_cls = resample_to_output(img_cls, [float(resolution)]*3, order=5)
+        img_cls = resample_to_output(img_cls, [float(resolution)]*3, order=3)
         
         img_cls.to_filename(out_fn)
 

@@ -332,7 +332,7 @@ class SurfaceVolumeMapper(object):
         in parallel"""
         from multiprocessing import cpu_count
         num_process = 8 #cpu_count()
-        print('Number of Processes', num_process)
+        #print('Number of Processes', num_process)
         volume_surf_coordinates={'voxel_coordinates':[],
                                'triangles':[],
                                 'depths':[],
@@ -394,8 +394,6 @@ class SurfaceVolumeMapper(object):
         ram0 = process.memory_info().rss / 1000000000
         
         npz_fn_str = npz_dir+ '/'+ NPZSTRING + '-{}_{}'
-        print(npz_dir)
-        print('gray surface coords', gray_surface_coords.shape)
         #If npz files already exist, then return None
         #Warning: this means that if this function was previously run but did not finish,
         #subsequent runs will simply return None.
