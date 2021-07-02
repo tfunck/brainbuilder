@@ -5,6 +5,7 @@ from vast import surface_tools as st
 # function to load mesh geometry
 def load_mesh_geometry(surf_mesh):
     # if input is a filename, try to load it with nibabel
+    print(surf_mesh)
     if isinstance(surf_mesh, str):
         if (surf_mesh.endswith('orig') or surf_mesh.endswith('pial') or
                 surf_mesh.endswith('white') or surf_mesh.endswith('sphere') or

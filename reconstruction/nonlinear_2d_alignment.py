@@ -19,12 +19,10 @@ from utils.ANTs import ANTs
 from utils.utils import *
 
 
-
-
 def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     #Set strings for alignment parameters
-    f_list = [ '1', '2', '4', '8', '16', '24']
-    s_list = [ '0', '1', '2', '4', '8', '16']
+    f_list = [ '1', '2', '3', '4', '6', '8', '10', '12', '14', '16', '18', '24']
+    s_list = [ '0', '1', '1.5', '2', '3', '4', '5', '6', '7', '8', '9', '16']
     max_itr = min(resolution_itr, len(f_list))
     f_list = f_list[0:(max_itr+1)]
     s_list = s_list[0:(max_itr+1)]
@@ -61,12 +59,6 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     prefix=f'{tfm_dir}/y-{y}' 
     fx_fn = gen_2d_fn(prefix,'_fx')
 
-    #mv_fn_list = glob('{}/y-*{}'.format(mv_dir, os.path.basename(row['seg_fn'])) )
-    #if len(mv_fn_list) == 0 : 
-    #    print('Could not find file for ', row['seg_fn'] )
-    #    exit(1)
-    #mv_fn = mv_fn_list[0]
-
     mv_fn = get_seg_fn(mv_dir, y, resolution, row['seg_fn'], suffix='_rsl')
 
     print('\t\t',y)
@@ -76,7 +68,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     if type(init_tfm) == str :
         init_str = init_tfm
 
-    command_str = f'time antsRegistration -v 0 -d 2 --write-composite-transform 1  --initial-moving-transform {init_str} -o [{prefix}_,{prefix}_mv_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[.1] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t Affine[.1] -c {lin_itr_str} -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t SyN[0.1] -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}  -t SyN[0.1]  -m CC[{fx_fn},{mv_fn},1,20,Regular,1] -c 20 -s {s_cc}  -f {f_cc} '
+    command_str = f'time antsRegistration -v 0 -d 2 --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_,{prefix}_mv_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[.1] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t Affine[.1] -c {lin_itr_str} -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t SyN[0.1] -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str} -t SyN[0.1]  -m CC[{fx_fn},{mv_fn},1,20,Regular,1] -c 30 -s {s_cc}  -f {f_cc}'
 
     with open(prefix+'_command.txt','w') as f : f.write(command_str)
 
@@ -90,16 +82,22 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     #    shutil.copy(f'{prefix}_nl_Composite.h5', f'{prefix}_Composite.h5')
     return 0
     
-def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, row):
+def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     y=row['volume_order']
     prefix=f'{tfm_dir}/y-{y}' 
+    crop_rsl_fn=f'{prefix}_{resolution}mm.nii.gz'
     out_fn=prefix+'_rsl.nii.gz'
     fx_fn = gen_2d_fn(prefix,'_fx')
 
     crop_fn = row['crop_fn']
-    shell(f'antsApplyTransforms -v 1 -d 2  -i {crop_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
+    
+    img = nib.load(crop_fn)
+    vol = img.get_fdata()
+    vol = gaussian_filter(vol, (float(resolution)/0.02)/np.pi)
+    nib.Nifti1Image(vol, img.affine).to_filename(crop_rsl_fn)
+
+    shell(f'antsApplyTransforms -v 1 -d 2 -n BSpline[3]  -i {crop_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
     assert os.path.exists(f'{out_fn}'), 'Error apply nl 2d tfm to cropped autoradiograph'
-    print('\nDone.\n')
     return 0
 
 def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, resolution_itr, batch_processing=False, clobber=False): 
@@ -119,7 +117,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
         prefix = f'{tfm_dir}/y-{y}' 
         out_fn = prefix+'_rsl.nii.gz'
         tfm_fn = prefix+'_Composite.h5'
-        df['tfm'].loc[ df['volume_order'] == df['volume_order'] ] = tfm_fn
+        df['tfm'].loc[ df['volume_order'] == y ] = tfm_fn
 
         try :
             init_tfm = df['init_tfm']
@@ -136,7 +134,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
         Parallel(n_jobs=num_cores)(delayed(align_2d_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, row) for i, row in  to_do_df.iterrows()) 
         
     if to_do_resample_df.shape[0] > 0 :
-        Parallel(n_jobs=num_cores)(delayed(apply_transforms_parallel)(tfm_dir, mv_dir, resolution_itr, row) for i, row in  to_do_resample_df.iterrows()) 
+        Parallel(n_jobs=num_cores)(delayed(apply_transforms_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, row) for i, row in  to_do_resample_df.iterrows()) 
 
     return df
 

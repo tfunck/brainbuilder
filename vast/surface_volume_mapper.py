@@ -201,10 +201,10 @@ class SurfaceVolumeMapper(object):
 
 
     def load_npz(self,npz_file_list,block,profiles,interpolation='linear'): 
-        vc=np.array([])
-        triangles=np.array([])
-        tri_coords=np.array([])
-        depths=np.array([])
+        vc = np.array([])
+        triangles = np.array([])
+        tri_coords = np.array([])
+        depths = np.array([])
         n=len(npz_file_list)
         for i, fn in enumerate(npz_file_list) :
             if i%10==0 : 
@@ -220,22 +220,29 @@ class SurfaceVolumeMapper(object):
             triangles =np.concatenate(args['triangles']).astype(int) 
             tri_coords = np.concatenate(args['tri_coords'])
             depths = np.concatenate(args['depths'])
-           
+            
+            del args
+
             depths=np.round((profiles.shape[1]-1)*depths).astype(int)
             x = profiles[triangles[:,0],depths[:]]
             y = profiles[triangles[:,1],depths[:]]
             z = profiles[triangles[:,2],depths[:]]
-       
+      
             triangle_values=np.array([x,y,z]).T
             
-            print('interpolation -->', interpolation)
+            del x
+            del y
+            del z
+
             if interpolation == 'linear':
                 vol = np.einsum('ij,ij->i', tri_coords, triangle_values)
                 block[vc[:,0],vc[:,1],vc[:,2]] = vol
+                del vol
             elif 'nearest' in interpolation:
                 #nearest is the maximum of the 3 coordinates
                 nearest_index=triangles[tri_coords.max(axis=1,keepdims=1) == tri_coords]
                 block[vc[:,0],vc[:,1],vc[:,2]] = profiles[nearest_index,depths]    
+            del triangle_values
             del vc
             del triangles
             del tri_coords
@@ -249,7 +256,7 @@ class SurfaceVolumeMapper(object):
         nearest neighbour or trilinear (weighted by barycentric)"""
         block = np.zeros(self.dimensions)
         print('writing to block')
-        num_process=1 #multiprocessing.cpu_count()
+        num_process=8 #multiprocessing.cpu_count()
         subsets=range(num_process)
         npz_dir=self.out_dir+'/npz/'
         npz_file_list = glob(f'{npz_dir}/{NPZSTRING}-*_*.npz')
@@ -324,8 +331,8 @@ class SurfaceVolumeMapper(object):
         """calculate depths and barycentric coordinates for voxels and triangles in volume
         in parallel"""
         from multiprocessing import cpu_count
-        num_process =  1 #cpu_count()
-        print('Number of Processes', num_process)
+        num_process = 8 #cpu_count()
+        #print('Number of Processes', num_process)
         volume_surf_coordinates={'voxel_coordinates':[],
                                'triangles':[],
                                 'depths':[],
@@ -387,8 +394,6 @@ class SurfaceVolumeMapper(object):
         ram0 = process.memory_info().rss / 1000000000
         
         npz_fn_str = npz_dir+ '/'+ NPZSTRING + '-{}_{}'
-        print(npz_dir)
-        print('gray surface coords', gray_surface_coords.shape)
         #If npz files already exist, then return None
         #Warning: this means that if this function was previously run but did not finish,
         #subsequent runs will simply return None.
@@ -440,6 +445,7 @@ class SurfaceVolumeMapper(object):
                     depths_list=[]
                     triangles_list=[]
                     tri_coords_list=[]
+
         if len(vc_list) > 0 :
             np.savez(npz_fn_str.format(k,len(subset_triangles[k])), vc=vc_list, triangles=triangles_list, tri_coords=tri_coords_list, depths=depths_list)
         
