@@ -8,6 +8,7 @@ import imageio
 import nibabel as nib
 import PIL
 import matplotlib
+import time
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,6 +22,45 @@ from subprocess import call, Popen, PIPE, STDOUT
 from sklearn.cluster import KMeans
 from scipy.ndimage import zoom
 from skimage.transform import resize
+
+def newer_than(input_list, output_list) :
+    '''
+    check if the files in input list are newer than target_filename
+    '''
+    for output_filename in output_list :
+        t0 = os.path.getctime(output_filename)
+
+        for input_filename in input_list :
+            t1 = os.path.getctime(input_filename)
+
+            if t1 < t0 : 
+                print('Input file is newer than output file.')
+                print('\tInput file:')
+                print('\t',t1, time.ctime(os.path.getctime(input_filename)))
+                print('\tOutput file:')
+                print('\t',t0, time.ctime(os.path.getctime(output_filename)))
+                exit(0)
+                return True
+    
+    return False
+
+def run_stage(input_list, output_list):
+    '''
+    check if stage needs to be run
+    '''
+    # check if inputs exist
+    for input_filename in input_list :
+        assert os.path.exists(input_filename), f'Error: input to stage does not exist, {input_filename}'
+    
+    # check if outputs exist
+    for output_filename in output_list :
+        if not os.path.exists(output_filename) :
+            return True
+
+    # check if inputs are newer than existing outputs
+    #return newer_than(input_list, output_list)
+    return False
+
 
 def get_seg_fn(dirname, y, resolution, filename, suffix=''):
     filename = re.sub('.nii.gz',f'_y-{y}_{resolution}mm{suffix}.nii.gz', os.path.basename(filename))
@@ -47,7 +87,7 @@ def save_sections(file_list, vol, aff) :
         i=0
         if np.sum(vol[:,int(y),:]) == 0 :
             # Create 2D srv section
-            #this little while loop thing is so that if we go beyond  brain tissue in vol,
+            # this little while loop thing is so that if we go beyond  brain tissue in vol,
             # we find the closest y segement in vol with brain tissue
             while np.sum(vol[:,int(y-i),:]) == 0 :
                 i += 1
@@ -58,12 +98,13 @@ def get_to_do_list(df,out_dir,str_var,ext='.nii.gz'):
     to_do_list=[]
     for idx, (i, row) in enumerate(df.iterrows()):
         y=row['volume_order'] 
+        assert int(y) >= 0, f'Error: negative y value found {y}'
         prefix=f'{out_dir}/y-{y}' 
         fn=gen_2d_fn(prefix,str_var,ext=ext)
         if not os.path.exists(fn) : to_do_list.append( [fn, y])
     return to_do_list
 
-def create_2d_sections( df, rec_fn, srv_fn,resolution, output_dir,clobber=False) :
+def create_2d_sections( df,  srv_fn, resolution, output_dir,clobber=False) :
     fx_to_do=[]
     
     tfm_dir=output_dir + os.sep + 'tfm'
@@ -71,8 +112,6 @@ def create_2d_sections( df, rec_fn, srv_fn,resolution, output_dir,clobber=False)
     os.makedirs(output_dir, exist_ok=True)
     
     fx_to_do = get_to_do_list(df, tfm_dir, '_fx') 
-    
-
 
     if len( fx_to_do) > 0 :
         srv_img = nib.load(srv_fn)
@@ -81,18 +120,6 @@ def create_2d_sections( df, rec_fn, srv_fn,resolution, output_dir,clobber=False)
         affine = srv_img.affine 
         save_sections(fx_to_do, srv, affine)
         
-def resample(img, out_fn, res, factor=2):
-    res=float(res)
-    xres = (res/factor) / img.affine[0,0]
-    yres = (res/factor) / img.affine[1,1]
-    zres = (res/factor) / img.affine[2,2]
-    
-    vol = img.get_fdata()
-    vol = gaussian_filter(vol, (xres,yres,zres))
-    img2 = nib.Nifti1Image(vol, img.affine)
-
-    resample_to_output(img2, [res]*3).to_filename(out_fn)
-
 
 def w2v(i, step, start):
     return np.round( (i-start)/step ).astype(int)
@@ -217,19 +244,6 @@ def get_z_x_max(source_files):
 from scipy.ndimage import zoom
 from nibabel.processing import resample_to_output
 
-def downsample_y(img_fn, out_fn, step=0.2, clobber=False ):
-    sd = 2  #step #/ 2.634 
-    img = nib.load(img_fn)
-    img_data = img.get_data()
-    shape = img_data.shape
-    img_blr = nib.Nifti1Image( gaussian_filter( img_data, sigma=[0,sd,0]), img.affine  )
-    print(out_fn)
-    del img_data
- 
-    img_dwn = resample_to_output(img_blr, step, order=5 )
-    del img_blr
-    img_dwn.to_filename(out_fn)
-    del img_dwn
 
 def safe_imread(fn) :
     img = imageio.imread(fn)
@@ -237,12 +251,6 @@ def safe_imread(fn) :
         img = np.mean(img,axis=2)
     return img
 
-def nib_downsample(in_fn, aff, step, order=5) :
-    img = safe_imread(in_fn)
-    out_img = nib.processing.resample_to_output(nib.Nifti1Image(img, aff), step, order=order).get_data()
-    out_img = out_img.reshape(out_img.shape[0], out_img.shape[1])
-    print(out_img.shape)
-    return out_img
     
 def downsample(img, subject_fn="", step=0.2, raw_step=0.02, interp=3):
     #Calculate length of image based on assumption that pixels are 0.02 x 0.02 microns
@@ -256,25 +264,12 @@ def downsample(img, subject_fn="", step=0.2, raw_step=0.02, interp=3):
     #Calculate the standard deviation based on a FWHM (pixel step size) of downsampled image
     
     #Downsample
-    #print('Downsample to', dim0, dim1)
     img_dwn = resize(img.astype(float), (dim0, dim1), order=int(interp) ) 
-    #plt.subplot(3,1,1)
-    #plt.imshow(img)
-    #plt.subplot(3,1,2)
-    #plt.imshow(img_blr)
-    #plt.subplot(3,1,3)
-    #plt.imshow(img_dwn.astype(np.uint16))
-    #plt.show()
-    #plt.savefig('test.png')
      
     if subject_fn != "" : 
-        #print("Downsampled filename:", subject_fn )
-        #plt.subplot(2,1,1); plt.imshow(img)
-        #plt.subplot(2,1,2); plt.imshow(img_dwn); plt.show()
         imageio.imsave(subject_fn, img_dwn.astype(np.uint16))
 
     return(img_dwn)
-
 
 
 def downsample_and_crop(source_lin_dir, lin_dwn_dir,crop_dir, affine, step=0.2, clobber=False):
@@ -304,6 +299,15 @@ def downsample_and_crop(source_lin_dir, lin_dwn_dir,crop_dir, affine, step=0.2, 
             print("owsampled filename", dwn_fn)
             #nib.Nifti1Image(img, affine).to_filename(dwn_fn)
 
+def prefilter_and_downsample(input_filename, new_resolution, output_filename ):
+    img = nib.load(input_filename)
+    vol = img.get_fdata()
+    base_resolution = (img.affine[0,0]+img.affine[1,1])/2.
+    print('\t\t\t\t',base_resolution)
+    vol = gaussian_filter(vol, (new_resolution/base_resolution)/np.pi)
+    img = nib.Nifti1Image(vol, img.affine)
+    resample_to_output(img, [float(new_resolution)]*3, order=5).to_filename(output_filename)
+
 def rgb2gray(rgb): return np.mean(rgb, axis=2)
 
 def find_min_max(seg):
@@ -319,7 +323,7 @@ def find_min_max(seg):
     ymax = [ fmax(seg[:,i]) for i in range(seg.shape[1]) if np.sum(seg[:,i]==m) > 0 ]
     ymin = [ fmin(seg[:,i]) for i in range(seg.shape[1]) if np.sum(seg[:,i]==m) > 0 ]
     x_i =  [ i for i in range(seg.shape[1]) if np.sum(seg[:,i]) != 0 ]
-    
+
     if xmin == [] : xmin = [ 0 ]
     if xmax == [] : xmax = [ seg.shape[1] ]
     if  y_i == [] : y_i = [0]
@@ -328,7 +332,7 @@ def find_min_max(seg):
     if ymax == [] : ymax = [ seg.shape[0] ]
     if  x_i == [] : x_i = [0]
     
-    return ymin,ymax,xmin,xmax,y_i,x_i
+    return ymin, ymax, xmin, xmax, y_i, x_i
 
 def extrema(labels) :
     xx, yy = np.meshgrid(range(labels.shape[1]), range(labels.shape[0]))

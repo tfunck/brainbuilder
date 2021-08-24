@@ -227,7 +227,7 @@ def read_obj(file):
     Polys=list(map(int,Polys))
     npPolys=np.array(Polys)
     triangles=np.array(list(chunks(Polys,3)))
-    return XYZ, triangles;
+    return XYZ, triangles
 
 # function to save mesh geometry
 def save_mesh_geometry(fname,surf_dict):

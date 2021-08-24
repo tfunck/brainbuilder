@@ -189,8 +189,6 @@ class SurfaceVolumeMapper(object):
 
                 if interpolation == 'linear':
                     # interpolation
-                    print(vector_file[triangles[0,0]].shape)
-                    print(tri_coords.shape)
                     block[vc[:,0],vc[:,1],vc[:,2]] = np.einsum('ij,ij->i', tri_coords, vector_file[triangles])
                 elif 'nearest' in interpolation:
                     #nearest is the maximum of the 3 coordinates
@@ -224,6 +222,7 @@ class SurfaceVolumeMapper(object):
             del args
 
             depths=np.round((profiles.shape[1]-1)*depths).astype(int)
+            
             x = profiles[triangles[:,0],depths[:]]
             y = profiles[triangles[:,1],depths[:]]
             z = profiles[triangles[:,2],depths[:]]
@@ -233,7 +232,11 @@ class SurfaceVolumeMapper(object):
             del x
             del y
             del z
-
+            print(np.unique(tri_coords,axis=0).shape)
+            print(tri_coords.shape)
+            #print(triangle_values.shape)
+            #print(tri_coords)
+            
             if interpolation == 'linear':
                 vol = np.einsum('ij,ij->i', tri_coords, triangle_values)
                 block[vc[:,0],vc[:,1],vc[:,2]] = vol

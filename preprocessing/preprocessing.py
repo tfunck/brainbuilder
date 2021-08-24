@@ -18,7 +18,6 @@ import pandas as pd
 from skimage import exposure
 from nibabel.processing import *
 from sklearn.cluster import KMeans
-from tensorflow.keras.models import load_model
 from re import sub
 from scipy.ndimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_fill_holes
 from skimage import exposure
@@ -29,14 +28,13 @@ from glob import glob
 from scipy.ndimage.filters import gaussian_filter
 from skimage.filters import rank
 from sklearn.utils.class_weight import compute_class_weight
-from tensorflow.keras import backend as K
 from skimage.filters import threshold_otsu, threshold_li , threshold_sauvola, threshold_yen
 from skimage.segmentation import clear_border
 from skimage.exposure import equalize_hist
 from skimage.morphology import disk
 from scipy.ndimage import label
 from utils.utils import shell 
-matplotlib.use("TkAgg")
+#matplotlib.use("TkAgg")
 
 def qc(img_list, name_list, qc_fn, dpi=200):
     '''
@@ -136,12 +134,20 @@ def fill_regions(im, use_labels=True):
         for x0, x1, i in zip(xmin, xmax, yi ) :
             if x0 != x1 :
                 temp[i,x0:x1] = 1  #+= 1
-        temp = binary_erosion(temp, iterations=2)
+        #this is commented because it creates problems for remove_slab_from_srv()
+        #may be necessary / useful for the cropping
+        #temp = binary_erosion(temp, iterations=2)
         idx= temp > 0 
         out[idx ] = 1
     del cc
     del temp
     return out
+
+def fill_regions_3d(mask):
+    for y in range(mask.shape[1]):
+        if np.sum(mask[:,y,:]) > 0 :
+            mask[:,y,:]=fill_regions(mask[:,y,:])
+    return mask
 
 def denoise(bin_img, verbose=False) :
     '''
@@ -283,6 +289,7 @@ def preprocess(fn,base,version,qc_fn,temp_crop_fn):
             seg_fill = fill_regions(seg)
         else :
             seg_fill = seg
+
         ### 9) Remove pieces of tissue that are connected to border
         if verbose : print('\tClear border')
         seg_fill_no_border = clear_border(seg_fill, buffer_size=3)

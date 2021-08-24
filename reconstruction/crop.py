@@ -40,8 +40,8 @@ def gen_affine(row, scale,global_order_min):
 
     direction = scale[brain][hemi][str(slab)]["direction"]
     z_mm = scale[brain][hemi][str(slab)]["size"]
-    xstep= z_mm/4164. 
-    zstep= z_mm/4164. 
+    xstep= z_mm/4120. 
+    zstep= z_mm/5164. 
     ystep = 0.02 
     slab_ymin = -126 + global_order_min + 0.02 * row["global_order"] 
     
@@ -143,8 +143,6 @@ def crop_parallel(row, mask_dir, scale,global_order_min, pad = 1000, clobber=Tru
 
 def crop(src_dir, mask_dir, out_dir, df, scale_factors_json, remote=False,clobber=False):
     '''take raw linearized images and crop them'''
-
-   
     df = df.loc[ (df['hemisphere'] == 'R') & (df['mri'] == 'MR1' )  ] #FIXME, will need to be removed
 
     with open(scale_factors_json) as f : scale=json.load(f)

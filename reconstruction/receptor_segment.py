@@ -53,7 +53,7 @@ def downsample_2d(in_fn, resolution, out_fn, y=0):
         img = nib.Nifti1Image(vol,img.affine)
         
         # resample to new resolution
-        img = resample_to_output(img, [float(resolution)]*2,order=3)
+        img = resample_to_output(img, [float(resolution)]*2,order=5)
        
         # get image volume again
         vol = img.get_fdata()
@@ -161,8 +161,6 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         for fn in glob(in_dir+'full_res*nii.gz') : os.remove(fn)
 
         #
-        # Read Input HDF5 Minc File and create output volume
-        #
         vol1 = nib.load(in_fn)
         example_2d_list = glob(in_dir +'/*nii.gz') # os.path.basename(df['seg_fn'].iloc[0])
         assert len(example_2d_list) > 0 , 'Error: no files found in {}'.format(in_dir)
@@ -171,8 +169,7 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         data=np.zeros([example_2d_img.shape[0], vol1.shape[1],  example_2d_img.shape[1]],dtype=np.float32)
 
         #
-        # Perform K-means clustering on coronal sections in volume
-        #
+      
         valid_slices=[]
         qc=[]
 
@@ -206,16 +203,17 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
             data[:,i,:] = data[:,i0,:]*0.4 + data[:,i1,:]*0.35  + data[:,i2,:]*0.25
 
         # Denoise data
-        data[data<0.55] =0 
-        data[data>=0.55] =1 
+        #data[data<0.55] =0 
+        #data[data>=0.55] =1 
         structure = np.zeros([3,3,3])
         structure[1,:,1] = 1
         # Binary Erosion
-        data = binary_erosion(data,iterations=1,structure=structure)
+        #data = binary_erosion(data,iterations=1,structure=structure)
         # Binary Dilation
-        data = binary_dilation(data, iterations=3, structure=structure).astype(np.int16)
+        #data = binary_dilation(data, iterations=3, structure=structure).astype(np.int16)
         # Gaussian blurring
         sd = (float(resolution)/0.02)/np.pi
+        #only smooth along y axis because x and z axes are already at lower resolution
         data = gaussian_filter1d(data.astype(float), sd, axis=1 ).astype(float)
 
         #
@@ -232,8 +230,9 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
                         [0, 0,  resolution, zstart], 
                         [0, 0, 0, 1]]).astype(float)
         img_cls = nib.Nifti1Image(data, aff )     
+
         print("Writing output to", out_fn)
-        img_cls = resample_to_output(img_cls, [float(resolution)]*3, order=3)
+        img_cls = resample_to_output(img_cls, [float(resolution)]*3, order=5)
         
         img_cls.to_filename(out_fn)
 

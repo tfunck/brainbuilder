@@ -12,7 +12,7 @@ import tracemalloc
 from guppy import hpy
 from matplotlib.patches import Circle, Wedge, Polygon
 from matplotlib.collections import PatchCollection
-from vast.io_mesh import load_mesh_geometry, save_obj
+from utils.mesh_io import load_mesh_geometry, save_obj, read_obj
 from re import sub
 from utils.utils import shell,splitext
 from glob import glob
@@ -68,6 +68,9 @@ def save_gii(coords, triangles, reference_fn, out_fn):
     out.to_filename(out_fn) 
     #print(out.print_summary())
 
+def obj_to_gii(obj_fn, gii_ref_fn, gii_out_fn):
+    coords, faces = read_obj(obj_fn)
+    save_gii(coords, faces, gii_ref_fn, gii_out_fn)
 
 def calc_dist (x,y) : return np.sum(np.abs(x - y), axis=1)
 
@@ -155,7 +158,7 @@ def calc_new_coords(faces_h5_fn, coords_h5_fn, resolution, n_new_edges):
 
     d_ij = calc_dist(c_0, c_1)
 
-    long_edges = d_ij > resolution
+    long_edges = d_ij >= resolution
     mm = np.argmax(long_edges)
     
     n_valid=np.sum(~long_edges)
@@ -317,7 +320,7 @@ def upsample_edges(coords_h5_fn, faces_h5_fn, faces_dict, new_edges_h5_fn,  reso
     max_len, avg_len, perc95, n_coords, n_faces = get_mesh_stats(faces_h5_fn, coords_h5_fn)
     print('\tmax edge',max_len,'\tavg', avg_len,'\tperc95', perc95, '\tcoords=', n_coords, '\tfaces=', n_faces )
     new_coord_normals = [] 
-    return  perc95, new_coord_normals, faces_dict, n_total_new_edges
+    return  max_len, new_coord_normals, faces_dict, n_total_new_edges
 
 
 
@@ -411,7 +414,7 @@ def get_mesh_stats(faces_h5_fn, coords_h5_fn):
             calc_dist(coords_h5['data'][:][ faces_h5['data'][:,2] ], coords_h5['data'][:][ faces_h5['data'][:,0] ])]
 
 
-    max_len = np.round(np.max(d),2)
+    max_len = np.max(d)
     avg_len = np.round(np.mean(d),2)
     perc95 = np.round(np.percentile(d,[95])[0],3)
     n_coords =  coords_h5['data'][:].shape[0]
@@ -437,19 +440,23 @@ def upsample_with_h5(input_fn,upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_
         #calculate surface normals
         coord_normals=[]
         if resolution > 1 :
+            faces_h5 = h5.File(faces_h5_fn, 'r')
+            coords_h5 = h5.File(coords_h5_fn, 'r')
             normals = np.array([ np.cross(coords_h5['data'][b]-coords_h5['data'][a],coords_h5['data'][c]-coords_h5['data'][a]) for a,b,c in faces_h5['data'][:] ])
             coord_normals = setup_coordinate_normals(faces_h5['data'][:],normals,coords_h5['data'][:])
+            del faces_h5
+            del coords_h5
        
         print('\tmax edge',max_len,'\tavg', avg_len,'\tcoords=', n_coords , '\tfaces=',n_faces )
 
         counter=0
         n_new_edges = 0
-        metric = perc95
+        metric = max_len
         
         print('target reslution:', resolution)
         while metric > resolution :
-            print(perc95, resolution, perc95 > resolution)
-            metric, coord_normals, faces_dict, n_new_edges = upsample_edges(coords_h5_fn, faces_h5_fn, faces_dict, new_edges_h5_fn, resolution,debug=debug,  n_new_edges=n_new_edges, coord_normals=coord_normals)
+            print(metric, resolution, metric > resolution)
+            metric, coord_normals, faces_dict, n_new_edges = upsample_edges(coords_h5_fn, faces_h5_fn, faces_dict, new_edges_h5_fn, resolution, debug=debug,  n_new_edges=n_new_edges, coord_normals=coord_normals)
             counter+=1
             print_size(faces_dict)
 
@@ -465,7 +472,7 @@ def resample_gifti_to_h5(new_edges_h5_fn, reference_coords_h5_fn, input_list, ou
     reference_coords_h5 = h5py.File(reference_coords_h5_fn, 'r')
     n = reference_coords_h5['data'].shape[0]
     n_edges = new_edges_h5['data'].shape[0]
-
+    print('n=',n)
     for i, (in_fn, out_fn) in enumerate(zip(input_list,output_list)):
 
         if not os.path.exists(out_fn) :
@@ -502,12 +509,15 @@ def upsample_gifti(input_fn,upsample_0_fn, upsample_1_fn, resolution, input_list
         write_gifti_from_h5(upsample_0_fn, coords_h5_fn, faces_h5_fn, input_fn ) 
     
     if input_list != []  and output_list != [] :
+        print('new edges h5',new_edges_h5_fn)
+        print('coords h5',coords_h5_fn)
+        print('upsample 0', upsample_0_fn)
         resample_gifti_to_h5(new_edges_h5_fn, coords_h5_fn, input_list, output_list)
 
     if not os.path.exists(upsample_1_fn) :
         write_gifti_from_h5(upsample_1_fn, output_list[-2], faces_h5_fn, input_fn ) 
 
-
+    return faces_h5_fn, coords_h5_fn
 
 if __name__ == "__main__" :
 
@@ -528,3 +538,4 @@ if __name__ == "__main__" :
 
     if not os.path.exists(upsample_fn) or args.clobber or args.test  or True:
         upsample_gifti( args.input_fn, upsample_fn, float(args.resolution), input_list=args.input_list,  clobber=args.clobber, test=args.test, debug=args.debug)
+
