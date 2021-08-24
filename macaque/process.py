@@ -100,27 +100,66 @@ def crop_image(crop_dir, y, fn, crop_fn):
     plt.imshow(cropped_img)
     plt.savefig(qc_fn)
 
-def create_section_dataframe(raw_files, short_repeat_dict, long_repeat_dict, crop_dir, csv_fn ):
-    if not os.path.exists(csv_fn) :
+def add_autoradiographs_images(auto_files):
+    df_list = []
+    for fn in auto_files :
+        fn_split = re.sub('.TIF', '', fn).split('#')
+        brain, hemisphere, ligand, repeat = [fn_split[i] for i in [2,3,4,6]]
+        
+        binding = 'S' if not 'S' in repeat and not '00' in repeat and not 'UB' in repeat else 'UB'
+        if binding == 'UB' : ligand += '_ub'
+        
+        repeat = re.sub('UB','',repeat)
+        repeat = re.sub('00[a-z]','0',repeat)
+
+        df_list.append(pd.DataFrame({'raw':[fn], 'brain':[brain], 'hemisphere':[hemisphere], 'ligand':[ligand], 'repeat':[int(repeat)],'binding':[binding] }))
+
+    df = pd.concat(df_list)
+     
+    df = df.loc[df['binding'] != 'UB']
+    
+    return df
+
+def add_histology_images(hist_files):
+
+    df_list = []
+    for fn in hist_files :
+        fn_split = re.sub('.nii.gz', '', os.path.basename(fn)).split('_')
+        print(fn_split);
+        brain, repeat, hemisphere = [fn_split[i] for i in [0,1,4]]
+
+        if brain == 'DP1' : brain = '11530'
+
+        if hemisphere == 'right' : hemisphere = 'R'
+        elif hemisphere == 'left' : hemisphere = 'L'
+        
+        ligand = 'cellbody'
+        binding = 'hist' 
+        
+        df_list.append(pd.DataFrame({'raw':[fn], 'brain':[brain], 'hemisphere':[hemisphere], 'ligand':[ligand], 'repeat':[int(repeat)],'binding':[binding] }))
+
+    df = pd.concat(df_list)
+    df['repeat']=df['repeat'].astype(int) 
+    df = df.sort_values(['repeat'])
+    df['repeat'] = np.arange(8,df.shape[0]+8)
+
+    return df
+
+
+def create_section_dataframe(auto_dir, hist_dir, short_repeat_dict, long_repeat_dict, crop_dir, csv_fn ):
+
+    if not os.path.exists(csv_fn) or True :
+    
+        # load raw tif files
+        auto_files = [ fn for fn in glob(f'{auto_dir}/*TIF') ] #if not 'UB' in fn and not '#00' in fn ]
+        
+        
         short_repeat_size = len(short_repeat_dict) + 2 # +2 because there are two cell body and two myelin stains 
         long_repeat_size = len(long_repeat_dict) + 2
 
-        df_list = []
-        for fn in raw_files :
-            fn_split = re.sub('.TIF', '', fn).split('#')
-            brain, hemisphere, ligand, repeat = [fn_split[i] for i in [2,3,4,6]]
-            
-            binding = 'S' if not 'S' in repeat and not '00' in repeat and not 'UB' in repeat else 'UB'
-            if binding == 'UB' : ligand += '_ub'
-            
-            repeat = re.sub('UB','',repeat)
-            repeat = re.sub('00[a-z]','0',repeat)
-
-            df_list.append(pd.DataFrame({'raw':[fn], 'brain':[brain], 'hemisphere':[hemisphere], 'ligand':[ligand], 'repeat':[int(repeat)],'binding':[binding] }))
-
-        df = pd.concat(df_list)
-         
-        df = df.loc[df['binding'] != 'UB']
+        df = add_autoradiographs_images(auto_files)
+        #df_hist = add_histology_images( hist_files)
+        #df = pd.concat([df_auto, df_hist])
 
 
         # get the number of sections in a repeat to determine if it is 'short' or 'long'
@@ -155,20 +194,27 @@ def create_section_dataframe(raw_files, short_repeat_dict, long_repeat_dict, cro
         df['crop'] = df['raw'].apply(lambda fn: '{}/{}'.format(crop_dir,os.path.splitext(os.path.basename(fn))[0]+'_crop.nii.gz') )
         df['aligned']=[False]*df.shape[0]
         df.sort_values(['order'],inplace=True)
+        
+        for hemisphere in ['left']:#,'right'] :
+            hist_list = glob(f'{hist_dir}/*{hemisphere}*nii.gz') #if not 'UB' in fn and not '#00' in fn ]
+            hist_list.sort()
 
-        hist_list = glob('macaque/tif_lowres_split/*left*.nii.gz')
-        hist_list.sort()
-        df_prehist = df.loc[ df['ligand'].apply(lambda x : x in ['mk80', 'uk14', 'mk80_ub', 'uk14_ub'] ) ]
-        for i, (row_name,row) in enumerate(df_prehist.iterrows())  :
-            new_row = row.copy()
-            new_row['order'] = row['order'] + 1
-            new_row['ligand'] = 'hist_cellbody'
-            new_row['crop'] = hist_list[i]
-            new_row['raw'] = hist_list[i]
-            df = df.append(new_row)
+            df_prehist = df.loc[ df['ligand'].apply(lambda x : x in ['mk80', 'uk14', 'mk80_ub', 'uk14_ub'] ) ]
+            for i, (row_name,row) in enumerate(df_prehist.iterrows())  :
+                new_row = row.copy()
+                #brain, repeat, hemisphere = [fn_split[i] for i in [0,1,4]]
+                new_row['order'] = row['order'] + 1
+                new_row['repeat'] = row['repeat']
+                new_row['ligand'] = 'hist_cellbody'
+                new_row['crop'] = hist_list[i]
+                new_row['raw'] = hist_list[i]
+                new_row['hemisphere'] = hemisphere
+                df = df.append(new_row)
 
         df.sort_values(['order'],inplace=True)
         df.to_csv(csv_fn)
+        print(csv_fn)
+        exit(0)
     else : 
         df = pd.read_csv(csv_fn)
     return df
@@ -256,59 +302,18 @@ def concat_section_to_volume(df, volume_fn):
     nib.Nifti1Image(volume, affine).to_filename(volume_fn)
 
 
-def launch():
-    input_dir = 'macaque/img_lin/'
-    crop_dir = 'macaque/crop/'
-    init_dir = 'macaque/init_align/'
-    csv_fn = 'macaque/sections.csv'
-    volume_fn = 'macaque/volume.nii.gz'
-    volume_init_fn = 'macaque/init_volume.nii.gz'
-
-    short_repeat = ['ampa', 'kain', 'mk80', 'hist_cellbody', 'musc', 'cgp5', 'flum', 'pire', 'hist_myelin', 'oxot', 'damp', 'epib', 'praz', 'uk14','hist_cellbody', 'dpat', 'keta', 'sch2', 'racl', 'hist_myelin', 'dpmg', 'zm24']
-    long_repeat = ['ampa', 'ampa_ub', 'kain', 'kain_ub', 'mk80', 'mk80_ub','hist_cellbody', 'musc', 'musc_ub', 'cgp5', 'cgp5_ub','flum', 'flum_ub', 'pire', 'pire_ub', 'hist_myelin', 'oxot', 'oxot_ub', 'damp', 'damp_ub', 'epib', 'epib_ub', 'praz', 'praz_ub', 'uk14', 'uk14_ub', 'hist_cellbody', 'dpat', 'dpat_ub', 'keta', 'keta_ub', 'sch2', 'sch2_ub', 'racl', 'racl_ub', 'hist_myelin', 'dpmg', 'dpmg_ub', 'zm24', 'zm24_ub']
-
-
-    short_repeat_dict = { v:k for k,v in dict(enumerate(short_repeat)).items() }
-    long_repeat_dict = { v:k for k,v in dict(enumerate(long_repeat)).items() }
-
-
-    os.makedirs(crop_dir,exist_ok=True)
-    os.makedirs(init_dir,exist_ok=True)
-
-    num_cores = min(1, multiprocessing.cpu_count() )
-
-    raw_files = [ fn for fn in glob(f'{input_dir}/*TIF') ] #if not 'UB' in fn and not '#00' in fn ]
-
-    ### 1. Section Ordering
-    print('1. Section Ordering')
-    df = create_section_dataframe(raw_files, short_repeat_dict, long_repeat_dict, crop_dir, csv_fn )
-    df = df.loc[df['ligand'].apply(lambda x : not x in [ 'racl', 'oxot','epib','zm24']  ) ] 
-    df = df.loc[df['binding']=='S']
-
-    ### 2. Crop
-    print('2. Cropping')
-    crop_to_do = [ (y, raw_fn, crop_fn) for y, raw_fn, crop_fn in zip(df['repeat'], df['raw'], df['crop']) if not os.path.exists(crop_fn) ]
-    Parallel(n_jobs=num_cores)(delayed(crop_image)(crop_dir, y, fn, crop_fn) for y, fn, crop_fn in  crop_to_do) 
-    exit(0)
-    
-    ### 3. Align
-    print('3. Aligning')
+def align(df, init_dir, volume_fn ):
     reference_ligand='flum'
     df['aligned']=[False]*df.shape[0]
-
-
-    if not os.path.exists(volume_init_fn) : concat_section_to_volume(df, volume_init_fn )
-
-
     aligned_df_list=[]
-    ligand_contrast_order = ['flum', 'mk80', 'musc', 'cgp5', 'ampa', 'kain', 'pire', 'damp', 'praz', 'uk14', 'keta', 'sch2', 'dpmg', 'dpat', 'cellbody'] #,  'zm24', 'racl', 'oxot', 'epib']
+    ligand_contrast_order = ['cellbody_a', 'cellbody_b', 'flum', 'mk80', 'musc', 'cgp5', 'ampa', 'kain', 'pire', 'damp', 'praz', 'uk14', 'keta', 'sch2', 'dpmg', 'dpat'] #,  'zm24', 'racl', 'oxot', 'epib']
     ligand_contrast_order = [ ligand for ligand in ligand_contrast_order if ligand in np.unique(df['ligand']) ]
 
     for i, ligand in enumerate(ligand_contrast_order) : 
         ligand_check_fn = f'{init_dir}/{ligand}.csv'
         idx = df['ligand'].apply(lambda x : x in [reference_ligand,ligand])
         #if not os.path.exists(ligand_check_fn) : 
-        df_ligand = df.loc[ idx]
+        df_ligand = df.loc[ idx ]
         mid_section = int(df_ligand.shape[0]/2)
         df.loc[idx] = align_sections(df_ligand, range(mid_section,df_ligand.shape[0]), init_dir, reference_ligand, 1)
         df.loc[idx] = align_sections(df_ligand, range(mid_section, 0, -1), init_dir, reference_ligand, -1)
@@ -321,7 +326,51 @@ def launch():
         aligned_df_list.append( df_ligand.loc[df_ligand['ligand']==ligand])
     
     aligned_df = pd.concat(aligned_df_list)
+
     concat_section_to_volume(aligned_df, volume_fn )
+    return aligned_df
+
+def launch():
+    auto_dir = 'macaque/img_lin/'
+    crop_dir = 'macaque/crop/'
+    init_dir = 'macaque/init_align/'
+    hist_dir = 'macaque/hist_split/'
+    csv_fn = 'macaque/sections.csv'
+    volume_fn = 'macaque/volume.nii.gz'
+    volume_init_fn = 'macaque/init_volume.nii.gz'
+
+    # define the order of ligands in "short" repeats
+    short_repeat = ['ampa', 'kain', 'mk80', 'cellbody_a', 'musc', 'cgp5', 'flum', 'pire', 'hist_myelin', 'oxot', 'damp', 'epib', 'praz', 'uk14','cellbody_b', 'dpat', 'keta', 'sch2', 'racl', 'hist_myelin', 'dpmg', 'zm24']
+    # define the order of ligands in "long" repeats
+    long_repeat = ['ampa', 'ampa_ub', 'kain', 'kain_ub', 'mk80', 'mk80_ub','cellbody_a', 'musc', 'musc_ub', 'cgp5', 'cgp5_ub','flum', 'flum_ub', 'pire', 'pire_ub', 'hist_myelin', 'oxot', 'oxot_ub', 'damp', 'damp_ub', 'epib', 'epib_ub', 'praz', 'praz_ub', 'uk14', 'uk14_ub', 'cellbody_b', 'dpat', 'dpat_ub', 'keta', 'keta_ub', 'sch2', 'sch2_ub', 'racl', 'racl_ub', 'hist_myelin', 'dpmg', 'dpmg_ub', 'zm24', 'zm24_ub']
+
+    # create dictionaries for short and long repeats with integers associated with each ligand
+    short_repeat_dict = { v:k for k,v in dict(enumerate(short_repeat)).items() }
+    long_repeat_dict = { v:k for k,v in dict(enumerate(long_repeat)).items() }
+
+    os.makedirs(crop_dir,exist_ok=True)
+    os.makedirs(init_dir,exist_ok=True)
+
+    num_cores = min(1, multiprocessing.cpu_count() )
+
+
+    ### 1. Section Ordering
+    print('1. Section Ordering')
+    df = create_section_dataframe(auto_dir, hist_dir, short_repeat_dict, long_repeat_dict, crop_dir, csv_fn )
+    df = df.loc[df['ligand'].apply(lambda x : not x in [ 'racl', 'oxot','epib','zm24']  ) ] 
+    df = df.loc[df['binding']=='S']
+    exit(0)
+    ### 2. Crop
+    print('2. Cropping')
+    crop_to_do = [ (y, raw_fn, crop_fn) for y, raw_fn, crop_fn in zip(df['repeat'], df['raw'], df['crop']) if not os.path.exists(crop_fn) ]
+    Parallel(n_jobs=num_cores)(delayed(crop_image)(crop_dir, y, fn, crop_fn) for y, fn, crop_fn in  crop_to_do) 
+    
+    ### 3. Align
+    print('3. Aligning')
+    if not os.path.exists(volume_init_fn) : concat_section_to_volume(df, volume_init_fn )
+
+    align(df, init_dir, volume_fn )
+
 
 if __name__ == '__main__':
     launch()
