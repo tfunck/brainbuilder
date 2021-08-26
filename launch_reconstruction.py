@@ -20,6 +20,7 @@ from reconstruction.nonlinear_2d_alignment import receptor_2d_alignment, concate
 from reconstruction.init_alignment import receptorRegister
 from reconstruction.surface_interpolation import surface_interpolation
 from reconstruction.crop import crop
+from reconstruction.validate_reconstructed_sections import validate_reconstructed_sections
 from preprocessing.preprocessing import fill_regions_3d
 
 global file_dir
@@ -503,14 +504,26 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
         else : 
             print(f'Error: not including {slab} for interpolation (nl 3d tfm exists = {nl_3d_tfm_exists}, 2d nl vol exists = {nl_2d_vol_exists}) ')
             exit(0)
-
-    assert len(slab_dict.keys()) != 0 , print('No slabs to interpolate over')
     
     ###
     ### 6. Surface interpolation
     ###
-    ligand_df = hemi_df.loc[ 'flum'  == hemi_df['ligand'] ]
+    assert len(slab_dict.keys()) != 0 , print('No slabs to interpolate over')
+    ligand='flum'
+    ligand_df = hemi_df.loc[ ligand  == hemi_df['ligand'] ]
     surface_interpolation(slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, ligand_df, args.srv_fn, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+
+    ###
+    ### 7. Quality Control
+    ###
+    max_resolution = resolution_list[-1]
+    depth = '0.45'
+    validate_reconstructed_sections(max_resolution, args.n_depths, ligand_df, base_out_dir='/data/receptor/human/output_2/', clobber=False)
+    #FIXME filename should be passed from surface_interpolation
+    ligand_csv = glob(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')[0]   
+    sphere_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_inflate_rsl.h5')[0]
+    cortex_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_rsl.h5')[0]
+    validate_interpolation(ligand_csv, sphere_mesh_fn, cortex_mesh_fn, n_samples=10000, max_depth=5)
 
 
 ###---------------------###
@@ -525,7 +538,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 #   5. Interpolate missing vertices on sphere, interpolate back to 3D volume
 
 if __name__ == '__main__':
-    resolution_list = ['4.0', '3.5', '3.0', '2.5', '2.0', '1.5', '1.0', '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
+    resolution_list = ['4.0', '3.5', '3.0', '2.5', '2.0', '1.5', '1.0', '0.8', '0.6'] #, '0.4'] #, '0.2'] #, '0.05' ]
 
     args, files = setup_parameters(setup_argparse().parse_args() )
     #Process the base autoradiograph csv

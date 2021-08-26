@@ -205,9 +205,9 @@ def iterate_over_vertices(idx_range, idx, ngh, coords, cortex_coords, faces, den
     print()
     return output_file
 
-def validate_for_ligand(filename, sphere_mesh_fn, cortex_mesh_fn, output_file, ligand, n_samples=10000, max_depth=5):
+def validate_interpolation(ligand_densities_fn, sphere_mesh_fn, cortex_mesh_fn, output_file, n_samples=10000, max_depth=5):
     #load ligand densities
-    densities = pd.read_csv(filename,header=None).values.astype(np.float16)
+    densities = pd.read_csv(ligand_densities_fn,header=None).values.astype(np.float16)
 
     idx = densities > 0.0
     idx = idx.reshape(-1,)
@@ -247,7 +247,7 @@ if __name__ == '__main__' :
     for filename in file_list :
         ligand = filename.split('_')[2]
         print(filename, ligand)
-        output_file = validate_for_ligand(filename, sphere_mesh_fn, cortex_mesh_fn, output_file, ligand, n_samples=n_samples,max_depth=max_depth)
+        output_file = validate_interpolation(filename, sphere_mesh_fn, cortex_mesh_fn, output_file, ligand, n_samples=n_samples,max_depth=max_depth)
         break
     output_file.close()
     plot_validation(out_fn)

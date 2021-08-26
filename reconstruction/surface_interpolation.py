@@ -91,7 +91,7 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, faces_
             f.write('{},{},{},{},{}\n'.format(flip*x,flip*y,z,0,0 ))
             #not zyx
 
-    temp_out_fn='/data/'+tempfile.NamedTemporaryFile().name+'.csv'
+    temp_out_fn=tempfile.NamedTemporaryFile().name+'.csv'
     shell(f'antsApplyTransformsToPoints -d 3 -i {coord_fn} -t [{tfm_list[0]},{invert[0]}]  -o {temp_out_fn}',verbose=True)
 
     # save transformed surfaced as an gii file
@@ -100,13 +100,7 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, faces_
         for i, l in enumerate( f.readlines() ):
             if i == 0 : continue
             x,y,z,a,b = l.rstrip().split(',')
-            #doesnt work: 
-            #coords[i-1] = [float(x),float(y),float(z)]
-            #doesn work, might need to flip x/y :
             coords[i-1] = [flip*float(x),flip*float(y),float(z)]
-            #doesnt work: coords[i-1] = [flip*float(x),float(y),float(z)]
-            #doesn't work coords[i-1] = [float(x),float(y),flip*float(z)]
-            #doesn't work coords[i-1] = [flip*float(x),float(y),flip*float(z)]
     
     f_h5 = h5py.File(out_gii_fn, 'w')
     f_h5.create_dataset('data', data=coords) 
@@ -128,7 +122,6 @@ def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, 
     # Each mesh across the cortical depth is inflated (from low resolution, not the upsampled version)
     # and then resampled so that it has the high resolution number of vertices.
 
-    os.makedirs('/data/tmp/',exist_ok=True)
     # create depth mesh
     gm_mesh = nib.load(gm_surf_fn) 
     wm_mesh = nib.load(wm_surf_fn)

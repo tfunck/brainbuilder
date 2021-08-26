@@ -110,7 +110,7 @@ def get_basename(fn):
     return re.sub('#L#L.nii.gz','',os.path.basename(fn))
         
 
-def difference_sections(autoradiograph_fn, ligand_section_fn, conversion_factor, out_dir, slab, y, clobber=clobber):
+def difference_sections(autoradiograph_fn, ligand_section_fn, conversion_factor, out_dir, slab, y, clobber=False):
    
     out_fn = f'{out_dir}/slab-{slab}_y-{y}.nii.gz'
 
@@ -131,8 +131,11 @@ def difference_sections(autoradiograph_fn, ligand_section_fn, conversion_factor,
     return out_fn
 
 
-def get_factor_and_section(fn, df_info):
+def get_factor_and_section(basename, df_info):
     bool_ar = [True if basename in fn else False for fn in df_info['lin_fn'] ]
+
+    assert np.sum(bool_ar) > 0, f'Error: {basename} not found in data frame'
+    
     conversion_factor = df_info['conversion_factor'].loc[bool_ar].values[0]
     section = df_info['global_order'].loc[bool_ar].values[0]
     slab = df_info['slab'].loc[bool_ar].values[0]
@@ -171,16 +174,23 @@ def extract_section_from_volume(reconstructed_tfm_to_nl2d_fn, reference_section_
 
     return ligand_section_fn
 
-def validate_reconstructed_sections(resolution, n_depths, ligand, base_out_dir='/data/receptor/human/output_2/', clobber=False):
+def validate_reconstructed_sections(resolution, n_depths, df, base_out_dir='/data/receptor/human/output_2/', clobber=False):
 
-    df_info = pd.read_csv('{base_out_dir}/autoradiograph_info_volume_order.csv')
+    df_info = pd.read_csv(f'{base_out_dir}/autoradiograph_info_volume_order.csv')
 
     #get list of nifti images
-    nii_list = [ fn for fn in  glob('{base_out_dir}/0_crop/*{ligand}*nii.gz') ]
-    basename_list = [ get_basename(fn) for fn in nii_list ]
-    info_list = [ get_factor_and_section(basename, df_info) for basename in basename_list ]
+    #nii_list = [ fn for fn in  glob(f'{base_out_dir}/0_crop/*{ligand}*nii.gz') ]
+    #basename_list = [ get_basename(fn) for fn in nii_list ]
+    #info_list = [ get_factor_and_section(basename, df_info) for basename in basename_list ]
 
-    for autoradiograph_fn, basename, (y, slab, conversion_factor) in zip(nii_list, basename_list, info_list) : 
+    #for autoradiograph_fn, basename, (y, slab, conversion_factor) in zip(nii_list, basename_list, info_list) : 
+    for row_index, row in df.iterrows():
+        y = row['global_order']
+        basename = row['basename']
+        conversion_factor = row['conversion_factor']
+        slab = row['slab']
+        autoradiograph_fn = row['crop_fn']
+
         out_dir = f'{base_out_dir}/MR1_R_{slab}/{resolution}/'
         nl_3d_inv_fn = f'{out_dir}/4_nonlinear_2d/rec_to_mri_SyN_InverseComposite.h5'
         nl_2d_fn = f'{out_dir}/4_nonlinear_2d/MR1_R_{slab}_nl_2d_{resolution}mm.nii.gz'
