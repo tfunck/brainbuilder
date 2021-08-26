@@ -142,6 +142,18 @@ def get_factor_and_section(basename, df_info):
     return section, slab, conversion_factor
 
 def transform_reconstructed_volume(ligand_volume_fn, nl_2d_fn, nl_3d_inv_fn, clobber=False):
+    '''
+    About:
+        Transform reconstructed volume for a particular ligand into nl2d space.
+
+    Arguments:
+        ligand_volume_fn :  string, filename of reconstructed ligand volume, mni space.
+        nl_2d_fn :          string, filename of autoradiographs non-linearly aligned to donor MRI, nl2d space.
+        nl_3d_inv_fn:       string, filename of ANTs transform (hdf5) from mni to nl2d label_3d_space_rec_fn
+        clobber :           bool, overwrite exisitng files
+    Returns:
+        reconstructed_tfm_to_nl2d_fn:   string, filename of reconstructed ligand volume transformed to nl2d space and resampled to coordinates of nl_2d_fn
+    '''
 
     ligand_volume_basename = os.path.splitext(ligand_volume_fn)[0]
     reconstructed_tfm_to_nl2d_fn = f'{ligand_volume_basename}_space-nl2d.nii.gz'
