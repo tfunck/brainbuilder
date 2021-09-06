@@ -29,7 +29,7 @@ from vast.surface_volume_mapper import SurfaceVolumeMapper
 
 global surf_base_str
 surf_base_str = '{}/mri1_{}_surface_right_{}{}.{}'
-
+'''
 def krig(lons_src, lats_src, lats, lons, values ):
     # Make this example reproducible:
     #np.random.seed(89239413)
@@ -39,7 +39,7 @@ def krig(lons_src, lats_src, lats, lons, values ):
     # [2.0, 5.5]:
 
     # Generate a regular grid with 60° longitude and 30° latitude steps:
-    '''
+    
     grid_lon = np.linspace(0.0, 360.0, 7)
     grid_lat = np.linspace(-90.0, 90.0, 7)
 
@@ -56,7 +56,7 @@ def krig(lons_src, lats_src, lats, lons, values ):
 
     # Execute on grid:
     z1, ss1 = OK.execute("grid", lons_tgt, lats_tgt)
-    '''
+    
     X0 = np.array([lons_src,lats_src]).T
     X1 = np.array([lons,lats]).T
 
@@ -69,7 +69,7 @@ def krig(lons_src, lats_src, lats, lons, values ):
         z1[i:j] = gpr.predict(X1[i:j]).reshape(-1,)
     print("finished regressing")
     return z1
-
+'''
  
 def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, faces_fn, ref_gii_fn):
     print("transforming", in_gii_fn)
@@ -112,7 +112,7 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, faces_
     obj_fn = out_path+ '.obj'
     save_obj(obj_fn,coords,faces)
 
-def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution,  depth_list,clobber=False, n_vertices=81920) :
+def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution,  depth_list, clobber=False, n_vertices=81920):
     depth_fn_dict={}
     # Upsampling of meshes at various depths across cortex produces meshes with different n vertices.
     # To create a set of meshes across the surfaces across the cortex that have the same number of 
@@ -190,7 +190,7 @@ def load_slabs(slab_fn_list) :
         slabs.append( nib.load(slab_fn) )
     return slabs
 
-def vol_surf_interp(val, src, coords, affine, slab, clobber=0 ):
+def vol_surf_interp(val, src, coords, affine, clobber=0 ):
     steps = [ affine[0,0], affine[1,1], affine[2,2]   ]
     starts =  [ affine[0,3], affine[1,3], affine[2,3]   ] 
     xmax=starts[0] + src.shape[0] * steps[0]
@@ -221,7 +221,7 @@ def get_section_intervals(vol):
     return intervals
     
 
-def get_valid_coords(vol, coords, iw):
+def get_valid_coords( coords, iw):
 
     valid_coords_idx = (coords[:,1] >= iw[0]) & (coords[:,1]<iw[1])
     valid_coords_idx = valid_coords_idx.reshape(valid_coords_idx.shape[0])
@@ -229,6 +229,174 @@ def get_valid_coords(vol, coords, iw):
 
     return valid_coords, valid_coords_idx
 
+#def voxel_to_mesh_nearest(volume, coords, step, start):
+
+def voxel_to_mesh(volume, coords, step, start):
+    '''
+    About :
+        Performs trilinear interpolation of voxel values onto a surface mesh
+
+    Arguments :
+        volume
+
+    Return :
+        vertex_values
+    '''
+
+    #create array of index values for each of the coordinates
+    coords_index = np.arange(coords.shape[0]).astype(int)
+
+    # Convert the coordinates of mesh points to temporary voxel locations
+    # These values must be floating point so that they can be then rounded up and down to find
+    # voxel coordinates surrounding the mesh point
+    temp_x_voxel = ((coords[:,0] - start[0]) / step[0]).reshape(-1,1)
+    temp_y_voxel = ((coords[:,1] - start[1]) / step[1]).reshape(-1,1)
+    temp_z_voxel = ((coords[:,2] - start[2]) / step[2]).reshape(-1,1)
+    # Round the temporary voxel locations up or down to find the voxel neighbours
+    x_voxel = np.hstack( [ np.floor(temp_x_voxel), np.ceil(temp_x_voxel) ] ).astype(int) 
+    y_voxel = np.hstack( [ np.floor(temp_y_voxel), np.ceil(temp_y_voxel) ] ).astype(int)
+    z_voxel = np.hstack( [ np.floor(temp_z_voxel), np.ceil(temp_z_voxel) ] ).astype(int)
+
+    voxel_list = [ x_voxel, y_voxel, z_voxel ]
+    for dim in range(3) :
+        assert np.max(voxel_list) < volume.shape[dim], 'Error: coords larger in dimension {dim} ({np.max(voxel_list[dim])}) is too large compared to volume with dimensions {volume.shape}' 
+
+    del temp_x_voxel
+    del temp_y_voxel
+    del temp_z_voxel
+
+    v2w_vector = lambda vector, step, start : (vector * step - start + step/2.).reshape(-1,1)
+
+    # Convert the neighbouring voxel locations to world coordinates
+    x_world = np.hstack( [ v2w_vector(x_voxel[:,0], step[0], start[0]), v2w_vector(x_voxel[:,1], step[0], start[0]) ] )
+    y_world = np.hstack( [ v2w_vector(y_voxel[:,0], step[1], start[1]), v2w_vector(y_voxel[:,1], step[1], start[1]) ] ) 
+    z_world = np.hstack( [ v2w_vector(z_voxel[:,0], step[2], start[2]), v2w_vector(z_voxel[:,1], step[2], start[2]) ] ) 
+
+    # Combine the x, y, and z coordinates into the 8 possible voxel points around each mesh point
+    ngh_coords_world = np.array([])
+    ngh_coords_voxel = np.array([])
+
+    def aggregate_vectors(vector0, vector1, vector2, aggregated_vector):
+
+        temp = np.hstack([vector0.reshape(-1,1), vector1.reshape(-1,1), vector2.reshape(-1,1)])
+
+        if aggregated_vector.shape == (0,) :
+            aggregated_vector = temp.astype(int)
+        else :
+            aggregated_vector = np.append( aggregated_vector, temp, axis=0).astype(int)
+
+        return aggregated_vector
+
+    for i in range(2):
+        for j in range(2) :
+            for k in range(2):
+
+                ngh_coords_world = aggregate_vectors(x_world[:,i], y_world[:,j], z_world[:,k], ngh_coords_world)
+
+                ngh_coords_voxel = aggregate_vectors(x_voxel[:,i], y_voxel[:,j], z_voxel[:,k], ngh_coords_voxel)
+
+    # Repeat the coordiantes 8 times, one for each of the neighbouring voxel points to which they will be 
+    # compared to calculate distances between mesh points and neighbouring voxel points
+    coords_repeated = np.repeat([coords], 8, axis=0).reshape(-1,3)
+    coords_index_repeated = np.repeat([coords_index], 8, axis=0).reshape(-1,).astype(int)
+    del coords_index
+    
+
+    # Calculate distances between mesh points and world coordinates
+    distances = np.sqrt(np.sum(np.power(coords_repeated - ngh_coords_world, 2),axis=1))
+
+    distances[distances==0] = 1
+    p=2
+    weights = 1/np.power(distances,p)
+
+
+    #for cr, ncw,d in zip(coords_repeated, ngh_coords_world, distances) :
+    #    if d > 1 : 
+    #        print(cr, ncw, d)
+
+    #assert np.max(distances) <= np.max(np.sqrt(step**2+step**2)), f'Error: max distance between vertex and neighbouring voxels ({np.max(distances)}) is greater than maximum step size ({np.max(step)})'
+
+    # Calculate the total distances around each coordinate using bincount
+    weights_sum = np.bincount(coords_index_repeated, weights = weights)
+
+    # because there are as many total distances as coordinates, we need to repeat the 
+    # total distances 8 times to use them to weight the mesh point - voxel distances
+        
+    # Distances are weighted by total weights
+    #weighted_distances =  distances / total_distances_repeated
+
+    # Get the voxel values for all the neighbouring voxels
+    voxel_values = volume[ ngh_coords_voxel[:,0], ngh_coords_voxel[:,1], ngh_coords_voxel[:,2] ]
+    del ngh_coords_voxel
+
+    
+    for i in [10,100,999] :
+        idx = coords_index_repeated == i
+        for a,b,c,d,e,f in zip( coords_repeated[idx], ngh_coords_world[idx], voxel_values[idx], distances[idx], weights[idx], voxel_values[idx]  ):
+            print(i,'\t',a,b,c,d,e,f)
+    
+    # Calculate 
+    weighted_voxel_values = voxel_values  * weights
+    vertex_values = np.bincount( coords_index_repeated, weights = weighted_voxel_values )
+    vertex_values /= weights_sum
+
+    #for c, v in zip(coords, vertex_values) :
+    #    print(c,v)
+    #exit(0)
+    del coords_index_repeated
+
+    
+    return vertex_values
+
+
+def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, vol_interp=None, n_vol=None ):
+    '''
+    About
+        Interpolate mesh values into a volume
+    Arguments
+        coords
+        vertex_values
+        dimensions
+        starts
+        steps
+        vol_interp
+        n_vol
+    Return
+        vol_interp
+        n_vol
+    '''
+    if type(vertex_values) != np.ndarray  or type(n_vol) != np.ndarray :
+        vol_interp = np.zeros(dimensions)
+        n_vol = np.zeros_like(vol_interp)
+
+    x = np.rint( (coords[:,0] - starts[0]) / steps[0] ).astype(int)
+    y = np.rint( (coords[:,1] - starts[1]) / steps[1] ).astype(int)
+    z = np.rint( (coords[:,2] - starts[2]) / steps[2] ).astype(int)
+
+    #for c, i, j, k, v in zip(coords,x,y,z,vertex_values):
+    #    print(c,'-->',i,j,k, '==', v)
+
+    vol_interp[x,y,z] +=  vertex_values
+
+    n_vol[x,y,z] += 1
+
+    return vol_interp, n_vol
+
+def multi_mesh_to_volume(profiles,depth_fn_mni_space, depth_list, dimensions, starts, steps):
+
+    vol_interp = np.zeros(dimensions)
+    n_vol = np.zeros_like(vol_interp)
+
+    for ii in range(10,profiles.shape[1]):
+        surf_fn = depth_fn_mni_space[depth_list[ii]]['upsample_fn']
+        print(surf_fn)
+        coords = h5py.File(surf_fn,'r')['data'][:]
+        vol_interp, n_vol = mesh_to_volume(coords, profiles[:,ii], dimensions, starts, steps, vol_interp, n_vol )
+
+    vol_interp[ n_vol>0 ] = vol_interp[n_vol>0] / n_vol[n_vol>0]
+    
+    assert np.sum(vol_interp) != 0 , 'Error: interpolated volume is empty'
+    return vol_interp
 
 def project_volumes_to_surfaces(surf_fn_list, vol_fn_list, interp_csv, interp_dir, clobber=False):
     '''
@@ -294,12 +462,11 @@ def project_volumes_to_surfaces(surf_fn_list, vol_fn_list, interp_csv, interp_di
                     #the voxel values should be the same along the y-axis within an interval
                     #WARNING: this will NOT work if there isn't a gap between thickened autoradiograph sections!
                     section = vol[:,y0,:]
-                    
-                    valid_coords_world, valid_coords_idx = get_valid_coords(vol, coords, [y0w,y1w])
+                    valid_coords_world, valid_coords_idx = get_valid_coords( coords, [y0w,y1w])
 
                     if valid_coords_world.shape[0] != 0  :
-                        x = np.floor( (valid_coords_world[:,0] - xstart)/xstep ).astype(int)
-                        z = np.floor( (valid_coords_world[:,2] - zstart)/zstep ).astype(int)
+                        x = np.rint( (valid_coords_world[:,0] - xstart)/xstep ).astype(int)
+                        z = np.rint( (valid_coords_world[:,2] - zstart)/zstep ).astype(int)
 
                         xmax = np.max(x)
                         zmax = np.max(z)
@@ -322,8 +489,8 @@ def project_volumes_to_surfaces(surf_fn_list, vol_fn_list, interp_csv, interp_di
                         all_values[valid_coords_idx] = values 
 
             #DEBUG
-            threshold=1000
-            all_values[all_values < threshold] = 0
+            #threshold=1000
+            #all_values[all_values < threshold] = 0
             np.savetxt(interp_csv, all_values)
 
 def thicken_sections(interp_dir, slab_dict, df_ligand, resolution ):
@@ -403,7 +570,8 @@ def get_profiles(interp_dir, surf_dir, depth_list, profiles_fn, slab_dict, df_li
         sphere_rsl_fn = depth_fn_mni_space[depth]['sphere_rsl_fn'] 
         surface_val = profiles_raw.values.reshape(-1,) 
       
-        profile_vector = interpolate_over_surface(sphere_rsl_fn, surface_val)
+        #profile_vector = interpolate_over_surface(sphere_rsl_fn, surface_val)
+        profile_vector = surface_val
 
         profiles['data'][:,depth_index] = profile_vector
         del profile_vector
@@ -470,13 +638,11 @@ def transform_surf_to_slab(interp_dir, slab_dict, depth_fn_space_mni, ref_gii_fn
         
     return surf_rsl_dict
 
-def surface_interpolation(slab_dict, out_dir, interp_dir, brain, hemi, resolution, df, mni_fn, n_depths=3, surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, clobber=0):
+def prepare_surfaces(slab_dict, depth_list, interp_dir, resolution, surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, clobber=0):
+    '''
 
-    #make sure resolution is interpreted as float
-    resolution=float(resolution) 
-
+    '''
     surf_rsl_dir = interp_dir +'/surfaces/' 
-    os.makedirs(interp_dir, exist_ok=True)
     os.makedirs(surf_rsl_dir, exist_ok=True)
     
     #Interpolate at coordinate locations
@@ -487,101 +653,84 @@ def surface_interpolation(slab_dict, out_dir, interp_dir, brain, hemi, resolutio
 
     surf_gm_fn = surf_base_str.format(surf_rsl_dir,'gray', n_vertices,'','surf.gii')
     surf_wm_fn = surf_base_str.format(surf_rsl_dir,'white', n_vertices,'','surf.gii')
-    print(surf_gm_obj_fn)
-    print(surf_wm_obj_fn)
-    print(surf_gm_fn)
-    print(surf_wm_fn)
+    
+    sphere_obj_fn = surf_base_str.format(surf_dir,'mid', n_vertices,'_sphere','surf.gii')
     obj_to_gii(surf_gm_obj_fn, ref_surf_fn, surf_gm_fn)
     obj_to_gii(surf_wm_obj_fn, ref_surf_fn, surf_wm_fn)
 
-    sphere_obj_fn = surf_base_str.format(surf_dir,'mid', n_vertices,'_sphere','surf.gii')
+    #upsample transformed surfaces to given resolution
+    print("\tUpsampling and inflating surfaces.") 
+    depth_fn_mni_space = upsample_and_inflate_surfaces(surf_rsl_dir, surf_wm_fn, surf_gm_fn, resolution, depth_list)
+
+    #For each slab, transform the mesh surface to the receptor space
+    #TODO: transform points into space of individual autoradiographs
+    print("\tTransforming surfaces to slab space.") 
+    depth_fn_slab_space = transform_surf_to_slab(surf_rsl_dir, slab_dict, depth_fn_mni_space, surf_wm_fn)
+
+    # Create an object that will be used to interpolate over the surfaces
+    #gm_upsample_fn = depth_fn_mni_space[0]['upsample_obj_fn']
+    #wm_upsample_fn = depth_fn_mni_space[1.0]['upsample_obj_fn']
+    #mapper = SurfaceVolumeMapper(white_surf=wm_upsample_fn, gray_surf=gm_upsample_fn, resolution=[resolution]*3, mask=None, dimensions=dimensions, origin=starts, filename=None, save_in_absence=False, out_dir=interp_dir, left_oriented=False )
+
+    return depth_fn_mni_space, depth_fn_slab_space
+
+def surface_interpolation(slab_dict, out_dir, interp_dir, brain, hemi, resolution, df, mni_fn, n_depths=3, surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, clobber=0):
+
+    #make sure resolution is interpreted as float
+    resolution=float(resolution) 
+
+    
+    os.makedirs(interp_dir, exist_ok=True)
 
     print("\tGet surface mask and surface values")
     # Load dimensions for output volume
     starts = np.array([-72, -126, -90 ])
     mni_img = nib.load(mni_fn)
-    mni_vol = mni_img.get_fdata()
     dwn_res = 0.25
     nat_res = 0.02
+
+    dimensions = np.array([ mni_img.shape[0] * dwn_res/resolution, 
+                            mni_img.shape[1] * dwn_res/resolution, 
+                            mni_img.shape[2] * dwn_res/resolution]).astype(int)
+
+    affine = np.array([[resolution, 0, 0, starts[0]],
+                       [0, resolution, 0, starts[1]],
+                       [0, 0, resolution, starts[2]],
+                       [0, 0, 0, 1]])
+
     #set depths
     dt = 1.0/ n_depths
     depth_list = np.arange(0, 1+dt/10, dt)
-    print(depth_list)
-    dimensions = np.array([ mni_vol.shape[0] * dwn_res/resolution, 
-                            mni_vol.shape[1] * dwn_res/resolution, 
-                            mni_vol.shape[2] * dwn_res/resolution]).astype(int)
-    del mni_vol
-
-    print("\tTransforming surfaces to slab space") 
-
-    #upsample transformed surfaces to given resolution
-    depth_fn_mni_space = upsample_and_inflate_surfaces(surf_rsl_dir, surf_wm_fn, surf_gm_fn, resolution, depth_list)
-
-    #For each slab, transform the mesh surface to the receptor space
-    #TODO: transform points into space of individual autoradiographs
-    depth_fn_slab_space = transform_surf_to_slab(surf_rsl_dir, slab_dict, depth_fn_mni_space, surf_wm_fn)
-    print(depth_fn_mni_space)
-
-    gm_upsample_fn = depth_fn_mni_space[0]['upsample_obj_fn']
-    wm_upsample_fn = depth_fn_mni_space[1.0]['upsample_obj_fn']
-    
-    # Create an object that will be used to interpolate over the surfaces
-    mapper = SurfaceVolumeMapper(white_surf=wm_upsample_fn, gray_surf=gm_upsample_fn, resolution=[resolution]*3, mask=None, dimensions=dimensions, origin=starts, filename=None, save_in_absence=False, out_dir=interp_dir, left_oriented=False )
-     
-
     depth_list = np.insert(depth_list,0, 0)
+
+    depth_fn_mni_space, depth_fn_slab_space = prepare_surfaces(slab_dict, depth_list, interp_dir, resolution, surf_dir=surf_dir, n_vertices = n_vertices, clobber=clobber)
+
+    
+    ligands_to_reconstruct = []
     for ligand, df_ligand in df.groupby(['ligand']):
+        interp_fn  = f'{interp_dir}/{brain}_{hemi}_{ligand}_{resolution}mm_l{n_depths}.nii.gz'
+        if not os.path.exists(interp_fn) or clobber :
+            ligands_to_reconstruct += [(ligand, df_ligand, interp_fn)]
+
+    for ligand, df_ligand, interp_fn in ligands_to_reconstruct:
         print('Interpolating for ligand:',ligand)
         profiles_fn  = f'{interp_dir}/{brain}_{hemi}_{ligand}_{resolution}mm_profiles.h5'
-        interp_fn  = f'{interp_dir}/{brain}_{hemi}_{ligand}_{resolution}mm_l{n_depths}.nii.gz'
 
         # Extract profiles from the slabs using the surfaces 
         if not os.path.exists(profiles_fn) or clobber >= 1 :
             print('\tGetting profiles')
-            get_profiles(interp_dir, surf_rsl_dir, depth_list, profiles_fn, slab_dict, df_ligand, depth_fn_mni_space, depth_fn_slab_space, resolution)
+            get_profiles(interp_dir, interp_dir +'/surfaces/', depth_list, profiles_fn, slab_dict, df_ligand, depth_fn_mni_space, depth_fn_slab_space, resolution)
         
         # Interpolate a 3D receptor volume from the surface mesh profiles
         if not os.path.exists(interp_fn) or clobber : 
             profiles = h5py.File(profiles_fn, 'r')['data'][:]
-            print('\tMap Vector to Block')
-
-            interpolation='linear'
-            #interpolation='nearest' #FIXME
-
-            vol_interp = mapper.map_profiles_to_block(profiles,interpolation=interpolation)
-            '''
-            #DEBUG
-            print('dimensions',dimensions)
-            print('starts', starts)
-            vol_interp = np.zeros(dimensions)
-            n_vol = np.zeros_like(vol_interp)
-            
-            for ii in range(profiles.shape[1]):
-                surf_fn = depth_fn_mni_space[depth_list[ii]]['upsample_fn']
-                print(surf_fn)
-                coords = h5py.File(surf_fn,'r')['data'][:]
-
-                x = np.rint((coords[:,0]-starts[0])/resolution ).astype(int)
-                y = np.rint((coords[:,1]-starts[1])/resolution ).astype(int)
-                z = np.rint((coords[:,2]-starts[2])/resolution ).astype(int)
-
-                vol_interp[x,y,z] += profiles[:,ii]
-                n_vol[x,y,z] += 1
-
-            del profiles
-
-            vol_interp[ n_vol>0 ] = vol_interp[n_vol>0] / n_vol[n_vol>0]
-
-            assert np.sum(vol_interp) != 0 , 'Error: interpolated volume is empty'
-            '''
-            print('\tCreate output nifti file')
-            receptor_img = nib.Nifti1Image(vol_interp, np.array([[resolution, 0, 0, starts[0]],
-                                                                 [0, resolution, 0, starts[1]],
-                                                                 [0, 0, resolution, starts[2]],
-                                                                 [0, 0, 0, 1]]) )
+            #print('\tMap Vector to Block')
+            #interpolation='linear'
+            #vol_interp = mapper.map_profiles_to_block(profiles,interpolation=interpolation)
+            vol_interp = multi_mesh_to_volume(profiles,depth_fn_mni_space, depth_list, dimensions, starts, [resolution]*3)
 
             print(f'\tWrite volumetric interpolated values to {interp_fn} ',end='\t')
-            receptor_img.to_filename(interp_fn)
+            nib.Nifti1Image(vol_interp, affine ).to_filename(interp_fn)
             print('\nDone.')
         else :
             print(interp_fn, 'already exists')

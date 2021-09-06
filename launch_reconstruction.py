@@ -6,6 +6,7 @@ import argparse
 import pandas as pd
 import numpy as np
 import nibabel as nib
+from glob import glob
 from scipy.ndimage import label
 from scipy.ndimage import binary_dilation, binary_closing, binary_fill_holes
 from scipy.ndimage.filters import gaussian_filter
@@ -51,7 +52,7 @@ def create_new_srv_volumes(rec_3d_rsl_fn, srv_rsl_fn, cropped_output_list ):
         lower_res_srv_rsl_fn = cropped_output_list[i]
         if not os.path.exists(lower_res_srv_rsl_fn) :
             r = resolution_list[i]
-            prefilter_and_downsample(highest_res_srv_rsl_fn, float(r), lower_res_srv_rsl_fn)
+            prefilter_and_downsample(highest_res_srv_rsl_fn, float(r), lower_res_srv_rsl_fn, reference_image_fn=rec_3d_rsl_fn)
 
         print('Next srv fn:', lower_res_srv_rsl_fn)
 
@@ -69,6 +70,8 @@ def remove_slab_from_srv(slab_to_remove_fn, srv_rsl_fn, new_srv_rsl_fn):
     Outputs:
         None
     '''
+    print(slab_to_remove_fn)
+    print(srv_rsl_fn)
     #load slab gm mask, not strictly binary
     aligned_slab = nib.load(slab_to_remove_fn).get_fdata()
     
@@ -85,7 +88,8 @@ def remove_slab_from_srv(slab_to_remove_fn, srv_rsl_fn, new_srv_rsl_fn):
     #resutls in slab blurring too far across y-axis.
     
     #DEBUG
-    #vol[aligned_slab > 0.3 ] = 0
+    print(vol.shape)
+    print(aligned_slab.shape)
     vol[aligned_slab > 0. ] = 0 #probably conceptually simpler to threshold at 0, shouldnt make a practice
 
 
@@ -523,7 +527,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     ligand_csv = glob(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')[0]   
     sphere_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_inflate_rsl.h5')[0]
     cortex_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_rsl.h5')[0]
-    validate_interpolation(ligand_csv, sphere_mesh_fn, cortex_mesh_fn, n_samples=10000, max_depth=5)
+    #validate_interpolation(ligand_csv, sphere_mesh_fn, cortex_mesh_fn, n_samples=10000, max_depth=5)
 
 
 ###---------------------###
@@ -538,7 +542,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 #   5. Interpolate missing vertices on sphere, interpolate back to 3D volume
 
 if __name__ == '__main__':
-    resolution_list = ['4.0', '3.5', '3.0', '2.5', '2.0', '1.5', '1.0', '0.8', '0.6'] #, '0.4'] #, '0.2'] #, '0.05' ]
+    resolution_list = ['4.0', '3.5', '3.0', '2.5', '2.0', '1.5', '1.0', '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
 
     args, files = setup_parameters(setup_argparse().parse_args() )
     #Process the base autoradiograph csv
