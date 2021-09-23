@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import nibabel as nib
 from glob import glob
+from validate_interpolation import validate_interpolation
 from scipy.ndimage import label
 from scipy.ndimage import binary_dilation, binary_closing, binary_fill_holes
 from scipy.ndimage.filters import gaussian_filter
@@ -225,7 +226,6 @@ def setup_files_json(args ):
         files: return dictionary with all filenames
     '''
 
-
     files={}
     for brain in args.brain :
         files[brain]={}
@@ -243,6 +243,7 @@ def setup_files_json(args ):
                     # Directories
                     cdict['cur_out_dir']=f'{args.out_dir}/{brain}_{hemi}_{slab}/{resolution}mm/'
                     cdict['seg_dir']='{}/2_segment/'.format(cdict['cur_out_dir'])
+                    cdict['srv_dir']=f'{args.out_dir}/{brain}_{hemi}_{slab}/srv/'
                     cdict['align_to_mri_dir']='{}/3_align_slab_to_mri/'.format(cdict['cur_out_dir'])
                     cdict['nl_2d_dir']='{}/4_nonlinear_2d'.format(cdict['cur_out_dir'])
                     
@@ -252,8 +253,8 @@ def setup_files_json(args ):
 
                     # Filenames
                     cdict['seg_rsl_fn']='{}/brain-{}_hemi-{}_slab-{}_seg_{}mm.nii.gz'.format(cdict['seg_dir'],brain, hemi, slab, resolution)
-                    cdict['srv_rsl_fn'] = f'{args.out_dir}/{brain}_{hemi}_{slab}_mri_gm_{resolution}mm.nii.gz' 
-                    cdict['srv_crop_rsl_fn'] = f'{args.out_dir}/{brain}_{hemi}_{slab}_mri_gm_crop_{resolution}mm.nii.gz' 
+                    cdict['srv_rsl_fn'] = cdict['srv_dir']+f'/{brain}_{hemi}_{slab}_mri_gm_{resolution}mm.nii.gz' 
+                    cdict['srv_crop_rsl_fn'] = cdict['srv_dir']+f'/{brain}_{hemi}_{slab}_mri_gm_crop_{resolution}mm.nii.gz' 
 
                     #if resolution_itr <= max_3d_itr  :
                     cdict['rec_3d_rsl_fn'] = '{}/{}_{}_{}_{}mm_rec_space-mri.nii.gz'.format(cdict['align_to_mri_dir'],brain,hemi,slab,resolution)
@@ -284,6 +285,8 @@ def setup_parameters(args) :
     ### Parameters
     ###
     args.slabs=['1','2','3','4','5','6'] #FIXME shouldnt be hard coded
+    args.slabs=['1', '6', '2','4', '3', '5'] #FIXME shouldnt be hard coded
+    args.slabs=['1']
 
     if args.scale_factors_fn == None :
         args.scale_factors_fn=base_file_dir+'/scale_factors.json'
@@ -305,7 +308,7 @@ def setup_parameters(args) :
 
 
 
-def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, args, files, resolution_list, init_align_fn, max_resolution=0.3):
+def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, args, files, resolution_list, init_align_fn, max_resolution=0.3):
     '''
     About:
         Mutliresolution scheme that a. segments autoradiographs, b. aligns these to the donor mri in 3D,
@@ -338,8 +341,12 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, args, files,
         
         cur_out_dir = cfiles['cur_out_dir']
         seg_dir = cfiles['seg_dir'] 
+        srv_dir = cfiles['srv_dir'] 
         align_to_mri_dir = cfiles['align_to_mri_dir'] 
         nl_2d_dir = cfiles['nl_2d_dir']
+
+        for dir_name in [cur_out_dir, align_to_mri_dir , seg_dir, nl_2d_dir, srv_dir ] :
+            os.makedirs(dir_name, exist_ok=True)
 
         srv_rsl_fn = cfiles['srv_rsl_fn']  
         srv_crop_rsl_fn = cfiles['srv_crop_rsl_fn']  
@@ -358,8 +365,7 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, args, files,
         else :
             resolution_itr_3d = resolution_itr
 
-        for dir_name in [cur_out_dir, align_to_mri_dir , seg_dir, nl_2d_dir ] :
-            os.makedirs(dir_name, exist_ok=True)
+
 
         prev_resolution=resolution_list[resolution_itr-1]
 
@@ -407,7 +413,9 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, args, files,
 
         if run_stage(stage_2_outputs, stage_3_outputs) or args.clobber  :
             print('Cropped rsl fn', crop_srv_rsl_fn)
-            align_slab_to_mri(seg_rsl_fn, crop_srv_rsl_fn, slab, align_to_mri_dir, hemi_df, args.slabs, nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_rsl_fn, srv_3d_rsl_fn, resolution_3d, resolution_itr_3d, resolution_list  )
+            scale_factors_json = json.load(open(args.scale_factors_fn,'r'))
+            slab_direction = scale_factors_json[brain][hemi][slab]['direction']
+            align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, crop_srv_rsl_fn, align_to_mri_dir, hemi_df, args.slabs, nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_rsl_fn, srv_3d_rsl_fn, resolution_3d, resolution_itr_3d, resolution_list, slab_direction)
         
         ###
         ### Stage 3.5 : Create a new srv_rsl_fn file that removes the currently aligned slab
@@ -416,7 +424,8 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, args, files,
         not_last_slab = int(slab) < max(slab_list)
         if not_last_slab  and resolution == resolution_list[-1] :
             # filenames for the next slab
-            next_slab_files = files[brain][hemi][str(int(slab)+1)]
+            next_slab = args.slabs[slab_index+1]
+            next_slab_files = files[brain][hemi][next_slab]
             # filename for cropped srv file for next slab
             #highest_res_srv_rsl_fn = next_slab_files[str(resolution)]['srv_crop_rsl_fn']
             stage_3_5_outputs = [ next_slab_files[str(r)]['srv_crop_rsl_fn']   for r in resolution_list ]
@@ -458,12 +467,24 @@ def add_tfm_column(slab_df, init_tfm_csv, slab_tfm_csv) :
     slab_df.to_csv(slab_tfm_csv)
     return slab_df
 
+def create_directories(args, files, brain, hemi, resolution_list) :
+    for slab in args.slabs :
+        for resolution_itr, resolution in enumerate(resolution_list) :
+            cfiles = files[brain][hemi][str(slab)][str(resolution)] #Current files
+            
+            dirs_to_create=[ cfiles['cur_out_dir'], cfiles['seg_dir'], cfiles['srv_dir'],
+                             cfiles['align_to_mri_dir'], cfiles['nl_2d_dir'] ]
+
+            for dir_name in dirs_to_create : os.makedirs(dir_name, exist_ok=True)
+
 def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     hemi_df = df.loc[ (df['mri']==brain) & (df['hemisphere']==hemi) ]
     highest_resolution=resolution_list[-1]
 
+    create_directories(args, files, brain, hemi, resolution_list)
+
     ### Reconstruct slab
-    for slab in args.slabs :
+    for slab_index, slab in enumerate(args.slabs) :
         print('Slab:', slab)
         slab_df=df.loc[(df['hemisphere']==hemi) & (df['mri']==brain) & (df['slab']==int(slab)) ]
         init_align_fn=files[brain][hemi][str(slab)][str(resolution_list[0])]['init_align_fn']
@@ -481,7 +502,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
         else : slab_df = pd.read_csv(slab_tfm_csv)
 
         ### Steps 2-4 : Multiresolution alignment
-        slab_df = multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, args,files, resolution_list, init_align_fn)
+        slab_df = multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, slab_index, args,files, resolution_list, init_align_fn)
         '''
         def create_brain_mask_sections(slab_df, slab, resolution, tfm_3d_inv_fn, reference_fn, brain_mask_fn):
             brain_mask_rsl_fn = re.sub('.nii.gz','_space-rec-{slab}.nii.gz')  
@@ -522,12 +543,15 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     ###
     max_resolution = resolution_list[-1]
     depth = '0.45'
-    validate_reconstructed_sections(max_resolution, args.n_depths, ligand_df, base_out_dir='/data/receptor/human/output_2/', clobber=False)
+    validate_reconstructed_sections(max_resolution, args.slabs, args.n_depths, ligand_df, base_out_dir='/data/receptor/human/output_2/', clobber=False)
+    exit(0)
     #FIXME filename should be passed from surface_interpolation
     ligand_csv = glob(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')[0]   
     sphere_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_inflate_rsl.h5')[0]
     cortex_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_rsl.h5')[0]
-    #validate_interpolation(ligand_csv, sphere_mesh_fn, cortex_mesh_fn, n_samples=10000, max_depth=5)
+    faces_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_0.0_rsl_new_faces.h5')[0]
+    output_dir=f'/data/receptor/human/output_2/6_quality_control/'
+    validate_interpolation(ligand_csv, sphere_mesh_fn, cortex_mesh_fn, faces_fn, output_dir, n_samples=1000, max_depth=6)
 
 
 ###---------------------###
@@ -542,12 +566,12 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 #   5. Interpolate missing vertices on sphere, interpolate back to 3D volume
 
 if __name__ == '__main__':
-    resolution_list = ['4.0', '3.5', '3.0', '2.5', '2.0', '1.5', '1.0', '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
+    resolution_list = ['4.0', '3.5', '3.0', '2.5', '2.0', '1.5', '1.0'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
 
     args, files = setup_parameters(setup_argparse().parse_args() )
     #Process the base autoradiograph csv
     if not os.path.exists(args.autoradiograph_info_fn) : 
-        calculate_section_order(args.autoradiograph_info_fn, args.crop_dir, args.out_dir, in_df_fn=file_dir+os.sep+'autoradiograph_info.csv')
+        calculate_section_order(args.autoradiograph_info_fn,  args.out_dir, in_df_fn=file_dir+os.sep+'autoradiograph_info.csv')
 
     df = pd.read_csv(args.autoradiograph_info_fn)
     

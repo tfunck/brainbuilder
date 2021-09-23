@@ -1,18 +1,66 @@
 import nibabel as nib
+import seaborn as sns
 import numpy as np
 import stripy
 import pandas as pd
 import vast.surface_tools as surface_tools
 import argparse
 import matplotlib.pyplot as plt
-from plot_validation import plot_validation
-from matplotlib_surface_plotting import plot_surf
+import h5py
+import os
+#from matplotlib_surface_plotting import plot_surf
 from glob import glob
+from mpl_toolkits.mplot3d import Axes3D
 
 from numpy.linalg import norm
 
+atlas_dict = {
+
+
+        }
+
+def plot_validation(filename='validation.csv', out_fn='validation.png', area_dict=None):
+    df = pd.read_csv(filename)
+    df['error'].loc[df['error']>1] = 1
+    df = df.rename(columns={'error':'Error (%)','perimeter_dist':'Distance (mm)', 'area':'Area (mm)'})
+    #plt.subplot(2,1,1)
+    #sns.lmplot(x='area', y='error', hue='ligand', data=df)
+    #plt.subplot(2,1,1)
+    #sns.lmplot(x='area', y='error', hue='ligand', data=df)
+    #x_vars = ['Distance (mm)', "Area (mm)"]
+    x_vars = ['Distance (mm)' ]
+    plt.Figure(figsize=(16,16))
+    sns.set(font_scale=1.5)
+    g = sns.PairGrid(df, y_vars=["Error (%)"], x_vars=x_vars,  hue='ligand', height=10)
+    g.map(sns.regplot)
+    #sns.relplot(x='n',y='error',data=df)
+    plt.savefig(out_fn)
+
+    #df = pd.read_csv(filename)
+
+    #fig = plt.figure()
+    #ax = fig.add_subplot(111, projection = '3d')
+
+    #x = df['perimeter_dist']
+    #y = df['area']
+    #z = df['error']
+
+    #ax.set_xlabel("Happiness")
+    #ax.set_ylabel("Economy")
+    #ax.set_zlabel("Health")
+
+    #ax.scatter(x, y, z)
+    #plt.savefig(out_fn)
+
+
 def area(a, b, c) :
     return 0.5 * norm( np.cross( b-a, c-a ) )
+
+def read_h5(fn):
+    f = h5py.File(fn)
+    data = f['data'][:]
+    f.close()
+    return data
 
 def read_gifti(mesh_fn):
     mesh = nib.load(mesh_fn)
@@ -50,7 +98,7 @@ def get_ngh(coords, faces):
             #plt.show()    
     return ngh
 
-def calc_dist(i, ngh_inner_core,coords,ngh) :
+def calc_dist(i, coords,ngh) :
     distList=[]
     for ngh_i in ngh[i] :
         if ngh_i != i :
@@ -92,25 +140,38 @@ def get_core_vertices(ngh, densities, max_depth, core_depth, i) :
     return ngh_inner_core, ngh_inner_all, border
 
 def calculate_neighbours(i, ngh, coords, cortex_coords, densities, max_depth, core_depth=2) :
+    # ngh_inner_core are the vertices to be estimated
+    # ngh_inner_all are all the vertices within the outer border
+    # border are the vertices with known receptor densities and which are used to estimate the densities at ngh_inner_core
     ngh_inner_core, ngh_inner_all, border = get_core_vertices(ngh, densities, max_depth, core_depth, i)
     border = list(np.unique(border))
     ngh_inner_core = list(np.unique(ngh_inner_core))
     ngh_inner_all = list(np.unique(ngh_inner_all))
 
+    # penumbra vertices are those that are treated as unknown but which will not be estimated
     penumbra = [ i for i in ngh_inner_all if not i in ngh_inner_core  ]
+
+    # sanity check
     if len(penumbra) == 0 and not max_depth-1 == core_depth :
         print('Error in core/penumbra/border', max_depth, core_depth)
         print(ngh_inner_core)
         print(ngh_inner_all)
         return [], [], [], []
 
-    avg_border_dist_list = [ calc_dist(i,ngh_inner_core,cortex_coords,ngh) for i in penumbra ]
+    #calculate the distance between vertices in penumbra and their neighbours
+    avg_border_dist_list = [ calc_dist(i,cortex_coords,ngh) for i in penumbra ]
+    # take mean of distances between penumbra and their neihgbours. this basically gives an
+    # approximate average edge length in the penumbra
     avg_border_dist = np.mean([ i for i in avg_border_dist_list if not np.isnan(i)])
+    print('\taverage border distance:', avg_border_dist)
     
     if np.isnan(avg_border_dist) :
         print('\t avg core depth', core_depth, 'max_depth', max_depth )
         print(penumbra)
         print()
+
+    #calculate the distance between the core and the border by multiplying the number of edges
+    # between these two by the average edge length
     perimeter_dist = (max_depth - core_depth) * avg_border_dist if not np.isnan(avg_border_dist) else 0
     
     
@@ -163,7 +224,7 @@ def interpolate_over_sphere(densities, coords_all, faces, idx_inner_core, idx, b
 def iterate_over_vertices(idx_range, idx, ngh, coords, cortex_coords, faces, densities, output_file,ligand,max_depth=5, n_samples=10000):
     for i, (x,y,z) in zip(idx_range, coords[idx,:]): 
         depth = np.random.randint(2,max_depth+1)
-        core_depth =  np.random.randint(1,depth)
+        core_depth = np.random.randint(1,depth)
         if i % 10 == 0 : print(100*i/idx.shape[0],end='\r')
         #print(f'U(1,{max_depth})->{depth}, {i}',end='\r')
         # calculate neighbours
@@ -202,28 +263,38 @@ def iterate_over_vertices(idx_range, idx, ngh, coords, cortex_coords, faces, den
             exit(0)
         
         output_file.write(f'{ligand},{perimeter_dist},{total_area},{error},{n}\n')
-    print()
-    return output_file
 
-def validate_interpolation(ligand_densities_fn, sphere_mesh_fn, cortex_mesh_fn, output_file, n_samples=10000, max_depth=5):
-    #load ligand densities
-    densities = pd.read_csv(ligand_densities_fn,header=None).values.astype(np.float16)
+    output_file.close()
 
-    idx = densities > 0.0
-    idx = idx.reshape(-1,)
+def validate_interpolation(ligand_densities_fn, sphere_mesh_fn, cortex_mesh_fn, faces_fn, output_dir, ligand='flum', n_samples=10000, max_depth=5, clobber=False):
+
+    output_filename = f'/data/receptor/human/output_2/6_quality_control/validate_interpolation.csv'
+    output_image = f'/data/receptor/human/output_2/6_quality_control/validate_interpolation.png'
+
+    if not os.path.exists(output_filename) or clobber: 
+        #load ligand densities
+        densities = pd.read_csv(ligand_densities_fn,header=None).values.astype(np.float16)
+
+        idx = densities > 0.0
+        idx = idx.reshape(-1,)
+        
+        idx_range = np.arange(idx.shape[0]).astype(int)
+        
+        valid_idx_range = idx_range[idx][0:n_samples]
+
+        #load coords and neighbours
+        coords = read_h5(sphere_mesh_fn)
+        faces = read_h5(faces_fn)
+        cortex_coords = read_h5(cortex_mesh_fn)
+        ngh = get_ngh(coords,faces)
+        
+        output_file = open(output_filename, 'w')
+        output_file.write('ligand,perimeter_dist,area,error,n\n')
+
+        iterate_over_vertices(valid_idx_range, idx, ngh, coords, cortex_coords, faces, densities, output_file, ligand, n_samples=n_samples, max_depth=max_depth)
     
-    idx_range = np.arange(idx.shape[0]).astype(int)
-    
-    valid_idx_range = idx_range[idx][0:n_samples]
-
-    #load coords and neighbours
-    coords, faces = read_gifti(sphere_mesh_fn)
-    cortex_coords, _ = read_gifti(cortex_mesh_fn)
-    ngh = get_ngh(coords,faces)
-   
-    output_file = iterate_over_vertices(valid_idx_range, idx, ngh, coords, cortex_coords, faces, densities, output_file, ligand, n_samples=n_samples, max_depth=max_depth)
-
-    return output_file
+    if not os.path.exists(output_image) :
+        plot_validation(output_filename, output_image)
 
 if __name__ == '__main__' :
     parser = argparse.ArgumentParser(description='Process some integers.')
