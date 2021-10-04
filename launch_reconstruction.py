@@ -29,7 +29,7 @@ global file_dir
 base_file_dir, fn =os.path.split( os.path.abspath(__file__) )
 file_dir = base_file_dir +os.sep +'section_numbers' +os.sep
 
-def create_new_srv_volumes(rec_3d_rsl_fn, srv_rsl_fn, cropped_output_list ):
+def create_new_srv_volumes(rec_3d_rsl_fn, srv_rsl_fn, cropped_output_list, resolution_list ):
     '''
     About : this function creates new gm srv images by removing gm from previously aligned slabs
             a single new volume is created at the highest resolution in the multiresolution
@@ -45,15 +45,16 @@ def create_new_srv_volumes(rec_3d_rsl_fn, srv_rsl_fn, cropped_output_list ):
     '''
     highest_res_srv_rsl_fn = cropped_output_list[-1]
     remove_slab_from_srv(rec_3d_rsl_fn, srv_rsl_fn, highest_res_srv_rsl_fn)
+    print(cropped_output_list)
     print('Next srv fn:', highest_res_srv_rsl_fn)
-
     for i in range(len(cropped_output_list)-1) : #DEBUG resolution_list[0:-1] :
         #DEBUG
         #lower_res_srv_rsl_fn = next_slab_files[str(r)]['srv_crop_rsl_fn']
         lower_res_srv_rsl_fn = cropped_output_list[i]
         if not os.path.exists(lower_res_srv_rsl_fn) :
             r = resolution_list[i]
-            prefilter_and_downsample(highest_res_srv_rsl_fn, float(r), lower_res_srv_rsl_fn, reference_image_fn=rec_3d_rsl_fn)
+            print(i, r, float(r)/np.pi); 
+            prefilter_and_downsample(highest_res_srv_rsl_fn, float(r), lower_res_srv_rsl_fn) #, reference_image_fn=rec_3d_rsl_fn)
 
         print('Next srv fn:', lower_res_srv_rsl_fn)
 
@@ -284,9 +285,8 @@ def setup_parameters(args) :
     ###
     ### Parameters
     ###
-    args.slabs=['1','2','3','4','5','6'] #FIXME shouldnt be hard coded
-    args.slabs=['1', '6', '2','4', '3', '5'] #FIXME shouldnt be hard coded
-    args.slabs=['1']
+    args.slabs = ['1','2','3','4','5','6'] #FIXME shouldnt be hard coded
+    args.slabs = ['1', '6', '2','5', '3', '4'] #FIXME shouldnt be hard coded
 
     if args.scale_factors_fn == None :
         args.scale_factors_fn=base_file_dir+'/scale_factors.json'
@@ -297,10 +297,10 @@ def setup_parameters(args) :
     if args.srv_fn == None :
         args.srv_fn="srv/mri1_gm_bg_srv.nii.gz"
 
-    args.crop_dir=f'{args.out_dir}/0_crop'
+    args.crop_dir = f'{args.out_dir}/0_crop'
     os.makedirs(args.crop_dir,exist_ok=True)
 
-    args.files_json=args.out_dir+"/reconstruction_files.json"
+    args.files_json = args.out_dir+"/reconstruction_files.json"
     files = setup_files_json(args)
 
 
@@ -365,8 +365,6 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, 
         else :
             resolution_itr_3d = resolution_itr
 
-
-
         prev_resolution=resolution_list[resolution_itr-1]
 
         last_nl_2d_vol_fn = files[brain][hemi][str(slab)][str(resolution_list[resolution_itr-1])]['nl_2d_vol_fn']
@@ -421,7 +419,7 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, 
         ### Stage 3.5 : Create a new srv_rsl_fn file that removes the currently aligned slab
         ###
         #check that the current slab isn't the last one
-        not_last_slab = int(slab) < max(slab_list)
+        not_last_slab = slab_index + 1 != len(slab_list)
         if not_last_slab  and resolution == resolution_list[-1] :
             # filenames for the next slab
             next_slab = args.slabs[slab_index+1]
@@ -432,7 +430,8 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, 
             #if run_stage( stage_3_outputs, [highest_res_srv_rsl_fn]) :
             if run_stage( stage_3_outputs, stage_3_5_outputs):
                 print('\t\tStage 3.5 : Removing aligned slab from srv')
-                create_new_srv_volumes(rec_3d_rsl_fn, crop_srv_rsl_fn, stage_3_5_outputs)
+                print(resolution_list)
+                create_new_srv_volumes(rec_3d_rsl_fn, crop_srv_rsl_fn, stage_3_5_outputs, resolution_list)
 
         
         ###
@@ -514,7 +513,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
             
                 shell('antsApplyTransforms -i {brain_section_fn}'
         '''
-
+    
     ###
     ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
     ###
@@ -524,20 +523,23 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     for slab, temp_slab_dict in files[brain][hemi].items() :
         nl_3d_tfm_exists = os.path.exists(temp_slab_dict[resolution_list[-1]]['nl_3d_tfm_fn'])
         nl_2d_vol_exists = os.path.exists(temp_slab_dict[resolution_list[-1]]['nl_2d_vol_fn'])
+        print(slab)
+        print(temp_slab_dict)
         if nl_3d_tfm_exists and nl_2d_vol_exists :
             slab_dict[slab] = temp_slab_dict[resolution_list[-1]] 
         else : 
-            print(f'Error: not including {slab} for interpolation (nl 3d tfm exists = {nl_3d_tfm_exists}, 2d nl vol exists = {nl_2d_vol_exists}) ')
-            exit(0)
+            print(f'Error: not including slab {slab} for interpolation (nl 3d tfm exists = {nl_3d_tfm_exists}, 2d nl vol exists = {nl_2d_vol_exists}) ')
     
+    exit(0) 
     ###
     ### 6. Surface interpolation
     ###
     assert len(slab_dict.keys()) != 0 , print('No slabs to interpolate over')
     ligand='flum'
     ligand_df = hemi_df.loc[ ligand  == hemi_df['ligand'] ]
-    surface_interpolation(slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, ligand_df, args.srv_fn, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
-
+    srv_max_resolution_fn = files[brain][hemi][args.slabs[-1]][resolution_list[-1]]['srv_rsl_fn']
+    surface_interpolation(slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, ligand_df, srv_max_resolution_fn, args, files[brain][hemi], surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+    exit(0)
     ###
     ### 7. Quality Control
     ###

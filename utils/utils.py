@@ -295,14 +295,15 @@ def downsample_and_crop(source_lin_dir, lin_dwn_dir,crop_dir, affine, step=0.2, 
                 bounding_box = bounding_box / np.max(bounding_box)
             img = img * bounding_box 
             nib.processing.resample_to_output(nib.Nifti1Image(img, affine), step, order=5).to_filename(dwn_fn)
-            print("owsampled filename", dwn_fn)
+            print("downsampled filename", dwn_fn)
             #nib.Nifti1Image(img, affine).to_filename(dwn_fn)
 
 def prefilter_and_downsample(input_filename, new_resolution, output_filename, reference_image_fn='' ):
     img = nib.load(input_filename)
     vol = img.get_fdata()
-    base_resolution = (img.affine[0,0]+img.affine[1,1])/2.
-    vol = gaussian_filter(vol, (new_resolution/base_resolution)/np.pi)
+    base_resolution = (img.affine[0,0]+img.affine[1,1]) / 2.
+    vol = gaussian_filter(vol, (new_resolution/base_resolution)/(1*np.pi))
+    
     img = nib.Nifti1Image(vol, img.affine)
 
     if reference_image_fn == '' :

@@ -60,6 +60,7 @@ def downsample_2d(in_fn, resolution, out_fn, y=0):
 
         # reshape it to make sure it's 2d (resampling will make it 3d: [x,y,1])
         vol = vol.reshape(vol.shape[0], vol.shape[1])
+
         
         #create a new Nifti1Image that we can save
         img = nib.Nifti1Image(vol,img.affine)
@@ -215,6 +216,7 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         sd = (float(resolution)/0.02)/np.pi
         #only smooth along y axis because x and z axes are already at lower resolution
         data = gaussian_filter1d(data.astype(float), sd, axis=1 ).astype(float)
+        print(data.shape, sd)
 
         #
         # Save output volume
@@ -229,6 +231,7 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
                         [0, 0.02, 0, ystart ],
                         [0, 0,  resolution, zstart], 
                         [0, 0, 0, 1]]).astype(float)
+
         img_cls = nib.Nifti1Image(data, aff )     
 
         print("Writing output to", out_fn)

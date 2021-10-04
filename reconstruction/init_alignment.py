@@ -236,9 +236,9 @@ def alignment_stage(brain,hemi,slab, df, vol_fn_str, output_dir, scale, transfor
 
     # Set parameters for rigid transform
     tfm_type = 'Rigid'
-    shrink_factor = '12x10x8'#x4x2x1'
-    smooth_sigma = '6x5x4'#x2x1x0'
-    iterations = '100x50x25'#x100x50x20'
+    shrink_factor = '12x10x8' #x4x2x1'
+    smooth_sigma = '6x5x4' #x2x1x0' 
+    iterations = '100x50x25' #x100x50x20'
 
     df['crop_fn_new'] = df['crop_fn']
     df['init_tfm'] = [None] * df.shape[0]

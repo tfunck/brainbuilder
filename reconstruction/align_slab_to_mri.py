@@ -64,7 +64,7 @@ def get_slab_width(slabs, df, ystep, ystart, unaligned_slab_list):
     
     return slab_width, total_slab_width
 
-def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction, verbose=False):
+def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_min, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction, verbose=False):
 
     slabs.sort()
 
@@ -76,7 +76,7 @@ def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_max, srv_width, s
     total_slab_gap = srv_width - total_slab_width
 
     n_slabs = len(np.unique(df['slab']))
-    average_slab_gap = total_slab_gap / n_slabs
+    average_slab_gap = (total_slab_gap / n_slabs) / 2.
 
     # |   | |   |   |    |
     # |   | |   |   |    |
@@ -85,11 +85,11 @@ def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_max, srv_width, s
     print(slab_direction, slab_width[str(cur_slab)], average_slab_gap)
 
     if slab_direction == "rostral_to_caudal" :
-        y0w = srv_max - slab_width[str(cur_slab)] - average_slab_gap / 2 #1.2
+        y0w = srv_max - slab_width[str(cur_slab)] - average_slab_gap 
         y1w = srv_max
     elif slab_direction == "caudal_to_rostral" :
         y0w = srv_min
-        y1w = srv_min + slab_width[str(cur_slab)] + average_slab_gap / 2 #1.2
+        y1w = srv_min + slab_width[str(cur_slab)] + average_slab_gap 
     else :
         print('Slab direction not recognized,', slab_direction)
         exit(1)
@@ -182,12 +182,13 @@ def get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr
     nl_itr_str='x'.join([str(max_nl_itr - i*nl_step) for i in range(len(f_list))  ])
     return f_str, s_str, lin_itr_str, nl_itr_str
 
-def write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0, y1, srv_ystep, srv_ystart, max_downsample_level, clobber=False):
+def write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0, y1, resolution, srv_ystep, srv_ystart, max_downsample_level, clobber=False):
 
-    srv_slab_fn=f'{out_dir}/{brain}_{hemi}_{slab}_srv_{y0}_{y1}.nii.gz' 
+    srv_slab_fn=f'{out_dir}/{brain}_{hemi}_{slab}_{resolution}mm_srv_{y0}_{y1}.nii.gz' 
 
     if not os.path.exists(srv_slab_fn) or clobber :
         # write srv slab if it does not exist
+        print(f'\t\tWriting srv slab for file\n\n{srv_rsl_fn}')
         srv_img = nib.load(srv_rsl_fn)
         srv_vol = srv_img.get_fdata()
         aff=srv_img.affine
@@ -209,10 +210,11 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
     prefix_syn=prefix+'_SyN_'
 
     #calculate SyN
-    if float(resolution) >= 1.0 :
-        nl_metric = f'CC[{srv_slab_fn},{seg_rsl_fn},1,3,Regular,1]'
-    else :
-        nl_metric=f'Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]'
+    nl_metric=f'Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]'
+    #if float(resolution) >= 1.0 :
+    #    nl_metric = f'CC[{srv_slab_fn},{seg_rsl_fn},1,2,Regular,1]'
+    #else :
+    nl_metric=f'Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]'
 
     if not os.path.exists(temp_out_fn) or not os.path.exists(out_tfm_fn) or clobber:
         # set initial transform
@@ -228,7 +230,7 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
 
         #calculate affine registration
         if not os.path.exists(f'{prefix_affine}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3 --initial-moving-transform {prefix_similarity}Composite.h5 -t Affine[.1]  -m {nl_metric}  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+            shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3 --initial-moving-transform {prefix_similarity}Composite.h5 -t Affine[.1] -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{temp_out_fn},{out_inv_fn}] ', verbose=True)
         # Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]
 
         if not os.path.exists(f'{prefix_syn}Composite.h5'):
@@ -268,13 +270,13 @@ def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, sl
     print('ystart/ystep/srv_max', ystart, ystep, srv_max)
 
     # get the start and end values of the slab in srv voxel coordinates
-    y0, y1 = get_slab_start_end(df, slabs, ystep, ystart, slab, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction)
+    y0, y1 = get_slab_start_end(df, slabs, ystep, ystart, slab, srv_min, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction)
  
     # get iteration schedules for the linear and non-linear portion of the ants alignment
     f_str, s_str, lin_itr_str, nl_itr_str = get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr)
     
     # extract slab from srv and write it
-    srv_slab_fn = write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0, y1, srv_ystep, srv_ystart, max_downsample_level)
+    srv_slab_fn = write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0, y1, resolution, srv_ystep, srv_ystart, max_downsample_level)
 
     # run ants alignment between segmented volume (from autoradiographs) to slab extracte
     run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution )
