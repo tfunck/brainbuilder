@@ -201,22 +201,23 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
             i1=valid_slices[dif[1]]
             i2=valid_slices[dif[2]]
             i3=valid_slices[dif[3]]
-            data[:,i,:] = data[:,i0,:]*0.4 + data[:,i1,:]*0.35  + data[:,i2,:]*0.25
+            #nearest neighbough interpolation
+            data[:,i,:] = data[:,i0,:]
+            #use weighting from adjacent sections
+            #data[:,i,:] = data[:,i0,:]*0.4 + data[:,i1,:]*0.35  + data[:,i2,:]*0.25
 
         # Denoise data
         #data[data<0.55] =0 
         #data[data>=0.55] =1 
         structure = np.zeros([3,3,3])
         structure[1,:,1] = 1
-        # Binary Erosion
-        #data = binary_erosion(data,iterations=1,structure=structure)
-        # Binary Dilation
-        #data = binary_dilation(data, iterations=3, structure=structure).astype(np.int16)
+        
         # Gaussian blurring
-        sd = (float(resolution)/0.02)/np.pi
+        #sd = (float(resolution)/0.02)/np.pi
+        #effective resolution across y is really actually closer to 1mm not 0.02, so trying that instead 
+        sd = (float(resolution)/1)/np.pi
         #only smooth along y axis because x and z axes are already at lower resolution
         data = gaussian_filter1d(data.astype(float), sd, axis=1 ).astype(float)
-        print(data.shape, sd)
 
         #
         # Save output volume

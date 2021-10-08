@@ -267,7 +267,6 @@ def calculate_regional_averages(atlas_fn, ligand_fn, source, conversion_factor=1
 
     atlas_volume = atlas_img.get_fdata().astype(int)
     reconstucted_volume = ligand_img.get_fdata()
-
     
     atlas_volume[reconstucted_volume < 1] = 0
 
@@ -286,6 +285,9 @@ def calculate_regional_averages(atlas_fn, ligand_fn, source, conversion_factor=1
 
     averages_out, labels_out, n_voxels = average_over_label(atlas_volume.reshape(-1,), reconstucted_volume.reshape(-1,), conversion_factor=conversion_factor )
 
+    print(len(averages_out))
+    print(len(labels_out))
+    print(n_voxels)
     df = pd.DataFrame({'source':[source]*len(labels_out), 'label':labels_out,'average':averages_out, 'n':n_voxels})
     print(df)
     return df
@@ -366,7 +368,9 @@ def calculate_mesh_regional_averages(base_out_dir, resolution, slab, ligand, atl
     vertex_labels[vertex_values<1] = 0
  
     averages_out, labels_out, n_vertices = average_over_label(vertex_labels, vertex_values, conversion_factor=conversion_factor )
-    
+
+
+     
     df = pd.DataFrame({'source':[source]*len(labels_out), 'label':labels_out,'average':averages_out, 'n':n_vertices})
     print(df)
     return df
@@ -378,22 +382,20 @@ def average_over_label(labels, values, conversion_factor=1 ):
 
     n[n<5]=0 # ignore small regions
 
-
     averages = np.zeros_like(total)
     averages[n>0] = total[n>0]/n[n>0] * conversion_factor
-
+    
     unique_labels = np.unique( labels )[1:]
     
     averages_out = []
     labels_out = []
     n_out = n[n>0][1:]
 
-    for i in range( 1, averages.shape[0]+1 ):
+    for i in range( 1, averages.shape[0] ):
         #if i in unique_labels : print(i, n[i], averages[i])
         if i in unique_labels and n[i]>0 :
             averages_out.append(averages[i])
             labels_out.append(i)
-
     return averages_out, labels_out, n_out
 
 
@@ -406,28 +408,54 @@ def combine_data_frames(df_list,y,slab,ligand):
     df_out['ligand'] = [ligand]*df_out.shape[0]
 
     #df_out = pd.pivot_table(df_out, index=['slab','ligand','label'], columns=['source'], values=['average','n'])
-    df_out.dropna(inplace=True)
+    #df_out.dropna(inplace=True)
     #df_out['error'] = np.abs(df_out['reconstructed']-df_out['original'])/df_out['original']
-    print(df_out)
     return df_out 
+
+
 
 def validate_reconstructed_sections(resolution, slabs, n_depths, df, base_out_dir='/data/receptor/human/output_2/', clobber=False):
     
     qc_dir = f'{base_out_dir}/6_quality_control/'
     out_fn = f'{qc_dir}/reconstruction_validation.csv'
+
     
-    if not os.path.exists(out_fn) :
+    ligand = np.unique(df['ligand'])[0]
+    reconstucted_volume_fn = f'{base_out_dir}/5_surf_interp/MR1_R_{ligand}_{resolution}mm_space-mni.nii.gz'
+    clobber = False
+    if not os.path.exists(out_fn) or clobber :
         df_list=[]
 
         os.makedirs(qc_dir, exist_ok=True)
 
         atlas_fn='/data/receptor/atlas/JuBrain_Map_v30_seg.nii'
-        #atlas_fn='/data/receptor/atlas/dka.nii.gz'
+        atlas_fn='/data/receptor/atlas/dka.nii.gz'
         atlas_rsl_fn=re.sub('.nii',f'_{resolution}mm.nii',atlas_fn)
 
+        if not os.path.exists(atlas_rsl_fn) or clobber :
+            resample_from_to(nib.load(atlas_fn), nib.load(reconstucted_volume_fn), order=0).to_filename(atlas_rsl_fn)
+
+        df_mni = calculate_regional_averages(atlas_rsl_fn, reconstucted_volume_fn, 'reconstructed')
+        
+        df_list += [ combine_data_frames([df_mni], None, None, ligand) ]
+
+        for slab in np.unique(df['slab']) :
+            nl_2d_fn = f'{base_out_dir}/5_surf_interp/thickened_{slab}_{ligand}_{resolution}.nii.gz'
+            out_dir = f'{base_out_dir}/MR1_R_{slab}/{resolution}mm/'
+            nl_3d_inv_fn = f'{out_dir}/3_align_slab_to_mri/rec_to_mri_SyN_InverseComposite.h5'
+            df['conversion_factor'].loc[ (df['slab'] == slab) ]
+            atlas_nl2d_fn = transform_volume(atlas_rsl_fn, nl_2d_fn, nl_3d_inv_fn, slab,  qc_dir, space='nl2d_label', clobber=clobber)
+
+            # Get a current section (y) from ligand volume in nl2d space
+            df_nl2d = calculate_regional_averages(atlas_nl2d_fn, nl_2d_fn, 'nl2d')
+
+            df_list += [ combine_data_frames( [df_nl2d], slab, -1, ligand) ]
+        
         for row_index, row in df.iterrows():
             slab = row['slab']
-            print(slab, slabs)
+            
+            out_dir = f'{base_out_dir}/MR1_R_{slab}/{resolution}mm/'
+            
             if not str(slab) in slabs : continue 
 
             y = row['volume_order']
@@ -437,50 +465,32 @@ def validate_reconstructed_sections(resolution, slabs, n_depths, df, base_out_di
             autoradiograph_fn = row['crop_fn']
             ligand = row['ligand']
 
-            out_dir = f'{base_out_dir}/MR1_R_{slab}/{resolution}mm/'
-            reconstucted_volume_fn = f'{base_out_dir}/5_surf_interp/MR1_R_{ligand}_{resolution}mm_l{n_depths}.nii.gz'
             nl_3d_inv_fn = f'{out_dir}/3_align_slab_to_mri/rec_to_mri_SyN_InverseComposite.h5'
             nl_3d_fn = f'{out_dir}/3_align_slab_to_mri/rec_to_mri_SyN_Composite.h5'
-            nl_2d_fn = f'{out_dir}/4_nonlinear_2d/MR1_R_{slab}_nl_2d_{resolution}mm.nii.gz'
             reference_section_fn = f'{out_dir}/4_nonlinear_2d/tfm/y-{y}_fx.nii.gz'
             nl_2d_inv_tfm = f'{out_dir}/4_nonlinear_2d/tfm/y-{y}_InverseComposite.h5'
 
-            if not os.path.exists(atlas_rsl_fn) or clobber :
-                resample_from_to(nib.load(atlas_fn), nib.load(reconstucted_volume_fn), order=0).to_filename(atlas_rsl_fn)
-            
             index_volume_nl2d_fn = create_index_volume(nl_2d_fn, y, qc_dir, basename, clobber=clobber)
             index_volume_mni_fn = transform_volume(index_volume_nl2d_fn, reconstucted_volume_fn, nl_3d_fn, slab, qc_dir, space='mni', clobber=clobber)
-
-            # Transform reconstructed ligand volume to nl2d space produced in stage 4 of reconstruction
-            atlas_nl2d_fn = transform_volume(atlas_fn, nl_2d_fn, nl_3d_inv_fn, slab,  qc_dir, space='nl2d_label', clobber=clobber)
-            reconstructed_nl2d_fn = transform_volume(reconstucted_volume_fn, nl_2d_fn, nl_3d_inv_fn, slab, qc_dir, space='nl2d_ligand', clobber=clobber)
              
-            # 2d ligand section from reconstructed volume in mni space
-            #ligand_mni_fn = extract_section_from_volume(reconstucted_volume_fn, reference_section_fn, qc_dir, basename+'_ligand_space-mni', y, clobber=clobber)
-            #label_mni_fn = extract_section_from_volume(atlas_fn, reference_section_fn, qc_dir, basename+'_label_space-mni', y, clobber=clobber)
-
-            # Get a current section (y) from ligand volume in nl2d space
             label_nl2d_fn = extract_section_from_volume(atlas_nl2d_fn, reference_section_fn, qc_dir, basename+'_label_space-nl2d', y, clobber=clobber)
-            nlaligned_nl2d_fn = extract_section_from_volume(nl_2d_fn, reference_section_fn, qc_dir, basename+'_ligand_space-nl2d', y, clobber=clobber)
-            
             # Transform reconstructed ligand section into native autoradiograph space
             label_nat_fn = transform_section(autoradiograph_fn, label_nl2d_fn, nl_2d_inv_tfm, qc_dir, basename, y, clobber=clobber) 
 
             # Calculate the difference between raw autoradiograph and the reconstructed section
-            #error_mean, error_std = difference_sections(autoradiograph_fn, nlaligned_nat_fn, conversion_factor, qc_dir, basename, y, clobber=clobber)
-            df_nl2d = calculate_regional_averages(label_nl2d_fn, nlaligned_nl2d_fn, 'nl2d', conversion_factor=conversion_factor)
-            df_mni = calculate_regional_averages(atlas_rsl_fn, reconstucted_volume_fn, 'reconstructed', extra_mask_fn=index_volume_mni_fn)
             df_nat = calculate_regional_averages(label_nat_fn, autoradiograph_fn, 'original', conversion_factor=conversion_factor)
 
-            qc_image_list=[reconstructed_nl2d_fn, nlaligned_nl2d_fn, autoradiograph_fn]
-            qc_label_list=[label_nl2d_fn, label_nl2d_fn,label_nat_fn]
-            plot_target_section(qc_image_list, qc_label_list, qc_dir, basename, y)
-            
-            df_surf = calculate_mesh_regional_averages(base_out_dir, resolution, slab, ligand, atlas_rsl_fn,nl_2d_fn, y, n_depths, 'surf')
-             
-            df_list += [ combine_data_frames([df_nat,df_mni,df_nl2d,df_surf],y,slab,ligand) ]
+            qc_image_list = []
+            qc_label_list = []
+            #plot_target_section(qc_image_list, qc_label_list, qc_dir, basename, y)
+            df_list += [ combine_data_frames([df_nat], y, slab, ligand) ]
 
-        df_final = pd.concat(df_list) 
-        print(df_final)
-        df_final.to_csv(out_fn)
 
+        pd.concat(df_list).to_csv(out_fn)
+
+# 2d ligand section from reconstructed volume in mni space
+#ligand_mni_fn = extract_section_from_volume(reconstucted_volume_fn, reference_section_fn, qc_dir, basename+'_ligand_space-mni', y, clobber=clobber)
+#label_mni_fn = extract_section_from_volume(atlas_fn, reference_section_fn, qc_dir, basename+'_label_space-mni', y, clobber=clobber)
+#error_mean, error_std = difference_sections(autoradiograph_fn, nlaligned_nat_fn, conversion_factor, qc_dir, basename, y, clobber=clobber)
+#qc_image_list=[reconstructed_nl2d_fn, nlaligned_nl2d_fn, autoradiograph_fn]
+#qc_label_list=[label_nl2d_fn, label_nl2d_fn,label_nat_fn]

@@ -253,7 +253,7 @@ def setup_files_json(args ):
                         cdict['init_align_fn']=cdict['init_align_dir'] + f'/brain-{brain}_hemi-{hemi}_slab-{slab}_init_align.nii.gz'
 
                     # Filenames
-                    cdict['seg_rsl_fn']='{}/brain-{}_hemi-{}_slab-{}_seg_{}mm.nii.gz'.format(cdict['seg_dir'],brain, hemi, slab, resolution)
+                    cdict['seg_rsl_fn']='{}/{}_{}_{}_seg_{}mm.nii.gz'.format(cdict['seg_dir'],brain, hemi, slab, resolution)
                     cdict['srv_rsl_fn'] = cdict['srv_dir']+f'/{brain}_{hemi}_{slab}_mri_gm_{resolution}mm.nii.gz' 
                     cdict['srv_crop_rsl_fn'] = cdict['srv_dir']+f'/{brain}_{hemi}_{slab}_mri_gm_crop_{resolution}mm.nii.gz' 
 
@@ -285,7 +285,6 @@ def setup_parameters(args) :
     ###
     ### Parameters
     ###
-    args.slabs = ['1','2','3','4','5','6'] #FIXME shouldnt be hard coded
     args.slabs = ['1', '6', '2','5', '3', '4'] #FIXME shouldnt be hard coded
 
     if args.scale_factors_fn == None :
@@ -523,14 +522,11 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     for slab, temp_slab_dict in files[brain][hemi].items() :
         nl_3d_tfm_exists = os.path.exists(temp_slab_dict[resolution_list[-1]]['nl_3d_tfm_fn'])
         nl_2d_vol_exists = os.path.exists(temp_slab_dict[resolution_list[-1]]['nl_2d_vol_fn'])
-        print(slab)
-        print(temp_slab_dict)
         if nl_3d_tfm_exists and nl_2d_vol_exists :
             slab_dict[slab] = temp_slab_dict[resolution_list[-1]] 
         else : 
             print(f'Error: not including slab {slab} for interpolation (nl 3d tfm exists = {nl_3d_tfm_exists}, 2d nl vol exists = {nl_2d_vol_exists}) ')
     
-    exit(0) 
     ###
     ### 6. Surface interpolation
     ###
@@ -539,7 +535,6 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     ligand_df = hemi_df.loc[ ligand  == hemi_df['ligand'] ]
     srv_max_resolution_fn = files[brain][hemi][args.slabs[-1]][resolution_list[-1]]['srv_rsl_fn']
     surface_interpolation(slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, ligand_df, srv_max_resolution_fn, args, files[brain][hemi], surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
-    exit(0)
     ###
     ### 7. Quality Control
     ###
@@ -569,6 +564,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 
 if __name__ == '__main__':
     resolution_list = ['4.0', '3.5', '3.0', '2.5', '2.0', '1.5', '1.0'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
+    resolution_list = [ '2.0', '1.5', '1.0'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
 
     args, files = setup_parameters(setup_argparse().parse_args() )
     #Process the base autoradiograph csv

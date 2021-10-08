@@ -66,7 +66,9 @@ def get_slab_width(slabs, df, ystep, ystart, unaligned_slab_list):
 
 def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_min, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction, verbose=False):
 
-    slabs.sort()
+    temp_slabs = slabs.copy()
+    temp_slabs.sort()
+    slabs = temp_slabs
 
     slab_processing_order = range(len(slabs)) #Could be changed to a different ordering eventually
     unaligned_slab_list = [ i+1 for i in slab_processing_order if i+1 <= cur_slab ]
@@ -85,7 +87,7 @@ def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_min, srv_max, srv
     print(slab_direction, slab_width[str(cur_slab)], average_slab_gap)
 
     if slab_direction == "rostral_to_caudal" :
-        y0w = srv_max - slab_width[str(cur_slab)] - average_slab_gap 
+        y0w = srv_max - slab_width[str(cur_slab)] #- average_slab_gap 
         y1w = srv_max
     elif slab_direction == "caudal_to_rostral" :
         y0w = srv_min
@@ -214,6 +216,7 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
     #if float(resolution) >= 1.0 :
     #    nl_metric = f'CC[{srv_slab_fn},{seg_rsl_fn},1,2,Regular,1]'
     #else :
+    #    nl_metric=f'Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]'
     nl_metric=f'Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]'
 
     if not os.path.exists(temp_out_fn) or not os.path.exists(out_tfm_fn) or clobber:
@@ -222,19 +225,19 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
         
         # calculate rigid registration
         if not os.path.exists(f'{prefix_rigid}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3 {init_moving} -t Rigid[.1] -c {lin_itr_str}  -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s {s_str} -f {f_str} -o [{prefix_rigid},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+            shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3 {init_moving} -t Rigid[.1] -c {lin_itr_str}  -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s {s_str} -f {f_str} -o [{prefix_rigid},{temp_out_fn},{out_inv_fn}] ', verbose=True)
         
         # calculate similarity registration
         if not os.path.exists(f'{prefix_similarity}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3 --initial-moving-transform {prefix_rigid}Composite.h5    -t Similarity[.1]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+            shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3 --initial-moving-transform {prefix_rigid}Composite.h5    -t Similarity[.1]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{temp_out_fn},{out_inv_fn}] ', verbose=True)
 
         #calculate affine registration
         if not os.path.exists(f'{prefix_affine}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3 --initial-moving-transform {prefix_similarity}Composite.h5 -t Affine[.1] -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+            shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3 --initial-moving-transform {prefix_similarity}Composite.h5 -t Affine[.1] -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{temp_out_fn},{out_inv_fn}] ', verbose=True)
         # Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]
 
         if not os.path.exists(f'{prefix_syn}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3  --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[.1] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+            shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3  --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[.1] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{temp_out_fn},{out_inv_fn}] ', verbose=True)
             #[{nl_itr_str},1e-08,20]
 
     if not os.path.exists(out_fn):

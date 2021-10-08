@@ -841,40 +841,40 @@ def surface_interpolation(slab_dict, out_dir, interp_dir, brain, hemi, resolutio
     interp_fn_list = []
     interp_fn_mni_list = []
     for ligand, df_ligand in df.groupby(['ligand']):
+        print('\tReconstructing', ligand)
+        
         for slab in args.slabs :
             interp_fn  = f'{interp_dir}/{brain}_{hemi}_{slab}_{ligand}_{resolution}mm_l{n_depths}_space-slab.nii.gz'
             interp_space_mni_fn  = f'{interp_dir}/{brain}_{hemi}_{slab}_{ligand}_{resolution}mm_l{n_depths}_space-mni.nii.gz'
             interp_fn_list.append( interp_fn ) 
             interp_fn_mni_list.append(interp_space_mni_fn)
+            if False in [ os.path.exists(fn) for fn in [interp_fn, interp_space_mni_fn ] ] :
+                ligands_to_reconstruct += [( interp_fn, interp_space_mni_fn)]
 
-            if not os.path.exists(interp_fn) or not os.path.exists(interp_space_mni_fn) or clobber :
-                ligands_to_reconstruct += [(ligand, df_ligand, interp_fn, interp_space_mni_fn)]
 
-    
+        for  interp_fn, interp_space_mni_fn in ligands_to_reconstruct:
+            print('\tInterpolating for ligand:',ligand)
+            profiles_fn = f'{interp_dir}/{brain}_{hemi}_{ligand}_{resolution}mm_profiles.h5'
+            combined_slab_mni_fn = f'{interp_dir}/{brain}_{hemi}_{ligand}_{resolution}mm_space-mni_not_filled.nii.gz'
+            surf_interp_mni_fn = f'{interp_dir}/{brain}_{hemi}_{ligand}_{resolution}mm_surf-interp_space-mni.nii.gz'
 
-    for ligand, df_ligand, interp_fn, interp_space_mni_fn in ligands_to_reconstruct:
-        print('\tInterpolating for ligand:',ligand)
-        profiles_fn = f'{interp_dir}/{brain}_{hemi}_{ligand}_{resolution}mm_profiles.h5'
-        combined_slab_mni_fn = f'{interp_dir}/{brain}_{hemi}_{ligand}_{resolution}mm_space-mni_not_filled.nii.gz'
-        final_mni_fn = f'{interp_dir}/{brain}_{hemi}_{ligand}_{resolution}mm_space-mni.nii.gz'
-        surf_interp_mni_fn = f'{interp_dir}/{brain}_{hemi}_{ligand}_{resolution}mm_surf-interp_space-mni.nii.gz'
+            # Extract profiles from the slabs using the surfaces 
+            thickened_fn_dict = get_profiles(interp_dir, interp_dir +'/surfaces/', depth_list, profiles_fn, slab_dict, df_ligand, depth_fn_mni_space, depth_fn_slab_space, resolution)
+            
+            # Interpolate a 3D receptor volume from the surface mesh profiles
+            print('\tCreate Reconstructed Volume')
+            create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, profiles_fn, depth_list, depth_fn_slab_space, args, files, resolution, df_ligand, use_mapper=True, clobber=False)
 
-        # Extract profiles from the slabs using the surfaces 
-        thickened_fn_dict = get_profiles(interp_dir, interp_dir +'/surfaces/', depth_list, profiles_fn, slab_dict, df_ligand, depth_fn_mni_space, depth_fn_slab_space, resolution)
+            # transform interp_fn to mni space
+            print('\tTransform slab to mni')
+            for slab in args.slabs :
+                interp_fn  = f'{interp_dir}/{brain}_{hemi}_{slab}_{ligand}_{resolution}mm_l{n_depths}_space-slab.nii.gz'
+                interp_space_mni_fn  = f'{interp_dir}/{brain}_{hemi}_{slab}_{ligand}_{resolution}mm_l{n_depths}_space-mni.nii.gz'
+                tfm = slab_dict[slab]['nl_3d_tfm_fn']
+                if not os.path.exists(interp_space_mni_fn) :
+                    shell(f'antsApplyTransforms -d 3 -n  HammingWindowedSinc -i {interp_fn} -r {mni_fn} -t {tfm} -o {interp_space_mni_fn}')
         
-        # Interpolate a 3D receptor volume from the surface mesh profiles
-        print('\tCreate Reconstructed Volume')
-        create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, profiles_fn, depth_list, depth_fn_slab_space, args, files, resolution, df_ligand, use_mapper=True, clobber=False)
-
-        # transform interp_fn to mni space
-        print('\tTransform slab to mni')
-        for slab in args.slabs :
-            interp_fn  = f'{interp_dir}/{brain}_{hemi}_{slab}_{ligand}_{resolution}mm_l{n_depths}_space-slab.nii.gz'
-            interp_space_mni_fn  = f'{interp_dir}/{brain}_{hemi}_{slab}_{ligand}_{resolution}mm_l{n_depths}_space-mni.nii.gz'
-            tfm = slab_dict[slab]['nl_3d_tfm_fn']
-            if not os.path.exists(interp_space_mni_fn) :
-                shell(f'antsApplyTransforms -d 3 -n  HammingWindowedSinc -i {interp_fn} -r {mni_fn} -t {tfm} -o {interp_space_mni_fn}')
-
+        final_mni_fn = f'{interp_dir}/{brain}_{hemi}_{ligand}_{resolution}mm_space-mni.nii.gz'
         # interpolate from surface to volume over entire brain
         print('\tCreate final reconstructed volume')
         if not os.path.exists(final_mni_fn):

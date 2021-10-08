@@ -3,8 +3,6 @@ import nibabel as nib
 import pandas as pd
 import numpy as np
 import statsmodels.formula.api as smf
-import seaborn as sns
-import matplotlib.pyplot as plt
 import os
 from re import sub
 from glob import glob
@@ -39,8 +37,9 @@ for i, auto_row in auto_info.iterrows():
     image = sub('.TIF', '', sub('#L.TIF','',os.path.basename(auto_row['lin_fn'])  ))
     info_row = info.loc[ info['Image'] == image.lower() ]
 
-    if np.sum( info['Image'] == image.lower() )  == 0 : continue
-    print(info_row['SA'])
+    if np.sum( info['Image'] == image.lower() )  == 0 : 
+        print(image)
+        continue
 
     Sa = float(info_row['SA'].values[0])
     Kd = float(info_row['KD'].values[0])
@@ -50,8 +49,12 @@ for i, auto_row in auto_info.iterrows():
     if Cmax == - 1 : continue #Cmax == -1 means that the .grt file containing cmax was not found
 
     conversion_factor = Cmax / (255 * Sa) * (Kd + L) / L
+    print('\t', image, '->', conversion_factor)
+    assert conversion_factor > 0 , f'Error : conversion factor < 0. {image}'
 
-    auto_info['conversion_factor'].loc[ (auto_info['hemisphere']==hemi) & (auto_info['ligand']==ligand) & (auto_info['sheet']==int(sheet)) & (auto_info['repeat'].astype(str)==str(repeat))  & (auto_info['slab']==int(slab)) ] = conversion_factor
-
+    #auto_info['conversion_factor'].loc[ (auto_info['hemisphere']==hemi) & (auto_info['ligand']==ligand) & (auto_info['sheet']==int(sheet)) & (auto_info['repeat'].astype(str)==str(repeat))  & (auto_info['slab']==int(slab)) ] = conversion_factor
+    auto_info['conversion_factor'].iloc[i] = conversion_factor
+    print(auto_info.iloc[i])
+print(auto_info)
 auto_info.to_csv('section_numbers/autoradiograph_info.csv')
 

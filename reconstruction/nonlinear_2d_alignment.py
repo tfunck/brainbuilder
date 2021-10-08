@@ -61,7 +61,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
 
     mv_fn = get_seg_fn(mv_dir, y, resolution, row['seg_fn'], suffix='_rsl')
 
-    print('\t\t',y)
+    #print('\t\t',y)
     
     init_tfm = row['init_tfm']
     init_str = f'[{fx_fn},{mv_fn},1]'
@@ -120,7 +120,6 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
 
     num_cores = min(14, multiprocessing.cpu_count() )
     print('num cores', num_cores)
-    print(df.shape, df.shape)
     to_do_df = pd.DataFrame([])
     to_do_resample_df = pd.DataFrame([])
     df['tfm_affine']=['']*df.shape[0]
