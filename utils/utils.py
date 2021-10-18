@@ -22,6 +22,63 @@ from sklearn.cluster import KMeans
 from scipy.ndimage import zoom
 from skimage.transform import resize
 
+def read_points(fn):
+    start_read=False
+    points0 = []
+    points1 = []
+    with open(fn,'r') as F:
+        for line in F.readlines() :
+            if start_read : 
+                string_split = line.split(' ')
+                points0 += [[ float(i) for i in string_split[1:4] ]]
+                points1 += [[ float(i) for i in string_split[4:7] ]]
+   
+            if 'Points' in line : start_read=True
+
+    return np.array(points0), np.array(points1)
+
+def safe_ants_image_read(fn, tol=0.001, clobber=False):
+    img = nib.load(fn)  
+    origin = list(img.affine[ [0,1,2],[3,3,3] ])
+    spacing = list( img.affine[ [0,1,2],[0,1,2] ])
+    ants_image = ants.from_numpy(img.get_fdata(), origin=origin, spacing=spacing)
+    return ants_image
+
+
+def points2vol(points_fn, vol0_fn, vol1_fn, invert=False, clobber=False):
+
+    affine_fn = os.path.splitext(points_fn)[0] + '_affine.mat'
+
+    if not os.path.exists(affine_fn) :
+        # rec_points, mni_points
+        points_0, points_1 = read_points(points_fn)
+
+        if not invert :
+            # rec <- vol
+            print('vol -> rec')
+            fixed_fn = vol0_fn          # rec vol
+            fixed_points = points_0     # rec points
+            moving_fn = vol1_fn         # mni vol
+            moving_points = points_1    # mni points
+        else :
+            # rec -> vol
+            print('rec -> vol')
+            fixed_fn = vol1_fn          # mni vol
+            fixed_points = points_1     # mni points
+            moving_fn = vol0_fn         # rec vol
+            moving_points = points_0    # rec points
+
+        print('\tMoving fn:', moving_fn)
+        print('\tFixed fn:', fixed_fn)
+        
+
+        # remember: for some reason ants applies transforms to points backwards!!!
+        # so fixed and moving points are flipped for fit_transform_to_paired_points
+        landmark_tfm = ants.fit_transform_to_paired_points(fixed_points, moving_points, transform_type="Affine")
+
+        ants.write_transform(landmark_tfm, affine_fn)
+
+    return affine_tfm
 def newer_than(input_list, output_list) :
     '''
     check if the files in input list are newer than target_filename
@@ -164,7 +221,7 @@ def add_padding(img, zmax, xmax):
     z_pad = pad_size(dz)
     x_pad = pad_size(dx)
     
-    img_pad = np.pad(img, (z_pad,x_pad), 'minimum')
+    img_pad = np.pad(img, (z_pad,x_pad), 'constant', constant_values=np.max(img))
     #img_pad = np.zeros([zmax,xmax])
     #img_pad[z_pad[0]:, x_pad[0]: ] = img
     return img_pad

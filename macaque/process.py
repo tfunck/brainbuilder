@@ -146,21 +146,27 @@ def add_histology_images(hist_files):
     return df
 
 
-def create_section_dataframe(auto_dir, hist_dir, short_repeat_dict, long_repeat_dict, crop_dir, csv_fn ):
+def create_section_dataframe(auto_dir, hist_dir, crop_dir, csv_fn ):
+
+    # Define the order of ligands in "short" repeats
+    short_repeat = ['ampa', 'kain', 'mk80', 'cellbody_a', 'musc', 'cgp5', 'flum', 'pire', 'hist_myelin', 'oxot', 'damp', 'epib', 'praz', 'uk14','cellbody_b', 'dpat', 'keta', 'sch2', 'racl', 'hist_myelin', 'dpmg', 'zm24']
+
+    # Define the order of ligands in "long" repeats
+    long_repeat = ['ampa', 'ampa_ub', 'kain', 'kain_ub', 'mk80', 'mk80_ub','cellbody_a', 'musc', 'musc_ub', 'cgp5', 'cgp5_ub','flum', 'flum_ub', 'pire', 'pire_ub', 'hist_myelin', 'oxot', 'oxot_ub', 'damp', 'damp_ub', 'epib', 'epib_ub', 'praz', 'praz_ub', 'uk14', 'uk14_ub', 'cellbody_b', 'dpat', 'dpat_ub', 'keta', 'keta_ub', 'sch2', 'sch2_ub', 'racl', 'racl_ub', 'hist_myelin', 'dpmg', 'dpmg_ub', 'zm24', 'zm24_ub']
+
+    # create dictionaries for short and long repeats with integers associated with each ligand
+    short_repeat_dict = { v:k for k,v in dict(enumerate(short_repeat)).items() }
+    long_repeat_dict = { v:k for k,v in dict(enumerate(long_repeat)).items() }
 
     if not os.path.exists(csv_fn) or True :
     
         # load raw tif files
         auto_files = [ fn for fn in glob(f'{auto_dir}/*TIF') ] #if not 'UB' in fn and not '#00' in fn ]
         
-        
         short_repeat_size = len(short_repeat_dict) + 2 # +2 because there are two cell body and two myelin stains 
         long_repeat_size = len(long_repeat_dict) + 2
 
         df = add_autoradiographs_images(auto_files)
-        #df_hist = add_histology_images( hist_files)
-        #df = pd.concat([df_auto, df_hist])
-
 
         # get the number of sections in a repeat to determine if it is 'short' or 'long'
         df['repeat_count'] = [0]*df.shape[0]
@@ -185,8 +191,6 @@ def create_section_dataframe(auto_dir, hist_dir, short_repeat_dict, long_repeat_
         # 'section' represents the order within a repeat based on whether it's a long or a short repeat
         # 'repeat' represents block of brain tissue where sections were acquired sequentially.
         df['order'] = (repeat-1) * df['repeat_count'] + (repeat-1)* np.rint(.750/0.02) + section
-        #plt.scatter(df['order'].values, [1]*df['order'].shape[0] )
-        #plt.show()
         
         df['crop'] = [None] * df.shape[0]
 
@@ -330,39 +334,32 @@ def align(df, init_dir, volume_fn ):
     concat_section_to_volume(aligned_df, volume_fn )
     return aligned_df
 
-def launch():
-    auto_dir = 'macaque/img_lin/'
-    crop_dir = 'macaque/crop/'
-    init_dir = 'macaque/init_align/'
-    hist_dir = 'macaque/hist_split/'
-    csv_fn = 'macaque/sections.csv'
-    volume_fn = 'macaque/volume.nii.gz'
-    volume_init_fn = 'macaque/init_volume.nii.gz'
+def reconstruct(subject_id,auto_dir, hist_dir, out_dir, csv_fn, ligands_to_exclude):
 
-    # define the order of ligands in "short" repeats
-    short_repeat = ['ampa', 'kain', 'mk80', 'cellbody_a', 'musc', 'cgp5', 'flum', 'pire', 'hist_myelin', 'oxot', 'damp', 'epib', 'praz', 'uk14','cellbody_b', 'dpat', 'keta', 'sch2', 'racl', 'hist_myelin', 'dpmg', 'zm24']
-    # define the order of ligands in "long" repeats
-    long_repeat = ['ampa', 'ampa_ub', 'kain', 'kain_ub', 'mk80', 'mk80_ub','cellbody_a', 'musc', 'musc_ub', 'cgp5', 'cgp5_ub','flum', 'flum_ub', 'pire', 'pire_ub', 'hist_myelin', 'oxot', 'oxot_ub', 'damp', 'damp_ub', 'epib', 'epib_ub', 'praz', 'praz_ub', 'uk14', 'uk14_ub', 'cellbody_b', 'dpat', 'dpat_ub', 'keta', 'keta_ub', 'sch2', 'sch2_ub', 'racl', 'racl_ub', 'hist_myelin', 'dpmg', 'dpmg_ub', 'zm24', 'zm24_ub']
 
-    # create dictionaries for short and long repeats with integers associated with each ligand
-    short_repeat_dict = { v:k for k,v in dict(enumerate(short_repeat)).items() }
-    long_repeat_dict = { v:k for k,v in dict(enumerate(long_repeat)).items() }
+    crop_dir = 'macaque/output/{subject_id}/crop/'
+    init_dir = 'macaque/output/{subject_id}/init_align/'
 
     os.makedirs(crop_dir,exist_ok=True)
     os.makedirs(init_dir,exist_ok=True)
 
-    num_cores = min(1, multiprocessing.cpu_count() )
+    df = pd.read_csv(csv_fn)
 
+    # Output volumes
+    volume_fn = 'macaque/output/{subject_id}/{subject_id}_volume.nii.gz'
+    volume_init_fn = 'macaque/output/{subject_id}/init_volume.nii.gz'
 
     ### 1. Section Ordering
     print('1. Section Ordering')
-    df = create_section_dataframe(auto_dir, hist_dir, short_repeat_dict, long_repeat_dict, crop_dir, csv_fn )
-    df = df.loc[df['ligand'].apply(lambda x : not x in [ 'racl', 'oxot','epib','zm24']  ) ] 
+    if ligands_to_exclude != [] :
+        df = df.loc[df['ligand'].apply(lambda x : not x in ligands_to_exclude  ) ] 
+    
     df = df.loc[df['binding']=='S']
-    exit(0)
+    
     ### 2. Crop
     print('2. Cropping')
     crop_to_do = [ (y, raw_fn, crop_fn) for y, raw_fn, crop_fn in zip(df['repeat'], df['raw'], df['crop']) if not os.path.exists(crop_fn) ]
+    num_cores = min(1, multiprocessing.cpu_count() )
     Parallel(n_jobs=num_cores)(delayed(crop_image)(crop_dir, y, fn, crop_fn) for y, fn, crop_fn in  crop_to_do) 
     
     ### 3. Align
