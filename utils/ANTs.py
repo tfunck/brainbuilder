@@ -1,5 +1,3 @@
-import os
-import nibabel as nib
 from shutil import copy
 from os.path import basename
 from os import makedirs
@@ -8,8 +6,11 @@ from utils.utils import shell,splitext
 from scipy.ndimage import gaussian_filter
 from skimage.filters import threshold_otsu
 from re import sub
+from skimage.transform import resize
 import numpy as np
 import SimpleITK as sitk
+import os
+import nibabel as nib
 
 def generate_mask(fn, out_fn, sigma=8) :
     if os.path.exists(out_fn) :
@@ -26,9 +27,32 @@ def generate_mask(fn, out_fn, sigma=8) :
     return 0
 
 
-def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolerance=1e-08, metrics=None, nbins=32, tfm_type=["Rigid","Affine","SyN"], rate=None, shrink_factors=None,smoothing_sigmas=None, radius=4, init_tfm=None,init_inverse=False,sampling_method='Regular', sampling=1, dim=3, verbose=0, clobber=0, exit_on_failure=0, fix_header=False, generate_masks=True, no_init_tfm=False, mask_dir=None, write_composite_transform=True, n_tries=5, init_tfm_direction='moving' ) :
+def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolerance=1e-08, metrics=None, nbins=32, tfm_type=["Rigid","Affine","SyN"], rate=None, shrink_factors=None,smoothing_sigmas=None, radius=3, init_tfm=None,init_inverse=False,sampling_method='Regular', sampling=1, dim=3, verbose=0, clobber=0, exit_on_failure=0, fix_header=False, generate_masks=True, no_init_tfm=False, mask_dir=None, write_composite_transform=1, collapse_output_transforms=0, n_tries=5, init_tfm_direction='moving' ) :
    
     nLevels = len(iterations)
+    tfm_ext='GenericAffine.mat'
+    if 'SyN' in tfm_type : 
+        tfm_ext=f'{nLevels-1}Warp.nii.gz'
+        tfm_inv_ext=f'{nLevels-1}InverseWarp.nii.gz'
+    elif write_composite_transform == 1 : 
+        tfm_ext='Composite.h5'
+        tfm_inv_ext='InverseComposite.h5'
+
+    final_moving_rsl_fn = moving_rsl_prefix + '_level-' + str(nLevels-1) + '_' + metrics[-1] + '_'+ tfm_type[-1] + '.nii.gz'
+    final_tfm_fn = f'{tfm_prefix}_level-{str(nLevels-1)}_{metrics[-1]}_{tfm_type[-1]}_{tfm_ext}'
+    final_tfm_inv_fn = f'{tfm_prefix}_level-{str(nLevels-1)}_{metrics[-1]}_{tfm_type[-1]}_{tfm_inv_ext}'
+
+    # files exist, return early
+    output_files = [final_moving_rsl_fn, final_tfm_fn, final_tfm_inv_fn]
+    output_files_not_exists = [ fn for fn in output_files if not os.path.exists(fn) ]
+
+
+    if len(output_files_not_exists) == 0 and clobber == 0 :
+        return final_tfm_fn, final_tfm_inv_fn , final_moving_rsl_fn
+    else :
+        print('Following output files do not exist. Will run registration to create them' )
+        print(output_files_not_exists)
+
     if verbose :
         print('Moving:', moving_fn)
         print('Fixed:', fixed_fn)
@@ -52,25 +76,20 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
         else :
             moving_mask_fn = moving_rsl_prefix + '_moving_mask.nii.gz'
             fixed_mask_fn  = moving_rsl_prefix + '_fixed_mask.nii.gz'
-
+        
         s = max( [ int(float(j)) for i in smoothing_sigmas  for j in sub('vox|mm', '', i).split('x')  ] )
 
         r=0
         if not os.path.exists( moving_mask_fn ) :
-            r += generate_mask(moving_fn, moving_mask_fn , s)
+            r += generate_mask(moving_fn, moving_mask_fn , s/np.pi)
 
         if not os.path.exists( fixed_mask_fn ) :
-            r += generate_mask(fixed_fn, fixed_mask_fn, s )
+            r += generate_mask(fixed_fn, fixed_mask_fn, s/np.pi )
            
         if r != 0 : 
             moving_mask_fn = moving_mask_fn = None 
 
-    final_moving_rsl_fn = moving_rsl_prefix + '_level-' + str(nLevels-1) + '_' + metrics[-1] + '_'+ tfm_type[-1] + '.nii.gz'
-    final_tfm_fn = tfm_prefix + 'level-' + str(nLevels-1) + '_' + metrics[-1] + '_'+ tfm_type[-1]+'_Composite.h5'
-    final_tfm_inv_fn = tfm_prefix + 'level-' + str(nLevels-1) + '_' + metrics[-1] + '_'+ tfm_type[-1]+'_InverseComposite.h5'
-
     #If image volume is empty, write identity matrix
-    print(fixed_fn, moving_fn)
     if np.sum(nib.load(fixed_fn).get_data()) == 0  or np.sum( nib.load(moving_fn).get_data() ) == 0 :
         print("Warning: at least one of the image volume is empty")
         identity = sitk.Transform(3, sitk.sitkIdentity)
@@ -80,7 +99,7 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
    
     for level in range(nLevels) :
         moving_rsl_level_prefix = moving_rsl_prefix + '_level-' + str(level) + '_' + metrics[level] + '_'+ tfm_type[level]
-        tfm_level_prefix = tfm_prefix + 'level-' + str(level) + '_' + metrics[level] + '_'+ tfm_type[level]+'_' 
+        tfm_level_prefix = tfm_prefix + '_level-' + str(level) + '_' + metrics[level] + '_'+ tfm_type[level]+'_' 
         
         moving_rsl_fn = moving_rsl_level_prefix + '.nii.gz'
 
@@ -88,13 +107,14 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
 
         if not os.path.exists(moving_rsl_fn) or not os.path.exists(final_tfm_fn) or clobber > 0 :
             # Set tfm file name
-            tfm_fn = tfm_level_prefix + 'Composite.h5'
+            #Warning only works if composite output == 1
+            tfm_fn = tfm_level_prefix + tfm_ext
 
-            moving_rsl_fn_inverse = moving_rsl_level_prefix + '_inverse_' + tfm_type[level] + '.nii.gz'
+            moving_rsl_fn_inverse = moving_rsl_level_prefix + '_inverse.nii.gz'
 
             ### Inputs
             cmdline =  "antsRegistration --verbose "+str(verbose)
-            cmdline += " --write-composite-transform 1 --float --collapse-output-transforms 0 --dimensionality "+str(dim) +" "
+            cmdline += f' --write-composite-transform {write_composite_transform} --float --collapse-output-transforms {collapse_output_transforms} --dimensionality {dim} '
             if not no_init_tfm :
                 if init_tfm == None : 
                     cmdline += f" --initial-{init_tfm_direction}-transform [ "+fixed_fn+", "+moving_fn+", 1 ] "
@@ -107,7 +127,12 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
                     else :
                         cmdline += f" --initial-{init_tfm_direction}-transform " + ','.join(init_tfm) + " "
 
-            cmdline += " --initialize-transforms-per-stage 1 --interpolation Linear "
+            if write_composite_transform == 1 :
+                initialize_transforms_per_stage=1
+            else :
+                initialize_transforms_per_stage=0
+
+            cmdline += f' --initialize-transforms-per-stage {initialize_transforms_per_stage} --interpolation Linear '
         
             #Set up smooth sigmas and shrink factors
             smooth_sigma = smoothing_sigmas[level]
@@ -129,7 +154,6 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
             cmdline += " --smoothing-sigmas "+smooth_sigma+"vox --shrink-factors "+shrink_factor
             cmdline += " --use-estimate-learning-rate-once 1 --use-histogram-matching 0 "
        
-            if write_composite_transform : cmdline += " --write-composite-transform 1"
 
             ### Outputs
             cmdline+=" --output [ "+tfm_level_prefix+" ,"+moving_rsl_fn+","+moving_rsl_fn_inverse+"] "
@@ -157,6 +181,7 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
             
             #update init_tfm
             init_tfm = [tfm_fn]
+            no_init_tfm=False
             init_inverse=False
 
             if fix_header and os.path.exists(moving_rsl_fn) : 
@@ -166,5 +191,15 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
             if fix_header and os.path.exists(moving_rsl_fn_inverse) : 
                 #resample_from_to( nib.load(moving_rsl_fn_inverse), nib.load(moving_fn)).to_filename(moving_rsl_fn_inverse)
                 nib.Nifti1Image(  nib.load(moving_rsl_fn_inverse).get_data(), nib.load(moving_fn).affine ).to_filename(moving_rsl_fn_inverse)
+    
+    return final_tfm_fn, final_tfm_inv_fn , moving_rsl_fn
 
-    return final_tfm_fn,final_tfm_inv_fn , moving_rsl_fn
+
+def AverageImages(dimension, output_fn, image1, image2, normalize=0):
+    print(f'AverageImages  {dimension} {output_fn} {normalize} {image1} {image2}')
+    shell(f'AverageImages  {dimension} {output_fn} {normalize} {image1} {image2}')
+
+def antsApplyTransforms(input_image, reference_image, transform_list, output_image, interpolation='Linear', input_image_type=0, dimensionality=3, verbose=0):
+    transforms=' -t ' + ' -t '.join( transform_list)
+    shell(f'antsApplyTransforms -v {verbose} -d {dimensionality} -e {input_image_type}  -n {interpolation} -i {input_image} -r {reference_image} {transforms} -o {output_image}')
+
