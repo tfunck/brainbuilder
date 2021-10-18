@@ -202,7 +202,7 @@ def write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0, y1, resolution, s
     return srv_slab_fn
 
 
-def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution ):
+def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn ):
     temp_out_fn=f'{out_dir}/partial_rec_space-mri.nii.gz'
 
     prefix=re.sub('_SyN_Composite.h5','',out_tfm_fn)
@@ -219,25 +219,30 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
     #    nl_metric=f'Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]'
     nl_metric=f'Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]'
 
+
     if not os.path.exists(temp_out_fn) or not os.path.exists(out_tfm_fn) or clobber:
         # set initial transform
-        init_moving=f'--initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]'
+        if manual_affine_fn == None :
+            init_moving=f'--initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]'
+        else :
+            init_moving=f'--initial-moving-transform {manual_affine_fn}'
         
         # calculate rigid registration
-        if not os.path.exists(f'{prefix_rigid}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3 {init_moving} -t Rigid[.1] -c {lin_itr_str}  -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s {s_str} -f {f_str} -o [{prefix_rigid},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+        #if not os.path.exists(f'{prefix_rigid}Composite.h5'):
+        #    shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3 {init_moving} -t Rigid[.1] -c {lin_itr_str}  -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s {s_str} -f {f_str} -o [{prefix_rigid},{temp_out_fn},{out_inv_fn}] ', verbose=True)
         
         # calculate similarity registration
-        if not os.path.exists(f'{prefix_similarity}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3 --initial-moving-transform {prefix_rigid}Composite.h5    -t Similarity[.1]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+        #if not os.path.exists(f'{prefix_similarity}Composite.h5'):
+        #    shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3 --initial-moving-transform {prefix_rigid}Composite.h5    -t Similarity[.1]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{temp_out_fn},{out_inv_fn}] ', verbose=True)
 
         #calculate affine registration
+        #--initial-moving-transform {prefix_similarity}Composite.h5
         if not os.path.exists(f'{prefix_affine}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3 --initial-moving-transform {prefix_similarity}Composite.h5 -t Affine[.1] -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+            shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3 {init_moving} -t Affine[.1] -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{temp_out_fn},{out_inv_fn}] ', verbose=True)
         # Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]
 
         if not os.path.exists(f'{prefix_syn}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3  --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[.1] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+            shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3  --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[.1] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{temp_out_fn},{out_inv_fn}] ', verbose=True)
             #[{nl_itr_str},1e-08,20]
 
     if not os.path.exists(out_fn):
@@ -255,10 +260,22 @@ def get_max_downsample_level(resolution_list, resolution_itr):
 
     return max_downsample_level
 
+def get_manual_tfm(resolution_itr,manual_alignment_points, seg_rsl_fn, srv_rsl_fn):
 
-def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, slabs, out_tfm_fn, out_tfm_inv_fn, out_fn, out_inv_fn, resolution, resolution_itr, resolution_list, slab_direction, clobber=False, verbose=True ) :
+    if resolution_itr == 0 :
+        assert os.path.exists( manual_alignment_points ), f'Need to manually create points to initialize registration between:\n\t1) {seg_rsl_fn}\n\t\2 {srv_rsl_fn}\n\tSave as:\n{manual_alignment_points}'
+        #shell('')
+    else :
+        manual_tfm_fn=None
+
+    return manual_tfm_fn
+
+def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, slabs, out_tfm_fn, out_tfm_inv_fn, out_fn, out_inv_fn,  resolution, resolution_itr, resolution_list, slab_direction, manual_alignment_points=None, manual_affine_fn=None, clobber=False, verbose=True ) :
     print('\tRunning')
     slab=int(slab)
+
+    if resolution_itr != 0 :
+        manual_affine_fn = None
 
     # Load super-resolution GM volume extracted from donor MRI.
     srv_width, srv_min, srv_max, srv_ystep, srv_ystart =  get_srv_info( srv_rsl_fn ) 
@@ -282,7 +299,7 @@ def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, sl
     srv_slab_fn = write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0, y1, resolution, srv_ystep, srv_ystart, max_downsample_level)
 
     # run ants alignment between segmented volume (from autoradiographs) to slab extracte
-    run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution )
+    run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn )
     return 0
 
 '''

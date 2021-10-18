@@ -209,8 +209,6 @@ def setup_argparse():
     parser.add_argument('--mri-gm', dest='srv_fn', type=str, default='/data/receptor/human/mri1_R_gm_bg_srv.nii.gz', help='mri gm super-resolution volume (srv)')
     parser.add_argument('--surf-dir', dest='surf_dir', type=str, default='/data/receptor/human/MR1/civet/mri1/surfaces/', help='surface directory')
     parser.add_argument('--autoradiograph-info', dest='autoradiograph_info_fn', type=str, default=None, help='csv file with section info for each autoradiograph')
-    parser.add_argument('--remote','-p', dest='remote', default=False, action='store_true',  help='Slabs to reconstruct. Default = reconstruct all slabs.')
-    parser.add_argument('--interpolation-only', dest='interpolation_only', default=False, action='store_true',  help='Slabs to reconstruct. Default = reconstruct all slabs.')
 
     return parser
 
@@ -250,7 +248,7 @@ def setup_files_json(args ):
                     
                     if resolution == resolution_list[0]:
                         cdict['init_align_dir']=f'{args.out_dir}/{brain}_{hemi}_{slab}/1_init_align/'
-                        cdict['init_align_fn']=cdict['init_align_dir'] + f'/brain-{brain}_hemi-{hemi}_slab-{slab}_init_align.nii.gz'
+                        cdict['init_align_fn']=cdict['init_align_dir'] + f'/{brain}_{hemi}_{slab}_init_align.nii.gz'
 
                     # Filenames
                     cdict['seg_rsl_fn']='{}/{}_{}_{}_seg_{}mm.nii.gz'.format(cdict['seg_dir'],brain, hemi, slab, resolution)
@@ -260,6 +258,9 @@ def setup_files_json(args ):
                     #if resolution_itr <= max_3d_itr  :
                     cdict['rec_3d_rsl_fn'] = '{}/{}_{}_{}_{}mm_rec_space-mri.nii.gz'.format(cdict['align_to_mri_dir'],brain,hemi,slab,resolution)
                     cdict['srv_3d_rsl_fn'] = '{}/{}_{}_{}_{}mm_mri_gm_space-rec.nii.gz'.format(cdict['align_to_mri_dir'],brain,hemi,slab,resolution)
+                    manual_tfm_dir = cdict['align_to_mri_dir']
+                    cdict['manual_alignment_points'] = '{file_dir}/{brain}_{hemi}_{slab}_points.txt'
+                    cdict['manual_alignment_affine'] = '{file_dir}/{brain}_{hemi}_{slab}_manual_affine.xfm'
                     cdict['nl_3d_tfm_fn'] = '{}/rec_to_mri_SyN_Composite.h5'.format(cdict['align_to_mri_dir'])
                     cdict['nl_3d_tfm_inv_fn'] = '{}/rec_to_mri_SyN_InverseComposite.h5'.format(cdict['align_to_mri_dir'])
 
@@ -289,6 +290,8 @@ def setup_parameters(args) :
 
     if args.scale_factors_fn == None :
         args.scale_factors_fn=base_file_dir+'/scale_factors.json'
+
+    args.manual_tfm_dir = base_file_dir + 'transforms/'
 
     if args.autoradiograph_info_fn == None :
         args.autoradiograph_info_fn=args.out_dir+'/autoradiograph_info_volume_order.csv'
@@ -402,6 +405,7 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, 
             #write 2d segmented sections at current resolution. apply initial transform
             classifyReceptorSlices(slab_df, align_fn, seg_dir+'/2d/', seg_dir, seg_rsl_fn, resolution=resolution_3d )
 
+
         ###
         ### Stage 3 : Align slabs to MRI
         ###
@@ -412,7 +416,11 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, 
             print('Cropped rsl fn', crop_srv_rsl_fn)
             scale_factors_json = json.load(open(args.scale_factors_fn,'r'))
             slab_direction = scale_factors_json[brain][hemi][slab]['direction']
-            align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, crop_srv_rsl_fn, align_to_mri_dir, hemi_df, args.slabs, nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_rsl_fn, srv_3d_rsl_fn, resolution_3d, resolution_itr_3d, resolution_list, slab_direction)
+            align_slab_to_mri(  brain, hemi, slab, seg_rsl_fn, crop_srv_rsl_fn, align_to_mri_dir, 
+                                hemi_df, args.slabs, nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_rsl_fn, srv_3d_rsl_fn, 
+                                resolution_3d, resolution_itr_3d, 
+                                resolution_list, slab_direction, cfiles['manual_alignment_points'],
+                                cfiles['manual_alignment_affine'] )
         
         ###
         ### Stage 3.5 : Create a new srv_rsl_fn file that removes the currently aligned slab
@@ -574,7 +582,7 @@ if __name__ == '__main__':
     df = pd.read_csv(args.autoradiograph_info_fn)
     
     ### Step 0 : Crop downsampled autoradiographs
-    crop(args.src_dir, args.mask_dir, args.out_dir, df, args.scale_factors_fn, remote=args.remote)
+    crop(args.src_dir, args.mask_dir, args.out_dir, df, args.scale_factors_fn)
     
     for brain in args.brain :
         for hemi in args.hemi :                     

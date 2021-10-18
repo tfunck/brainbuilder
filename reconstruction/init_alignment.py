@@ -44,7 +44,7 @@ def create_final_transform(df, transforms, fixed_fn, output_dir, clobber=False) 
     return  df
 
 
-def align_neighbours_to_fixed(i, j_list,df,transforms, iteration, shrink_factor,smooth_sigma, output_dir, tfm_type, desc,target_ligand=None,clobber=False):
+def align_neighbours_to_fixed(i, j_list, df, transforms, iteration, shrink_factor,smooth_sigma, output_dir, tfm_type, desc,target_ligand=None,clobber=False):
     #For neighbours
 
     # a single section is selected as fixed (ith section), then the subsequent sections are considred moving sections (jth section)
@@ -56,7 +56,7 @@ def align_neighbours_to_fixed(i, j_list,df,transforms, iteration, shrink_factor,
         j_idx = df['volume_order']==j 
         outprefix ="{}/init_transforms/{}_{}-0/".format(output_dir,  j, tfm_type) 
 
-        moving_rsl_fn= outprefix + "_level-0_Mattes_{}.nii.gz".format( tfm_type)
+        moving_rsl_fn = outprefix + "_level-0_Mattes_{}.nii.gz".format( tfm_type)
         tfm_fn = outprefix + "level-0_Mattes_{}_Composite.h5".format( tfm_type)
         concat_tfm_fn = outprefix + "level-0_Mattes_{}_Composite_Concatenated.h5".format( tfm_type)
         qc_fn = "{}/qc/{}_{}_{}_{}_{}_{}-0.png".format(output_dir, *desc, j,i, tfm_type)
@@ -116,8 +116,7 @@ def align_neighbours_to_fixed(i, j_list,df,transforms, iteration, shrink_factor,
         df['crop_fn_new'].loc[df['volume_order'] == j] = moving_rsl_fn
         df['init_tfm'].loc[df['volume_order'] == j] =  concat_tfm_fn
         df['init_fixed'].loc[df['volume_order'] == j] = fixed_fn
-        #fixed_tfm_list = transforms[i ]
-        transforms[ j ] = [concat_tfm_fn] #+ fixed_tfm_list 
+        transforms[ j ] = [concat_tfm_fn] 
     
     return df, transforms
                 
@@ -161,7 +160,7 @@ def adjust_alignment(df,  y_idx, mid, transforms, step, output_dir,desc, shrink_
     return transforms,df
 
 
-def apply_transforms_to_sections(df,transforms,output_dir, tfm_type, target_ligand=None,stage=1, clobber=False) :
+def apply_transforms_to_sections(df,transforms,output_dir, tfm_type, target_ligand=None, clobber=False) :
     print('Applying Transforms') 
     if not target_ligand == None :
         df = df.loc[ df['ligand'] == target_ligand  ]
@@ -217,22 +216,14 @@ def combine_sections_to_vol(df,z_mm,direction,out_fn,target_tier=1):
                     [0,  ystep, 0, slab_ymin],
                     [0, 0 ,zstep, -90],
                     [0, 0, 0, 1]])
-    nib.Nifti1Image(vol, affine ).to_filename(out_fn )
+    affine = np.round(affine,3)
+    nib.Nifti1Image(vol, affine ).to_filename( out_fn )
 
-def alignment_stage(brain,hemi,slab, df, vol_fn_str, output_dir, scale, transforms,  desc=(0,0,0), stage=1,target_ligand=None, target_tier=1, ligand_n=0,  clobber=False):
+def alignment_stage(brain,hemi,slab, df, vol_fn_str, output_dir, scale, transforms,  desc=(0,0,0), target_ligand=None, target_tier=1, ligand_n=0,  clobber=False):
     '''
     Perform alignment of autoradiographs within a slab. Alignment is calculated once from the middle section in the
     posterior direction and a second time from the middle section in the anterior direction.
     '''
-    z_mm = scale[brain][hemi][str(slab)]["size"]
-    direction = scale[brain][hemi][str(slab)]["direction"]
-    
-    df.sort_values(['volume_order'],inplace=True,ascending=False)
-    
-    y_idx = df['volume_order'].values 
-    
-    y_idx_tier1 = df['volume_order'].loc[ df['tier'].astype(int) == np.min(df['tier']) ].values
-    mid = int(len(y_idx_tier1)/2) 
 
     # Set parameters for rigid transform
     tfm_type = 'Rigid'
@@ -240,23 +231,38 @@ def alignment_stage(brain,hemi,slab, df, vol_fn_str, output_dir, scale, transfor
     smooth_sigma = '6x5x4' #x2x1x0' 
     iterations = '100x50x25' #x100x50x20'
 
-    df['crop_fn_new'] = df['crop_fn']
-    df['init_tfm'] = [None] * df.shape[0]
-    df['init_fixed']=[None] * df.shape[0]
+    csv_fn = vol_fn_str.format(output_dir,*desc,target_ligand,ligand_n,tfm_type+'-'+str(0),'.csv')
 
-    # perform alignment in forward direction from middle section
-    transforms, df = adjust_alignment(df,   y_idx, mid, transforms, -1, output_dir,desc, shrink_factor, smooth_sigma, iterations, tfm_type, target_ligand=target_ligand, target_tier=target_tier, clobber=clobber)
-    # perform alignment in reverse direction from middle section
-    transforms, df = adjust_alignment(df,   y_idx, mid, transforms, 1, output_dir, desc, shrink_factor, smooth_sigma, iterations, tfm_type, target_ligand=target_ligand,target_tier=target_tier, clobber=clobber)
-    # apply the transforms to the crop_fn 
-    #df = apply_transforms_to_sections(df, transforms, output_dir, tfm_type, target_ligand=target_ligand,stage=stage)
+    if not os.path.exists(csv_fn) or not os.path.exists(out_fn) :
+        z_mm = scale[brain][hemi][str(slab)]["size"]
+        direction = scale[brain][hemi][str(slab)]["direction"]
+        
+        df.sort_values(['volume_order'],inplace=True,ascending=False)
+        
+        y_idx = df['volume_order'].values 
+        
+        y_idx_tier1 = df['volume_order'].loc[ df['tier'].astype(int) == np.min(df['tier']) ].values
+        mid = int(len(y_idx_tier1)/2) 
 
-    # update the crop_fn so it has the new, resampled file names
-    df['crop_fn']=df['crop_fn_new']
 
-    out_fn = vol_fn_str.format(output_dir,*desc,target_ligand,ligand_n,tfm_type+'-'+str(0),'nii.gz')
-    if  not os.path.exists(out_fn) or clobber  :
-        vol = combine_sections_to_vol(df,z_mm, direction, out_fn, target_tier)
+
+        df['crop_fn_new'] = df['crop_fn']
+        df['init_tfm'] = [None] * df.shape[0]
+        df['init_fixed']=[None] * df.shape[0]
+
+        # perform alignment in forward direction from middle section
+        transforms, df = adjust_alignment(df, y_idx, mid, transforms, -1, output_dir,desc, shrink_factor, smooth_sigma, iterations, tfm_type, target_ligand=target_ligand, target_tier=target_tier, clobber=clobber)
+        # perform alignment in reverse direction from middle section
+        transforms, df = adjust_alignment(df, y_idx, mid, transforms, 1, output_dir, desc, shrink_factor, smooth_sigma, iterations, tfm_type, target_ligand=target_ligand,target_tier=target_tier, clobber=clobber)
+
+        # update the crop_fn so it has the new, resampled file names
+        df['crop_fn']=df['crop_fn_new']
+
+        out_fn = vol_fn_str.format(output_dir,*desc,target_ligand,ligand_n,tfm_type+'-'+str(0),'nii.gz')
+        if  not os.path.exists(out_fn) or clobber  :
+            vol = combine_sections_to_vol(df,z_mm, direction, out_fn, target_tier)
+    else :
+        df = pd.read_csv(csv_fn)
 
     return df, transforms
     
@@ -290,8 +296,9 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, d
     transforms_1={}
     for i in df_ligand['volume_order'] :  transforms_1[i]=[]
 
-    df_ligand, transforms_1 = alignment_stage(brain,hemi,slab,df_ligand, slab_img_fn_str, output_dir_1, scale, transforms_1, stage=1, target_ligand='dpmg',ligand_n=0,target_tier=1, desc=(brain,hemi,slab), clobber=clobber)
-    
+    df_ligand, transforms_1 = alignment_stage(brain,hemi,slab,df_ligand, slab_img_fn_str, output_dir_1, scale, transforms_1,  target_ligand='dpmg',ligand_n=0,target_tier=1, desc=(brain,hemi,slab), clobber=clobber)
+   
+    # update the master dataframe, df, with new dataframe for the ligand 
     df.loc[ df['ligand'] == ligand_intensity_order[0]] = df_ligand
 
     ###########
@@ -313,12 +320,41 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, d
         transforms_2={}
         for i in df_ligand['volume_order'] :  transforms_2[i]=[]
 
-        df_ligand, transforms_2 = alignment_stage(brain, hemi, slab, df_ligand, slab_img_fn_str, output_dir_2, scale, transforms_2, stage=2,  target_ligand=target_ligand, ligand_n=i, target_tier=2,  desc=(brain,hemi,slab), clobber=clobber)
+        df_ligand, transforms_2 = alignment_stage(brain, hemi, slab, df_ligand, slab_img_fn_str, output_dir_2, scale, transforms_2, target_ligand=target_ligand, ligand_n=i, target_tier=2,  desc=(brain,hemi,slab), clobber=clobber)
 
         concat_list.append( df_ligand.loc[ df_ligand['tier'] == 2] )
+    
+        # update the master dataframe, df, with new dataframe for the ligand 
+        df.loc[ df['ligand'] == target_ligand ] = df_ligand.loc[ df['ligand'] == target_ligand ]
 
+
+    ###########
+    # Stage 3 #
+    ###########
+    output_dir_3 = output_dir + os.sep + 'stage_3'
+    concat_list=[ df.loc[df['ligand'] == ligand_intensity_order[0]]   ]
+   
+    print('Stage 3') 
+    for i in range(1,n_ligands) :
+        current_ligands = [ligand_intensity_order[0], ligand_intensity_order[i]]
+
+        target_ligand = current_ligands[-1]
+        idx =  df['ligand'].apply(lambda x : x in current_ligands)
+        df_ligand = df.loc[ idx ] 
+        df_ligand['tier'].loc[df_ligand['ligand'] == ligand_intensity_order[0]] = 1
+        df_ligand['tier'].loc[df_ligand['ligand'] == target_ligand] = 2
+        #Init dict with initial transforms
+        transforms_3={}
+        for i in df_ligand['volume_order'] :  transforms_3[i]=[]
+
+        df_ligand, transforms_3 = alignment_stage(brain, hemi, slab, df_ligand, slab_img_fn_str, output_dir_3, scale, transforms_3, target_ligand=target_ligand, ligand_n=i, target_tier=2,  desc=(brain,hemi,slab), clobber=clobber)
+        concat_list.append( df_ligand.loc[ df_ligand['tier'] == 2] )
+        df_ligand['tier'].loc[ df_ligand['ligand'] == target_ligand ] = 1
+
+    # create a new dataframe
     df = pd.concat(concat_list)
     print('Writing:',init_tfm_csv)
+    print(df['crop_fn'])
         
     df.to_csv(init_tfm_csv)
 
