@@ -14,10 +14,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from glob import glob
 from re import sub
-from nibabel.processing import resample_to_output
+from nibabel.processing import resample_to_output, resample_from_to
 from scipy.ndimage.filters import gaussian_filter 
 from os.path import basename
-from scipy.ndimage.filters import gaussian_filter
 from subprocess import call, Popen, PIPE, STDOUT
 from sklearn.cluster import KMeans
 from scipy.ndimage import zoom
@@ -356,14 +355,18 @@ def downsample_and_crop(source_lin_dir, lin_dwn_dir,crop_dir, affine, step=0.2, 
             print("owsampled filename", dwn_fn)
             #nib.Nifti1Image(img, affine).to_filename(dwn_fn)
 
-def prefilter_and_downsample(input_filename, new_resolution, output_filename ):
+def prefilter_and_downsample(input_filename, new_resolution, output_filename, reference_image_fn='' ):
     img = nib.load(input_filename)
     vol = img.get_fdata()
     base_resolution = (img.affine[0,0]+img.affine[1,1])/2.
-    print('\t\t\t\t',base_resolution)
     vol = gaussian_filter(vol, (new_resolution/base_resolution)/np.pi)
     img = nib.Nifti1Image(vol, img.affine)
-    resample_to_output(img, [float(new_resolution)]*3, order=5).to_filename(output_filename)
+
+    if reference_image_fn == '' :
+        resample_to_output(img, [float(new_resolution)]*3, order=5).to_filename(output_filename)
+    else :
+        resample_from_to(img, nib.load(reference_image_fn), order=5).to_filename(output_filename)
+
 
 def rgb2gray(rgb): return np.mean(rgb, axis=2)
 

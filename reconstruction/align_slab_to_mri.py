@@ -42,12 +42,17 @@ def find_vol_min_max(vol) :
     return srvMin, srvMax
 
 
-def get_start_end_slab_world_coordinates(df,slabs,ystep,ystart):
+def get_slab_start_end(df,slabs,ystep,ystart, cur_slab, srv_max, srv_width, srv_ystep, srv_ystart, verbose=False):
     slab_minima={}
     slab_maxima={}
     slab_width={}
-    
+    total_slab_width=0
+
     slabs.sort()
+
+    slab_processing_order = range(len(slabs)) #Could be changed to a different ordering eventually
+    unaligned_slab_list = [ i+1 for i in slab_processing_order if i+1 <= cur_slab ]
+
     for slab_i in slabs :
         slab_vmin = df.loc[ df['slab']==int(slab_i) ]['global_order'].min()
         slab_vmax = df.loc[ df['slab']==int(slab_i) ]['global_order'].max()
@@ -60,9 +65,24 @@ def get_start_end_slab_world_coordinates(df,slabs,ystep,ystart):
         slab_minima[slab_i] = slab_min
         slab_maxima[slab_i] = slab_max
         slab_width[slab_i]  = (slab_vmax-slab_vmin)*ystep
-        print(slab_vmax,slab_vmin, ystep,slab_width[slab_i])
+        
+        if slab_i in unaligned_slab_list :
+            total_slab_width += slab_width[slab_i]
 
-    return slab_minima, slab_maxima, slab_width
+    total_slab_gap = srv_width - total_slab_width
+    n_slabs = len(slabs)
+    average_slab_gap = total_slab_gap / n_slabs
+    print('average slab gap', average_slab_gap)
+    slab_start = srv_max - slab_width[str(cur_slab)] - average_slab_gap / 2 #1.2
+
+    y1w = srv_max
+    y0w = slab_start
+
+    y0 = w2v(y0w, srv_ystep, srv_ystart)
+    y1 = w2v(y1w, srv_ystep, srv_ystart)
+
+    if verbose : print(y0w,y1w,y0,y1) 
+    return y0, y1
 
 def pad_volume(vol, max_factor, affine, min_voxel_size=29):
     xdim, ydim, zdim = vol.shape
@@ -111,7 +131,6 @@ def align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, out_dir, df, slabs, out_tfm_
     cur_resolution = float(resolution_list[resolution_itr])
     max_resolution = float(resolution_list[0])
 
-
     # max_downsample_factor = 2 ^ ( L - 1) 
     max_downsample_factor = np.floor( max_resolution / cur_resolution ).astype(int)
 
@@ -133,11 +152,8 @@ def align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, out_dir, df, slabs, out_tfm_
     metric_list=[]
     tfm_list=[]
   
-    slab_minima, slab_maxima, slab_width = get_start_end_slab_world_coordinates(df,slabs,ystep,ystart)
-
-    slab_start = srv_max - slab_width[str(slab)] * 1.2
-    print('Current slab width:', slab_start, srv_max)
-    
+    y0, y1 = get_slab_start_end(df, slabs, ystep, ystart, slab, srv_max, srv_width, srv_ystep, srv_ystart, verbose=True)
+    exit(0)
     print('Max Downsample Factor:',max_downsample_factor)
     print('Max Downsample Level:',max_downsample_level)
     
@@ -162,16 +178,8 @@ def align_slab_to_mri(seg_rsl_fn, srv_rsl_fn, slab, out_dir, df, slabs, out_tfm_
     lin_itr_str='x'.join([str(max_lin_itr - i*lin_step) for i in range(len(f_list))])
     nl_itr_str='x'.join([str(max_nl_itr - i*nl_step) for i in range(len(f_list))  ])
 
-    #y0w = ( slab_prior_position[str(slab)] - slab_start/2 * 1.3)
-    #y1w = ( slab_prior_position[str(slab)] + slab_start/2 * 1.3)
-    y1w = srv_max
-    y0w = slab_start
 
-    y0 = w2v(y0w, srv_ystep, srv_ystart)
-    y1 = w2v(y1w, srv_ystep, srv_ystart)
-    print('-->', y0w, y1w, y0, y1)
 
-    if verbose : print(y0w,y1w,y0,y1) 
     
     srv_slab_fn=f'{out_dir}/srv_{y0}_{y1}.nii.gz' 
     temp_out_fn=f'{out_dir}/partial_rec_space-mri.nii.gz'
