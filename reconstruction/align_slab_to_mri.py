@@ -202,47 +202,75 @@ def write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0, y1, resolution, s
     return srv_slab_fn
 
 
-def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn ):
-    temp_out_fn=f'{out_dir}/partial_rec_space-mri.nii.gz'
+def gen_mask(fn, clobber=False) :
+    out_fn = re.sub('.nii', '_mask.nii', fn)
+    
+    if not os.path.exists(out_fn) or clobber :
+        from scipy.ndimage import binary_dilation
+        img = nib.load(fn)
+        vol = img.get_fdata()
+        vol[ vol > 0.00001 ] = 1
+        vol[ vol < 1 ] = 0
+        
+        average_resolution = np.mean( img.affine[[0,1,2],[0,1,2]] )
+        iterations = np.ceil( 3 / average_resolution).astype(int)
 
+        vol = binary_dilation(vol, iterations=iterations).astype(np.int32)
+
+
+        nib.Nifti1Image(vol, img.affine).to_filename(out_fn)
+    
+    return out_fn
+
+def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn ):
     prefix=re.sub('_SyN_Composite.h5','',out_tfm_fn)
-    prefix_rigid=prefix+'_Rigid_'
-    prefix_similarity=prefix+'_Similarity_'
-    prefix_affine=prefix+'_Affine_'
-    prefix_syn=prefix+'_SyN_'
+    prefix_rigid = prefix+'_Rigid_'
+    prefix_similarity = prefix+'_Similarity_'
+    prefix_affine = prefix+'_Affine_'
+    prefix_syn = prefix+'_SyN_'
+    
+    temp_out_fn='/tmp/tmp.nii.gz'
+    
+    affine_out_fn = f'{prefix_affine}Composite.nii.gz'
+    syn_out_fn = f'{prefix_syn}Composite.nii.gz'
+
+    seg_mask_fn = gen_mask(seg_rsl_fn,clobber=True)
+    srv_mask_fn = gen_mask(srv_rsl_fn,clobber=True)
 
     #calculate SyN
-    nl_metric=f'Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]'
-    #if float(resolution) >= 1.0 :
-    #    nl_metric = f'CC[{srv_slab_fn},{seg_rsl_fn},1,2,Regular,1]'
-    #else :
-    #    nl_metric=f'Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]'
+    if float(resolution) >= 1.0 :
+        nl_metric = f'CC[{srv_rsl_fn},{seg_rsl_fn},1,2,Regular,1]'
+    else :
+        nl_metric=f'Mattes[{srv_rsl_fn},{seg_rsl_fn},1,20,Regular,1]'
     nl_metric=f'Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]'
 
-
-    if not os.path.exists(temp_out_fn) or not os.path.exists(out_tfm_fn) or clobber:
+    if not os.path.exists(syn_out_fn) or not os.path.exists(out_tfm_fn) or clobber:
         # set initial transform
         if manual_affine_fn == None :
             init_moving=f'--initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]'
         else :
-            init_moving=f'--initial-moving-transform {manual_affine_fn}'
-        
+            init_moving=f'--initial-moving-transform [{manual_affine_fn},0]'
+        init_moving=f'--initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]'
+
+        #shell(f'antsApplyTransforms -v 1 -i {seg_rsl_fn} -r {srv_rsl_fn} -t {manual_affine_fn} -o {affine_out_fn}')
+        #exit(0)
         # calculate rigid registration
-        #if not os.path.exists(f'{prefix_rigid}Composite.h5'):
-        #    shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3 {init_moving} -t Rigid[.1] -c {lin_itr_str}  -m GC[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1] -s {s_str} -f {f_str} -o [{prefix_rigid},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+        if not os.path.exists(f'{prefix_rigid}Composite.h5'):
+            shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3  {init_moving} -t Rigid[.1] -c {lin_itr_str}  -m GC[{srv_slab_fn},{seg_rsl_fn},1,30,Regular,1] -s {s_str} -f {f_str} -o [{prefix_rigid},{temp_out_fn},{out_inv_fn}] ', verbose=True)
         
         # calculate similarity registration
-        #if not os.path.exists(f'{prefix_similarity}Composite.h5'):
-        #    shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3 --initial-moving-transform {prefix_rigid}Composite.h5    -t Similarity[.1]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+        if not os.path.exists(f'{prefix_similarity}Composite.h5'):
+            shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform {prefix_rigid}Composite.h5 -t Similarity[.1]  -m Mattes[{srv_rsl_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{temp_out_fn},{out_inv_fn}] ', verbose=True)
 
         #calculate affine registration
         #--initial-moving-transform {prefix_similarity}Composite.h5
         if not os.path.exists(f'{prefix_affine}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3 {init_moving} -t Affine[.1] -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+            shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3  {init_moving} -t Affine[.1] -m Mattes[{srv_rsl_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{out_inv_fn}] ', verbose=True)
         # Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]
-
+        
         if not os.path.exists(f'{prefix_syn}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3  --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[.1] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+            # --masks [{srv_mask_fn},{seg_mask_fn}]
+            shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3   --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[.1] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{syn_out_fn},{out_inv_fn}] ', verbose=True)
             #[{nl_itr_str},1e-08,20]
 
     if not os.path.exists(out_fn):
@@ -252,10 +280,11 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
 def get_max_downsample_level(resolution_list, resolution_itr):
     cur_resolution = float(resolution_list[resolution_itr])
     max_resolution = float(resolution_list[0])
-
+    print(max_resolution, cur_resolution)
     max_downsample_factor = np.floor( max_resolution / cur_resolution ).astype(int)
 
     # log2(max_downsample_factor) + 1 = L
+    print(max_downsample_factor)
     max_downsample_level = np.int( np.log2(max_downsample_factor) + 1 )
 
     return max_downsample_level

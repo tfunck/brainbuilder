@@ -12,7 +12,7 @@ from scipy.ndimage import label
 from scipy.ndimage import binary_dilation, binary_closing, binary_fill_holes
 from scipy.ndimage.filters import gaussian_filter
 from nibabel.processing import resample_to_output
-from utils.utils import shell, create_2d_sections, run_stage, prefilter_and_downsample
+from utils.utils import shell, create_2d_sections, run_stage, prefilter_and_downsample, points2tfm
 from utils.ANTs import ANTs
 from nibabel.processing import resample_to_output, smooth_image
 from utils.mesh_io import load_mesh_geometry, save_mesh_data, save_obj, read_obj
@@ -49,12 +49,11 @@ def create_new_srv_volumes(rec_3d_rsl_fn, srv_rsl_fn, cropped_output_list, resol
     print('Next srv fn:', highest_res_srv_rsl_fn)
     for i in range(len(cropped_output_list)-1) : #DEBUG resolution_list[0:-1] :
         #DEBUG
-        #lower_res_srv_rsl_fn = next_slab_files[str(r)]['srv_crop_rsl_fn']
         lower_res_srv_rsl_fn = cropped_output_list[i]
         if not os.path.exists(lower_res_srv_rsl_fn) :
             r = resolution_list[i]
             print(i, r, float(r)/np.pi); 
-            prefilter_and_downsample(highest_res_srv_rsl_fn, float(r), lower_res_srv_rsl_fn) #, reference_image_fn=rec_3d_rsl_fn)
+            prefilter_and_downsample(highest_res_srv_rsl_fn, [float(r)]*3, lower_res_srv_rsl_fn) #, reference_image_fn=rec_3d_rsl_fn)
 
         print('Next srv fn:', lower_res_srv_rsl_fn)
 
@@ -72,8 +71,6 @@ def remove_slab_from_srv(slab_to_remove_fn, srv_rsl_fn, new_srv_rsl_fn):
     Outputs:
         None
     '''
-    print(slab_to_remove_fn)
-    print(srv_rsl_fn)
     #load slab gm mask, not strictly binary
     aligned_slab = nib.load(slab_to_remove_fn).get_fdata()
     
@@ -89,10 +86,7 @@ def remove_slab_from_srv(slab_to_remove_fn, srv_rsl_fn, new_srv_rsl_fn):
     #needs to be thresholded because smoothing across the y-axis during downsampling
     #resutls in slab blurring too far across y-axis.
     
-    #DEBUG
-    print(vol.shape)
-    print(aligned_slab.shape)
-    vol[aligned_slab > 0. ] = 0 #probably conceptually simpler to threshold at 0, shouldnt make a practice
+    vol[aligned_slab > 0. ] = 0 
 
 
     #removing additional islands of tissue that may remain in srv volume
@@ -180,6 +174,7 @@ def calculate_section_order(autoradiograph_info_fn,  out_dir, in_df_fn='section_
             print(brain,hemi,slab, df['volume_order'].loc[idx].min(), df['volume_order'].loc[idx].max(),df['global_order'].loc[idx].min(), df['global_order'].loc[idx].max(), prev_max)
 
     df['crop_fn'] = df['lin_fn'].apply(lambda x: out_dir+'/0_crop/'+os.path.splitext(os.path.basename(x))[0]+'#L.nii.gz')
+    df['crop_raw_fn'] = df['crop_fn']
     df['seg_fn'] = df['lin_fn'].apply(lambda x: out_dir+'/0_crop/'+os.path.splitext(os.path.basename(x))[0]+'_seg.nii.gz')
 
     df.sort_values(["mri","hemisphere","slab","volume_order"], inplace=True)
@@ -259,8 +254,8 @@ def setup_files_json(args ):
                     cdict['rec_3d_rsl_fn'] = '{}/{}_{}_{}_{}mm_rec_space-mri.nii.gz'.format(cdict['align_to_mri_dir'],brain,hemi,slab,resolution)
                     cdict['srv_3d_rsl_fn'] = '{}/{}_{}_{}_{}mm_mri_gm_space-rec.nii.gz'.format(cdict['align_to_mri_dir'],brain,hemi,slab,resolution)
                     manual_tfm_dir = cdict['align_to_mri_dir']
-                    cdict['manual_alignment_points'] = '{file_dir}/{brain}_{hemi}_{slab}_points.txt'
-                    cdict['manual_alignment_affine'] = '{file_dir}/{brain}_{hemi}_{slab}_manual_affine.xfm'
+                    cdict['manual_alignment_points'] = f'{file_dir}/{brain}_{hemi}_{slab}_points.txt'
+                    cdict['manual_alignment_affine'] = f'{file_dir}/{brain}_{hemi}_{slab}_manual_affine.mat'
                     cdict['nl_3d_tfm_fn'] = '{}/rec_to_mri_SyN_Composite.h5'.format(cdict['align_to_mri_dir'])
                     cdict['nl_3d_tfm_inv_fn'] = '{}/rec_to_mri_SyN_InverseComposite.h5'.format(cdict['align_to_mri_dir'])
 
@@ -382,7 +377,7 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, 
         crop_srv_rsl_fn = files[brain][hemi][str(int(slab))][str(resolution)]['srv_crop_rsl_fn']
         if run_stage([args.srv_fn], [srv_rsl_fn, crop_srv_rsl_fn]) or args.clobber :
             # downsample the original srv gm mask to current 3d resolution
-            prefilter_and_downsample(args.srv_fn, resolution_3d, srv_rsl_fn)
+            prefilter_and_downsample(args.srv_fn, [resolution_3d]*3, srv_rsl_fn)
             
             # if this is the fiest slab, then the cropped version of the gm mask
             # is the same as the downsampled version because there are no prior slabs to remove.
@@ -451,10 +446,10 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, 
             
         print('\t\tStep 4: 2d nl alignment')
         stage_4_outputs=[nl_2d_vol_fn]
-        if run_stage(stage_3_outputs, stage_4_outputs)  or args.clobber:
-            slab_df = receptor_2d_alignment( slab_df, init_align_fn, srv_space_rec_fn,seg_dir+'/2d/', nl_2d_dir,  resolution, resolution_itr)
-            #Concatenate 2D nonlinear aligned sections into output volume
-            concatenate_sections_to_volume(slab_df, srv_space_rec_fn, nl_2d_dir, nl_2d_vol_fn)
+        #if run_stage(stage_3_outputs, stage_4_outputs)  or args.clobber:
+        slab_df = receptor_2d_alignment( slab_df, init_align_fn, srv_space_rec_fn,seg_dir+'/2d/', nl_2d_dir,  resolution, resolution_itr)
+        #Concatenate 2D nonlinear aligned sections into output volume
+        concatenate_sections_to_volume( slab_df, srv_space_rec_fn, nl_2d_dir, nl_2d_vol_fn)
 
     #slab_df.to_csv(f'{cur_out_dir}/file_info_{resolution}.csv')
     return slab_df
@@ -492,9 +487,10 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     ### Reconstruct slab
     for slab_index, slab in enumerate(args.slabs) :
         print('Slab:', slab)
+        cdict = files[brain][hemi][str(slab)][str(resolution_list[0])]
         slab_df=df.loc[(df['hemisphere']==hemi) & (df['mri']==brain) & (df['slab']==int(slab)) ]
-        init_align_fn=files[brain][hemi][str(slab)][str(resolution_list[0])]['init_align_fn']
-        init_align_dir=files[brain][hemi][str(slab)][resolution_list[0]]['init_align_dir']
+        init_align_fn = cdict['init_align_fn']
+        init_align_dir = cdict['init_align_dir']
         init_tfm_csv =f'{init_align_dir}/{brain}_{hemi}_{slab}_final.csv'
         slab_tfm_csv =f'{init_align_dir}/{brain}_{hemi}_{slab}_slab_tfm.csv'
 
@@ -502,10 +498,16 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
         print('\tInitial rigid inter-autoradiograph alignment')
         if (not os.path.exists( init_align_fn) or not os.path.exists(init_tfm_csv) or args.clobber) :
             receptorRegister(brain, hemi, slab, init_align_fn, init_tfm_csv, init_align_dir, slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
-        
+
+        #cdict['manual_alignment_points'] = '{file_dir}/{brain}_{hemi}_{slab}_points.txt'
+        #cdict['manual_alignment_affine'] = '{file_dir}/{brain}_{hemi}_{slab}_manual_affine.xfm'
+        if os.path.exists(cdict['manual_alignment_points']) and not os.path.exists( cdict['manual_alignment_affine'] ) :
+            points2tfm( cdict['manual_alignment_points'], cdict['manual_alignment_affine'])
+
         if not os.path.exists(slab_tfm_csv): 
             slab_df = add_tfm_column(slab_df, init_tfm_csv,slab_tfm_csv)
         else : slab_df = pd.read_csv(slab_tfm_csv)
+       
 
         ### Steps 2-4 : Multiresolution alignment
         slab_df = multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, slab_index, args,files, resolution_list, init_align_fn)
@@ -572,7 +574,8 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 
 if __name__ == '__main__':
     resolution_list = ['4.0', '3.5', '3.0', '2.5', '2.0', '1.5', '1.0'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
-    resolution_list = [ '2.0', '1.5', '1.0'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
+    resolution_list = [ '3.0', '2.5', '2.0', '1.5', '1.0'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
+    resolution_list = [ '3.0',  '2.0',  '1.0'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
 
     args, files = setup_parameters(setup_argparse().parse_args() )
     #Process the base autoradiograph csv

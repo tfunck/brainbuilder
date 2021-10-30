@@ -41,6 +41,7 @@ def create_final_transform(df, transforms, fixed_fn, output_dir, clobber=False) 
                 transforms_str='-t {} '.format( ' -t '.join( transforms[key])  )
                 shell(f'antsApplyTransforms -v 0 -d 2 -i {fixed_fn} -r {fixed_fn} {transforms_str} {output_str}',True,True)
 
+
     return  df
 
 
@@ -57,7 +58,7 @@ def align_neighbours_to_fixed(i, j_list, df, transforms, iteration, shrink_facto
         outprefix ="{}/init_transforms/{}_{}-0/".format(output_dir,  j, tfm_type) 
 
         moving_rsl_fn = outprefix + "_level-0_Mattes_{}.nii.gz".format( tfm_type)
-        tfm_fn = outprefix + "level-0_Mattes_{}_Composite.h5".format( tfm_type)
+        tfm_fn = outprefix + "_level-0_Mattes_{}_Composite.h5".format( tfm_type)
         concat_tfm_fn = outprefix + "level-0_Mattes_{}_Composite_Concatenated.h5".format( tfm_type)
         qc_fn = "{}/qc/{}_{}_{}_{}_{}_{}-0.png".format(output_dir, *desc, j,i, tfm_type)
         moving_fn=df['crop_fn'].loc[ j_idx].values[0]
@@ -185,8 +186,8 @@ def combine_sections_to_vol(df,z_mm,direction,out_fn,target_tier=1):
     example_fn=df["crop_fn"].iloc[0]
     print(example_fn)
     shape = nib.load(example_fn).shape
-    xmax = int(shape[0]/10)
-    zmax = int(shape[1]/10)
+    xmax = int( shape[0] / 10 )
+    zmax = int( shape[1] / 10 )
     order_max=df["volume_order"].astype(int).max()
     order_min=df["volume_order"].astype(int).min()  
     slab_ymax=int(order_max+1) #-order_min + 1
@@ -205,16 +206,16 @@ def combine_sections_to_vol(df,z_mm,direction,out_fn,target_tier=1):
 
             vol[:,int(y),:]= ar
         
-    xstep= z_mm/4164. * 10
-    zstep= z_mm/4164. * 10
+    xstep = 0.02 * 10
+    zstep = z_mm/4164. * 10
 
     print("\n\tWriting Volume",out_fn,"\n")
     slab_ymin=-126+df["global_order"].min()*0.02 
     print("slab ymin:", slab_ymin)
     ystep = 0.02 
-    affine=np.array([[xstep, 0, 0, -72],
+    affine=np.array([[xstep, 0, 0, -90],
                     [0,  ystep, 0, slab_ymin],
-                    [0, 0 ,zstep, -90],
+                    [0, 0 ,zstep, -72],
                     [0, 0, 0, 1]])
     affine = np.round(affine,3)
     nib.Nifti1Image(vol, affine ).to_filename( out_fn )
@@ -243,8 +244,6 @@ def alignment_stage(brain,hemi,slab, df, vol_fn_str, output_dir, scale, transfor
         
         y_idx_tier1 = df['volume_order'].loc[ df['tier'].astype(int) == np.min(df['tier']) ].values
         mid = int(len(y_idx_tier1)/2) 
-
-
 
         df['crop_fn_new'] = df['crop_fn']
         df['init_tfm'] = [None] * df.shape[0]
@@ -281,7 +280,8 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, d
     slab_img_fn_str = '{}/brain-{}_hemi-{}_slab-{}_ligand_{}_{}_init_align_{}.{}'
 
     n_ligands = len(df['ligand'].unique())
-
+    z_mm = scale[brain][hemi][str(slab)]["size"]
+    direction = scale[brain][hemi][str(slab)]["direction"]
     ###########
     # Stage 1 #
     ###########
@@ -327,6 +327,9 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, d
         # update the master dataframe, df, with new dataframe for the ligand 
         df.loc[ df['ligand'] == target_ligand ] = df_ligand.loc[ df['ligand'] == target_ligand ]
 
+    stage_2_df = pd.concat(concat_list)
+
+
 
     ###########
     # Stage 3 #
@@ -349,17 +352,46 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, d
 
         df_ligand, transforms_3 = alignment_stage(brain, hemi, slab, df_ligand, slab_img_fn_str, output_dir_3, scale, transforms_3, target_ligand=target_ligand, ligand_n=i, target_tier=2,  desc=(brain,hemi,slab), clobber=clobber)
         concat_list.append( df_ligand.loc[ df_ligand['tier'] == 2] )
-        df_ligand['tier'].loc[ df_ligand['ligand'] == target_ligand ] = 1
-
+        df['tier'].loc[ df['ligand'] == target_ligand ] = 1
+    
     # create a new dataframe
-    df = pd.concat(concat_list)
+    stage_3_df = pd.concat(concat_list)
+    
+    df = stage_3_df.copy()
+    
+    final_tfm_dir =  output_dir + os.sep + 'final_tfm'
+    os.makedirs(final_tfm_dir, exist_ok=True)
+    ### create final transforms that take raw autoradiographs from their raw alignement to the initial
+    ### rigid alignment. this involves combining the concatenated transforms of stages 2 and 3
+    for i, row in stage_3_df.iterrows() : 
+
+        final_tfm_fn = "{}/{}_final_Rigid.h5".format(final_tfm_dir, row['volume_order'])
+
+        idx = df['volume_order'] == row['volume_order']
+
+        if not os.path.exists(final_tfm_fn) :
+            print( row['ligand'], row['ligand'] != ligand_intensity_order[0] );
+
+            if row['ligand'] != ligand_intensity_order[0] :
+                stage_2_init_tfm = stage_2_df['init_tfm'].loc[ stage_2_df['volume_order'] == row['volume_order']].values[0] 
+                stage_3_init_tfm = row['init_tfm']
+                crop_fn = row['crop_fn']
+                shell(f'antsApplyTransforms -v 0 -d 2 -i {crop_fn} -r {crop_fn} -t {stage_3_init_tfm} -t {stage_2_init_tfm} -o Linear[{final_tfm_fn}]',True,True)
+                df['init_tfm'].loc[ idx ] = final_tfm_fn
+
+            elif not np.isnan(row['init_tfm']) :
+                shutil.copy(row['init_tfm'], final_tfm_fn)
+            else :
+                final_tfm_fn = np.nan
+        
+        df['init_tfm'].loc[ idx ] = final_tfm_fn
+            
+        print('\t--->',df['init_tfm'].loc[ idx ].values[0])
+
     print('Writing:',init_tfm_csv)
-    print(df['crop_fn'])
         
     df.to_csv(init_tfm_csv)
 
-    z_mm = scale[brain][hemi][str(slab)]["size"]
-    direction = scale[brain][hemi][str(slab)]["direction"]
     df['tier']=1
     if not os.path.exists(init_align_fn) :
         vol = combine_sections_to_vol(df,z_mm,direction,init_align_fn )

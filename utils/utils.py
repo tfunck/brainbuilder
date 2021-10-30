@@ -9,6 +9,7 @@ import nibabel as nib
 import PIL
 import matplotlib
 import time
+import ants
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
@@ -45,40 +46,20 @@ def safe_ants_image_read(fn, tol=0.001, clobber=False):
     return ants_image
 
 
-def points2vol(points_fn, vol0_fn, vol1_fn, invert=False, clobber=False):
-
-    affine_fn = os.path.splitext(points_fn)[0] + '_affine.mat'
+def points2tfm(points_fn, affine_fn,  invert=False, clobber=False):
 
     if not os.path.exists(affine_fn) :
-        # rec_points, mni_points
-        points_0, points_1 = read_points(points_fn)
+        #  mni_points, rec_points,
+        fixed_points, moving_points = read_points(points_fn)
 
-        if not invert :
-            # rec <- vol
-            print('vol -> rec')
-            fixed_fn = vol0_fn          # rec vol
-            fixed_points = points_0     # rec points
-            moving_fn = vol1_fn         # mni vol
-            moving_points = points_1    # mni points
-        else :
-            # rec -> vol
-            print('rec -> vol')
-            fixed_fn = vol1_fn          # mni vol
-            fixed_points = points_1     # mni points
-            moving_fn = vol0_fn         # rec vol
-            moving_points = points_0    # rec points
+        print('\t: Calculate affine matrix from points')
 
-        print('\tMoving fn:', moving_fn)
-        print('\tFixed fn:', fixed_fn)
-        
-
-        # remember: for some reason ants applies transforms to points backwards!!!
-        # so fixed and moving points are flipped for fit_transform_to_paired_points
         landmark_tfm = ants.fit_transform_to_paired_points(fixed_points, moving_points, transform_type="Affine")
 
         ants.write_transform(landmark_tfm, affine_fn)
 
-    return affine_tfm
+    return affine_fn
+
 def newer_than(input_list, output_list) :
     '''
     check if the files in input list are newer than target_filename
@@ -355,16 +336,64 @@ def downsample_and_crop(source_lin_dir, lin_dwn_dir,crop_dir, affine, step=0.2, 
             print("downsampled filename", dwn_fn)
             #nib.Nifti1Image(img, affine).to_filename(dwn_fn)
 
-def prefilter_and_downsample(input_filename, new_resolution, output_filename, reference_image_fn='' ):
+#def reshape_to_min_dim(vol):
+
+
+
+def prefilter_and_downsample(input_filename, new_resolution, output_filename, 
+                            reference_image_fn='',
+                            new_starts=[None, None, None] ):
     img = nib.load(input_filename)
+    
     vol = img.get_fdata()
-    base_resolution = (img.affine[0,0]+img.affine[1,1]) / 2.
-    vol = gaussian_filter(vol, (new_resolution/base_resolution)/(1*np.pi))
+    
+    ndim = len(vol.shape)
+
+    new_affine = np.copy( img.affine )
+    for i, new_start in enumerate(new_starts) :
+        if new_start != None : 
+            new_affine[3,i] = float( new_start )
+    
+    new_resolution = np.array(new_resolution).astype(float)
+
+    if ndim ==3 : 
+        if vol.shape[2] == 1 : vol = vol.reshape([vol.shape[0],vol.shape[1]])
+    
+    if ndim == 2 :
+        new_affine[0,0] = new_resolution[0]
+        new_affine[1,1] = new_resolution[1]
+        
+        steps = np.array( [ img.affine[0,0], img.affine[1,1] ] )
+
+    elif ndim == 3 :
+        steps = np.array( [ img.affine[0,0], img.affine[1,1], img.affine[2,2] ] )
+        new_affine[0,0] = new_resolution[0]
+        new_affine[1,1] = new_resolution[1]
+        new_affine[2,2] = new_resolution[2]
+    else :
+        print(f'Error: number of dimensions ({ndim}) does not equal 2 or 3 for {input_filename}')
+        exit(1)
+    
+    sd = (  np.array(new_resolution) / steps  ) / np.pi
+    print('\t', new_resolution, steps)
+    print('\tsd',sd, input_filename)
+
+    vol = gaussian_filter(vol, sd)
     
     img = nib.Nifti1Image(vol, img.affine)
 
     if reference_image_fn == '' :
-        resample_to_output(img, [float(new_resolution)]*3, order=5).to_filename(output_filename)
+        vol = resample_to_output( nib.Nifti1Image(vol, img.affine), new_resolution, order=5).get_fdata()
+        new_dims = [ vol.shape[0], vol.shape[1] ]
+        if len(vol.shape) == 3 :
+            if vol.shape[2] != 1 :
+                new_dims.append(vol.shape[2])
+        # Warning: This reshape step is absolutely necessary to correctly apply ants transforms.
+        #           nibabel's resampling function will change the dimensions from, say, (x,y) to (x,y,1)
+        #           This throws things off for ants so the volume has to be reshaped back to original dimensions.
+        vol = vol.reshape(*new_dims) 
+        print(new_affine)
+        nib.Nifti1Image(vol, new_affine).to_filename(output_filename)
     else :
         resample_from_to(img, nib.load(reference_image_fn), order=5).to_filename(output_filename)
 

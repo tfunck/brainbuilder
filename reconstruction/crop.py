@@ -40,13 +40,13 @@ def gen_affine(row, scale,global_order_min):
 
     direction = scale[brain][hemi][str(slab)]["direction"]
     z_mm = scale[brain][hemi][str(slab)]["size"]
-    xstep= z_mm/4120. 
-    zstep= z_mm/5164. 
+    xstep= 0.02
+    zstep= z_mm / 4164. # pixel size in z-axis is variable depending on microscope magnification
     ystep = 0.02 
     slab_ymin = -126 + global_order_min + 0.02 * row["global_order"] 
     
-    affine=np.array([[xstep, 0, 0, -72],
-                            [0,  zstep, 0, -90],
+    affine=np.array([[xstep, 0, 0, -90],
+                            [0,  zstep, 0, -72],
                             [0, 0 , ystep, slab_ymin],
                             [0, 0, 0, 1]])
     return affine
