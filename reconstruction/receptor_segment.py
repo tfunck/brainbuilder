@@ -87,20 +87,20 @@ def resample_and_transform(output_dir, resolution_2d, resolution_3d, row):
     
     if resolution_2d != resolution_3d :
         tfm_input_fn = get_seg_fn(output_dir, row['volume_order'], resolution_2d, seg_fn, '_rsl')
-        prefilter_and_downsample(seg_fn, [resolution_3d]*2, tfm_input_fn, new_starts=new_starts  )
+        prefilter_and_downsample(seg_fn, [resolution_3d]*2, tfm_input_fn, new_starts = new_starts  )
 
     if not os.path.exists(seg_rsl_tfm_fn) : 
         # get initial rigid transform
         tfm_fn = row['tfm']  
-        print('\n',tfm_fn,'\n')
+        print('\n-->',tfm_fn,'\n')
         if type(tfm_fn) == str :
             tfm = ants.read_transform(tfm_fn)
-            cmdline=f'antsApplyTransforms -v 0 -d 2 -n BSpline[3] -i {tfm_input_fn} -r {seg_rsl_fn} -t {tfm_fn} -o {seg_rsl_tfm_fn}'
+            cmdline = f'antsApplyTransforms -v 1 -d 2 -n BSpline[3] -i {tfm_input_fn} -r {seg_rsl_fn} -t {tfm_fn} -o {seg_rsl_tfm_fn}'
             print(cmdline)
             shell(cmdline)
         else :
             shutil.copy(tfm_input_fn, seg_rsl_tfm_fn)
-            print('\tNo transform for',row['volume_order'])
+            print('\tNo transform for', seg_rsl_fn)
 
 
 

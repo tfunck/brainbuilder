@@ -84,19 +84,17 @@ def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_min, srv_max, srv
     # |   | |   |   |    |
     # |---| |---|   |----|
     #
-    print(slab_direction, slab_width[str(cur_slab)], average_slab_gap)
 
     if slab_direction == "rostral_to_caudal" :
-        y0w = srv_max - slab_width[str(cur_slab)] #- average_slab_gap 
+        y0w = srv_max - slab_width[str(cur_slab)] *1.2 - average_slab_gap 
         y1w = srv_max
     elif slab_direction == "caudal_to_rostral" :
         y0w = srv_min
-        y1w = srv_min + slab_width[str(cur_slab)] + average_slab_gap 
+        y1w = srv_min + slab_width[str(cur_slab)] *1.2 + average_slab_gap 
     else :
         print('Slab direction not recognized,', slab_direction)
         exit(1)
     
-    print('--> y0w', y0w, 'y1w', y1w)
     y0 = w2v(y0w, srv_ystep, srv_ystart)
     y1 = w2v(y1w, srv_ystep, srv_ystart)
     
@@ -157,7 +155,6 @@ def pad_seg_vol(seg_rsl_fn,max_downsample_level):
     seg_vol, pad_affine = pad_volume(seg_vol, max_downsample_level, seg_img.affine )
     seg_rsl_pad_fn=re.sub('.nii','_padded.nii', seg_rsl_fn)
     nib.Nifti1Image(seg_vol, pad_affine).to_filename(seg_rsl_pad_fn)
-    print('\t\tPadded segmented autoradiographs', seg_rsl_pad_fn)
     
     return ystart, ystep, seg_rsl_pad_fn
 
@@ -242,7 +239,7 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
         nl_metric = f'CC[{srv_rsl_fn},{seg_rsl_fn},1,2,Regular,1]'
     else :
         nl_metric=f'Mattes[{srv_rsl_fn},{seg_rsl_fn},1,20,Regular,1]'
-    nl_metric=f'Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]'
+    nl_metric=f'Mattes[{srv_rsl_fn},{seg_rsl_fn},1,20,Regular,1]'
 
     if not os.path.exists(syn_out_fn) or not os.path.exists(out_tfm_fn) or clobber:
         # set initial transform
@@ -250,22 +247,22 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
             init_moving=f'--initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]'
         else :
             init_moving=f'--initial-moving-transform [{manual_affine_fn},0]'
+
         init_moving=f'--initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]'
 
         #shell(f'antsApplyTransforms -v 1 -i {seg_rsl_fn} -r {srv_rsl_fn} -t {manual_affine_fn} -o {affine_out_fn}')
-        #exit(0)
         # calculate rigid registration
         if not os.path.exists(f'{prefix_rigid}Composite.h5'):
             shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3  {init_moving} -t Rigid[.1] -c {lin_itr_str}  -m GC[{srv_slab_fn},{seg_rsl_fn},1,30,Regular,1] -s {s_str} -f {f_str} -o [{prefix_rigid},{temp_out_fn},{out_inv_fn}] ', verbose=True)
         
         # calculate similarity registration
         if not os.path.exists(f'{prefix_similarity}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform {prefix_rigid}Composite.h5 -t Similarity[.1]  -m Mattes[{srv_rsl_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+            shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform {prefix_rigid}Composite.h5 -t Similarity[.1]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{temp_out_fn},{out_inv_fn}] ', verbose=True)
 
         #calculate affine registration
         #--initial-moving-transform {prefix_similarity}Composite.h5
         if not os.path.exists(f'{prefix_affine}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3  {init_moving} -t Affine[.1] -m Mattes[{srv_rsl_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{out_inv_fn}] ', verbose=True)
+            shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3  {init_moving} -t Affine[.1] -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{out_inv_fn}] ', verbose=True)
         # Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]
         
         if not os.path.exists(f'{prefix_syn}Composite.h5'):

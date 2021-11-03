@@ -63,8 +63,8 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
 
     init_tfm = row['init_tfm']
     init_str = f'[{fx_fn},{mv_fn},1]'
-    if type(init_tfm) == str :
-        init_str = init_tfm
+    #if type(init_tfm) == str :
+    #    init_str = init_tfm
 
     #if float(resolution) >= 1.0 :
     #    nl_metric = f'CC[{fx_fn},{mv_fn},1,2,Regular,1]'
@@ -80,14 +80,6 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     shell(affine_command_str)
     shell(syn_command_str)
 
-
-    #init_tfm=row['init_tfm']
-    #if init_tfm != None :
-    #    print(f'antsApplyTransforms -v 1 -d 2 -i {mv_fn} -r {mv_fn}  -t {prefix}_nl_Composite.h5 -t {init_tfm} -o [{prefix}_Composite.h5]')
-    #    shell(f'antsApplyTransforms -v 1 -d 2 -i {mv_fn} -r {mv_fn}  -t {prefix}_nl_Composite.h5 -t {init_tfm} -o [{prefix}_Composite.h5]')
-    #    assert os.path.exists(f'{prefix}_Composite.h5'), f'Error concatenating initial rigid tfm with nl tfm:\n -t {prefix}_nl_Composite.h5 \n-t {init_tfm} \n -o [{prefix}_Composite.h5]' 
-    #else :
-    #    shutil.copy(f'{prefix}_nl_Composite.h5', f'{prefix}_Composite.h5')
     return 0
     
 def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
@@ -154,7 +146,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
         df['tfm'].loc[ df['volume_order'] == y ] = tfm_fn
         df['tfm_affine'].loc[ df['volume_order'] == y ] = tfm_affine_fn
 
-    df['init_tfm'] = df['tfm']
+    #df['init_tfm'] = df['tfm']
 
     return df
 

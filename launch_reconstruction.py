@@ -574,8 +574,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 
 if __name__ == '__main__':
     resolution_list = ['4.0', '3.5', '3.0', '2.5', '2.0', '1.5', '1.0'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
-    resolution_list = [ '3.0', '2.5', '2.0', '1.5', '1.0'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
-    resolution_list = [ '3.0',  '2.0',  '1.0'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
+    resolution_list = [ '4.0', '3.0', '2.0', '1.0'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
 
     args, files = setup_parameters(setup_argparse().parse_args() )
     #Process the base autoradiograph csv

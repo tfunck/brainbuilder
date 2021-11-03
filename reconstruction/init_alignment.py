@@ -157,7 +157,7 @@ def adjust_alignment(df,  y_idx, mid, transforms, step, output_dir,desc, shrink_
 
         df, transforms = align_neighbours_to_fixed(y, j_list, df, transforms, iteration, shrink_factor,smooth_sigma, output_dir,  tfm_type, desc,target_ligand=target_ligand,clobber=clobber)
 
-    df.to_csv('{}/df_{}-0.csv'.format(output_dir,tfm_type))
+    #df.to_csv('{}/df_{}-0.csv'.format(output_dir,tfm_type))
     return transforms,df
 
 
@@ -263,6 +263,7 @@ def alignment_stage(brain,hemi,slab, df, vol_fn_str, output_dir, scale, transfor
     else :
         df = pd.read_csv(csv_fn)
 
+    print(np.unique(df['ligand'])); #exit(0)
     return df, transforms
     
 def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, df,  scale_factors_json="scale_factors.json",  clobber=False):
@@ -328,23 +329,29 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, d
         df.loc[ df['ligand'] == target_ligand ] = df_ligand.loc[ df['ligand'] == target_ligand ]
 
     stage_2_df = pd.concat(concat_list)
-
-
-
+ 
     ###########
     # Stage 3 #
     ###########
+    '''
     output_dir_3 = output_dir + os.sep + 'stage_3'
     concat_list=[ df.loc[df['ligand'] == ligand_intensity_order[0]]   ]
    
+    current_ligands = [ligand_intensity_order[0]]
     print('Stage 3') 
     for i in range(1,n_ligands) :
-        current_ligands = [ligand_intensity_order[0], ligand_intensity_order[i]]
+
+        current_ligands.append( ligand_intensity_order[i] )
 
         target_ligand = current_ligands[-1]
         idx =  df['ligand'].apply(lambda x : x in current_ligands)
         df_ligand = df.loc[ idx ] 
-        df_ligand['tier'].loc[df_ligand['ligand'] == ligand_intensity_order[0]] = 1
+        
+        for ref_ligand in current_ligands[0:-1] :
+            print('\t\tRef Ligand:', ref_ligand)
+            df_ligand['tier'].loc[df_ligand['ligand'] == ref_ligand ] = 1
+        
+
         df_ligand['tier'].loc[df_ligand['ligand'] == target_ligand] = 2
         #Init dict with initial transforms
         transforms_3={}
@@ -352,18 +359,19 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, d
 
         df_ligand, transforms_3 = alignment_stage(brain, hemi, slab, df_ligand, slab_img_fn_str, output_dir_3, scale, transforms_3, target_ligand=target_ligand, ligand_n=i, target_tier=2,  desc=(brain,hemi,slab), clobber=clobber)
         concat_list.append( df_ligand.loc[ df_ligand['tier'] == 2] )
-        df['tier'].loc[ df['ligand'] == target_ligand ] = 1
-    
+
+
     # create a new dataframe
     stage_3_df = pd.concat(concat_list)
     
     df = stage_3_df.copy()
-    
+    '''
+    df = stage_2_df
     final_tfm_dir =  output_dir + os.sep + 'final_tfm'
     os.makedirs(final_tfm_dir, exist_ok=True)
     ### create final transforms that take raw autoradiographs from their raw alignement to the initial
     ### rigid alignment. this involves combining the concatenated transforms of stages 2 and 3
-    for i, row in stage_3_df.iterrows() : 
+    for i, row in stage_2_df.iterrows() : 
 
         final_tfm_fn = "{}/{}_final_Rigid.h5".format(final_tfm_dir, row['volume_order'])
 
@@ -372,14 +380,14 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, d
         if not os.path.exists(final_tfm_fn) :
             print( row['ligand'], row['ligand'] != ligand_intensity_order[0] );
 
-            if row['ligand'] != ligand_intensity_order[0] :
-                stage_2_init_tfm = stage_2_df['init_tfm'].loc[ stage_2_df['volume_order'] == row['volume_order']].values[0] 
-                stage_3_init_tfm = row['init_tfm']
-                crop_fn = row['crop_fn']
-                shell(f'antsApplyTransforms -v 0 -d 2 -i {crop_fn} -r {crop_fn} -t {stage_3_init_tfm} -t {stage_2_init_tfm} -o Linear[{final_tfm_fn}]',True,True)
-                df['init_tfm'].loc[ idx ] = final_tfm_fn
-
-            elif not np.isnan(row['init_tfm']) :
+            #if row['ligand'] != ligand_intensity_order[0] :
+            #    stage_2_init_tfm = stage_2_df['init_tfm'].loc[ stage_2_df['volume_order'] == row['volume_order']].values[0] 
+            #    stage_3_init_tfm = row['init_tfm']
+            #    crop_fn = row['crop_fn']
+            #    shell(f'antsApplyTransforms -v 0 -d 2 -i {crop_fn} -r {crop_fn} -t {stage_3_init_tfm} -t {stage_2_init_tfm} -o Linear[{final_tfm_fn}]',True,True)
+            #    df['init_tfm'].loc[ idx ] = final_tfm_fn
+            
+            if type( row['init_tfm'] ) == str  :
                 shutil.copy(row['init_tfm'], final_tfm_fn)
             else :
                 final_tfm_fn = np.nan

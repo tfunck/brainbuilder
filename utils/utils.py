@@ -392,7 +392,6 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
         #           nibabel's resampling function will change the dimensions from, say, (x,y) to (x,y,1)
         #           This throws things off for ants so the volume has to be reshaped back to original dimensions.
         vol = vol.reshape(*new_dims) 
-        print(new_affine)
         nib.Nifti1Image(vol, new_affine).to_filename(output_filename)
     else :
         resample_from_to(img, nib.load(reference_image_fn), order=5).to_filename(output_filename)
