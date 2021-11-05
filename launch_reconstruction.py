@@ -328,8 +328,8 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, 
         slab_df: updated slab_df data frame with filenames for nonlinearly 2d aligned autoradiographs
 
     '''
-
     slab_list = [int(i) for i in  files[brain][hemi].keys() ]
+    slab_files = files[brain][hemi][str(slab)]
     
     ### Iterate over progressively finer resolution
     for resolution_itr, resolution in enumerate(resolution_list) :
@@ -414,8 +414,7 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, 
             align_slab_to_mri(  brain, hemi, slab, seg_rsl_fn, crop_srv_rsl_fn, align_to_mri_dir, 
                                 hemi_df, args.slabs, nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_rsl_fn, srv_3d_rsl_fn, 
                                 resolution_3d, resolution_itr_3d, 
-                                resolution_list, slab_direction, cfiles['manual_alignment_points'],
-                                cfiles['manual_alignment_affine'] )
+                                resolution_list, slab_direction, cfiles['manual_alignment_points'], cfiles['manual_affine_fn'] )
         
         ###
         ### Stage 3.5 : Create a new srv_rsl_fn file that removes the currently aligned slab

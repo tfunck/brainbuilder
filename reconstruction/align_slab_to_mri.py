@@ -54,9 +54,10 @@ def get_slab_width(slabs, df, ystep, ystart, unaligned_slab_list):
         slab_min = v2w(slab_vmin, ystep, ystart)
         slab_max = v2w(slab_vmax, ystep, ystart)
 
+
         #print('{}\t{}\t{}\t{}'.format(slab_i,slab_vmin,slab_vmax,slab_vmax-slab_vmin) )
-        #slab_minima[slab_i] = slab_min
-        #slab_maxima[slab_i] = slab_max
+        slab_minima[slab_i] = slab_min
+        slab_maxima[slab_i] = slab_max
         slab_width[slab_i]  = (slab_vmax-slab_vmin)*ystep
         
         if slab_i in unaligned_slab_list :
@@ -64,36 +65,39 @@ def get_slab_width(slabs, df, ystep, ystart, unaligned_slab_list):
     
     return slab_width, total_slab_width
 
-def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_min, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction, verbose=False):
+def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_min, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction, manual_points_fn, verbose=False):
 
-    temp_slabs = slabs.copy()
-    temp_slabs.sort()
-    slabs = temp_slabs
+    #temp_slabs = slabs.copy()
+    #temp_slabs.sort()
+    #slabs = temp_slabs
 
-    slab_processing_order = range(len(slabs)) #Could be changed to a different ordering eventually
-    unaligned_slab_list = [ i+1 for i in slab_processing_order if i+1 <= cur_slab ]
+    #slab_processing_order = range(len(slabs)) #Could be changed to a different ordering eventually
+    #unaligned_slab_list = [ i+1 for i in slab_processing_order if i+1 <= cur_slab ]
 
-    slab_width, total_slab_width = get_slab_width(slabs, df, 0.02, srv_ystart, unaligned_slab_list)
+    #slab_width, total_slab_width = get_slab_width(slabs, df, 0.02, srv_ystart, unaligned_slab_list, manual_points_fn)
+    #total_slab_gap = srv_width - total_slab_width
 
-    total_slab_gap = srv_width - total_slab_width
-
-    n_slabs = len(np.unique(df['slab']))
-    average_slab_gap = (total_slab_gap / n_slabs) / 2.
+    #n_slabs = len(np.unique(df['slab']))
+    #average_slab_gap = (total_slab_gap / n_slabs) / 2.
 
     # |   | |   |   |    |
     # |   | |   |   |    |
     # |---| |---|   |----|
     #
 
-    if slab_direction == "rostral_to_caudal" :
-        y0w = srv_max - slab_width[str(cur_slab)] *1.2 - average_slab_gap 
-        y1w = srv_max
-    elif slab_direction == "caudal_to_rostral" :
-        y0w = srv_min
-        y1w = srv_min + slab_width[str(cur_slab)] *1.2 + average_slab_gap 
-    else :
-        print('Slab direction not recognized,', slab_direction)
-        exit(1)
+    #if slab_direction == "rostral_to_caudal" :
+    #    y0w = srv_max - slab_width[str(cur_slab)] *1.2 - average_slab_gap 
+    #    y1w = srv_max
+    #elif slab_direction == "caudal_to_rostral" :
+    #    y0w = srv_min
+    #    y1w = srv_min + slab_width[str(cur_slab)] *1.2 + average_slab_gap 
+    #else :
+    #    print('Slab direction not recognized,', slab_direction)
+    #    exit(1)
+    
+    (), rec_points = read_points( manual_points_fn )
+    y0w = np.min(rec_points[:,1])
+    y1w = np.max(rec_points[:,1])
     
     y0 = w2v(y0w, srv_ystep, srv_ystart)
     y1 = w2v(y1w, srv_ystep, srv_ystart)
@@ -219,51 +223,52 @@ def gen_mask(fn, clobber=False) :
     
     return out_fn
 
-def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn ):
+def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_points_fn ):
     prefix=re.sub('_SyN_Composite.h5','',out_tfm_fn)
     prefix_rigid = prefix+'_Rigid_'
     prefix_similarity = prefix+'_Similarity_'
     prefix_affine = prefix+'_Affine_'
+    prefix_manual = prefix+'_Manual_'
     prefix_syn = prefix+'_SyN_'
     
     temp_out_fn='/tmp/tmp.nii.gz'
     
     affine_out_fn = f'{prefix_affine}Composite.nii.gz'
+    manual_out_fn = f'{prefix_manual}Composite.nii.gz'
     syn_out_fn = f'{prefix_syn}Composite.nii.gz'
 
     seg_mask_fn = gen_mask(seg_rsl_fn,clobber=True)
     srv_mask_fn = gen_mask(srv_rsl_fn,clobber=True)
 
+    srv_tgt_fn=srv_slab_fn
+
     #calculate SyN
     if float(resolution) >= 1.0 :
         nl_metric = f'CC[{srv_rsl_fn},{seg_rsl_fn},1,2,Regular,1]'
     else :
-        nl_metric=f'Mattes[{srv_rsl_fn},{seg_rsl_fn},1,20,Regular,1]'
-    nl_metric=f'Mattes[{srv_rsl_fn},{seg_rsl_fn},1,20,Regular,1]'
+        nl_metric=f'Mattes[{srv_tgt_fn},{seg_rsl_fn},1,20,Regular,1]'
+
 
     if not os.path.exists(syn_out_fn) or not os.path.exists(out_tfm_fn) or clobber:
         # set initial transform
-        if manual_affine_fn == None :
-            init_moving=f'--initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]'
-        else :
-            init_moving=f'--initial-moving-transform [{manual_affine_fn},0]'
 
-        init_moving=f'--initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]'
-
-        #shell(f'antsApplyTransforms -v 1 -i {seg_rsl_fn} -r {srv_rsl_fn} -t {manual_affine_fn} -o {affine_out_fn}')
         # calculate rigid registration
-        if not os.path.exists(f'{prefix_rigid}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3  {init_moving} -t Rigid[.1] -c {lin_itr_str}  -m GC[{srv_slab_fn},{seg_rsl_fn},1,30,Regular,1] -s {s_str} -f {f_str} -o [{prefix_rigid},{temp_out_fn},{out_inv_fn}] ', verbose=True)
-        
-        # calculate similarity registration
-        if not os.path.exists(f'{prefix_similarity}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform {prefix_rigid}Composite.h5 -t Similarity[.1]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+        if os.path.exists( manual_affine_fn ) :
+            if not os.path.exists(f'{prefix_rigid}Composite.h5'):
+                shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1] -t Rigid[.1] -c {lin_itr_str}  -m GC[{srv_slab_fn},{seg_rsl_fn},1,30,Regular,1] -s {s_str} -f {f_str} -o [{prefix_rigid},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+            
+            # calculate similarity registration
+            if not os.path.exists(f'{prefix_similarity}Composite.h5'):
+                shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform {prefix_rigid}Composite.h5 -t Similarity[.1]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+            
+            affine_init = f'--initial-moving-transform {prefix_similarity}Composite.h5'
+        else :
+            shell(f'antsApplyTransforms -v 1 -i {seg_rsl_fn} -r {srv_rsl_fn} -t {manual_affine_fn} -o {manual_qout_fn}')
+            affine_init = f'--initial-moving-transform [{manual_affine_fn},0]'
 
         #calculate affine registration
-        #--initial-moving-transform {prefix_similarity}Composite.h5
         if not os.path.exists(f'{prefix_affine}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3  {init_moving} -t Affine[.1] -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{out_inv_fn}] ', verbose=True)
-        # Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]
+            shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3 {affine_init} -t Affine[.1] -m Mattes[{srv_tgt_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{out_inv_fn}] ', verbose=True)
         
         if not os.path.exists(f'{prefix_syn}Composite.h5'):
             # --masks [{srv_mask_fn},{seg_mask_fn}]
@@ -296,12 +301,9 @@ def get_manual_tfm(resolution_itr,manual_alignment_points, seg_rsl_fn, srv_rsl_f
 
     return manual_tfm_fn
 
-def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, slabs, out_tfm_fn, out_tfm_inv_fn, out_fn, out_inv_fn,  resolution, resolution_itr, resolution_list, slab_direction, manual_alignment_points=None, manual_affine_fn=None, clobber=False, verbose=True ) :
+def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, slabs, out_tfm_fn, out_tfm_inv_fn, out_fn, out_inv_fn,  resolution, resolution_itr, resolution_list, slab_direction, manual_points_fn, manual_affine_fn=None, clobber=False, verbose=True ) :
     print('\tRunning')
     slab=int(slab)
-
-    if resolution_itr != 0 :
-        manual_affine_fn = None
 
     # Load super-resolution GM volume extracted from donor MRI.
     srv_width, srv_min, srv_max, srv_ystep, srv_ystart =  get_srv_info( srv_rsl_fn ) 
@@ -316,7 +318,7 @@ def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, sl
     print('ystart/ystep/srv_max', ystart, ystep, srv_max)
 
     # get the start and end values of the slab in srv voxel coordinates
-    y0, y1 = get_slab_start_end(df, slabs, ystep, ystart, slab, srv_min, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction)
+    y0, y1 = get_slab_start_end(df, slabs, ystep, ystart, slab, srv_min, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction, manual_points_fn)
  
     # get iteration schedules for the linear and non-linear portion of the ants alignment
     f_str, s_str, lin_itr_str, nl_itr_str = get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr)
