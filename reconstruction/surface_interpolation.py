@@ -418,20 +418,24 @@ def project_volumes_to_surfaces(surf_fn_list, vol_fn_dict, interp_csv, interp_di
     if not os.path.exists(interp_csv) or clobber: 
         qc_dir = interp_dir + '/qc/'
         os.makedirs(qc_dir, exist_ok=True)
-
-        nvertices = h5py.File(surf_fn_list[0],'r')['data'].shape[0]
+        
+        nvertices = h5py.File(surf_fn_list[0]['upsample_h5'],'r')['data'].shape[0]
         #the default value of the vertices is set to -100 to make it easy to distinguish
         #between vertices where a ligand density of 0 is measured versus the default value
         all_values=np.zeros(nvertices) - 100
-
+    
+        print(surf_fn_list)
+        print(vol_fn_dict);
         #Iterate over slabs within a given 
-        for i, (surf_fn, vol_fn) in enumerate(zip(surf_fn_list, vol_fn_dict)) :
+        for i, surf_fn in enumerate(surf_fn_list) :
+            print(vol_fn_dict[str(i+1)])
+            vol_fn = vol_fn_dict[str(i+1)]
             print('\t\tSlab =',i+1)
-            print('\t\tSurf fn:',surf_fn)
+            print('\t\tSurf fn:',surf_fn['upsample_h5'])
             print('\t\tVol fn:',vol_fn)
-
+            
             # read surface coordinate values from file
-            coords_h5 = h5py.File(surf_fn,'r')
+            coords_h5 = h5py.File(surf_fn['upsample_h5'],'r')
             coords = coords_h5['data'][:]
 
             # read slab volume
@@ -542,6 +546,7 @@ def thicken_sections(interp_dir, slab_dict, df_ligand, resolution ):
 
             assert np.sum(rec_vol) != 0, 'Error: receptor volume for single ligand is empty'
             nib.Nifti1Image(rec_vol, affine).to_filename(thickened_fn)
+        print('\t-->',i,thickened_fn)
         vol_fn_dict[i] = thickened_fn
     return vol_fn_dict
 
@@ -555,7 +560,9 @@ def get_profiles(interp_dir, surf_dir, depth_list, profiles_fn, slab_dict, df_li
     # Iterate over the surfaces of each depth between wm and gm surfaces
     for depth_index, (depth, depth_fn) in enumerate(zip(depth_list,depth_fn_list)):
         # Get surfaces transformed into slab space
-        surf_fn_list = [ depth_fn_slab_space[i][depth] for i in slab_dict.keys() ]
+        slabs = list(slab_dict.keys())
+        slabs.sort()
+        surf_fn_list = [ depth_fn_slab_space[i][depth] for i in slabs  ]
         
         # 1. Thicken sections
         vol_fn_dict =  thicken_sections(interp_dir, slab_dict, df_ligand, resolution)
@@ -863,7 +870,7 @@ def surface_interpolation(slab_dict, out_dir, interp_dir, brain, hemi, resolutio
             
             # Interpolate a 3D receptor volume from the surface mesh profiles
             print('\tCreate Reconstructed Volume')
-            create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, profiles_fn, depth_list, depth_fn_slab_space, args, files, resolution, df_ligand, use_mapper=True, clobber=False)
+            create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, profiles_fn, depth_list, depth_fn_slab_space, args, files, resolution, df_ligand, use_mapper=True, clobber=clobber)
 
             # transform interp_fn to mni space
             print('\tTransform slab to mni')

@@ -12,7 +12,7 @@ from scipy.ndimage import label
 from scipy.ndimage import binary_dilation, binary_closing, binary_fill_holes
 from scipy.ndimage.filters import gaussian_filter
 from nibabel.processing import resample_to_output
-from utils.utils import shell, create_2d_sections, run_stage, prefilter_and_downsample, points2tfm
+from utils.utils import shell, create_2d_sections, run_stage, prefilter_and_downsample
 from utils.ANTs import ANTs
 from nibabel.processing import resample_to_output, smooth_image
 from utils.mesh_io import load_mesh_geometry, save_mesh_data, save_obj, read_obj
@@ -28,6 +28,7 @@ from preprocessing.preprocessing import fill_regions_3d
 global file_dir
 base_file_dir, fn =os.path.split( os.path.abspath(__file__) )
 file_dir = base_file_dir +os.sep +'section_numbers' +os.sep
+manual_dir = base_file_dir +os.sep +'manual_points' +os.sep
 
 def create_new_srv_volumes(rec_3d_rsl_fn, srv_rsl_fn, cropped_output_list, resolution_list ):
     '''
@@ -254,8 +255,8 @@ def setup_files_json(args ):
                     cdict['rec_3d_rsl_fn'] = '{}/{}_{}_{}_{}mm_rec_space-mri.nii.gz'.format(cdict['align_to_mri_dir'],brain,hemi,slab,resolution)
                     cdict['srv_3d_rsl_fn'] = '{}/{}_{}_{}_{}mm_mri_gm_space-rec.nii.gz'.format(cdict['align_to_mri_dir'],brain,hemi,slab,resolution)
                     manual_tfm_dir = cdict['align_to_mri_dir']
-                    cdict['manual_alignment_points'] = f'{file_dir}/{brain}_{hemi}_{slab}_points.txt'
-                    cdict['manual_alignment_affine'] = f'{file_dir}/{brain}_{hemi}_{slab}_manual_affine.mat'
+                    cdict['manual_alignment_points'] = f'{manual_dir}/{brain}_{hemi}_{slab}_points.txt'
+                    cdict['manual_alignment_affine'] = f'{manual_dir}/{brain}_{hemi}_{slab}_manual_affine.mat'
                     cdict['nl_3d_tfm_fn'] = '{}/rec_to_mri_SyN_Composite.h5'.format(cdict['align_to_mri_dir'])
                     cdict['nl_3d_tfm_inv_fn'] = '{}/rec_to_mri_SyN_InverseComposite.h5'.format(cdict['align_to_mri_dir'])
 
@@ -414,7 +415,7 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, 
             align_slab_to_mri(  brain, hemi, slab, seg_rsl_fn, crop_srv_rsl_fn, align_to_mri_dir, 
                                 hemi_df, args.slabs, nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_rsl_fn, srv_3d_rsl_fn, 
                                 resolution_3d, resolution_itr_3d, 
-                                resolution_list, slab_direction, cfiles['manual_alignment_points'], cfiles['manual_affine_fn'] )
+                                resolution_list, slab_direction, cfiles['manual_alignment_points'], cfiles['manual_alignment_affine'] )
         
         ###
         ### Stage 3.5 : Create a new srv_rsl_fn file that removes the currently aligned slab
@@ -498,10 +499,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
         if (not os.path.exists( init_align_fn) or not os.path.exists(init_tfm_csv) or args.clobber) :
             receptorRegister(brain, hemi, slab, init_align_fn, init_tfm_csv, init_align_dir, slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
 
-        #cdict['manual_alignment_points'] = '{file_dir}/{brain}_{hemi}_{slab}_points.txt'
-        #cdict['manual_alignment_affine'] = '{file_dir}/{brain}_{hemi}_{slab}_manual_affine.xfm'
-        if os.path.exists(cdict['manual_alignment_points']) and not os.path.exists( cdict['manual_alignment_affine'] ) :
-            points2tfm( cdict['manual_alignment_points'], cdict['manual_alignment_affine'])
+
 
         if not os.path.exists(slab_tfm_csv): 
             slab_df = add_tfm_column(slab_df, init_tfm_csv,slab_tfm_csv)
@@ -549,8 +547,8 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     ###
     max_resolution = resolution_list[-1]
     depth = '0.45'
-    validate_reconstructed_sections(max_resolution, args.slabs, args.n_depths, ligand_df, base_out_dir='/data/receptor/human/output_2/', clobber=False)
-    exit(0)
+    validate_reconstructed_sections(max_resolution, args.slabs, args.n_depths, ligand_df, base_out_dir='/data/receptor/human/output_2/', clobber=True)
+    
     #FIXME filename should be passed from surface_interpolation
     ligand_csv = glob(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')[0]   
     sphere_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_inflate_rsl.h5')[0]

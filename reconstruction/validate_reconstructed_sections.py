@@ -422,14 +422,15 @@ def validate_reconstructed_sections(resolution, slabs, n_depths, df, base_out_di
     
     ligand = np.unique(df['ligand'])[0]
     reconstucted_volume_fn = f'{base_out_dir}/5_surf_interp/MR1_R_{ligand}_{resolution}mm_space-mni.nii.gz'
-    clobber = False
+
     if not os.path.exists(out_fn) or clobber :
         df_list=[]
 
         os.makedirs(qc_dir, exist_ok=True)
 
-        atlas_fn='/data/receptor/atlas/JuBrain_Map_v30_seg.nii'
-        atlas_fn='/data/receptor/atlas/dka.nii.gz'
+        #atlas_fn='/data/receptor/atlas/JuBrain_Map_v30_seg.nii'
+        atlas_fn='/data/receptor/atlas/JuBrain_Brodmann.nii.gz'
+        #atlas_fn='/data/receptor/atlas/dka.nii.gz'
         atlas_rsl_fn=re.sub('.nii',f'_{resolution}mm.nii',atlas_fn)
 
         if not os.path.exists(atlas_rsl_fn) or clobber :

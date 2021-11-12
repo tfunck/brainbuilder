@@ -49,8 +49,8 @@ def safe_ants_image_read(fn, tol=0.001, clobber=False):
 def points2tfm(points_fn, affine_fn,  invert=False, clobber=False):
 
     if not os.path.exists(affine_fn) :
-        #  mni_points, rec_points,
-        fixed_points, moving_points = read_points(points_fn)
+        #rec_points, mni_points
+        moving_points, fixed_points = read_points(points_fn)
 
         print('\t: Calculate affine matrix from points')
 

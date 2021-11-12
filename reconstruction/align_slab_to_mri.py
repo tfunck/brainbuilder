@@ -13,9 +13,8 @@ import re
 import h5py as h5 
 from glob import glob
 from utils.ANTs import ANTs
-from utils.utils import shell, splitext
+from utils.utils import shell, splitext, points2tfm, read_points
 from nibabel.processing import resample_from_to, resample_to_output
-from utils.utils import splitext  
 from scipy.ndimage.filters import gaussian_filter1d
 from scipy.io import loadmat
 from numpy.linalg import det
@@ -65,6 +64,8 @@ def get_slab_width(slabs, df, ystep, ystart, unaligned_slab_list):
     
     return slab_width, total_slab_width
 
+
+
 def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_min, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction, manual_points_fn, verbose=False):
 
     #temp_slabs = slabs.copy()
@@ -95,10 +96,15 @@ def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_min, srv_max, srv
     #    print('Slab direction not recognized,', slab_direction)
     #    exit(1)
     
-    (), rec_points = read_points( manual_points_fn )
-    y0w = np.min(rec_points[:,1])
-    y1w = np.max(rec_points[:,1])
+    rec_points, mni_points = read_points( manual_points_fn )
+    y0w = np.min(mni_points[:,1])
+    y1w = np.max(mni_points[:,1])
     
+    slab_width = y1w-y0w
+
+    y0w -= slab_width*0.05
+    y0w += slab_width*0.05
+
     y0 = w2v(y0w, srv_ystep, srv_ystart)
     y1 = w2v(y1w, srv_ystep, srv_ystart)
     
@@ -223,7 +229,7 @@ def gen_mask(fn, clobber=False) :
     
     return out_fn
 
-def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_points_fn ):
+def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn ):
     prefix=re.sub('_SyN_Composite.h5','',out_tfm_fn)
     prefix_rigid = prefix+'_Rigid_'
     prefix_similarity = prefix+'_Similarity_'
@@ -316,6 +322,9 @@ def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, sl
     # ammount of times specified by max_downsample_level
     ystart, ystep, seg_rsl_fn = pad_seg_vol(seg_rsl_fn, max_downsample_level)
     print('ystart/ystep/srv_max', ystart, ystep, srv_max)
+
+    if os.path.exists(manual_points_fn) and not os.path.exists( manual_affine_fn ) :
+        points2tfm( manual_points_fn, manual_affine_fn)
 
     # get the start and end values of the slab in srv voxel coordinates
     y0, y1 = get_slab_start_end(df, slabs, ystep, ystart, slab, srv_min, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction, manual_points_fn)
