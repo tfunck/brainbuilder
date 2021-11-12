@@ -226,7 +226,7 @@ def crop_parallel(row, mask_dir, scale,global_order_min, pad = 1000, clobber=Tru
 
     pseudo_cls_fn = row['pseudo_cls_fn']
     if not os.path.exists(pseudo_cls_fn) :
-        pseudo_classify_autoradiograph( fn, seg_fn, pseudo_cls_fn )
+        pseudo_classify_autoradiograph( crop_fn, seg_fn, pseudo_cls_fn )
 
 def crop(src_dir, mask_dir, out_dir, df, scale_factors_json, remote=False,clobber=False):
     '''take raw linearized images and crop them'''
