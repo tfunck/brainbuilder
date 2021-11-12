@@ -26,8 +26,90 @@ from sklearn.cluster import KMeans
 from re import sub
 from skimage.transform import resize
 from joblib import Parallel, delayed
+from skimage.measure import label
+from sklearn.mixture import GaussianMixture
+from scipy.stats import entropy, kurtosis, skew
+from scipy.interpolate import griddata
 
 #matplotlib.use("TkAgg")
+
+def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn):
+
+    #load autoradiograph
+    img = nib.load(autoradiograph_fn)
+    vol = img.get_fdata()
+
+    #load mask
+    mask_img = nib.load(mask_fn)
+    mask_vol = mask_img.get_fdata()
+
+    #blur to 200um
+    vol = gaussian_filter(vol, (0.2/0.02)/np.pi)
+
+    xdim, zdim = vol.shape
+
+    # set size of sliding kernel 
+    mm=3
+    kernel_dim = int(1/0.02) * mm
+    kernel_pad = int( (kernel_dim+1) / 2 )
+
+    #smallest area to keep in classified image
+    smallest_area=5 / (0.02*0.02)
+
+    features=[]
+    locations=[]
+    step=kernel_dim*2
+    # slide kernel over autoradiograph and calculate image metrics
+    for x in range(0,xdim,step):
+        for z in range(0,zdim,step):
+            if mask_vol[x,z] > 0 :
+                i0=max(0,x-kernel_pad)
+                j0=max(0,z-kernel_pad)
+                
+                i1=min(xdim,x+kernel_pad)
+                j1=min(zdim,z+kernel_pad)
+
+                section = vol[i0:i1, j0:j1 ]
+                mask_section=mask_vol[i0:i1, j0:j1] 
+
+                #plt.imshow(section*mask_section); plt.show()
+                section = section[mask_section>0]
+
+                m=np.mean(section)
+                s=np.std(section)
+                k=kurtosis(section.reshape(-1,1))[0]
+                sk=skew(section.reshape(-1,1))[0]
+                e=entropy( section.reshape(-1,1) )[0]
+                vector = [x,z,m,s,k,sk,e]
+                features.append(vector)
+                locations.append( [ x, z ] )
+
+    #normalize columns of feature metrics
+    features = (np.array(features) - np.mean(features, axis=0)) / np.std(features, axis=0)
+
+    # Use a gaussian mixture model to classify the features into n class labels
+    n=3
+    labels = GaussianMixture(n_components=n).fit_predict(features) +1
+
+    # Define a mesh grid over which we can interpolate label values
+    xx, zz = np.meshgrid(range(xdim), range(zdim))
+
+    # Apply nearest neighbour interpolation
+    out = griddata(locations, labels, (xx, zz), method='nearest')
+    out = out.T
+    out[ mask_vol == 0 ] = 0
+    out = label(out)
+
+
+    #Get rid of labeled regions that are less than the minimum label size
+    labels_unique = np.unique(labels)[1:]
+    for l in labels_unique :
+        if np.sum(out==l) < smallest_area :
+            out[ out == l ] = 0
+
+    # save classified image as nifti
+    nib.Nifti1Image(out.astype(np.int32), img.affine).to_filename(out_fn)
+
 
 def get_base(fn) :
     fn = os.path.splitext(os.path.basename(fn))[0] 
@@ -142,6 +224,10 @@ def crop_parallel(row, mask_dir, scale,global_order_min, pad = 1000, clobber=Tru
         img = threshold(img)
         nib.Nifti1Image(img, img_hd.affine ).to_filename(seg_fn)
 
+    pseudo_cls_fn = row['pseudo_cls_fn']
+    if not os.path.exists(pseudo_cls_fn) :
+        pseudo_classify_autoradiograph( fn, seg_fn, pseudo_cls_fn )
+
 def crop(src_dir, mask_dir, out_dir, df, scale_factors_json, remote=False,clobber=False):
     '''take raw linearized images and crop them'''
     df = df.loc[ (df['hemisphere'] == 'R') & (df['mri'] == 'MR1' )  ] #FIXME, will need to be removed
@@ -150,8 +236,9 @@ def crop(src_dir, mask_dir, out_dir, df, scale_factors_json, remote=False,clobbe
     def fn_check(fn_list) : return [os.path.exists(fn) for fn in fn_list ]
     crop_check = fn_check(df['crop_fn'])
     seg_check = fn_check(df['seg_fn'])
+    cls_check = fn_check(df['pseudo_cls_fn'])
 
-    if False in crop_check or False in seg_check : 
+    if False in crop_check or False in seg_check or False in cls_check : 
         pass
     else : return 0
 

@@ -177,6 +177,7 @@ def calculate_section_order(autoradiograph_info_fn,  out_dir, in_df_fn='section_
     df['crop_fn'] = df['lin_fn'].apply(lambda x: out_dir+'/0_crop/'+os.path.splitext(os.path.basename(x))[0]+'#L.nii.gz')
     df['crop_raw_fn'] = df['crop_fn']
     df['seg_fn'] = df['lin_fn'].apply(lambda x: out_dir+'/0_crop/'+os.path.splitext(os.path.basename(x))[0]+'_seg.nii.gz')
+    df['pseudo_cls_fn'] = df['lin_fn'].apply(lambda x: out_dir+'/0_crop/'+os.path.splitext(os.path.basename(x))[0]+'_pseudo-cls.nii.gz')
 
     df.sort_values(["mri","hemisphere","slab","volume_order"], inplace=True)
 
