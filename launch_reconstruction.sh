@@ -23,4 +23,4 @@ while getopts "s:b:m:i:o:r:c:p:s:" arg; do
 done
 
 mkdir -p $out_dir
-singularity exec -B "/data":"/data" ~/receptor.simg bash -c "python3.7 ~/projects/julich-receptor-atlas/launch_reconstruction.py --remote -i /home/receptor/human/ -o $out_dir -b $brain --hemi $hemisphere --ndepths 20 "
+singularity exec -B "/data":"/data" ~/receptor_new/ bash -c "python3.7 ~/projects/julich-receptor-atlas/launch_reconstruction.py -i /home/receptor/human/ -o $out_dir -b $brain --hemi $hemisphere --ndepths 20 "
