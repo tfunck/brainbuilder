@@ -33,82 +33,103 @@ from scipy.interpolate import griddata
 
 #matplotlib.use("TkAgg")
 
-def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn):
+def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn, y, resolution):
 
+    n=3
     #load autoradiograph
     img = nib.load(autoradiograph_fn)
     vol = img.get_fdata()
+
+    voxel_size = img.affine[0,0] * img.affine[1,1] * img.affine[2,2]
 
     #load mask
     mask_img = nib.load(mask_fn)
     mask_vol = mask_img.get_fdata()
 
     #blur to 200um
-    vol = gaussian_filter(vol, (0.2/0.02)/np.pi)
+    vol = gaussian_filter(vol, (0.5/0.02)/np.pi)
 
     xdim, zdim = vol.shape
 
+    # Define a mesh grid over which we can interpolate label values
+    zz, xx = np.meshgrid(range(zdim), range(xdim))
+
+    xx_valid = xx[mask_vol==1]
+    zz_valid = zz[mask_vol==1]
+
+    locations = np.vstack( [ xx_valid[0:n * 3], zz_valid[0:n*3] ]).T
+    
     # set size of sliding kernel 
     mm=3
     kernel_dim = int(1/0.02) * mm
     kernel_pad = int( (kernel_dim+1) / 2 )
 
-    #smallest area to keep in classified image
-    smallest_area=5 / (0.02*0.02)
-
     features=[]
-    locations=[]
-    step=kernel_dim*2
-    # slide kernel over autoradiograph and calculate image metrics
-    for x in range(0,xdim,step):
-        for z in range(0,zdim,step):
-            if mask_vol[x,z] > 0 :
-                i0=max(0,x-kernel_pad)
-                j0=max(0,z-kernel_pad)
-                
-                i1=min(xdim,x+kernel_pad)
-                j1=min(zdim,z+kernel_pad)
+    step=int(kernel_dim*1.5)
+    for x,z in locations:
+        if mask_vol[x,z] > 0 :
+            i0=max(0,x-kernel_pad)
+            j0=max(0,z-kernel_pad)
+            
+            i1=min(xdim,x+kernel_pad)
+            j1=min(zdim,z+kernel_pad)
 
-                section = vol[i0:i1, j0:j1 ]
-                mask_section=mask_vol[i0:i1, j0:j1] 
+            section = vol[i0:i1, j0:j1 ]
+            mask_section=mask_vol[i0:i1, j0:j1] 
 
-                #plt.imshow(section*mask_section); plt.show()
-                section = section[mask_section>0]
+            #plt.imshow(section*mask_section); plt.show()
+            section = section[mask_section>0]
 
-                m=np.mean(section)
-                s=np.std(section)
-                k=kurtosis(section.reshape(-1,1))[0]
-                sk=skew(section.reshape(-1,1))[0]
-                e=entropy( section.reshape(-1,1) )[0]
-                vector = [x,z,m,s,k,sk,e]
-                features.append(vector)
-                locations.append( [ x, z ] )
-
+            m=np.mean(section)
+            s=np.std(section)
+            k=kurtosis(section.reshape(-1,1))[0]
+            sk=skew(section.reshape(-1,1))[0]
+            e=entropy( section.reshape(-1,1) )[0]
+            vector = [x,z,m,s,k,sk,e]
+            features.append(vector)
+        else :
+            print('Error: point must be in mask')
+            exit(0)
     #normalize columns of feature metrics
-    features = (np.array(features) - np.mean(features, axis=0)) / np.std(features, axis=0)
-
+    features_std = np.std(features, axis=0)
+    features_std[ features_std < 0.001 ] = 1
+    features = (np.array(features) - np.mean(features, axis=0)) / features_std
+    #print('\t\tn features =', features.shape[0], autoradiograph_fn)
+    
     # Use a gaussian mixture model to classify the features into n class labels
-    n=3
+    if features.shape[0] < n :
+        print(f'Warning: When creating pseudo-classified image, {features.shape[0]} features found but at least {n} required. Occured for image:\n {autoradiograph_fn}')
+        return mask_vol
+
     labels = GaussianMixture(n_components=n).fit_predict(features) +1
-
-    # Define a mesh grid over which we can interpolate label values
-    xx, zz = np.meshgrid(range(xdim), range(zdim))
-
+    
     # Apply nearest neighbour interpolation
     out = griddata(locations, labels, (xx, zz), method='nearest')
-    out = out.T
     out[ mask_vol == 0 ] = 0
     out = label(out)
-
-
+    
     #Get rid of labeled regions that are less than the minimum label size
-    labels_unique = np.unique(labels)[1:]
-    for l in labels_unique :
-        if np.sum(out==l) < smallest_area :
+    out_unique = np.unique(out)[1:]
+    out_label_sizes =np.bincount(out.reshape(-1,))[1:].astype(float)
+    out_label_sizes = out_label_sizes[ out_label_sizes > 0 ]
+    out_label_sizes *= voxel_size
+
+    assert len(out_label_sizes) == len(out_unique) , 'Error: unique labels doesnt equal size of sums'
+  
+    for l, t in zip(out_unique, out_label_sizes) :
+        if t < resolution :
+            #print('-->',np.sum(out==l), np.sum(out==l)*voxel_size, t, voxel_size)
             out[ out == l ] = 0
 
+
+    #print('Hello!', np.min(np.bincount(out.reshape(-1,)).astype(float) * voxel_size) ) 
+    #exit(0) 
+    offset = 100000 if np.max(out_unique) < 100 else 1000000
+    out[ out > 0 ] = y + offset * out[ out > 0 ]
+
+    if np.sum(out) == 0 : out = mask_vol
     # save classified image as nifti
-    nib.Nifti1Image(out.astype(np.int32), img.affine).to_filename(out_fn)
+    nib.Nifti1Image(out.astype(np.uint32), img.affine).to_filename(out_fn)
 
 
 def get_base(fn) :
@@ -186,9 +207,7 @@ def process_image(img, mask_fn, row, scale, pad, affine):
 
     return img_pad
 
-def crop_parallel(row, mask_dir, scale,global_order_min, pad = 1000, clobber=True ):
-
-   
+def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pad = 1000, clobber=True ):
     fn = row['lin_fn']
     base = row['lin_base_fn'] # os.path.splitext( os.path.basename(fn) )[0]
 
@@ -226,27 +245,31 @@ def crop_parallel(row, mask_dir, scale,global_order_min, pad = 1000, clobber=Tru
 
     pseudo_cls_fn = row['pseudo_cls_fn']
     if not os.path.exists(pseudo_cls_fn) :
-        pseudo_classify_autoradiograph( crop_fn, seg_fn, pseudo_cls_fn )
+        print('\t pseudo-cls_fn', pseudo_cls_fn) 
+        pseudo_classify_autoradiograph( crop_fn, seg_fn, pseudo_cls_fn, int(row['volume_order']), resolution )
 
-def crop(src_dir, mask_dir, out_dir, df, scale_factors_json, remote=False,clobber=False):
+def crop(src_dir, mask_dir, out_dir, df, scale_factors_json, resolution, remote=False,clobber=False):
     '''take raw linearized images and crop them'''
     df = df.loc[ (df['hemisphere'] == 'R') & (df['mri'] == 'MR1' )  ] #FIXME, will need to be removed
-
+    
     with open(scale_factors_json) as f : scale=json.load(f)
-    def fn_check(fn_list) : return [os.path.exists(fn) for fn in fn_list ]
-    crop_check = fn_check(df['crop_fn'])
-    seg_check = fn_check(df['seg_fn'])
-    cls_check = fn_check(df['pseudo_cls_fn'])
+   
+    file_check = lambda x : not os.path.exists(x)
+    crop_check = df['crop_fn'].apply( file_check ).values
+    seg_check =  df['seg_fn'].apply( file_check ).values
+    cls_check =  df['pseudo_cls_fn'].apply( file_check ).values
 
-    if False in crop_check or False in seg_check or False in cls_check : 
+    missing_files = crop_check + seg_check + cls_check
+    if np.sum( missing_files ) > 0 : 
         pass
     else : return 0
 
     os.makedirs(out_dir,exist_ok=True)
-    
+    df_to_process = df.loc[ missing_files ]  
+
     global_order_min = df["global_order"].min()
     print('Cropping')
-    Parallel(n_jobs=14)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min) for i, row in  df.iterrows()) 
+    Parallel(n_jobs=14)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min, resolution) for i, row in  df_to_process.iterrows()) 
     
 
             

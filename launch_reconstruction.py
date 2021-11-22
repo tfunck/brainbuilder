@@ -543,13 +543,14 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     ligand_df = hemi_df.loc[ ligand  == hemi_df['ligand'] ]
     srv_max_resolution_fn = files[brain][hemi][args.slabs[-1]][resolution_list[-1]]['srv_rsl_fn']
     surface_interpolation(slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, ligand_df, srv_max_resolution_fn, args, files[brain][hemi], surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+
     ###
     ### 7. Quality Control
     ###
     max_resolution = resolution_list[-1]
     depth = '0.45'
     validate_reconstructed_sections(max_resolution, args.slabs, args.n_depths, ligand_df, base_out_dir='/data/receptor/human/output_2/', clobber=True)
-    
+    exit(0) 
     #FIXME filename should be passed from surface_interpolation
     ligand_csv = glob(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')[0]   
     sphere_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_inflate_rsl.h5')[0]
@@ -572,7 +573,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 
 if __name__ == '__main__':
     resolution_list = ['4.0', '3.5', '3.0', '2.5', '2.0', '1.5', '1.0'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
-    resolution_list = [ '4.0', '3.0', '2.0', '1.0'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
+    resolution_list = [ '4.0', '3.0', '2.0', '1.0', '0.5'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
 
     args, files = setup_parameters(setup_argparse().parse_args() )
     #Process the base autoradiograph csv
@@ -582,7 +583,7 @@ if __name__ == '__main__':
     df = pd.read_csv(args.autoradiograph_info_fn)
     
     ### Step 0 : Crop downsampled autoradiographs
-    crop(args.src_dir, args.mask_dir, args.out_dir, df, args.scale_factors_fn)
+    crop(args.src_dir, args.mask_dir, args.out_dir, df, args.scale_factors_fn, float(resolution_list[-1]))
     
     for brain in args.brain :
         for hemi in args.hemi :                     

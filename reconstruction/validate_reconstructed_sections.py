@@ -8,6 +8,7 @@ import numpy as np
 import nibabel
 import tempfile
 import h5py
+from utils.utils import splitext
 from glob import glob
 from reconstruction.surface_interpolation import get_valid_coords
 from nibabel.processing import resample_from_to
@@ -114,12 +115,12 @@ def plot_target_section(image_list,label_list, out_dir, basename, y):
     plt.cla()
 
 
-def transform_section(autoradiograph_fn, nlaligned_nl2d_fn, nl_2d_inv_tfm, out_dir, basename, y, clobber=False):
+def transform_section( input_fn, reference_fn, tfm_fn, out_dir, basename, y, clobber=False):
 
-    nlaligned_nat_fn = f'{out_dir}/{basename}_y-{y}_space-nat.nii.gz'
+    out_fn = f'{out_dir}/{basename}_y-{y}_space-nat.nii.gz'
 
     if not os.path.exists(nlaligned_nat_fn) or clobber :
-        cmd = f'antsApplyTransforms -v 0 -n NearestNeighbor -d 2 -i {nlaligned_nl2d_fn} -r {autoradiograph_fn} -t {nl_2d_inv_tfm} -o {nlaligned_nat_fn}' 
+        cmd = f'antsApplyTransforms -v 0 -n NearestNeighbor -d 2 -i {input_fn} -r {reference_fn} -t {tfm_fn} -o {out_fn}' 
         shell(cmd, verbose=False)
 
     return nlaligned_nat_fn
@@ -210,29 +211,28 @@ def get_factor_and_section(basename, df_info):
     slab = df_info['slab'].loc[bool_ar].values[0]
     return section, slab, conversion_factor
 
-def transform_volume(reconstucted_volume_fn, nl_2d_fn, nl_3d_inv_fn, slab, out_dir, space='mni', clobber=False):
+def transform_volume( input_fn, reference_fn, tfm_fn, ndim, out_dir, suffix, clobber=False):
     '''
     About:
         Transform reconstructed volume for a particular ligand into nl2d space.
 
     Arguments:
-        reconstucted_volume_fn :  string, filename of reconstructed ligand volume, mni space.
-        nl_2d_fn :          string, filename of autoradiographs non-linearly aligned to donor MRI, nl2d space.
-        nl_3d_inv_fn:       string, filename of ANTs transform (hdf5) from mni to nl2d label_3d_space_rec_fn
+        input_fn :  string, filename of reconstructed ligand volume, mni space.
+        reference_fn :          string, filename of autoradiographs non-linearly aligned to donor MRI, nl2d space.
+        tfm_fn:       string, filename of ANTs transform (hdf5) from mni to nl2d label_3d_space_rec_fn
         clobber :           bool, overwrite exisitng files
     Returns:
-        reconstructed_tfm_to_nl2d_fn:   string, filename of reconstructed ligand volume transformed to nl2d space and resampled to coordinates of nl_2d_fn
+        out_fn :   string, filename of reconstructed ligand volume transformed to nl2d space and resampled to coordinates of nl_2d_fn
     '''
 
-    reconstucted_volume_basename = out_dir + '/' + os.path.basename(os.path.splitext(reconstucted_volume_fn)[0])
-    reconstructed_tfm_to_nl2d_fn = f'{reconstucted_volume_basename}_slab-{slab}_space-{space}.nii.gz'
-
-    if not os.path.exists(reconstructed_tfm_to_nl2d_fn) or clobber:
-        #HammingWindowedSinc
-        cmd = f'antsApplyTransforms -v 1  -n NearestNeighbor -d 3  -r {nl_2d_fn} -i {reconstucted_volume_fn} -t {nl_3d_inv_fn} -o {reconstructed_tfm_to_nl2d_fn}'
+    out_basename = out_dir + '/' + os.path.basename(splitext(input_fn)[0])
+    out_fn = f'{out_basename}_{suffix}.nii.gz'
+    
+    if not os.path.exists(out_fn) or clobber:
+        cmd = f'antsApplyTransforms -v 1  -n NearestNeighbor -d {ndim}  -r {reference_fn} -i {input_fn} -t {tfm_fn} -o {out_fn}'
         shell(cmd)
 
-    return reconstructed_tfm_to_nl2d_fn
+    return out_fn
 
 
 def extract_section_from_volume(reconstructed_tfm_to_nl2d_fn, reference_section_fn, out_dir, basename, y, clobber=False):
@@ -257,39 +257,27 @@ def extract_section_from_volume(reconstructed_tfm_to_nl2d_fn, reference_section_
 
     return nlaligned_fn
 
-def calculate_regional_averages(atlas_fn, ligand_fn, source, conversion_factor=1, extra_mask_fn=''):
+def calculate_regional_averages(atlas_fn, ligand_fn, source, resolution, conversion_factor=1, extra_mask_fn=''):
     print('labels:',atlas_fn)
     print('ligand:',ligand_fn)
-
 
     atlas_img = nib.load(atlas_fn)
     ligand_img = nib.load(ligand_fn)
 
     atlas_volume = atlas_img.get_fdata().astype(int)
     reconstucted_volume = ligand_img.get_fdata()
-    
+
     atlas_volume[reconstucted_volume < 1] = 0
-
-    if extra_mask_fn != '' :
-        print('extra mask:', extra_mask_fn)
-        extra_mask = nib.load(extra_mask_fn).get_fdata()
-        atlas_volume[ extra_mask < 0.5 ] = 0 
-
-    #if source == 'original':
-    #    plt.imshow(reconstucted_volume, cmap='gray')
-    #    plt.imshow(atlas_volume, cmap='nipy_spectral', alpha=0.35)
-    #    plt.colorbar()
-    #    plt.savefig(re.sub('.nii.gz','.png',atlas_fn))
-    #    plt.clf()
-    #    plt.cla()
 
     averages_out, labels_out, n_voxels = average_over_label(atlas_volume.reshape(-1,), reconstucted_volume.reshape(-1,), conversion_factor=conversion_factor )
 
-    print(len(averages_out))
-    print(len(labels_out))
-    print(n_voxels)
-    df = pd.DataFrame({'source':[source]*len(labels_out), 'label':labels_out,'average':averages_out, 'n':n_voxels})
-    print(df)
+    voxel_size = atlas_img.affine[0,0] * atlas_img.affine[1,1] * atlas_img.affine[2,2]
+
+    volume = n_voxels * voxel_size
+    if source == 'original' :
+        assert np.min(volume) >= float(resolution), f'Error: label size ({np.min(volume)}) less than resolution size of {resolution} for labels\n {labels_out[volume < float(resolution) ]} \nin \n {atlas_fn}'
+
+    df = pd.DataFrame({'source':[source]*len(labels_out), 'label':labels_out,'average':averages_out, 'volume':volume})
     return df
 
 def create_index_volume(nl_2d_fn, y, qc_dir, basename, clobber=False) :
@@ -369,34 +357,25 @@ def calculate_mesh_regional_averages(base_out_dir, resolution, slab, ligand, atl
  
     averages_out, labels_out, n_vertices = average_over_label(vertex_labels, vertex_values, conversion_factor=conversion_factor )
 
-
-     
     df = pd.DataFrame({'source':[source]*len(labels_out), 'label':labels_out,'average':averages_out, 'n':n_vertices})
-    print(df)
     return df
 
 
 def average_over_label(labels, values, conversion_factor=1 ):
-    total = np.bincount( labels.astype(int).reshape(-1,), weights =  values.reshape(-1,))
-    n = np.bincount( labels.astype(int).reshape(-1,) )
-
-    n[n<5]=0 # ignore small regions
-
-    averages = np.zeros_like(total)
-    averages[n>0] = total[n>0]/n[n>0] * conversion_factor
-    
-    unique_labels = np.unique( labels )[1:]
-    
     averages_out = []
     labels_out = []
-    n_out = n[n>0][1:]
+    n_out = [] 
 
-    for i in range( 1, averages.shape[0] ):
-        #if i in unique_labels : print(i, n[i], averages[i])
-        if i in unique_labels and n[i]>0 :
-            averages_out.append(averages[i])
-            labels_out.append(i)
-    return averages_out, labels_out, n_out
+    #print('averages')
+    unique_labels = np.unique( labels )[1:]
+    for label in unique_labels :
+        idx = labels == label
+        n = np.sum(idx)
+        if n >= 5 : 
+            averages_out.append(np.mean(values[idx]) * conversion_factor )
+            labels_out.append(label)
+            n_out.append(n)
+    return np.array(averages_out), np.array(labels_out), np.array(n_out)
 
 
 def combine_data_frames(df_list,y,slab,ligand):
@@ -413,6 +392,34 @@ def combine_data_frames(df_list,y,slab,ligand):
     return df_out 
 
 
+def create_nl2d_cls_vol(df, nl_2d_fn, out_dir, qc_dir, brain, hemisphere, slab, ligand, resolution, clobber=False):
+    qc_cls_nl2d_dir = f'{qc_dir}/pseudo_cls'
+    nl2d_cls_fn=f'{qc_dir}/{brain}_{hemisphere}_{slab}_{ligand}_pseudo-cls_space-nl2d.nii.gz'
+    os.makedirs(qc_cls_nl2d_dir,exist_ok=True)
+
+    if not os.path.exists(nl2d_cls_fn):
+        nl2d_img = nib.load(nl_2d_fn)
+        nl2d_cls_vol=np.zeros(nl2d_img.shape)
+        for row_index, row in df.iterrows():
+            y=row['volume_order']
+            nl2d_auto_rsl_fn = f'{out_dir}/4_nonlinear_2d/tfm/y-{y}_rsl.nii.gz'
+            cls_nat_fn = row['pseudo_cls_fn']
+            nl_2d_tfm = f'{out_dir}/4_nonlinear_2d/tfm/y-{y}_Composite.h5'
+
+            y = row['volume_order']
+            basename = row['base']
+            cls_nl2d_fn = transform_volume(cls_nat_fn, nl2d_auto_rsl_fn, nl_2d_tfm, 2, qc_cls_nl2d_dir, f'y-{y}', clobber=clobber) 
+            width = np.rint(float(resolution) / nl2d_img.affine[1,1]).astype(int)
+            pad = width/2+1 if width % 2 == 0 else (width+1)/2
+            y0 = max(int(y) - pad, 0)
+            y1 = min(int(y) + pad, nl2d_img.shape[1])
+            print(y0,y1,pad) 
+            dim=[nl2d_img.shape[0], 1, nl2d_img.shape[2]]
+            section = nib.load(cls_nl2d_fn).get_fdata().reshape(dim)
+            nl2d_cls_vol[:, int(y0):int(y1),:] =np.repeat(section,y1-y0, axis=1) 
+        nib.Nifti1Image(nl2d_cls_vol, nl2d_img.affine ).to_filename(nl2d_cls_fn)
+
+    return nl2d_cls_fn
 
 def validate_reconstructed_sections(resolution, slabs, n_depths, df, base_out_dir='/data/receptor/human/output_2/', clobber=False):
     
@@ -421,77 +428,41 @@ def validate_reconstructed_sections(resolution, slabs, n_depths, df, base_out_di
 
     
     ligand = np.unique(df['ligand'])[0]
-    reconstucted_volume_fn = f'{base_out_dir}/5_surf_interp/MR1_R_{ligand}_{resolution}mm_space-mni.nii.gz'
+    reconstructed_volume_fn = f'{base_out_dir}/5_surf_interp/MR1_R_{ligand}_{resolution}mm_space-mni.nii.gz'
 
     if not os.path.exists(out_fn) or clobber :
         df_list=[]
 
         os.makedirs(qc_dir, exist_ok=True)
 
-        #atlas_fn='/data/receptor/atlas/JuBrain_Map_v30_seg.nii'
-        atlas_fn='/data/receptor/atlas/JuBrain_Brodmann.nii.gz'
-        #atlas_fn='/data/receptor/atlas/dka.nii.gz'
-        atlas_rsl_fn=re.sub('.nii',f'_{resolution}mm.nii',atlas_fn)
+        for (brain, hemisphere, slab, ligand), slab_df in df.groupby(['mri', 'hemisphere', 'slab', 'ligand']) :
 
-        if not os.path.exists(atlas_rsl_fn) or clobber :
-            resample_from_to(nib.load(atlas_fn), nib.load(reconstucted_volume_fn), order=0).to_filename(atlas_rsl_fn)
-
-        df_mni = calculate_regional_averages(atlas_rsl_fn, reconstucted_volume_fn, 'reconstructed')
-        
-        df_list += [ combine_data_frames([df_mni], None, None, ligand) ]
-
-        for slab in np.unique(df['slab']) :
             nl_2d_fn = f'{base_out_dir}/5_surf_interp/thickened_{slab}_{ligand}_{resolution}.nii.gz'
             out_dir = f'{base_out_dir}/MR1_R_{slab}/{resolution}mm/'
-            nl_3d_inv_fn = f'{out_dir}/3_align_slab_to_mri/rec_to_mri_SyN_InverseComposite.h5'
-            df['conversion_factor'].loc[ (df['slab'] == slab) ]
-            atlas_nl2d_fn = transform_volume(atlas_rsl_fn, nl_2d_fn, nl_3d_inv_fn, slab,  qc_dir, space='nl2d_label', clobber=clobber)
-
-            # Get a current section (y) from ligand volume in nl2d space
-            df_nl2d = calculate_regional_averages(atlas_nl2d_fn, nl_2d_fn, 'nl2d')
-
-            df_list += [ combine_data_frames( [df_nl2d], slab, -1, ligand) ]
+            cls_nl2d_fn = create_nl2d_cls_vol(slab_df, nl_2d_fn, out_dir, qc_dir, brain, hemisphere, slab, ligand, resolution)
+            print('\tPseudo-classified volume (space=nl2d):', cls_nl2d_fn)
+            nl_3d_fn = f'{out_dir}/3_align_slab_to_mri/rec_to_mri_SyN_Composite.h5'
+            cls_mni_fn = transform_volume(cls_nl2d_fn, reconstructed_volume_fn, nl_3d_fn, 3, qc_dir, f'space-mni')
+            print('\tPseudo-classified volume (space=mni):', cls_mni_fn)
+            df_nl2d = calculate_regional_averages(cls_nl2d_fn, nl_2d_fn, 'nl2d', resolution)
+            df_mni = calculate_regional_averages(cls_mni_fn, reconstructed_volume_fn, 'reconstructed', resolution)
+            df_list += [ combine_data_frames( [df_nl2d], None, slab, ligand) ]
+            df_list += [ combine_data_frames( [df_mni], None, slab, ligand) ]
         
         for row_index, row in df.iterrows():
             slab = row['slab']
-            
             out_dir = f'{base_out_dir}/MR1_R_{slab}/{resolution}mm/'
-            
-            if not str(slab) in slabs : continue 
-
             y = row['volume_order']
-
-            basename = row['base']
             conversion_factor = row['conversion_factor']
             autoradiograph_fn = row['crop_fn']
             ligand = row['ligand']
+            cls_nat_fn =row['pseudo_cls_fn']
 
-            nl_3d_inv_fn = f'{out_dir}/3_align_slab_to_mri/rec_to_mri_SyN_InverseComposite.h5'
-            nl_3d_fn = f'{out_dir}/3_align_slab_to_mri/rec_to_mri_SyN_Composite.h5'
-            reference_section_fn = f'{out_dir}/4_nonlinear_2d/tfm/y-{y}_fx.nii.gz'
-            nl_2d_inv_tfm = f'{out_dir}/4_nonlinear_2d/tfm/y-{y}_InverseComposite.h5'
-
-            index_volume_nl2d_fn = create_index_volume(nl_2d_fn, y, qc_dir, basename, clobber=clobber)
-            index_volume_mni_fn = transform_volume(index_volume_nl2d_fn, reconstucted_volume_fn, nl_3d_fn, slab, qc_dir, space='mni', clobber=clobber)
-             
-            label_nl2d_fn = extract_section_from_volume(atlas_nl2d_fn, reference_section_fn, qc_dir, basename+'_label_space-nl2d', y, clobber=clobber)
-            # Transform reconstructed ligand section into native autoradiograph space
-            label_nat_fn = transform_section(autoradiograph_fn, label_nl2d_fn, nl_2d_inv_tfm, qc_dir, basename, y, clobber=clobber) 
-
-            # Calculate the difference between raw autoradiograph and the reconstructed section
-            df_nat = calculate_regional_averages(label_nat_fn, autoradiograph_fn, 'original', conversion_factor=conversion_factor)
-
-            qc_image_list = []
-            qc_label_list = []
-            #plot_target_section(qc_image_list, qc_label_list, qc_dir, basename, y)
+            # Calculate averages on cropped autoradiograph
+            df_nat = calculate_regional_averages(cls_nat_fn, autoradiograph_fn, 'original', resolution, conversion_factor=conversion_factor)
             df_list += [ combine_data_frames([df_nat], y, slab, ligand) ]
+
 
 
         pd.concat(df_list).to_csv(out_fn)
 
-# 2d ligand section from reconstructed volume in mni space
-#ligand_mni_fn = extract_section_from_volume(reconstucted_volume_fn, reference_section_fn, qc_dir, basename+'_ligand_space-mni', y, clobber=clobber)
-#label_mni_fn = extract_section_from_volume(atlas_fn, reference_section_fn, qc_dir, basename+'_label_space-mni', y, clobber=clobber)
-#error_mean, error_std = difference_sections(autoradiograph_fn, nlaligned_nat_fn, conversion_factor, qc_dir, basename, y, clobber=clobber)
-#qc_image_list=[reconstructed_nl2d_fn, nlaligned_nl2d_fn, autoradiograph_fn]
-#qc_label_list=[label_nl2d_fn, label_nl2d_fn,label_nat_fn]

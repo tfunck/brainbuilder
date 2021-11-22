@@ -769,7 +769,7 @@ def create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, p
                 gm_upsample_fn = depth_fn_slab_space[slab][depth_list[-1]]['upsample_gii']
                 print('\twm', wm_upsample_fn)
                 print('\tgm', gm_upsample_fn)
-                npz_dir = interp_dir+f'/npz-{slab}/'
+                npz_dir = interp_dir+f'/npz-{slab}_{resolution}mm/'
                 os.makedirs(npz_dir, exist_ok=True)
                 mapper = SurfaceVolumeMapper(white_surf=wm_upsample_fn, gray_surf=gm_upsample_fn, 
                             resolution=imageParamLo.steps, dimensions=imageParamLo.dimensions, 
