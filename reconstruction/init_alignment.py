@@ -272,6 +272,10 @@ def create_manual_2d_df(df, manual_2d_dir):
     manual_points_list = glob(f'{manual_2d_points_dir}/')
     manual_2d_df= pd.DataFrame({ 'brain':[], 'hemisphere':[], 'slab':[], 'fixed_image':[], 'moving_image':[], 'fixed_index':[], 'moving_index':[], 'tfm':[] })
 
+    brain = np.unique(df['mri'])[0]
+    hemisphere = np.unique(df['hemisphere'])[0]
+    slab = np.unique(df['slab'])[0]
+
     for manual_points_fn in manual_points_list :
         fixed_fn, moving_fn = read_files_from_xfm(manual_points_fn)
     

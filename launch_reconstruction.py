@@ -257,8 +257,8 @@ def setup_files_json(args ):
                     cdict['srv_3d_rsl_fn'] = '{}/{}_{}_{}_{}mm_mri_gm_space-rec.nii.gz'.format(cdict['align_to_mri_dir'],brain,hemi,slab,resolution)
                     manual_tfm_dir = cdict['align_to_mri_dir']
                     cdict['manual_2d_dir'] = f'{manual_dir}/2d/'
-                    cdict['manual_alignment_points'] = f'{manual_dir}/{brain}_{hemi}_{slab}_points.txt'
-                    cdict['manual_alignment_affine'] = f'{manual_dir}/{brain}_{hemi}_{slab}_manual_affine.mat'
+                    cdict['manual_alignment_points'] = f'{manual_dir}/3d/{brain}_{hemi}_{slab}_points.txt'
+                    cdict['manual_alignment_affine'] = f'{manual_dir}/3d/{brain}_{hemi}_{slab}_manual_affine.mat'
                     cdict['nl_3d_tfm_fn'] = '{}/rec_to_mri_SyN_Composite.h5'.format(cdict['align_to_mri_dir'])
                     cdict['nl_3d_tfm_inv_fn'] = '{}/rec_to_mri_SyN_InverseComposite.h5'.format(cdict['align_to_mri_dir'])
 
