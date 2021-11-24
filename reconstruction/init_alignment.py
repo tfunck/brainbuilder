@@ -265,12 +265,37 @@ def alignment_stage(brain,hemi,slab, df, vol_fn_str, output_dir, scale, transfor
 
     print(np.unique(df['ligand'])); #exit(0)
     return df, transforms
+
+
+def create_manual_2d_df(df, manual_2d_dir):
+
+    manual_points_list = glob(f'{manual_2d_points_dir}/')
+    manual_2d_df= pd.DataFrame({ 'brain':[], 'hemisphere':[], 'slab':[], 'fixed_image':[], 'moving_image':[], 'fixed_index':[], 'moving_index':[], 'tfm':[] })
+
+    for manual_points_fn in manual_points_list :
+        fixed_fn, moving_fn = read_files_from_xfm(manual_points_fn)
     
-def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, df,  scale_factors_json="scale_factors.json",  clobber=False):
+        manual_affine_fn = os.path.splitext(manual_points_fn)[0] + '_affine.mat' 
+    
+        points2tfm( manual_points_fn, manual_affine_fn )
+        
+        assert os.path.exists(manual_affine_fn), f'Error : {manual_affine_fn} does not exist'
+
+        row = pd.DataFrame({'brain':brain, 'hemisphere':hemisphere, 'slab':slab,
+                            'fixed_image':fixed_fn, 'moving_image':moving_fn, 'fixed_index':fixed_index,
+                            'moving_index':moving_index, 'tfm':affine_fn })
+
+        manual_2d_df.append(row, inplace=True)
+
+    return manual_2d_alignement_df
+
+def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, manual_2d_dir, df, scale_factors_json="scale_factors.json",  clobber=False):
     
     os.makedirs(output_dir,exist_ok=True)
 
-    df['original_crop_fn']=df['crop_fn']
+    manual_2d_df = create_manual_2d_df(df, manual_2d_dir)
+
+    df['original_crop_fn'] = df['crop_fn']
 
     ligand_intensity_order = ['dpmg','flum','cgp5','damp','praz','afdx','sr95','keta','musc','ly34','pire','uk14','sch2','mk80','dpat','kain','rx82','oxot','ampa','epib']
 
@@ -283,6 +308,7 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, d
     n_ligands = len(df['ligand'].unique())
     z_mm = scale[brain][hemi][str(slab)]["size"]
     direction = scale[brain][hemi][str(slab)]["direction"]
+
     ###########
     # Stage 1 #
     ###########
@@ -371,7 +397,7 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, d
     os.makedirs(final_tfm_dir, exist_ok=True)
     ### create final transforms that take raw autoradiographs from their raw alignement to the initial
     ### rigid alignment. this involves combining the concatenated transforms of stages 2 and 3
-    for i, row in stage_2_df.iterrows() : 
+    for i, (index, row) in enumerate( stage_2_df.iterrows() ) : 
 
         final_tfm_fn = "{}/{}_final_Rigid.h5".format(final_tfm_dir, row['volume_order'])
 
@@ -379,15 +405,19 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, d
 
         if not os.path.exists(final_tfm_fn) :
             print( row['ligand'], row['ligand'] != ligand_intensity_order[0] );
-
-            #if row['ligand'] != ligand_intensity_order[0] :
-            #    stage_2_init_tfm = stage_2_df['init_tfm'].loc[ stage_2_df['volume_order'] == row['volume_order']].values[0] 
-            #    stage_3_init_tfm = row['init_tfm']
-            #    crop_fn = row['crop_fn']
-            #    shell(f'antsApplyTransforms -v 0 -d 2 -i {crop_fn} -r {crop_fn} -t {stage_3_init_tfm} -t {stage_2_init_tfm} -o Linear[{final_tfm_fn}]',True,True)
-            #    df['init_tfm'].loc[ idx ] = final_tfm_fn
             
-            if type( row['init_tfm'] ) == str  :
+            original_crop_fn = row['original_crop_fn']
+            if row['volume_order'] in manual_2d_df['moving_index'] :
+
+                fixed_idx = manual_2d_df['fixed_index']
+
+                manual_tfm_fn = manual_2d_df['tfm'] 
+
+                fixed_tfm = stage_2_df['init_tfm'].loc[ fixed_idx ].values[0] 
+                crop_fn = row['crop_fn']
+                shell(f'antsApplyTransforms -v 0 -d 2 -i {crop_fn} -r {crop_fn} -t {manual_tfm_fn} -t {stage_2_init_tfm} -o Linear[{final_tfm_fn}]', True, True)
+            
+            elif type( row['init_tfm'] ) == str  :
                 shutil.copy(row['init_tfm'], final_tfm_fn)
             else :
                 final_tfm_fn = np.nan
