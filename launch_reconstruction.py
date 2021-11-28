@@ -256,7 +256,6 @@ def setup_files_json(args ):
                     cdict['rec_3d_rsl_fn'] = '{}/{}_{}_{}_{}mm_rec_space-mri.nii.gz'.format(cdict['align_to_mri_dir'],brain,hemi,slab,resolution)
                     cdict['srv_3d_rsl_fn'] = '{}/{}_{}_{}_{}mm_mri_gm_space-rec.nii.gz'.format(cdict['align_to_mri_dir'],brain,hemi,slab,resolution)
                     manual_tfm_dir = cdict['align_to_mri_dir']
-                    cdict['manual_2d_dir'] = f'{manual_dir}/2d/'
                     cdict['manual_alignment_points'] = f'{manual_dir}/3d/{brain}_{hemi}_{slab}_points.txt'
                     cdict['manual_alignment_affine'] = f'{manual_dir}/3d/{brain}_{hemi}_{slab}_manual_affine.mat'
                     cdict['nl_3d_tfm_fn'] = '{}/rec_to_mri_SyN_Composite.h5'.format(cdict['align_to_mri_dir'])
@@ -301,6 +300,8 @@ def setup_parameters(args) :
     os.makedirs(args.crop_dir,exist_ok=True)
 
     args.files_json = args.out_dir+"/reconstruction_files.json"
+    args.manual_2d_dir=f'{manual_dir}/2d/'
+
     files = setup_files_json(args)
 
 
@@ -398,7 +399,7 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, 
         ###
         print('\t\tStep 2: Autoradiograph segmentation')
         stage_2_outputs=[seg_rsl_fn]
-         if not os.path.exists(seg_rsl_fn) or args.clobber  :
+        if not os.path.exists(seg_rsl_fn) or args.clobber  :
             resample_transform_segmented_images(slab_df, resolution, resolution_3d, seg_dir+'/2d/' )
             #write 2d segmented sections at current resolution. apply initial transform
             classifyReceptorSlices(slab_df, align_fn, seg_dir+'/2d/', seg_dir, seg_rsl_fn, resolution=resolution_3d )
@@ -499,7 +500,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
         ###  Step 1: Initial Alignment
         print('\tInitial rigid inter-autoradiograph alignment')
         if (not os.path.exists( init_align_fn) or not os.path.exists(init_tfm_csv) or args.clobber) :
-            receptorRegister(brain, hemi, slab, init_align_fn, init_tfm_csv, init_align_dir, manual_2d_dir, slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
+            receptorRegister(brain, hemi, slab, init_align_fn, init_tfm_csv, init_align_dir, args.manual_2d_dir, slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
 
 
 

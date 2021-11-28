@@ -23,20 +23,26 @@ from sklearn.cluster import KMeans
 from scipy.ndimage import zoom
 from skimage.transform import resize
 
-def read_points(fn):
+def read_points(fn, ndim = 3):
     start_read=False
     points0 = []
     points1 = []
+    fn_list = []
     with open(fn,'r') as F:
         for line in F.readlines() :
             if start_read : 
                 string_split = line.split(' ')
-                points0 += [[ float(i) for i in string_split[1:4] ]]
-                points1 += [[ float(i) for i in string_split[4:7] ]]
-   
-            if 'Points' in line : start_read=True
+                points0 += [[ float(i) for i in string_split[1:(1+ndim)] ]]
+                points1 += [[ float(i) for i in string_split[4:(4+ndim)] ]]
 
-    return np.array(points0), np.array(points1)
+            if 'Points' in line : start_read=True
+            
+            if '%Volume:' in line : 
+                print(line)
+                fn = line.split(' ')[1]
+                fn_list.append( os.path.basename(fn.rstrip()))
+    
+    return np.array(points0), np.array(points1), fn_list[0], fn_list[1]
 
 def safe_ants_image_read(fn, tol=0.001, clobber=False):
     img = nib.load(fn)  
@@ -46,11 +52,11 @@ def safe_ants_image_read(fn, tol=0.001, clobber=False):
     return ants_image
 
 
-def points2tfm(points_fn, affine_fn,  invert=False, clobber=False):
+def points2tfm(points_fn, affine_fn, ndim=3,  invert=False, clobber=False):
 
     if not os.path.exists(affine_fn) :
         #rec_points, mni_points
-        moving_points, fixed_points = read_points(points_fn)
+        moving_points, fixed_points, moving_fn, fixed_fn = read_points(points_fn, ndim=ndim)
 
         print('\t: Calculate affine matrix from points')
 

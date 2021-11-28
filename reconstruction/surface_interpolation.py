@@ -424,10 +424,10 @@ def project_volumes_to_surfaces(surf_fn_list, vol_fn_dict, interp_csv, interp_di
         #between vertices where a ligand density of 0 is measured versus the default value
         all_values=np.zeros(nvertices) - 100
     
-        print(surf_fn_list)
         print(vol_fn_dict);
         #Iterate over slabs within a given 
         for i, surf_fn in enumerate(surf_fn_list) :
+            print(i)
             print(vol_fn_dict[str(i+1)])
             vol_fn = vol_fn_dict[str(i+1)]
             print('\t\tSlab =',i+1)

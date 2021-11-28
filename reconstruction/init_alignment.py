@@ -10,40 +10,18 @@ import json
 import shutil
 import sys
 import re
-from utils.utils import shell
+from utils.utils import shell, read_points, points2tfm
 from glob import glob
 from skimage.transform import resize
 from utils.utils import set_csv, add_padding
 from utils.ANTs import ANTs
-from ants import write_transform, read_transform, registration, apply_transforms, image_mutual_information, from_numpy, image_similarity
+from ants import write_transform, read_transform, registration, apply_transforms, image_mutual_information, from_numpy, image_similarity, compose_ants_transforms
 #matplotlib.use('TKAgg')
 
 def load2d(fn):
     ar = nib.load(fn).get_fdata()
     ar = ar.reshape(ar.shape[0],ar.shape[1])
     return ar 
-
-def create_final_transform(df, transforms, fixed_fn, output_dir, clobber=False) :
-    if not os.path.exists(output_dir) :
-        os.makedirs(output_dir)
-
-    df['init_tfm']=['']*df.shape[0]
-    for key, values in transforms.items():
-        final_tfm_fn = "{}/{}_final_Rigid.h5".format(output_dir, key)
-        if len(transforms[key]) > 0 :
-            df['init_tfm'].loc[df['volume_order'].astype(float)==float(key)] = final_tfm_fn
-        else :
-            print('\tskipping',key)
-        
-        if not os.path.exists(final_tfm_fn)  or clobber :
-            output_str = f'-o Linear[{final_tfm_fn}]'
-            if len(transforms[key]) > 0 :
-                transforms_str='-t {} '.format( ' -t '.join( transforms[key])  )
-                shell(f'antsApplyTransforms -v 0 -d 2 -i {fixed_fn} -r {fixed_fn} {transforms_str} {output_str}',True,True)
-
-
-    return  df
-
 
 def align_neighbours_to_fixed(i, j_list, df, transforms, iteration, shrink_factor,smooth_sigma, output_dir, tfm_type, desc,target_ligand=None,clobber=False):
     #For neighbours
@@ -93,7 +71,6 @@ def align_neighbours_to_fixed(i, j_list, df, transforms, iteration, shrink_facto
                 dim=2,
                 sampling_method='Random', sampling=0.5, verbose=0, generate_masks=False, clobber=True  )
             
-        
         #concatenate the transformation files that have been applied to the fixed image and the new transform
         #that is being applied to the moving image
         if not os.path.exists(concat_tfm_fn):
@@ -142,7 +119,6 @@ def adjust_alignment(df,  y_idx, mid, transforms, step, output_dir,desc, shrink_
     j=i
     n=len(y_idx)
     y_idx_tier1 = df['volume_order'].loc[df['tier'] == 1].values.astype(int)
-    y_idx_tier2 = df['volume_order'].loc[df['tier'] == 2].values.astype(int)
     y_idx_tier1.sort()
     i_max = step if step < 0 else df['volume_order'].values.max() + 1
 
@@ -152,6 +128,7 @@ def adjust_alignment(df,  y_idx, mid, transforms, step, output_dir,desc, shrink_
         for j in range(int(y+step), int(i_max), int(step)) :
             if j in df['volume_order'].loc[ df['tier'] == target_tier ].values.astype(int) :
                 j_list.append(int(j))
+
             if j in y_idx_tier1 :
                 break
 
@@ -253,45 +230,104 @@ def alignment_stage(brain,hemi,slab, df, vol_fn_str, output_dir, scale, transfor
         transforms, df = adjust_alignment(df, y_idx, mid, transforms, -1, output_dir,desc, shrink_factor, smooth_sigma, iterations, tfm_type, target_ligand=target_ligand, target_tier=target_tier, clobber=clobber)
         # perform alignment in reverse direction from middle section
         transforms, df = adjust_alignment(df, y_idx, mid, transforms, 1, output_dir, desc, shrink_factor, smooth_sigma, iterations, tfm_type, target_ligand=target_ligand,target_tier=target_tier, clobber=clobber)
-
         # update the crop_fn so it has the new, resampled file names
         df['crop_fn']=df['crop_fn_new']
 
         out_fn = vol_fn_str.format(output_dir,*desc,target_ligand,ligand_n,tfm_type+'-'+str(0),'nii.gz')
         if  not os.path.exists(out_fn) or clobber  :
             vol = combine_sections_to_vol(df,z_mm, direction, out_fn, target_tier)
-    else :
-        df = pd.read_csv(csv_fn)
+    #else :
+    #    df = pd.read_csv(csv_fn)
 
-    print(np.unique(df['ligand'])); #exit(0)
+    print(np.unique(df['ligand'])); 
     return df, transforms
+
+
 
 
 def create_manual_2d_df(df, manual_2d_dir):
 
-    manual_points_list = glob(f'{manual_2d_points_dir}/')
-    manual_2d_df= pd.DataFrame({ 'brain':[], 'hemisphere':[], 'slab':[], 'fixed_image':[], 'moving_image':[], 'fixed_index':[], 'moving_index':[], 'tfm':[] })
+    manual_points_list = glob(f'{manual_2d_dir}/*points.txt')
+    manual_2d_df= pd.DataFrame({ 'brain':[], 'hemisphere':[], 'slab':[], 'ligand':[], 'fixed_image':[], 'moving_image':[], 'fixed_index':[], 'moving_index':[], 'tfm':[] })
 
     brain = np.unique(df['mri'])[0]
     hemisphere = np.unique(df['hemisphere'])[0]
     slab = np.unique(df['slab'])[0]
 
     for manual_points_fn in manual_points_list :
-        fixed_fn, moving_fn = read_files_from_xfm(manual_points_fn)
-    
+        fixed_points, moving_points, fixed_fn, moving_fn = read_points(manual_points_fn)
+        
+        brain, hemisphere, slab, ligand, moving_index = os.path.basename(manual_points_fn).split('_')[0:5]
+        
+        fixed_index = int(df['volume_order'].loc[ df['crop_fn'].apply(lambda crop_fn: fixed_fn in crop_fn ) ])
+
         manual_affine_fn = os.path.splitext(manual_points_fn)[0] + '_affine.mat' 
     
-        points2tfm( manual_points_fn, manual_affine_fn )
+        points2tfm( manual_points_fn, manual_affine_fn, ndim=2 )
         
         assert os.path.exists(manual_affine_fn), f'Error : {manual_affine_fn} does not exist'
 
-        row = pd.DataFrame({'brain':brain, 'hemisphere':hemisphere, 'slab':slab,
-                            'fixed_image':fixed_fn, 'moving_image':moving_fn, 'fixed_index':fixed_index,
-                            'moving_index':moving_index, 'tfm':affine_fn })
+        row = pd.DataFrame({'brain':[brain], 'hemisphere':[hemisphere], 'slab':[slab], 'ligand':[ligand],
+                            'fixed_image':[fixed_fn], 'moving_image':[moving_fn], 
+                            'fixed_index':[int(float(fixed_index))],
+                            'moving_index':[int(float(moving_index))], 'tfm':[manual_affine_fn] })
 
-        manual_2d_df.append(row, inplace=True)
+        manual_2d_df = manual_2d_df.append(row)
+    
+    return manual_2d_df
 
-    return manual_2d_alignement_df
+def create_final_transforms(final_tfm_dir, df, manual_2d_df, step):
+    y_idx_tier = df['volume_order'].values.astype(int)
+    y_idx_tier.sort()
+    
+    mid = int(len(y_idx_tier)/2) 
+    i_max = step if step < 0 else df['volume_order'].values.max() + 1
+
+    print('mid step', mid, step)
+    for i, y in enumerate(y_idx_tier[mid::step]) : 
+        row = df.loc[ y == df['volume_order'] ]
+
+        final_tfm_fn = "{}/{}_final_Rigid.h5".format(final_tfm_dir, row['volume_order'].values[0] )
+
+        idx = df['volume_order'].values == row['volume_order'].values
+        print(y)
+        if not os.path.exists(final_tfm_fn) :
+            
+            original_crop_fn = row['original_crop_fn']
+            
+            moving_index = row['volume_order'].values[0].astype(int)
+            manual_idx = manual_2d_df['moving_index'].apply( lambda x : x == moving_index )
+
+            if np.sum(manual_idx) > 0 :
+                fixed_y = manual_2d_df['fixed_index'].loc[ manual_idx ].values[0].astype(int)
+
+                manual_tfm_fn = manual_2d_df['tfm'].loc[ manual_idx ].values[0] 
+               
+                fixed_tfm_fn = df['init_tfm'].loc[ fixed_y == df['volume_order'].values.astype(int) ].values[0] 
+                #print(df['ligand'].loc[ fixed_y == df['volume_order'].values.astype(int) ])
+                #print(fixed_y in df['volume_order'].values.astype(int))
+                #print(fixed_tfm_fn)
+                crop_fn = row['crop_fn'].values[0]
+
+                print('\t', fixed_y, fixed_tfm_fn)
+                #shell(f'antsApplyTransforms -v 1 -d 2 -i {crop_fn} -r {crop_fn} -t {fixed_tfm} -t {manual_tfm_fn} -o Linear[{final_tfm_fn}]', True, True)
+                manual_tfm_ants = read_transform(manual_tfm_fn)
+                #print(manual_tfm_fn)
+                #print(manual_tfm_ants)
+                #print(fixed_y)
+                fixed_tfm_ants = read_transform(fixed_tfm_fn)
+                #print(fixed_tfm_ants)
+                tfm_concat = compose_ants_transforms( [ manual_tfm_ants, 
+                                                        fixed_tfm_ants ])
+
+                write_transform( tfm_concat , final_tfm_fn)
+            elif  type(row['init_tfm'].values[0]) == str  :
+                shutil.copy(row['init_tfm'].values[0], final_tfm_fn)
+            print( type(row['init_tfm'].values[0]) == str )
+            df['init_tfm'].loc[ idx ] = final_tfm_fn
+        print('\t--->',df['init_tfm'].loc[ idx ].values[0])
+
+    return df
 
 def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, manual_2d_dir, df, scale_factors_json="scale_factors.json",  clobber=False):
     
@@ -345,16 +381,19 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, m
         target_ligand = current_ligands[-1]
         idx =  df['ligand'].apply(lambda x : x in current_ligands)
         df_ligand = df.loc[ idx ] 
-        df_ligand['tier'].loc[df_ligand['ligand']==target_ligand] = 2
-        df_ligand['tier'].loc[df_ligand['ligand']==ligand_intensity_order[0]] = 1
+        df_ligand['tier'].loc[ df_ligand['ligand']==target_ligand ] = 2
+        df_ligand['tier'].loc[ df_ligand['ligand']==ligand_intensity_order[0] ] = 1
         #Init dict with initial transforms
         transforms_2={}
         for i in df_ligand['volume_order'] :  transforms_2[i]=[]
 
         df_ligand, transforms_2 = alignment_stage(brain, hemi, slab, df_ligand, slab_img_fn_str, output_dir_2, scale, transforms_2, target_ligand=target_ligand, ligand_n=i, target_tier=2,  desc=(brain,hemi,slab), clobber=clobber)
 
-        concat_list.append( df_ligand.loc[ df_ligand['tier'] == 2] )
-    
+        concat_list.append( df_ligand.loc[ df_ligand['tier'] == 2 ] )
+   
+        #print(target_ligand)
+        #print(df_ligand['init_tfm'].loc[ df['ligand'] == target_ligand ])
+
         # update the master dataframe, df, with new dataframe for the ligand 
         df.loc[ df['ligand'] == target_ligand ] = df_ligand.loc[ df['ligand'] == target_ligand ]
 
@@ -396,39 +435,19 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, m
     
     df = stage_3_df.copy()
     '''
-    df = stage_2_df
     final_tfm_dir =  output_dir + os.sep + 'final_tfm'
     os.makedirs(final_tfm_dir, exist_ok=True)
+    df = stage_2_df
+    print('hell0')
+    print(df['init_tfm'].loc[df['ligand']=='flum'] )
+    print('okay ikay')
+    df = create_final_transforms(final_tfm_dir, df, manual_2d_df, 1)
+    print(df['init_tfm'].loc[df['ligand']=='flum'] )
+    df = create_final_transforms(final_tfm_dir, df, manual_2d_df, -1)
+    
+
     ### create final transforms that take raw autoradiographs from their raw alignement to the initial
     ### rigid alignment. this involves combining the concatenated transforms of stages 2 and 3
-    for i, (index, row) in enumerate( stage_2_df.iterrows() ) : 
-
-        final_tfm_fn = "{}/{}_final_Rigid.h5".format(final_tfm_dir, row['volume_order'])
-
-        idx = df['volume_order'] == row['volume_order']
-
-        if not os.path.exists(final_tfm_fn) :
-            print( row['ligand'], row['ligand'] != ligand_intensity_order[0] );
-            
-            original_crop_fn = row['original_crop_fn']
-            if row['volume_order'] in manual_2d_df['moving_index'] :
-
-                fixed_idx = manual_2d_df['fixed_index']
-
-                manual_tfm_fn = manual_2d_df['tfm'] 
-
-                fixed_tfm = stage_2_df['init_tfm'].loc[ fixed_idx ].values[0] 
-                crop_fn = row['crop_fn']
-                shell(f'antsApplyTransforms -v 0 -d 2 -i {crop_fn} -r {crop_fn} -t {manual_tfm_fn} -t {stage_2_init_tfm} -o Linear[{final_tfm_fn}]', True, True)
-            
-            elif type( row['init_tfm'] ) == str  :
-                shutil.copy(row['init_tfm'], final_tfm_fn)
-            else :
-                final_tfm_fn = np.nan
-        
-        df['init_tfm'].loc[ idx ] = final_tfm_fn
-            
-        print('\t--->',df['init_tfm'].loc[ idx ].values[0])
 
     print('Writing:',init_tfm_csv)
         
