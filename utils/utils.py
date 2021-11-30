@@ -52,15 +52,15 @@ def safe_ants_image_read(fn, tol=0.001, clobber=False):
     return ants_image
 
 
-def points2tfm(points_fn, affine_fn, ndim=3,  invert=False, clobber=False):
+def points2tfm(points_fn, affine_fn, ndim=3, transform_type="Affine", invert=False, clobber=False):
 
     if not os.path.exists(affine_fn) :
-        #rec_points, mni_points
-        moving_points, fixed_points, moving_fn, fixed_fn = read_points(points_fn, ndim=ndim)
+        # mni_points , rec_points
+        fixed_points, moving_points, fixed_fn, moving_fn = read_points(points_fn, ndim=ndim)
 
         print('\t: Calculate affine matrix from points')
 
-        landmark_tfm = ants.fit_transform_to_paired_points(fixed_points, moving_points, transform_type="Affine")
+        landmark_tfm = ants.fit_transform_to_paired_points(moving_points, fixed_points, transform_type=transform_type)
 
         ants.write_transform(landmark_tfm, affine_fn)
 
