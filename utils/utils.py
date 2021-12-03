@@ -60,7 +60,7 @@ def points2tfm(points_fn, affine_fn, ndim=3, transform_type="Affine", invert=Fal
 
         print('\t: Calculate affine matrix from points')
 
-        landmark_tfm = ants.fit_transform_to_paired_points(moving_points, fixed_points, transform_type=transform_type)
+        landmark_tfm = ants.fit_transform_to_paired_points(fixed_points,moving_points,  transform_type=transform_type)
 
         ants.write_transform(landmark_tfm, affine_fn)
 
