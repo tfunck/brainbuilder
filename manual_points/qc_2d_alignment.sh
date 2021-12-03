@@ -33,11 +33,11 @@ for dice_csv in `ls dice*csv`; do
 
                 if [[ $pass_flag != "y" ]]; then
                     echo "Warning!"
-                    echo "Save points as temp.txt"
-                    echo "Script will automatically move temp.txt to $points_fn"
+                    echo "Save points as t"
+                    echo "Script will automatically move t to $points_fn"
                     register temp_dice_images/`basename ${fixed_orig}` temp_dice_images/`basename ${moving_orig}`
-                    echo mv temp.txt $points_fn
-                    mv temp.txt $points_fn
+                    echo mv t.tag $points_fn
+                    mv t.tag $points_fn
                 fi 
 
                 if [[ -f $points_fn ]] ; then
