@@ -510,7 +510,9 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
        
 
         ### Steps 2-4 : Multiresolution alignment
-        slab_df = multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, slab_index, args,files, resolution_list, init_align_fn)
+        final_vol_fn = files[brain][hemi][str(slab)][str(resolution_list[-1])]['nl_2d_vol_fn'] #Current files
+        if not os.path.exists(final_vol_fn) :
+            slab_df = multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, slab_index, args,files, resolution_list, init_align_fn)
         '''
         def create_brain_mask_sections(slab_df, slab, resolution, tfm_3d_inv_fn, reference_fn, brain_mask_fn):
             brain_mask_rsl_fn = re.sub('.nii.gz','_space-rec-{slab}.nii.gz')  

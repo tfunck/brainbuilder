@@ -269,14 +269,24 @@ def create_manual_2d_df(df, manual_2d_dir):
     
     return manual_2d_df
 
-def create_final_transforms(final_tfm_dir, df, manual_2d_df, step):
+def create_final_outputs(final_tfm_dir, df, manual_2d_df, step):
     y_idx_tier = df['volume_order'].values.astype(int)
     y_idx_tier.sort()
     
     mid = int(len(y_idx_tier)/2) 
     if step < 0 : mid -= 1
     i_max = step if step < 0 else df['volume_order'].values.max() + 1
-
+    
+    #                     c
+    #            <--------------
+    #                    b 
+    #            <---------
+    #    l  l    |  a l b1 l   l
+    #    l  l -> | <- l <- l   l
+    #    l  l    |    l    l   l
+    #   s0  s1   s2   s3   s4  s5              
+    #   a ( b1 (s2) )  --> s2
+    #
     for i, y in enumerate(y_idx_tier[mid::step]) : 
         row = df.loc[ y == df['volume_order'] ]
 
@@ -310,8 +320,8 @@ def create_final_transforms(final_tfm_dir, df, manual_2d_df, step):
                     tfm_concat = compose_ants_transforms( [ manual_tfm_ants, 
                                                             read_transform(fixed_tfm_fn) ] )
                     #write_transform( tfm_concat , final_tfm_fn)
-                    #-t {fixed_tfm_fn}
-                    shell(f'antsApplyTransforms -v 1 -d 2 -r {original_crop_fn} -i {original_crop_fn}   -t {manual_tfm_fn} -o Linear[{final_tfm_fn}]')
+                    #
+                    shell(f'antsApplyTransforms -v 1 -d 2 -r {original_crop_fn} -i {original_crop_fn}  -t {fixed_tfm_fn}  -t {manual_tfm_fn}  -o Linear[{final_tfm_fn}]')
                 else :
                     # Manual points but no fixed transform
                     print('copy manual tfm to final')
@@ -389,10 +399,10 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, m
         df_ligand['tier'].loc[ df_ligand['ligand']==target_ligand ] = 2
         df_ligand['tier'].loc[ df_ligand['ligand']==ligand_intensity_order[0] ] = 1
         #Init dict with initial transforms
-        transforms_2={}
-        for i in df_ligand['volume_order'] :  transforms_2[i]=[]
+        transforms={}
+        for i in df_ligand['volume_order'] :  transforms[i]=[]
 
-        df_ligand, transforms_2 = alignment_stage(brain, hemi, slab, df_ligand, slab_img_fn_str, output_dir_2, scale, transforms_2, target_ligand=target_ligand, ligand_n=i, target_tier=2,  desc=(brain,hemi,slab), clobber=clobber)
+        df_ligand, transforms = alignment_stage(brain, hemi, slab, df_ligand, slab_img_fn_str, output_dir_2, scale, transforms, target_ligand=target_ligand, ligand_n=i, target_tier=2,  desc=(brain,hemi,slab), clobber=clobber)
 
         concat_list.append( df_ligand.loc[ df_ligand['tier'] == 2 ] )
    
@@ -443,8 +453,8 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, m
     final_tfm_dir =  output_dir + os.sep + 'final_tfm'
     os.makedirs(final_tfm_dir, exist_ok=True)
     df = stage_2_df
-    df = create_final_transforms(final_tfm_dir, df, manual_2d_df, 1)
-    df = create_final_transforms(final_tfm_dir, df, manual_2d_df, -1)
+    df = create_final_outputs(final_tfm_dir, df, manual_2d_df, 1)
+    df = create_final_outputs(final_tfm_dir, df, manual_2d_df, -1)
    
     print('Writing:',init_tfm_csv)
         
