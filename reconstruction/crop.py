@@ -33,7 +33,7 @@ from scipy.interpolate import griddata
 
 #matplotlib.use("TkAgg")
 
-def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn, y, resolution):
+def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn, y, slab, resolution):
 
     n=3
     #load autoradiograph
@@ -122,10 +122,8 @@ def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn, y, resolu
             out[ out == l ] = 0
 
 
-    #print('Hello!', np.min(np.bincount(out.reshape(-1,)).astype(float) * voxel_size) ) 
-    #exit(0) 
-    offset = 100000 if np.max(out_unique) < 100 else 1000000
-    out[ out > 0 ] = y + offset * out[ out > 0 ]
+    index = np.core.defachararray(str(slab)+str(y), out[out>0]).astype(int)
+    out[ out > 0 ] = index
 
     if np.sum(out) == 0 : out = mask_vol
     # save classified image as nifti
@@ -246,7 +244,7 @@ def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pad = 1000,
     pseudo_cls_fn = row['pseudo_cls_fn']
     if not os.path.exists(pseudo_cls_fn) :
         print('\t pseudo-cls_fn', pseudo_cls_fn) 
-        pseudo_classify_autoradiograph( crop_fn, seg_fn, pseudo_cls_fn, int(row['volume_order']), resolution )
+        pseudo_classify_autoradiograph( crop_fn, seg_fn, pseudo_cls_fn, int(row['volume_order']), int(row['slab']), resolution )
 
 def crop(src_dir, mask_dir, out_dir, df, scale_factors_json, resolution, remote=False,clobber=False):
     '''take raw linearized images and crop them'''
