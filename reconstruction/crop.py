@@ -122,7 +122,7 @@ def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn, y, slab, 
             out[ out == l ] = 0
 
 
-    index = np.core.defachararray(str(slab)+str(y), out[out>0]).astype(int)
+    index = np.core.defchararray.add(str(slab)+str(y), out[out>0].astype(str)).astype(int)
     out[ out > 0 ] = index
 
     if np.sum(out) == 0 : out = mask_vol
@@ -248,7 +248,7 @@ def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pad = 1000,
 
 def crop(src_dir, mask_dir, out_dir, df, scale_factors_json, resolution, remote=False,clobber=False):
     '''take raw linearized images and crop them'''
-    df = df.loc[ (df['hemisphere'] == 'R') & (df['mri'] == 'MR1' )  ] #FIXME, will need to be removed
+    df = df.loc[ (df['hemisphere'] == 'R') & (df['mri'] == 'MR1' ) & (df['ligand']=='flum') ] #FIXME, will need to be removed
     
     with open(scale_factors_json) as f : scale=json.load(f)
    

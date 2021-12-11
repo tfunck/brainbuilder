@@ -27,7 +27,7 @@ def generate_mask(fn, out_fn, sigma=8) :
     return 0
 
 
-def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolerance=1e-08, metrics=None, nbins=32, tfm_type=["Rigid","Affine","SyN"], rate=None, shrink_factors=None,smoothing_sigmas=None, radius=3, init_tfm=None,init_inverse=False,sampling_method='Regular', sampling=1, dim=3, verbose=0, clobber=0, exit_on_failure=0, fix_header=False, generate_masks=True, no_init_tfm=False, mask_dir=None, write_composite_transform=1, collapse_output_transforms=0, n_tries=5, init_tfm_direction='moving' ) :
+def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolerance=1e-08, metrics=None, nbins=32, tfm_type=["Rigid","Affine","SyN"], rate=None, shrink_factors=None,smoothing_sigmas=None, radius=3, init_tfm=None,init_inverse=False,sampling_method='Regular', sampling=1, dim=3, verbose=0, clobber=0, exit_on_failure=0, fix_header=False, generate_masks=True, no_init_tfm=False, mask_dir=None, write_composite_transform=1, collapse_output_transforms=0, n_tries=5, init_tfm_direction='moving', interpolation='Linear' ) :
    
     nLevels = len(iterations)
     tfm_ext='GenericAffine.mat'
@@ -132,7 +132,7 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
             else :
                 initialize_transforms_per_stage=0
 
-            cmdline += f' --initialize-transforms-per-stage {initialize_transforms_per_stage} --interpolation Linear '
+            cmdline += f' --initialize-transforms-per-stage {initialize_transforms_per_stage} --interpolation {interpolation} '
         
             #Set up smooth sigmas and shrink factors
             smooth_sigma = smoothing_sigmas[level]

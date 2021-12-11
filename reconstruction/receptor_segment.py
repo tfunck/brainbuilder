@@ -95,7 +95,7 @@ def resample_and_transform(output_dir, resolution_2d, resolution_3d, row):
         print('\n-->',tfm_fn,'\n')
         if type(tfm_fn) == str :
             tfm = ants.read_transform(tfm_fn)
-            cmdline = f'antsApplyTransforms -v 1 -d 2 -n BSpline[3] -i {tfm_input_fn} -r {seg_rsl_fn} -t {tfm_fn} -o {seg_rsl_tfm_fn}'
+            cmdline = f'antsApplyTransforms -n NearestNeighbor -v 1 -d 2 -i {tfm_input_fn} -r {seg_rsl_fn} -t {tfm_fn} -o {seg_rsl_tfm_fn}'
             print(cmdline)
             shell(cmdline)
         else :

@@ -23,7 +23,7 @@ def create_error_volumes(df, qc_dir):
 
     for (slab, source, ligand), sdf in df.groupby( ['slab', 'source', 'ligand'] ) : 
         space = 'mni' if source == 'reconstructed' else 'nl2d'
-        out_fn = f'./MR1_R_{slab}_{ligand}_val-error_space-{space}.nii.gz'
+        out_fn = f'{qc_dir}/MR1_R_{slab}_{ligand}_val-error_space-{space}.nii.gz'
         
         if not os.path.exists(out_fn) :
             atlas_rsl_str = f'{qc_dir}/MR1_R_{int(slab)}_{ligand}_pseudo-cls*space-{space}.nii.gz'
@@ -42,7 +42,7 @@ def create_error_volumes(df, qc_dir):
                 label = int(row['label'])
                 idx =  atlas == int(label)
                 label_sum = np.sum(idx)
-                assert np.sum(idx) >  0, 'Error, label {label} not found in label volume'
+                if np.sum(idx) == 0 : continue
                 average = np.abs(100- row['accuracy'])
                 out_vol[ idx ] = average
             assert np.sum(out_vol) > 0 , 'Error: empty output volume'
@@ -105,24 +105,46 @@ def plot(df, out_fn='validation_accuracy.png') :
     axes[1].spines['right'].set_visible(False)
 
 
-    sns.scatterplot(x='volume', y='accuracy', hue='slab', data=df.loc[nl2d_i], ax=axes[0], palette='tab10') 
-    sns.scatterplot(x='volume', y='accuracy', hue='slab', data=df.loc[rec_i], ax=axes[1], palette='tab10') 
+    g=sns.scatterplot(x='volume', y='accuracy', hue='slab', data=df.loc[nl2d_i], ax=axes[0], palette='tab10') 
+    g.set(ylim=(60, 140))
+    g=sns.scatterplot(x='volume', y='accuracy', hue='slab', data=df.loc[rec_i], ax=axes[1], palette='tab10', ylim=100, ymax=130) 
+    g.set(ylim=(60, 140))
     plt.tight_layout()
     plt.savefig(out_fn)
 
 
-def validation_visualization(qc_fn):
+def validation_visualization(df, qc_fn):
     print(qc_fn)
     qc_dir = os.path.dirname(qc_fn)
-    df = pd.read_csv(qc_fn)
-    df = norm(df)
-    plot(df)
-    create_error_volumes(df, qc_dir)
+    df_validation = pd.read_csv(qc_fn)
+    df_validation = norm(df_validation)
+    qc_norm_csv = os.path.splitext(qc_fn)[0]+'_norm.csv'
+    df_validation.to_csv(qc_norm_csv)
+    qc_plot_fn=f'{qc_dir}/validation_accuracy.png'
+    plot(df_validation,qc_plot_fn)
+    create_error_volumes(df_validation, qc_dir)
 
-def transform_volume( input_fn, reference_fn, tfm_fn, ndim, out_dir, suffix, clobber=False):
+    #Create 2D
+    for row_index, row in df_validation.iterrows():
+        if np.abs(row['accuracy']-100) > 30 :
+            print(row)
+            #slab = row['slab']
+            #brain = row['mri']
+            #hemisphere = row['hemisphere']
+            #slab = row['slab']
+            #ligand = row['ligand']
+            #y = row['volume_order']
+        
+            #section_nl2d = df_nl2d[:,y,:] 
+            #autoradiograph_fn = row['crop_fn']
+            #section_auto = nib.load(autoradiograph_fn).get_fdata()
+
+
+
+def transform_volume( input_fn, reference_fn, tfm_fn, ndim, out_dir, suffix, mask_fn='', clobber=False):
     '''
     About:
-        Transform reconstructed volume for a particular ligand into nl2d space.
+        Transform reconstructed volume for a particular ligand .
 
     Arguments:
         input_fn :  string, filename of reconstructed ligand volume, mni space.
@@ -139,6 +161,17 @@ def transform_volume( input_fn, reference_fn, tfm_fn, ndim, out_dir, suffix, clo
     if not os.path.exists(out_fn) or clobber:
         cmd = f'antsApplyTransforms -v 1  -n NearestNeighbor -d {ndim}  -r {reference_fn} -i {input_fn} -t {tfm_fn} -o {out_fn}'
         shell(cmd)
+
+    if mask_fn != '' :
+        mask_img = nib.load(mask_fn)
+        mask_vol = mask_img.get_fdata()
+        cls_img = nib.load(out_fn)
+        cls_vol = cls_img.get_fdata()
+        n_labels = len(np.unique(cls_vol))
+        cls_vol[ ~ mask_vol.astype(bool) ] = 0
+        print('n labels', n_labels)
+        assert len(np.unique(cls_vol)) <= n_labels, 'Error: too many labels created when masking ' + out_fn
+        nib.Nifti1Image(cls_vol, cls_img.affine).to_filename(out_fn)
 
     return out_fn
 
@@ -181,11 +214,11 @@ def average_over_label(labels, values, conversion_factor=1 ):
     n_out = [] 
 
     unique_labels = np.unique( labels )[1:]
-    for label in unique_labels :
+    n_labels = len(unique_labels)
+    for i, label in enumerate(unique_labels) :
+        if i % 1000 == 0 : print(100.*i/n_labels, end='\r')
         idx = labels == label
         n = np.sum(idx)
-        print('mean and conversion_factor')
-        print(np.mean(values[idx]), conversion_factor, np.mean(values[idx]) * conversion_factor)
         averages_out.append(np.mean(values[idx]) * conversion_factor )
         labels_out.append(label)
         n_out.append(n)
@@ -203,7 +236,7 @@ def combine_data_frames(df_list,y,slab,ligand):
     return df_out 
 
 
-def create_nl2d_cls_vol(df, nl_2d_fn, out_dir, qc_dir, brain, hemisphere, slab, ligand, resolution, clobber=False):
+def create_nl2d_cls_vol(df, nl_2d_fn, out_dir, qc_dir, brain, hemisphere, slab, ligand, resolution,  clobber=False):
     qc_cls_nl2d_dir = f'{qc_dir}/pseudo_cls'
     nl2d_cls_fn=f'{qc_dir}/{brain}_{hemisphere}_{slab}_{ligand}_pseudo-cls_space-nl2d.nii.gz'
     os.makedirs(qc_cls_nl2d_dir,exist_ok=True)
@@ -245,7 +278,7 @@ def create_nl2d_cls_vol(df, nl_2d_fn, out_dir, qc_dir, brain, hemisphere, slab, 
 
     return nl2d_cls_fn
 
-def validate_reconstructed_sections(resolution, slabs, n_depths, df, base_out_dir='/data/receptor/human/output_2/', clobber=False):
+def validate_reconstructed_sections(resolution, slabs, n_depths, df, srv_max_resolution_fn, base_out_dir='/data/receptor/human/output_2/', clobber=False):
     
     qc_dir = f'{base_out_dir}/6_quality_control/'
     out_fn = f'{qc_dir}/reconstruction_validation.csv'
@@ -269,13 +302,16 @@ def validate_reconstructed_sections(resolution, slabs, n_depths, df, base_out_di
             print('\tPseudo-classified volume (space=nl2d):', cls_nl2d_fn)
 
             #Transform nl2d psuedo-classified image into mni space
-            cls_mni_fn = transform_volume(cls_nl2d_fn, reconstructed_volume_fn, nl_3d_fn, 3, qc_dir, f'space-mni')
+            cls_mni_fn = transform_volume(cls_nl2d_fn, reconstructed_volume_fn, nl_3d_fn, 3, qc_dir, f'space-mni', mask_fn=srv_max_resolution_fn)
+            #mask the cls mni
             print('\tPseudo-classified volume (space=mni):', cls_mni_fn)
 
             qc_csv_fn=f'{qc_dir}/{brain}_{hemisphere}_{slab}_{ligand}_space-nl2d.csv'
+            print('Calculate Regional Averages : nl2d')
             df_nl2d = calculate_regional_averages(cls_nl2d_fn, nl_2d_fn, 'nl2d',
                                                   resolution, qc_csv_fn)
             
+            print('Calculate Regional Averages : reconstructed')
             qc_csv_fn=f'{qc_dir}/{brain}_{hemisphere}_{slab}_{ligand}_space-reconstructed.csv'
             df_mni = calculate_regional_averages(cls_mni_fn, reconstructed_volume_fn, 'reconstructed', 
                     resolution, qc_csv_fn) 
@@ -304,5 +340,8 @@ def validate_reconstructed_sections(resolution, slabs, n_depths, df, base_out_di
                                                 resolution,qc_csv_fn, conversion_factor=conversion_factor)
             df_list += [ combine_data_frames([df_nat], y, slab, ligand) ]
 
-        pd.concat(df_list).to_csv(out_fn)
-        validation_visualization(out_fn)
+        validation_df = pd.concat(df_list)
+        validation_df.to_csv(out_fn)
+        validation_visualization(df,  out_fn)
+
+

@@ -262,6 +262,7 @@ def setup_files_json(args ):
                     cdict['nl_3d_tfm_inv_fn'] = '{}/rec_to_mri_SyN_InverseComposite.h5'.format(cdict['align_to_mri_dir'])
 
                     cdict['nl_2d_vol_fn'] = "{}/{}_{}_{}_nl_2d_{}mm.nii.gz".format(cdict['nl_2d_dir'] ,brain,hemi,slab,resolution) 
+                    cdict['nl_2d_vol_cls_fn'] = "{}/{}_{}_{}_nl_2d_cls_{}mm.nii.gz".format(cdict['nl_2d_dir'] ,brain,hemi,slab,resolution) 
                     cdict['srv_space_rec_fn'] = "{}/{}_{}_{}_srv_rsl.nii.gz".format(cdict['nl_2d_dir'], brain, hemi, slab)   
                     #if resolution_itr == max_3d_itr :  
                     #    max_3d_cdict=cdict
@@ -359,6 +360,7 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, 
         srv_3d_rsl_fn = cfiles['srv_3d_rsl_fn']
         srv_space_rec_fn = cfiles['srv_space_rec_fn']
         nl_2d_vol_fn = cfiles['nl_2d_vol_fn']
+        nl_2d_cls_fn = cfiles['nl_2d_vol_cls_fn']
 
         resolution_3d = max(float(resolution), max_resolution)
         if resolution_3d == max_resolution :
@@ -448,11 +450,13 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, 
         create_2d_sections( slab_df, srv_space_rec_fn, float(resolution), nl_2d_dir )
             
         print('\t\tStep 4: 2d nl alignment')
-        stage_4_outputs=[nl_2d_vol_fn]
+        stage_4_outputs=[nl_2d_vol_fn, nl_2d_cls_fn]
         #if run_stage(stage_3_outputs, stage_4_outputs)  or args.clobber:
         slab_df = receptor_2d_alignment( slab_df, init_align_fn, srv_space_rec_fn,seg_dir+'/2d/', nl_2d_dir,  resolution, resolution_itr)
-        #Concatenate 2D nonlinear aligned sections into output volume
+        # Concatenate 2D nonlinear aligned sections into output volume
         concatenate_sections_to_volume( slab_df, srv_space_rec_fn, nl_2d_dir, nl_2d_vol_fn)
+        # Concatenate 2D nonlinear aligned cls sections into an output volume
+        concatenate_sections_to_volume( slab_df, srv_space_rec_fn, nl_2d_dir, nl_2d_cls_fn, target_str='cls_rsl')
 
     #slab_df.to_csv(f'{cur_out_dir}/file_info_{resolution}.csv')
     return slab_df
@@ -511,8 +515,10 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 
         ### Steps 2-4 : Multiresolution alignment
         final_vol_fn = files[brain][hemi][str(slab)][str(resolution_list[-1])]['nl_2d_vol_fn'] #Current files
-        if not os.path.exists(final_vol_fn) :
+        final_cls_fn = files[brain][hemi][str(slab)][str(resolution_list[-1])]['nl_2d_vol_cls_fn'] #Current files
+        if not os.path.exists(final_vol_fn) or not os.path.exists(final_cls_fn) :
             slab_df = multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, slab_index, args,files, resolution_list, init_align_fn)
+        
         '''
         def create_brain_mask_sections(slab_df, slab, resolution, tfm_3d_inv_fn, reference_fn, brain_mask_fn):
             brain_mask_rsl_fn = re.sub('.nii.gz','_space-rec-{slab}.nii.gz')  
@@ -538,31 +544,32 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
             slab_dict[slab] = temp_slab_dict[resolution_list[-1]] 
         else : 
             print(f'Error: not including slab {slab} for interpolation (nl 3d tfm exists = {nl_3d_tfm_exists}, 2d nl vol exists = {nl_2d_vol_exists}) ')
-    
-    ###
-    ### 6. Surface interpolation
-    ###
     assert len(slab_dict.keys()) != 0 , print('No slabs to interpolate over')
-    ligand='flum'
-    ligand_df = hemi_df.loc[ ligand  == hemi_df['ligand'] ]
     srv_max_resolution_fn = files[brain][hemi][args.slabs[-1]][resolution_list[-1]]['srv_rsl_fn']
-    surface_interpolation(slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, ligand_df, srv_max_resolution_fn, args, files[brain][hemi], surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
 
-    ###
-    ### 7. Quality Control
-    ###
-    max_resolution = resolution_list[-1]
-    depth = '0.45'
-    validate_reconstructed_sections(max_resolution, args.slabs, args.n_depths, ligand_df, base_out_dir='/data/receptor/human/output_2/', clobber=True)
-    exit(0) 
-    #FIXME filename should be passed from surface_interpolation
-    ligand_csv = glob(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')[0]   
-    sphere_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_inflate_rsl.h5')[0]
-    cortex_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_rsl.h5')[0]
-    faces_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_0.0_rsl_new_faces.h5')[0]
-    output_dir=f'/data/receptor/human/output_2/6_quality_control/'
-    validate_interpolation(ligand_csv, sphere_mesh_fn, cortex_mesh_fn, faces_fn, output_dir, n_samples=1000, max_depth=6)
+    df = df.loc[ (df['hemisphere'] == 'R') & (df['mri']==brain) ]
+    for ligand, df_ligand in df.groupby(['ligand']):
 
+        if 'flum' == ligand :
+            surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution,  srv_max_resolution_fn, args, files[brain][hemi], surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+            surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, srv_max_resolution_fn, args, files[brain][hemi],  tissue_type='_cls', surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+
+            ###
+            ### 6. Quality Control
+            ###
+            max_resolution = resolution_list[-1]
+            depth = '0.45'
+            cortex_fn='/data/receptor/human/MR1_R_mri_cortex_0.5mm.nii.gz'
+            validate_reconstructed_sections(max_resolution, args.slabs, args.n_depths, df_ligand, cortex_fn, base_out_dir='/data/receptor/human/output_2/', clobber=True)
+            exit(0) 
+            #FIXME filename should be passed from surface_interpolation
+            ligand_csv = glob(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')[0]   
+            sphere_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_inflate_rsl.h5')[0]
+            cortex_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_rsl.h5')[0]
+            faces_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_0.0_rsl_new_faces.h5')[0]
+            output_dir=f'/data/receptor/human/output_2/6_quality_control/'
+            validate_interpolation(ligand_csv, sphere_mesh_fn, cortex_mesh_fn, faces_fn, output_dir, n_samples=1000, max_depth=6)
+    exit(0)
 
 ###---------------------###
 ###  PROCESSING STEPS   ###
