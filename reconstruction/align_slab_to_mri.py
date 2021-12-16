@@ -136,9 +136,9 @@ def pad_volume(vol, max_factor, affine, min_voxel_size=29):
     vol_padded = np.pad(vol, ((x_pad, x_pad), (y_pad, y_pad),(z_pad, z_pad))) 
     #print(vol_padded.shape)
     
-    affine[0,3] -= x_pad * affine[0,0]
-    affine[1,3] -= y_pad * affine[1,1]
-    affine[2,3] -= z_pad * affine[2,2]
+    affine[0,3] -= x_pad * abs(affine[0,0])
+    affine[1,3] -= y_pad * abs(affine[1,1])
+    affine[2,3] -= z_pad * abs(affine[2,2])
     return vol_padded, affine
 
 def get_srv_info(srv_rsl_fn ) : 
@@ -148,7 +148,7 @@ def get_srv_info(srv_rsl_fn ) :
     ymax = srv_vol.shape[1]
 
 
-    srv_ystep = srv_img.affine[1,1] 
+    srv_ystep = abs(srv_img.affine[1,1] )
     srv_ystart = srv_img.affine[1,3] 
     srv_min, srv_max = list(map(lambda x: v2w(x,srv_ystep,srv_ystart), find_vol_min_max(srv_vol) ))
     srv_width = srv_max - srv_min
@@ -159,7 +159,7 @@ def pad_seg_vol(seg_rsl_fn,max_downsample_level):
     seg_img = nib.load(seg_rsl_fn)
     seg_vol = seg_img.get_fdata() 
 
-    ystep = seg_img.affine[1,1]
+    ystep = abs(seg_img.affine[1,1])
     ystart = seg_img.affine[1,3]
 
     seg_vol, pad_affine = pad_volume(seg_vol, max_downsample_level, seg_img.affine )
@@ -261,11 +261,11 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
         # calculate rigid registration
         if os.path.exists( manual_affine_fn ) :
             if not os.path.exists(f'{prefix_rigid}Composite.h5'):
-                shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1] -t Rigid[.1] -c {lin_itr_str}  -m GC[{srv_slab_fn},{seg_rsl_fn},1,30,Regular,1] -s {s_str} -f {f_str} -o [{prefix_rigid},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+                shell(f'antsRegistration -v 0 -a 1 -d 3  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1] -t Rigid[.1] -c {lin_itr_str}  -m GC[{srv_slab_fn},{seg_rsl_fn},1,30,Regular,1] -s {s_str} -f {f_str} -o [{prefix_rigid},{temp_out_fn},{out_inv_fn}] ', verbose=True)
             
             # calculate similarity registration
             if not os.path.exists(f'{prefix_similarity}Composite.h5'):
-                shell(f'/usr/bin/time -v antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform {prefix_rigid}Composite.h5 -t Similarity[.1]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+                shell(f'antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform {prefix_rigid}Composite.h5 -t Similarity[.1]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{temp_out_fn},{out_inv_fn}] ', verbose=True)
             
             affine_init = f'--initial-moving-transform {prefix_similarity}Composite.h5'
         else :
@@ -274,11 +274,11 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
 
         #calculate affine registration
         if not os.path.exists(f'{prefix_affine}Composite.h5'):
-            shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3 {affine_init} -t Affine[.1] -m Mattes[{srv_tgt_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{out_inv_fn}] ', verbose=True)
+            shell(f'antsRegistration -v 1 -a 1 -d 3 {affine_init} -t Affine[.1] -m Mattes[{srv_tgt_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{out_inv_fn}] ', verbose=True)
         
         if not os.path.exists(f'{prefix_syn}Composite.h5'):
             # --masks [{srv_mask_fn},{seg_mask_fn}]
-            shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3   --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[.1] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{syn_out_fn},{out_inv_fn}] ', verbose=True)
+            shell(f'antsRegistration -v 1 -a 1 -d 3   --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[.1] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{syn_out_fn},{out_inv_fn}] ', verbose=True)
             #[{nl_itr_str},1e-08,20]
 
     if not os.path.exists(out_fn):

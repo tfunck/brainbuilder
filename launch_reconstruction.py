@@ -53,7 +53,6 @@ def create_new_srv_volumes(rec_3d_rsl_fn, srv_rsl_fn, cropped_output_list, resol
         lower_res_srv_rsl_fn = cropped_output_list[i]
         if not os.path.exists(lower_res_srv_rsl_fn) :
             r = resolution_list[i]
-            print(i, r, float(r)/np.pi); 
             prefilter_and_downsample(highest_res_srv_rsl_fn, [float(r)]*3, lower_res_srv_rsl_fn) #, reference_image_fn=rec_3d_rsl_fn)
 
         print('Next srv fn:', lower_res_srv_rsl_fn)
@@ -262,7 +261,8 @@ def setup_files_json(args ):
                     cdict['nl_3d_tfm_inv_fn'] = '{}/rec_to_mri_SyN_InverseComposite.h5'.format(cdict['align_to_mri_dir'])
 
                     cdict['nl_2d_vol_fn'] = "{}/{}_{}_{}_nl_2d_{}mm.nii.gz".format(cdict['nl_2d_dir'] ,brain,hemi,slab,resolution) 
-                    cdict['nl_2d_vol_cls_fn'] = "{}/{}_{}_{}_nl_2d_cls_{}mm.nii.gz".format(cdict['nl_2d_dir'] ,brain,hemi,slab,resolution) 
+                    cdict['nl_2d_vol_cls_fn'] = "{}/{}_{}_{}_nl_2d_cls_{}mm.nii.gz".format(cdict['nl_2d_dir'],brain,hemi,slab,resolution) 
+                    cdict['slab_info_fn'] = "{}/{}_{}_{}_{}_slab_info.csv".format(cdict['cur_out_dir'] ,brain,hemi,slab,resolution) 
                     cdict['srv_space_rec_fn'] = "{}/{}_{}_{}_srv_rsl.nii.gz".format(cdict['nl_2d_dir'], brain, hemi, slab)   
                     #if resolution_itr == max_3d_itr :  
                     #    max_3d_cdict=cdict
@@ -310,7 +310,7 @@ def setup_parameters(args) :
 
 
 
-def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, args, files, resolution_list, init_align_fn, max_resolution=0.3):
+def multiresolution_alignment(slab_info_fn, slab_df,  hemi_df, brain, hemi, slab, slab_index, args, files, resolution_list, init_align_fn, max_resolution=0.3):
     '''
     About:
         Mutliresolution scheme that a. segments autoradiographs, b. aligns these to the donor mri in 3D,
@@ -394,7 +394,7 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, 
         #Combine 2d sections from previous resolution level into a single volume
         if resolution != resolution_list[0] and not os.path.exists(last_nl_2d_vol_fn)  :
             last_nl_2d_dir = files[brain][hemi][slab][prev_resolution]['nl_2d_dir']
-            concatenate_sections_to_volume(slab_df, init_align_fn, last_nl_2d_dir, last_nl_2d_vol_fn)
+            slab_df = concatenate_sections_to_volume(slab_df, init_align_fn, last_nl_2d_dir, last_nl_2d_vol_fn)
 
         ###
         ### Stage 2 : Autoradiograph segmentation
@@ -454,14 +454,12 @@ def multiresolution_alignment(slab_df,  hemi_df, brain, hemi, slab, slab_index, 
         #if run_stage(stage_3_outputs, stage_4_outputs)  or args.clobber:
         slab_df = receptor_2d_alignment( slab_df, init_align_fn, srv_space_rec_fn,seg_dir+'/2d/', nl_2d_dir,  resolution, resolution_itr)
         # Concatenate 2D nonlinear aligned sections into output volume
-        concatenate_sections_to_volume( slab_df, srv_space_rec_fn, nl_2d_dir, nl_2d_vol_fn)
+        slab_df = concatenate_sections_to_volume( slab_df, srv_space_rec_fn, nl_2d_dir, nl_2d_vol_fn)
         # Concatenate 2D nonlinear aligned cls sections into an output volume
-        concatenate_sections_to_volume( slab_df, srv_space_rec_fn, nl_2d_dir, nl_2d_cls_fn, target_str='cls_rsl')
+        slab_df = concatenate_sections_to_volume( slab_df, srv_space_rec_fn, nl_2d_dir, nl_2d_cls_fn, target_str='cls_rsl')
 
-    #slab_df.to_csv(f'{cur_out_dir}/file_info_{resolution}.csv')
+    slab_df.to_csv(slab_info_fn)
     return slab_df
-
-            
 
 def add_tfm_column(slab_df, init_tfm_csv, slab_tfm_csv) :
     tfm_df = pd.read_csv(init_tfm_csv)
@@ -487,6 +485,9 @@ def create_directories(args, files, brain, hemi, resolution_list) :
 
 def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     hemi_df = df.loc[ (df['mri']==brain) & (df['hemisphere']==hemi) ]
+    hemi_df['nl_2d_rsl'] = ['empty'] * hemi_df.shape[0]
+    hemi_df['nl_2d_cls_rsl'] = ['empty'] * hemi_df.shape[0]
+
     highest_resolution=resolution_list[-1]
 
     create_directories(args, files, brain, hemi, resolution_list)
@@ -495,7 +496,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
     for slab_index, slab in enumerate(args.slabs) :
         print('Slab:', slab)
         cdict = files[brain][hemi][str(slab)][str(resolution_list[0])]
-        slab_df=df.loc[(df['hemisphere']==hemi) & (df['mri']==brain) & (df['slab']==int(slab)) ]
+        slab_df=hemi_df.loc[ hemi_df['slab'].astype(int) ==int(slab) ]
         init_align_fn = cdict['init_align_fn']
         init_align_dir = cdict['init_align_dir']
         init_tfm_csv =f'{init_align_dir}/{brain}_{hemi}_{slab}_final.csv'
@@ -516,9 +517,27 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
         ### Steps 2-4 : Multiresolution alignment
         final_vol_fn = files[brain][hemi][str(slab)][str(resolution_list[-1])]['nl_2d_vol_fn'] #Current files
         final_cls_fn = files[brain][hemi][str(slab)][str(resolution_list[-1])]['nl_2d_vol_cls_fn'] #Current files
-        if not os.path.exists(final_vol_fn) or not os.path.exists(final_cls_fn) :
-            slab_df = multiresolution_alignment(slab_df, hemi_df, brain, hemi, slab, slab_index, args,files, resolution_list, init_align_fn)
-        
+        slab_info_fn = files[brain][hemi][str(slab)][str(resolution_list[-1])]['slab_info_fn'] #Current files
+
+
+
+        if not os.path.exists(final_vol_fn) or not os.path.exists(final_cls_fn) or not os.path.exists(slab_info_fn) :
+            multiresolution_alignment(slab_info_fn, slab_df, hemi_df, brain, hemi, slab, slab_index, args,files, resolution_list, init_align_fn)
+
+        slab_df = pd.read_csv(slab_info_fn, index_col=None)
+
+        slab_idx = hemi_df['slab'].astype(int) == int(slab)
+        #hemi_df.iloc[slab_idx] = slab_df
+        hemi_df['nl_2d_rsl'].loc[ slab_idx ] = slab_df['nl_2d_rsl'].values
+        hemi_df['nl_2d_cls_rsl'].loc[ slab_idx ] = slab_df['nl_2d_cls_rsl'].values
+        #print('slab_df')
+        #print( slab_df['nl_2d_cls_rsl'] )
+        #print('\n')
+
+        #print('hemi_df')
+        #print( hemi_df['nl_2d_cls_rsl'].loc[slab_idx] )
+        #print('\n\n')
+
         '''
         def create_brain_mask_sections(slab_df, slab, resolution, tfm_3d_inv_fn, reference_fn, brain_mask_fn):
             brain_mask_rsl_fn = re.sub('.nii.gz','_space-rec-{slab}.nii.gz')  
@@ -531,9 +550,6 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
                 shell('antsApplyTransforms -i {brain_section_fn}'
         '''
     
-    ###
-    ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
-    ###
     interp_dir=f'{args.out_dir}/5_surf_interp/'
 
     slab_dict={} 
@@ -544,13 +560,17 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
             slab_dict[slab] = temp_slab_dict[resolution_list[-1]] 
         else : 
             print(f'Error: not including slab {slab} for interpolation (nl 3d tfm exists = {nl_3d_tfm_exists}, 2d nl vol exists = {nl_2d_vol_exists}) ')
+
     assert len(slab_dict.keys()) != 0 , print('No slabs to interpolate over')
     srv_max_resolution_fn = files[brain][hemi][args.slabs[-1]][resolution_list[-1]]['srv_rsl_fn']
 
-    df = df.loc[ (df['hemisphere'] == 'R') & (df['mri']==brain) ]
-    for ligand, df_ligand in df.groupby(['ligand']):
+
+    for ligand, df_ligand in hemi_df.groupby(['ligand']):
 
         if 'flum' == ligand :
+            ###
+            ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
+            ###
             surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution,  srv_max_resolution_fn, args, files[brain][hemi], surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
             surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, srv_max_resolution_fn, args, files[brain][hemi],  tissue_type='_cls', surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
 
@@ -560,7 +580,8 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
             max_resolution = resolution_list[-1]
             depth = '0.45'
             cortex_fn='/data/receptor/human/MR1_R_mri_cortex_0.5mm.nii.gz'
-            validate_reconstructed_sections(max_resolution, args.slabs, args.n_depths, df_ligand, cortex_fn, base_out_dir='/data/receptor/human/output_2/', clobber=True)
+            print('\tValidate reconstructed sections:', ligand)
+            validate_reconstructed_sections(max_resolution, args.slabs, args.n_depths, df_ligand, cortex_fn, base_out_dir='/data/receptor/human/output_2/',  clobber=False)
             exit(0) 
             #FIXME filename should be passed from surface_interpolation
             ligand_csv = glob(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')[0]   
@@ -594,7 +615,8 @@ if __name__ == '__main__':
     df = pd.read_csv(args.autoradiograph_info_fn)
     
     ### Step 0 : Crop downsampled autoradiographs
-    crop(args.src_dir, args.mask_dir, args.out_dir, df, args.scale_factors_fn, float(resolution_list[-1]))
+    pytorch_model=f'{base_file_dir}/caps/Pytorch-UNet/MODEL.pth'
+    crop(args.src_dir, args.mask_dir, args.out_dir, df, args.scale_factors_fn, float(resolution_list[-1]), pytorch_model=pytorch_model )
     
     for brain in args.brain :
         for hemi in args.hemi :                     

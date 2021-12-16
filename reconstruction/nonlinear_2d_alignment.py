@@ -15,7 +15,6 @@ from joblib import Parallel, delayed
 from section_2d import section_2d
 from sys import argv
 from glob import glob
-from utils.ANTs import ANTs
 from utils.utils import *
 
 
@@ -56,7 +55,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
 
     y=row['volume_order']
 
-    prefix=f'{tfm_dir}/y-{y}' 
+    prefix = f'{tfm_dir}/y-{y}' 
     fx_fn = gen_2d_fn(prefix,'_fx')
 
     mv_fn = get_seg_fn(mv_dir, y, resolution, row['seg_fn'], suffix='_rsl')
@@ -71,10 +70,12 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     #else :
     nl_metric=f'Mattes[{fx_fn},{mv_fn},1,20,Regular,1]'
 
-    affine_command_str = f'time antsRegistration -n NearestNeighbor -v 0 -d 2 --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[.1] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t Affine[.1] -c {lin_itr_str} -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} '
+    fix_affine(fx_fn)
+    fix_affine(mv_fn)
 
-    syn_command_str = f'time antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz]  -t SyN[0.1] -m {nl_metric} -c {nl_itr_str} -s {s_str} -f {f_str}' # -t SyN[0.1]  -m CC[{fx_fn},{mv_fn},1,20,Regular,1] -c 100 -s {s_cc}  -f {f_cc}'
+    affine_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2 --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[.1] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t Affine[.1] -c {lin_itr_str} -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} '
 
+    syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz]  -t SyN[0.1] -m {nl_metric} -c {nl_itr_str} -s {s_str} -f {f_str}' # -t SyN[0.1]  -m CC[{fx_fn},{mv_fn},1,20,Regular,1] -c 100 -s {s_cc}  -f {f_cc}'
     with open(prefix+'_command.txt','w') as f : f.write(affine_command_str)
     with open(prefix+'_command.txt','w') as f : f.write(syn_command_str)
     shell(affine_command_str)
@@ -99,6 +100,8 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     vol = gaussian_filter(vol, sd )
     nib.Nifti1Image(vol, img.affine).to_filename(crop_rsl_fn)
     
+    fix_affine(crop_rsl_fn)
+    fix_affine(fx_fn)
     print(f'antsApplyTransforms -v 1 -d 2 -n NearestNeighbor -i {crop_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
     shell(f'antsApplyTransforms -v 1 -d 2 -n NearestNeighbor -i {crop_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
     
@@ -170,13 +173,17 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='r
 
     hires_img = nib.load(rec_fn)
     out_vol=np.zeros(hires_img.shape)
+    target_name = 'nl_2d_'+target_str
+
+    df[target_name] = [''] * df.shape[0]
 
     for idx, (i, row) in enumerate(df.iterrows()):
         y = row['volume_order'] 
-        print('\ty=',y)
         prefix = f'{tfm_dir}/y-{y}'
         y = row['volume_order'] 
         fn = f'{tfm_dir}/y-{y}_{target_str}.nii.gz' 
+
+        df[target_name].loc[i] = fn
         try : 
             out_vol[:,int(y),:] = nib.load(fn).get_fdata()
         except EOFError :
@@ -187,4 +194,4 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='r
         if exit_flag : exit(1)
     print('\t\tWriting 3D non-linear:', out_fn)
     nib.Nifti1Image(out_vol, hires_img.affine).to_filename(out_fn)
-
+    return df 

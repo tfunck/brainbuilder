@@ -9,8 +9,8 @@
 #module load singularity/3.6
 brain="MR1"
 hemisphere="R"
+out_dir="/data/receptor/human/output_3_caps/"
 out_dir="/data/receptor/human/output_2/"
-resolution="3"
 
 while getopts "s:b:m:i:o:r:c:p:s:" arg; do
   case $arg in
@@ -23,4 +23,4 @@ while getopts "s:b:m:i:o:r:c:p:s:" arg; do
 done
 
 mkdir -p $out_dir
-singularity exec -B "/data":"/data" ~/receptor_new/ bash -c "python3.7 ~/projects/julich-receptor-atlas/launch_reconstruction.py -i /home/receptor/human/ -o $out_dir -b $brain --hemi $hemisphere --ndepths 20 "
+singularity exec -B "/data":"/data" ~/receptor.simg bash -c "python3.8 ~/projects/julich-receptor-atlas/launch_reconstruction.py -i /home/receptor/human/ -o $out_dir -b $brain --hemi $hemisphere --ndepths 20 "

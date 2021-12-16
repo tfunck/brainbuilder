@@ -1,19 +1,24 @@
-Bootstrap: localimage
-From: receptor.base.simg
+BootStrap: localimage
+From: receptor.ants.simg
 
 %post
 apt update && apt upgrade -y
-apt install -y  python3.7 python3.7-dev python3-setuptools time
-curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-python3.7 get-pip.py
-pip3.7 install guppy3
-pip3.7 install psutil statsmodels configparser stripy SimpleITK scipy numpy pyminc h5py imageio keras pydot pandas==0.24.2 matplotlib nibabel sklearn scikit-image seaborn pykrige 
 
-pip3.7 install https://github.com/ANTsX/ANTsPy/releases/download/v0.2.0/antspyx-0.2.0-cp37-cp37m-linux_x86_64.whl
-pip3.7 install webcolors
+curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+python3.8 get-pip.py
+pip3.8 install cython pandas
+pip3.8 install stripy
+pip3.8 install guppy3 cython psutil statsmodels configparser SimpleITK scipy numpy pyminc h5py imageio keras pydot  matplotlib nibabel sklearn scikit-image seaborn pykrige torch torchvision antspyx #pandas==0.24.2 webcolors
+
+pip3.8 install neurocombat
+
+git clone https://github.com/tfunck/c_solve 
+cd c_solve
+python3 setup.py install
 
 
 %environment
+LD_LIBRARY_PATH=/usr/local/lib/:$LD_LIBRARY_PATH
 
 %runscript
 

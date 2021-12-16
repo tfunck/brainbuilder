@@ -2,6 +2,7 @@ import os
 import argparse
 import nibabel as nib
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 import h5py as h5
 import pandas as pd
@@ -11,6 +12,7 @@ import vast.surface_tools as surface_tools
 import ants
 import tempfile
 import time
+from utils.combat_slab_normalization import combat_slab_normalization
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage import label
 from nibabel.processing import resample_to_output
@@ -212,8 +214,11 @@ def vol_surf_interp(val, src, coords, affine, clobber=0 ):
 
 
 def get_section_intervals(vol):
-
-    valid_sections = np.sum(vol, axis=(0,2)) > 0
+    section_sums = np.sum(vol, axis=(0,2))
+    valid_sections = section_sums > np.min(section_sums)
+    plt.subplot(2,1,1); plt.plot(section_sums)
+    plt.subplot(2,1,2); plt.plot(valid_sections); 
+    plt.savefig(f'val_sections_{np.sum(valid_sections)}.png'); plt.clf(); plt.cla()
     labeled_sections, nlabels = label(valid_sections)
     assert nlabels >= 2, 'Error: there must be a gap between thickened sections. Use higher resolution volumes.'
 
@@ -443,15 +448,15 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
             img = nib.load(vol_fn)
             vol = img.get_fdata()
 
-            assert np.max(vol) != np.min(vol), f'Error: empty volume {vol_fn}'
+            assert np.max(vol) != np.min(vol) , f'Error: empty volume {vol_fn}; {np.max(vol) != np.min(vol)} '
 
             # set variable names for coordinate system
             xstart = img.affine[0,3]
             ystart = img.affine[1,3]
             zstart = img.affine[2,3]
-            xstep = img.affine[0,0]
-            ystep = img.affine[1,1]
-            zstep = img.affine[2,2]
+            xstep = np.abs(img.affine[0,0])
+            ystep = np.abs(img.affine[1,1])
+            zstep = np.abs(img.affine[2,2])
 
             # get the intervals along the y-axis of the volume where
             # we have voxel intensities that should be interpolated onto the surfaces
@@ -460,6 +465,9 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
             #convert from voxel values to real world coordinates
             
             for iv in intervals_voxel : 
+                #plt.figure(figsize=(9,9))
+                #plt.imshow(vol[:,iv[0],:])
+
                 for y0 in range(iv[0],iv[1]+1):
                     y1 = y0 + 1
                     y0w = y0 * ystep + ystart 
@@ -468,6 +476,7 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
                     #the voxel values should be the same along the y-axis within an interval
                     #WARNING: this will NOT work if there isn't a gap between thickened autoradiograph sections!
                     section = vol[:,y0,:]
+                    assert np.max(section) != np.min(section), 'Error: emptry section before interpolation '
                     valid_coords_world, valid_coords_idx = get_valid_coords( coords, [y0w,y1w])
 
                     if valid_coords_world.shape[0] != 0  :
@@ -477,22 +486,26 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
                         xmax = np.max(x)
                         zmax = np.max(z)
 
-                        #plt.figure(figsize=(24,24))
-                        #plt.imshow(section)
                         #plt.scatter(z,x,s=1,c='r',marker='.')
-                        #plt.savefig(f'{qc_dir}/{iv[0]}_{iv[1]}.png', dpi=400)
-                        #print('\tSaved', f'{qc_dir}/{iv[0]}_{iv[1]}.png')
-                        #plt.clf()
-                        #plt.cla()
+
 
                         assert zmax < section.shape[1] , f'Error: z index {zmax} is greater than dimension {section.shape[1]}'
                         assert xmax < section.shape[0] , f'Error: x index {xmax} is greater than dimension {section.shape[0]}'
                         # get nearest neighbour voxel intensities at x and z coordinate locations
                         values = section[x,z]
 
+
+                        #plt.savefig(f'{qc_dir}/{iv[0]}_{iv[1]}.png', dpi=400)
+
                         assert np.sum(np.isnan(values)) == 0 , f'Error: nan found in values from {vol_fn}'
-                        assert np.mean(values) > 0, 'Error: empty section'
+
+                        assert np.mean(values) > np.min(vol), f'Error: empty section {y0} in {vol_fn}'
                         all_values[valid_coords_idx] = values 
+
+                #plt.savefig(f'{qc_dir}/{iv[0]}_{iv[1]}.png', dpi=400)
+                #print('\tSaved', f'{qc_dir}/{iv[0]}_{iv[1]}.png')
+                #plt.clf()
+                #plt.cla()
 
             #DEBUG
             #threshold=1000
@@ -521,16 +534,21 @@ def thicken_sections(interp_dir, slab_dict, df_ligand, resolution, tissue_type='
             array_img = nib.load(source_image_fn)
             array_src = array_img.get_fdata()
             
-            assert np.sum(array_src) != 0, 'Error: source volume for thickening sections is empty\n'
-            width = np.round(2+1*resolution/(0.02*2)).astype(int)
+            assert np.sum(array_src) != 0, 'Error: source volume for thickening sections is empty\n'+ source_image_fn
+
+            width = np.round(1+1*resolution/(0.02*2)).astype(int)
 
             print('\t\tThickening sections to ',0.02*width*2)
             dim=[array_src.shape[0], 1, array_src.shape[2]]
             rec_vol = np.zeros_like(array_src)
             for row_i, row in slab_df.iterrows() : 
                 y = int(row['volume_order'])
+                
                 # Conversion of radioactivity values to receptor density values
                 section = array_src[:, y, :].copy()
+
+                if np.sum(section) == 0 : 
+                    print(f'Warning: empty frame {i} {row["crop_fn"]}\n')
                 np.sum(section) 
                 section = section.reshape(dim)
                 if row['conversion_factor'] > 0 and tissue_type != '_cls' :
@@ -538,10 +556,12 @@ def thicken_sections(interp_dir, slab_dict, df_ligand, resolution, tissue_type='
                 elif row['conversion_factor'] == 0 : 
                     continue
                 
-                assert np.sum(section) !=0, f'Error: empty frame {i} \n'+row['crop_fn']
-                y0 = (i-width) if y-width > 0 else 0
-                y1 = (1+i+width) if y+width <= array_src.shape[1] else array_src.shape[1]
+
+
+                y0 = int(y)-width if int(y)-width > 0 else 0
+                y1 = 1+int(y)+width if int(y)+width <= array_src.shape[1] else array_src.shape[1]
                 #put ligand sections into rec_vol
+                print(y0,y1)
                 rec_vol[:, y0:y1, :] = np.repeat(section, y1-y0, axis=1)
 
             assert np.sum(rec_vol) != 0, 'Error: receptor volume for single ligand is empty\n'
@@ -563,6 +583,9 @@ def create_thickened_volumes(interp_dir, depth_list, depth_fn_slab_space, depth_
         
         # 1. Thicken sections
         thickened_dict = thicken_sections(interp_dir, slab_dict, df_ligand, resolution, tissue_type=tissue_type)
+
+        
+        thickened_dict = combat_slab_normalization(df_ligand, thickened_dict)
 
         # 2. Project autoradiograph densities onto surfaces
         print('\t\t\t\tProjecting volume to surface.')
@@ -726,7 +749,7 @@ def get_image_parameters(fn, resolution):
     starts = np.array(img.affine[[0,1,2],3])
 
     steps_lo = [resolution]*3
-    steps_hi = img.affine[[0,1,2],[0,1,2]]
+    steps_hi = np.abs(img.affine[[0,1,2],[0,1,2]])
 
     dimensions_hi = img.shape
     dimensions_lo = np.array([ img.shape[0] * img.affine[0,0]/resolution, 
@@ -747,7 +770,7 @@ def combine_interpolated_sections(slab_fn, vol_interp, df_ligand_slab, ystart, y
     ymin = min(volume_order_list) 
     ymax = max(volume_order_list) 
     for y in range(vol.shape[1]) :
-        yw = y * ystep_hires + ystart
+        yw = y * np.abs(ystep_hires) + ystart
         yi = np.rint( (yw - ystart) / ystep ).astype(int)
         if np.sum(vol[:,y,:]) <= 0 and y > ymin and y < ymax:
             interp_section = vol_interp[ : , yi, : ]
@@ -874,7 +897,6 @@ def create_final_reconstructed_volume(final_mni_fn, mni_fn, resolution,  depth_f
 
     ref_img = nib.load(mni_fn) 
     ystart = ref_img.affine[1,3]
-    ystep = ref_img.affine[1,1]
     combine_slabs_to_volume(interp_fn_mni_list, combined_slab_mni_fn)
 
     print('\tInterpolate between slabs')
@@ -885,7 +907,6 @@ def create_final_reconstructed_volume(final_mni_fn, mni_fn, resolution,  depth_f
     
     # fill in missing sections in whole brain
     print('\tCombine interpoalted section with slabs to fill gaps')
-    #output_vol = combine_interpolated_sections(combined_slab_mni_fn, vol_interp, df_ligand, ystart, ystep, ystep_hires=ystep)
     combined_slab_vol = nib.load(combined_slab_mni_fn).get_fdata()
 
     idx = combined_slab_vol <= 300
@@ -898,7 +919,6 @@ def create_final_reconstructed_volume(final_mni_fn, mni_fn, resolution,  depth_f
 
 
 def surface_interpolation(df_ligand, slab_dict, out_dir, interp_dir, brain, hemi, resolution, mni_fn, args, files,  n_depths=3, tissue_type='', surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, clobber=0):
-
 
     ligand = df_ligand['ligand'].values[0]
 

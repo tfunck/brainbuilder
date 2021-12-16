@@ -64,7 +64,6 @@ def norm(df) :
 
     for i, row in df_target.iterrows() :
         label = row['label']
-        
         orig_row = df_orig.loc[ df_orig['label'] == label ] 
         orig_average = orig_row['average'].values[0]
         volume=orig_row['volume'].values[0]
@@ -107,14 +106,13 @@ def plot(df, out_fn='validation_accuracy.png') :
 
     g=sns.scatterplot(x='volume', y='accuracy', hue='slab', data=df.loc[nl2d_i], ax=axes[0], palette='tab10') 
     g.set(ylim=(60, 140))
-    g=sns.scatterplot(x='volume', y='accuracy', hue='slab', data=df.loc[rec_i], ax=axes[1], palette='tab10', ylim=100, ymax=130) 
+    g=sns.scatterplot(x='volume', y='accuracy', hue='slab', data=df.loc[rec_i], ax=axes[1], palette='tab10') 
     g.set(ylim=(60, 140))
     plt.tight_layout()
     plt.savefig(out_fn)
 
 
 def validation_visualization(df, qc_fn):
-    print(qc_fn)
     qc_dir = os.path.dirname(qc_fn)
     df_validation = pd.read_csv(qc_fn)
     df_validation = norm(df_validation)
@@ -161,7 +159,8 @@ def transform_volume( input_fn, reference_fn, tfm_fn, ndim, out_dir, suffix, mas
     if not os.path.exists(out_fn) or clobber:
         cmd = f'antsApplyTransforms -v 1  -n NearestNeighbor -d {ndim}  -r {reference_fn} -i {input_fn} -t {tfm_fn} -o {out_fn}'
         shell(cmd)
-
+    print('label image:', out_fn, 'n labels', np.unique(nib.load(out_fn).get_fdata()).shape[0] )
+    
     if mask_fn != '' :
         mask_img = nib.load(mask_fn)
         mask_vol = mask_img.get_fdata()
@@ -169,7 +168,6 @@ def transform_volume( input_fn, reference_fn, tfm_fn, ndim, out_dir, suffix, mas
         cls_vol = cls_img.get_fdata()
         n_labels = len(np.unique(cls_vol))
         cls_vol[ ~ mask_vol.astype(bool) ] = 0
-        print('n labels', n_labels)
         assert len(np.unique(cls_vol)) <= n_labels, 'Error: too many labels created when masking ' + out_fn
         nib.Nifti1Image(cls_vol, cls_img.affine).to_filename(out_fn)
 
@@ -212,7 +210,6 @@ def average_over_label(labels, values, conversion_factor=1 ):
     averages_out = []
     labels_out = []
     n_out = [] 
-
     unique_labels = np.unique( labels )[1:]
     n_labels = len(unique_labels)
     for i, label in enumerate(unique_labels) :
@@ -220,6 +217,7 @@ def average_over_label(labels, values, conversion_factor=1 ):
         idx = labels == label
         n = np.sum(idx)
         averages_out.append(np.mean(values[idx]) * conversion_factor )
+        assert int(label) != 0, 'Error: 0 label found'
         labels_out.append(label)
         n_out.append(n)
     return np.array(averages_out), np.array(labels_out), np.array(n_out)
@@ -243,7 +241,7 @@ def create_nl2d_cls_vol(df, nl_2d_fn, out_dir, qc_dir, brain, hemisphere, slab, 
 
     if not os.path.exists(nl2d_cls_fn):
         nl2d_img = nib.load(nl_2d_fn)
-        nl2d_cls_vol=np.zeros(nl2d_img.shape)
+        nl2d_cls_vol=np.zeros(nl2d_img.shape).astype(np.uint32)
         for row_index, row in df.iterrows():
             y=row['volume_order']
             assert not pd.isnull(y), f'Error: null y index, {row}'
@@ -269,12 +267,12 @@ def create_nl2d_cls_vol(df, nl_2d_fn, out_dir, qc_dir, brain, hemisphere, slab, 
             dim=[nl2d_img.shape[0], 1, nl2d_img.shape[2]]
             
             # Save nl2d pseudo-classified sections
-            section = nib.load(cls_nl2d_fn).get_fdata().reshape(dim)
+            section = nib.load(cls_nl2d_fn).get_fdata().reshape(dim).astype(np.uint32)
             # Put transformed section into a volume
-            nl2d_cls_vol[:, int(y0):int(y1),:] =np.repeat(section,y1-y0, axis=1) 
+            nl2d_cls_vol[:, int(y0):int(y1),:] =np.repeat(section,y1-y0, axis=1).astype(np.uint32) 
 
         # Save volume of thickened pseudo-classified sections in nl2d    
-        nib.Nifti1Image(nl2d_cls_vol, nl2d_img.affine ).to_filename(nl2d_cls_fn)
+        nib.Nifti1Image(nl2d_cls_vol.astype(np.uint32), nl2d_img.affine ).to_filename(nl2d_cls_fn)
 
     return nl2d_cls_fn
 
@@ -286,7 +284,7 @@ def validate_reconstructed_sections(resolution, slabs, n_depths, df, srv_max_res
     ligand = np.unique(df['ligand'])[0]
     reconstructed_volume_fn = f'{base_out_dir}/5_surf_interp/MR1_R_{ligand}_{resolution}mm_space-mni.nii.gz'
 
-    if not os.path.exists(out_fn) or clobber :
+    if not os.path.exists(out_fn) or clobber or True :
         df_list=[]
 
         os.makedirs(qc_dir, exist_ok=True)

@@ -2,20 +2,23 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import ptitprince as pt
-%matplotlib inline
 from neuroCombat import neuroCombat,neuroCombatFromTraining
+
+from skimage.filters import threshold_otsu, threshold_li
 import pandas as pd
 import numpy as np
-import nibabel as nb
+import nibabel as nib
+import os
 from statsmodels.nonparametric.smoothers_lowess import lowess
+from scipy.interpolate import interp1d
+from re import sub
 
 
 def get_slab_based_functions(input_data,output_data,slabs):
-    functions=[]
+    functions={}
     for slab in np.unique(slabs):
-        functions.append(lowess_correction_function(input_data[:,slabs==slab].ravel(),
-                                                 output_data[:,slabs==slab].ravel()))
+        functions[int(slab)] =  lowess_correction_function(input_data[:,slabs==slab].ravel(),
+                                                 output_data[:,slabs==slab].ravel())
     return functions
 
 def lowess_correction_function(input_centiles,output_centiles):
@@ -26,80 +29,113 @@ def lowess_correction_function(input_centiles,output_centiles):
     return f_linear
 
 
-def extract_centiles_from_slab(df,n_centiles=10):
+def extract_centiles_from_slab(df, slab_file_dict, n_centiles=10):
 
     # create centiles for 0 to 1 
     centiles = np.linspace(0,1,n_centiles+2)[1:-1]
-
     # data will contain centile distribution from the data
     data=np.zeros((n_centiles,df.shape[0]))
     slab_list = []
     ligand_list = []
     y_list = []
     si=0
-    for (slab, ligand), slab_df in df.groupby(['slab', 'ligand']):
-        slab_min = slab_df['global_order'].min()
 
+    global_order_min = df['global_order'].min()
+    for slab, slab_file in slab_file_dict.items() : 
+        img = nib.load(slab_file)
+        vol = img.get_fdata()
+        slab_df = df.loc[ df['slab'].astype(int) == int(slab) ]
         for i, row in slab_df.iterrows() :
-            y = slab_min + df['global_order'] * 0.02
-
-            slab_list.append(row['slab'])
-            ligand_list.append(row['ligand'])
-            y_list.append(y)
-
+            y_global = np.float32(row['global_order'])
+            y_volume = np.float32(row['volume_order']) 
+            
+            slab_list.append(slab)
+            #ligand_list.append(str(row['ligand']))
+            y_list.append(y_global)
             # save centile for section
-            section = nib.load(row['crop_fn']).get_fdata() * row['correction_factor']
-            mask = nib.load(row['seg_fn']).get_fdata()
-            data[:,si] = np.percentile(receptor_vol[mask==1],100*centiles)
+            #section = nib.load(row['nl_2d_rsl']).get_fdata() * row['conversion_factor']
+            section = vol[:,int(y_volume),:]
+            #mask = nib.load(row['nl_2d_cls_rsl']).get_fdata()
+            mask = np.zeros_like(section)
+            mask[ section >= threshold_otsu(section)] = 1
+            section_values = section[mask >= .9]
+            data[:,si] = np.percentile(section_values,100*centiles)
             si += 1
+    #combat_df = pd.DataFrame({'slab':slab_list, 'y':y_list, 'ligand':ligand_list})
 
-    combat_df = {'slab':slab_list, 'y':y_list, 'ligand':ligand_list}
+    combat_df = pd.DataFrame({'slab':slab_list, 'y':y_list })
+    combat_df['y'] = combat_df['y'].astype(float)
 
-    return combat_df, data
+    return data, combat_df
 
-def combat_training(data, covars, receptor_vol) :
-    #train combat
-    #sample n-samples randomly from cortex of each section
-    # Specifying the batch (scanner variable) as well as a biological covariate to preserve:
-
-    # To specify names of the variables that are categorical:
-    continuous_cols = ['y']
-
-    # To specify the name of the variable that encodes for the scanner/batch covariate:
-    batch_col = 'slab'
-
-    #Harmonization step:
-    data_estimates = neuroCombat(dat=data,
-        covars=covars,
-        batch_col=batch_col,
-        continuous_cols=continuous_cols)
-    estimates = data_estimates['estimates']
-    data_combat=data_estimates['data']
+def combat_apply(slab_file_dict, out_file_dict, interp_functions):
     
-    return estimates, data_combat 
-
-
-def combat_apply(slab_file_list, out_file_list, receptor_vol):
-
-    file_list = zip(slab_file_list, out_file_list)
-
-    for slab, (slab_vol_file, out_file) in enumerate(file_list)  :
-        function = interp_functions[slab]
-
+    for slab, slab_vol_file in slab_file_dict.items()  :
+        function = interp_functions[int(slab)]
+        out_file = out_file_dict[str(slab)]
         receptor_img = nib.load(slab_vol_file)
         receptor_vol = receptor_img.get_fdata()
 
         corrected_receptor_vol = function(receptor_vol)
 
+        corrected_receptor_vol[ pd.isnull(corrected_receptor_vol) ] = 0
+
         nib.Nifti1Image(corrected_receptor_vol, receptor_img.affine).to_filename(out_file)
 
 
-def combat_slab_normalization(df_file, slab_file_list, out_file_list, out_file):
-    data, covars = extract_centiles_from_slab(receptor_df)
 
-    interp_functions = get_slab_based_functions(data, veteran_data, covars['slab'])
 
-    combat_apply(slab_file_list, out_file_list, interp_functions)
+    return out_file_dict
+
+def get_output_dict(slab_file_dict) :
+    out_file_dict = {}
+
+    for slab, slab_vol_file in slab_file_dict.items()  :
+        out_file = sub('.nii','_harmonized.nii', slab_vol_file)
+        out_file_dict[ str(slab) ] = out_file
+
+    return out_file_dict
+
+
+def create_qc_dataframe(data, covars, tag):
+    slab_list = []
+    y_list = []
+    values_list = []
+    tag_list = []
+
+    for i, (index,row) in enumerate(covars.iterrows()) :
+        values = list(data[:,i])
+        values_list += values
+        slab_list.append(row['slab']*len(values))
+        y_list.append(row['y']*len(values))
+        tag_list.append(tag)
+    
+    df = pd.DataFrame({'slab':slab_list, 'y':y_list, 'norm':tag_list, 'values': values_list})
+    return df
+
+def combat_slab_normalization(df, slab_file_dict):
+
+    out_file_dict = get_output_dict(slab_file_dict) 
+    keys = list(slab_file_dict.keys())
+    out_file_dict[ str( keys[0] ) ]
+
+    #if all the output files already exist, then return early
+    if True in [ not os.path.exists(fn) for fn in out_file_dict.values() ] : 
+        data, covars = extract_centiles_from_slab(df, slab_file_dict)
+        
+        veteran_data = neuroCombat(dat=data, covars=covars, batch_col='slab', continuous_cols=["y"])['data']
+       
+        df_raw  =   create_qc_dataframe(data, covars, 'raw')
+        df_combat = create_qc_dataframe(veteran_data, covars, 'combat')
+        df_combat.append(df_raw)
+        plt.catplot(x='slab', y='values', hue='norm', data=df_combat)
+        plt.savefig('combat_qc.png')
+
+        interp_functions = get_slab_based_functions(data, veteran_data, covars['slab'].values)
+
+        out_file_dict = combat_apply(slab_file_dict, out_file_dict, interp_functions)
+
+    return out_file_dict
 
 
 

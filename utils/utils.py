@@ -23,6 +23,28 @@ from sklearn.cluster import KMeans
 from scipy.ndimage import zoom
 from skimage.transform import resize
 
+
+def fix_affine(fn):
+    try :
+        ants.image_read(fn)
+    except RuntimeError :
+        img = nib.load(fn)
+        dim = img.shape
+        aff = img.affine
+        print('\t\t',fn)
+        print('\t\t',dim)
+        print(aff)
+
+        origin = list(img.affine[ [0,1],[3,3] ])
+        spacing = list( img.affine[ [0,1],[0,1] ])
+        ants_image = ants.from_numpy(img.get_fdata(), origin=origin, spacing=spacing)
+        ants_image.to_filename(fn)
+        try :
+            ants.image_read(fn)
+        except RuntimeError :
+            print("Error could not fix direction cosines for"+fn)
+            exit(1)
+
 def read_points(fn, ndim = 3):
     start_read=False
     points0 = []
@@ -122,7 +144,7 @@ def save_sections(file_list, vol, aff) :
 
     for fn, y in file_list:
 
-        ystart = aff[1,3] + y * ystep
+        ystart = aff[1,3] + y * np.abs(ystep)
         affine = np.array([  [xstep,  0, 0, xstart ],
                                 [0, zstep, 0, zstart ],
                                 [0, 0,  0.02, 0 ],

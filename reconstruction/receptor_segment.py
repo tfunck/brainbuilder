@@ -37,7 +37,9 @@ def downsample_2d(in_fn, resolution, out_fn, y=0):
         img = nib.load(in_fn)
 
         #change start value for header
-        img.affine[2,3] = -126. + 0.02 * float(y)
+        #img.affine[2,3] = -126. + 0.02 * float(y)
+        img.affine[2,2] = 1
+        img.affine[2,3] = 0
         shape = img.shape
         #load volume 
         try :
@@ -234,9 +236,9 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         xstep =  float(vol1.affine[0][0])
         zstep =  float(vol1.affine[2][2])
 
-        aff=np.array([  [resolution, 0, 0, xstart],
-                        [0, 0.02, 0, ystart ],
-                        [0, 0,  resolution, zstart], 
+        aff=np.array([  [-resolution, 0, 0, xstart],
+                        [0, -0.02, 0, ystart ],
+                        [0, 0,  -resolution, zstart], 
                         [0, 0, 0, 1]]).astype(float)
 
         img_cls = nib.Nifti1Image(data, aff )     
