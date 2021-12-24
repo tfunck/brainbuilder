@@ -1,4 +1,5 @@
-import nibabel as nib
+import utils.ants_nibabel as nib
+#import nibabel as nib
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -183,12 +184,12 @@ def combine_sections_to_vol(df,z_mm,direction,out_fn,target_tier=1):
     slab_ymin=-126+df["global_order"].min()*0.02 
     print("slab ymin:", slab_ymin)
     ystep = 0.02 
-    affine=np.array([[-xstep, 0, 0, -90],
-                    [0,  -ystep, 0, slab_ymin],
-                    [0, 0 ,-zstep, -72],
+    affine=np.array([[xstep, 0, 0, -90],
+                    [0, ystep, 0, slab_ymin],
+                    [0, 0 , zstep, -72],
                     [0, 0, 0, 1]])
     affine = np.round(affine,3)
-    nib.Nifti1Image(vol, affine ).to_filename( out_fn )
+    _nib.Nifti1Image(vol, affine ).to_filename( out_fn )
 
 def alignment_stage(brain,hemi,slab, df, vol_fn_str, output_dir, scale, transforms,  desc=(0,0,0), target_ligand=None, target_tier=1, ligand_n=0,  clobber=False):
     '''

@@ -7,7 +7,6 @@ import pandas as pd
 import numpy as np
 import nibabel as nib
 from glob import glob
-from validate_interpolation import validate_interpolation
 from scipy.ndimage import label
 from scipy.ndimage import binary_dilation, binary_closing, binary_fill_holes
 from scipy.ndimage.filters import gaussian_filter
@@ -22,7 +21,8 @@ from reconstruction.nonlinear_2d_alignment import receptor_2d_alignment, concate
 from reconstruction.init_alignment import receptorRegister
 from reconstruction.surface_interpolation import surface_interpolation
 from reconstruction.crop import crop
-from reconstruction.validate_reconstructed_sections import validate_reconstructed_sections
+from validation.validate_interpolation import validate_interpolation
+from validation.validate_reconstructed_sections import validate_reconstructed_sections
 from preprocessing.preprocessing import fill_regions_3d
 
 global file_dir
@@ -616,6 +616,7 @@ if __name__ == '__main__':
     
     ### Step 0 : Crop downsampled autoradiographs
     pytorch_model=f'{base_file_dir}/caps/Pytorch-UNet/MODEL.pth'
+    pytorch_model=''
     crop(args.src_dir, args.mask_dir, args.out_dir, df, args.scale_factors_fn, float(resolution_list[-1]), pytorch_model=pytorch_model )
     
     for brain in args.brain :

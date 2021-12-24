@@ -105,10 +105,11 @@ def create_qc_dataframe(data, covars, tag):
 
     for i, (index,row) in enumerate(covars.iterrows()) :
         values = list(data[:,i])
+        print(len(values))
         values_list += values
-        slab_list.append(row['slab']*len(values))
-        y_list.append(row['y']*len(values))
-        tag_list.append(tag)
+        slab_list +=  [row['slab']]*len(values) 
+        y_list += [row['y']]*len(values) 
+        tag_list += [tag]*len(values) 
     
     df = pd.DataFrame({'slab':slab_list, 'y':y_list, 'norm':tag_list, 'values': values_list})
     return df
@@ -122,14 +123,20 @@ def combat_slab_normalization(df, slab_file_dict):
     #if all the output files already exist, then return early
     if True in [ not os.path.exists(fn) for fn in out_file_dict.values() ] : 
         data, covars = extract_centiles_from_slab(df, slab_file_dict)
-        
-        veteran_data = neuroCombat(dat=data, covars=covars, batch_col='slab', continuous_cols=["y"])['data']
+        covars["y"] = 0.02 * covars["y"] 
+        #veteran_data = neuroCombat(dat=data, covars=covars, batch_col='slab', continuous_cols=["y"])['data']
+        veteran_data = neuroCombat(dat=data, covars=covars, batch_col='slab')['data']
        
         df_raw  =   create_qc_dataframe(data, covars, 'raw')
         df_combat = create_qc_dataframe(veteran_data, covars, 'combat')
-        df_combat.append(df_raw)
-        plt.catplot(x='slab', y='values', hue='norm', data=df_combat)
-        plt.savefig('combat_qc.png')
+        
+        sns.catplot(x='slab', y='y', hue='slab', data=df_raw)
+        plt.savefig('combat_qc_0.png')
+        sns.catplot(x='slab', y='values', hue='slab', data=df_raw)
+        plt.savefig('combat_qc_1.png')
+        sns.catplot(x='slab', y='values', hue='slab', data=df_combat)
+        plt.savefig('combat_qc_2.png')
+        exit(0)
 
         interp_functions = get_slab_based_functions(data, veteran_data, covars['slab'].values)
 

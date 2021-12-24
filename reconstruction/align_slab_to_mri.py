@@ -96,7 +96,7 @@ def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_min, srv_max, srv
     #    print('Slab direction not recognized,', slab_direction)
     #    exit(1)
     
-    rec_points, mni_points, (), () = read_points( manual_points_fn )
+    rec_points, mni_points, fn1, fn2 = read_points( manual_points_fn )
     y0w = np.min(mni_points[:,1])
     y1w = np.max(mni_points[:,1])
     

@@ -11,13 +11,14 @@ import imageio
 import gc 
 import matplotlib.pyplot as plt
 import h5py as h5
-import nibabel as nib
+import utils.ants_nibabel as nib
+#import nibabel as nib
 import pandas as pd
+import ants
 import multiprocessing
 from scipy.ndimage import rotate
-from utils.utils import safe_imread, downsample, shell
+from utils.utils import safe_imread, downsample, shell, write_nifti
 from scipy.ndimage.filters import gaussian_filter
-#from utils.mouse_click import click
 from skimage.filters import threshold_otsu, threshold_li
 from glob import glob
 from skimage import exposure
@@ -134,6 +135,7 @@ def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn, y, slab, 
         if np.sum(out) == 0 : out = mask_vol
 
     # save classified image as nifti
+    #write_nifti(out.astype(np.uint32), img.affine, out_fn)
     nib.Nifti1Image(out.astype(np.uint32), img.affine).to_filename(out_fn)
 
 
@@ -152,8 +154,8 @@ def gen_affine(row, scale,global_order_min):
     zstep = z_mm / 4164. # pixel size in z-axis is variable depending on microscope magnification
     #commented becaause this doesn't seem to make sense
     
-    affine=np.array([[-xstep, 0, 0, -90],
-                     [0,  -zstep, 0, -72],
+    affine=np.array([[xstep, 0, 0, -90],
+                     [0,  zstep, 0, -72],
                      [0, 0, 1, 0],
                      [0, 0, 0, 1]])
     return affine
@@ -238,11 +240,12 @@ def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pytorch_mod
         
         img = process_image(img, mask_fn, row, scale, pad, affine)
 
-        origin = list(affine[ [0,1,2],[3,3,3] ])
-        spacing = list( affine[ [0,1,2],[0,1,2] ])
-        ants_image = ants.from_numpy(img.get_fdata(), origin=origin, spacing=spacing)
+        #origin = list(affine[ [0,1],[3,3] ])
+        #spacing = list( affine[ [0,1],[0,1] ])
+        #ants_image = ants.from_numpy(img, origin=origin, spacing=spacing)
+        #ants.image_write(ants_image, crop_fn)
     
-        #nib.Nifti1Image(img, affine ).to_filename(crop_fn)
+        nib.Nifti1Image(img, affine ).to_filename(crop_fn)
     
     seg_fn = row['seg_fn']
     temp_crop_fn=crop_fn
@@ -253,6 +256,7 @@ def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pytorch_mod
             img = nib.load(crop_fn)
             ar = img.get_fdata()
             ar = threshold(ar)
+            #write_nifti(ar, img.affine, seg_fn)
             nib.Nifti1Image(ar, img.affine ).to_filename(seg_fn)
         else :
 
