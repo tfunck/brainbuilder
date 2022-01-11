@@ -13,7 +13,8 @@ import matplotlib.pyplot as plt
 from utils.utils import safe_imread, downsample
 #from utils.mouse_click import click
 import h5py as h5
-import nibabel as nib
+import utils.ants_nibabel as nib
+#import nibabel as nib
 import pandas as pd
 from skimage import exposure
 from nibabel.processing import *

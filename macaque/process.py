@@ -6,7 +6,8 @@ import shutil
 import multiprocessing
 import re
 import pandas as pd
-import nibabel as nib
+import utils.ants_nibabel as nib
+#import nibabel as nib
 from skimage.transform import resize
 from scipy.ndimage.filters import gaussian_filter
 from utils.ANTs import ANTs

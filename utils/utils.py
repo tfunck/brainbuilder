@@ -6,7 +6,6 @@ import os
 import pandas as pd
 import imageio
 import utils.ants_nibabel as nib
-#import nibabel as nib
 import PIL
 import matplotlib
 import time
@@ -16,6 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from glob import glob
 from re import sub
+import nibabel
 from nibabel.processing import resample_to_output, resample_from_to
 from scipy.ndimage.filters import gaussian_filter 
 from os.path import basename
@@ -31,10 +31,9 @@ def fix_affine(fn):
     try :
         ants.image_read(fn)
     except RuntimeError :
-        #img = nib.load(fn)
-        vol, affine = read_nifti(fn)
+        img = nib.load(fn)
         dim = vol.shape
-        aff = affine
+        aff = img.affine
         print('\t\t',fn)
         print('\t\t',dim)
         print(aff)
@@ -75,7 +74,8 @@ def read_points(fn, ndim = 3):
     return np.array(points0), np.array(points1), fn_list[0], fn_list[1]
 
 def safe_ants_image_read(fn, tol=0.001, clobber=False):
-    vol, affine = read_nifti(fn)  
+    img = nib.load(fn)
+    affine = img.affine
     origin = list(affine[ [0,1,2],[3,3,3] ])
     spacing = list( affine[ [0,1,2],[0,1,2] ])
     ants_image = ants.from_numpy(img.get_fdata(), origin=origin, spacing=spacing)
@@ -151,43 +151,45 @@ def save_sections(file_list, vol, aff) :
     zstart = aff[2,3]
 
     for fn, y in file_list:
-
-        ystart = aff[1,3] + y * np.abs(ystep)
+        ystart = aff[1,3] + y * ystep
         affine = np.array([  [xstep,  0, 0, xstart ],
                                 [0, zstep, 0, zstart ],
                                 [0, 0,  0.02, 0 ],
                                 [0, 0,  0, 1]])
         i=0
+        print(fn)
         if np.sum(vol[:,int(y),:]) == 0 :
             # Create 2D srv section
             # this little while loop thing is so that if we go beyond  brain tissue in vol,
             # we find the closest y segement in vol with brain tissue
             while np.sum(vol[:,int(y-i),:]) == 0 :
-                i += 1
+                i += (ystep/np.abs(ystep)) * 1
 
         nib.Nifti1Image(vol[ :, int(y-i), : ] , affine).to_filename(fn)
 
 def get_to_do_list(df,out_dir,str_var,ext='.nii.gz'):
     to_do_list=[]
     for idx, (i, row) in enumerate(df.iterrows()):
-        y=row['volume_order'] 
+        y = row['slab_order'] 
         assert int(y) >= 0, f'Error: negative y value found {y}'
-        prefix=f'{out_dir}/y-{y}' 
-        fn=gen_2d_fn(prefix,str_var,ext=ext)
+        prefix = f'{out_dir}/y-{y}' 
+        fn = gen_2d_fn(prefix,str_var,ext=ext)
         if not os.path.exists(fn) : to_do_list.append( [fn, y])
     return to_do_list
 
 def create_2d_sections( df,  srv_fn, resolution, output_dir,clobber=False) :
     fx_to_do=[]
     
-    tfm_dir=output_dir + os.sep + 'tfm'
+    tfm_dir = output_dir + os.sep + 'tfm'
     os.makedirs(tfm_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
     
     fx_to_do = get_to_do_list(df, tfm_dir, '_fx') 
 
-    if len( fx_to_do) > 0 :
-        srv, affine = read_nifti(srv_fn)
+    if len( fx_to_do ) > 0 :
+        srv_img = nib.load(srv_fn)
+        srv = srv_img.get_fdata()
+        affine = srv_img.affine
         save_sections(fx_to_do, srv, affine)
         
 
@@ -364,7 +366,7 @@ def downsample_and_crop(source_lin_dir, lin_dwn_dir,crop_dir, affine, step=0.2, 
             else : 
                 bounding_box = bounding_box / np.max(bounding_box)
             img = img * bounding_box 
-            nib.processing.resample_to_output(nib.Nifti1Image(img, affine), step, order=5).to_filename(dwn_fn)
+            nib.processing.resample_to_output(nibabel.Nifti1Image(img, affine), step, order=5).to_filename(dwn_fn)
             print("downsampled filename", dwn_fn)
             #nib.Nifti1Image(img, affine).to_filename(dwn_fn)
 
@@ -376,7 +378,9 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
                             reference_image_fn='',
                             new_starts=[None, None, None] ):
 
-    vol, affine = read_nifti(input_filename)
+    img = nib.load(input_filename)
+    vol = img.get_fdata()
+    affine = img.affine
     
     ndim = len(vol.shape)
 
@@ -406,14 +410,11 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
         exit(1)
     
     sd = (  np.array(new_resolution) / steps  ) / np.pi
-    print('\t', new_resolution, steps)
-    print('\tsd',sd, input_filename)
 
     vol = gaussian_filter(vol, sd)
-    
 
     if reference_image_fn == '' :
-        vol = resample_to_output( nib.Nifti1Image(vol, affine), new_resolution, order=5).get_fdata()
+        vol = resample_to_output( nibabel.Nifti1Image(vol, affine), new_resolution, order=5).get_fdata()
         new_dims = [ vol.shape[0], vol.shape[1] ]
         if len(vol.shape) == 3 :
             if vol.shape[2] != 1 :
@@ -422,11 +423,12 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
         #           nibabel's resampling function will change the dimensions from, say, (x,y) to (x,y,1)
         #           This throws things off for ants so the volume has to be reshaped back to original dimensions.
         vol = vol.reshape(*new_dims) 
-        #nib.Nifti1Image(vol, new_affine).to_filename(output_filename)
-        write_nifti(vol, new_affine, output_filename)
+        nib.Nifti1Image(vol, new_affine).to_filename(output_filename)
+        #write_nifti(vol, new_affine, output_filename)
     else :
         vol = resample_from_to(img, nib.load(reference_image_fn), order=5).get_fdata()
-        write_nifti(vol, read_affine(reference_image_fn), output_filename)
+        nib.Nifti1Image(vol, nib.load(reference_image_fn).affine ).to_filename(output_filename)
+        #write_nifti(vol, read_affine(reference_image_fn), output_filename)
 
 
 def rgb2gray(rgb): return np.mean(rgb, axis=2)

@@ -2,7 +2,8 @@ from scipy.ndimage import gaussian_filter
 import pandas as pd
 import numpy as np
 import json
-import nibabel as nib
+import utils.ants_nibabel as nib
+import nibabel
 import ants
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -66,51 +67,43 @@ def get_slab_width(slabs, df, ystep, ystart, unaligned_slab_list):
 
 
 
-def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_min, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction, manual_points_fn, verbose=False):
+def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_min, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction, manual_points_fn, ydim, verbose=False):
 
-    #temp_slabs = slabs.copy()
-    #temp_slabs.sort()
-    #slabs = temp_slabs
-
-    #slab_processing_order = range(len(slabs)) #Could be changed to a different ordering eventually
-    #unaligned_slab_list = [ i+1 for i in slab_processing_order if i+1 <= cur_slab ]
-
-    #slab_width, total_slab_width = get_slab_width(slabs, df, 0.02, srv_ystart, unaligned_slab_list, manual_points_fn)
-    #total_slab_gap = srv_width - total_slab_width
-
-    #n_slabs = len(np.unique(df['slab']))
-    #average_slab_gap = (total_slab_gap / n_slabs) / 2.
-
-    # |   | |   |   |    |
-    # |   | |   |   |    |
-    # |---| |---|   |----|
-    #
-
-    #if slab_direction == "rostral_to_caudal" :
-    #    y0w = srv_max - slab_width[str(cur_slab)] *1.2 - average_slab_gap 
-    #    y1w = srv_max
-    #elif slab_direction == "caudal_to_rostral" :
-    #    y0w = srv_min
-    #    y1w = srv_min + slab_width[str(cur_slab)] *1.2 + average_slab_gap 
-    #else :
-    #    print('Slab direction not recognized,', slab_direction)
-    #    exit(1)
-    
     rec_points, mni_points, fn1, fn2 = read_points( manual_points_fn )
     y0w = np.min(mni_points[:,1])
     y1w = np.max(mni_points[:,1])
-    
-    slab_width = y1w-y0w
 
-    y0w -= slab_width*0.05
-    y0w += slab_width*0.05
-
-    y0 = w2v(y0w, srv_ystep, srv_ystart)
-    y1 = w2v(y1w, srv_ystep, srv_ystart)
+    # convert y value to RAS 
+    # FIXME : This should not be hardcoded
+    def convert_ras(y, hires_ystart=-126): 
+        print(y, hires_ystart)
+        i = (y - hires_ystart) / 0.25 
+        print('world to intedx=', y, '->', i)
+        i = 868 - i
+        print('flip i = ', i)
+        w=-hires_ystart + i * -0.25
+        print(w)
+        return w
+    print(y0w, y1w)
+    y0w = convert_ras(y0w) 
+    y1w = convert_ras(y1w)
+    print('world converted to RAS', y0w, y1w)
     
+    #slab_width = y1w-y0w
+    #y0w -= slab_width*0.05
+    #y1w += slab_width*0.05
+    print('srv values;', srv_ystep, srv_ystart)
+    y0 = w2v(y0w, -srv_ystep, -srv_ystart)
+    y1 = w2v(y1w, -srv_ystep, -srv_ystart)
+
+    y0_temp = min(y0,y1)
+    y1_temp = max(y0,y1)
+    y0 = y0_temp
+    y1 = y1_temp
+    print(ystep, srv_ystart); 
+    print('final indices', y0,y1)
     assert y0 > 0 , f'Error: y0 is negative: {y0}'
     assert y1 > 0 , f'Error: y1 is negatove: {y1}'
-
     if verbose : print(y0w,y1w,y0,y1) 
     return y0, y1
 
@@ -134,16 +127,19 @@ def pad_volume(vol, max_factor, affine, min_voxel_size=29):
     #print(x_pad,y_pad,z_pad)
     #print(vol.shape)
     vol_padded = np.pad(vol, ((x_pad, x_pad), (y_pad, y_pad),(z_pad, z_pad))) 
-    #print(vol_padded.shape)
-    
-    affine[0,3] -= x_pad * abs(affine[0,0])
-    affine[1,3] -= y_pad * abs(affine[1,1])
-    affine[2,3] -= z_pad * abs(affine[2,2])
+    print('affine')
+    print(affine)
+    print('z pad', z_pad, affine[2,2]) 
+    affine[0,3] -= x_pad * affine[0,0]
+    affine[1,3] -= y_pad * affine[1,1]
+    affine[2,3] -= z_pad * affine[2,2]
     return vol_padded, affine
 
 def get_srv_info(srv_rsl_fn ) : 
     print('SRV rsl fn:', srv_rsl_fn)
     srv_img = nib.load(srv_rsl_fn)
+    print(srv_img.affine)
+    print(nibabel.load(srv_rsl_fn).affine); 
     srv_vol = srv_img.get_fdata()
     ymax = srv_vol.shape[1]
 
@@ -164,8 +160,10 @@ def pad_seg_vol(seg_rsl_fn,max_downsample_level):
 
     seg_vol, pad_affine = pad_volume(seg_vol, max_downsample_level, seg_img.affine )
     seg_rsl_pad_fn=re.sub('.nii','_padded.nii', seg_rsl_fn)
-    nib.Nifti1Image(seg_vol, pad_affine).to_filename(seg_rsl_pad_fn)
     
+    #seg_vol = np.flip(seg_vol,axis=1)
+
+    nib.Nifti1Image(seg_vol, pad_affine).to_filename(seg_rsl_pad_fn)
     return ystart, ystep, seg_rsl_pad_fn
 
 def get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr):
@@ -204,6 +202,9 @@ def write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0, y1, resolution, s
         aff[1,3] = v2w(y0, srv_ystep, srv_ystart)
         srv_slab = srv_vol[:,y0:y1,:]
         srv_slab, pad_aff = pad_volume(srv_slab, max_downsample_level, aff )
+
+        #srv_slab = np.flip(srv_slab,axis=1)
+
         nib.Nifti1Image(srv_slab, pad_aff).to_filename(srv_slab_fn)
     
     return srv_slab_fn
@@ -222,8 +223,7 @@ def gen_mask(fn, clobber=False) :
         average_resolution = np.mean( img.affine[[0,1,2],[0,1,2]] )
         iterations = np.ceil( 3 / average_resolution).astype(int)
 
-        vol = binary_dilation(vol, iterations=iterations).astype(np.int32)
-
+        vol = binary_dilation(vol, iterations=iterations).astype(np.uint32)
 
         nib.Nifti1Image(vol, img.affine).to_filename(out_fn)
     
@@ -279,7 +279,6 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
         if not os.path.exists(f'{prefix_syn}Composite.h5'):
             # --masks [{srv_mask_fn},{seg_mask_fn}]
             shell(f'antsRegistration -v 1 -a 1 -d 3   --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[.1] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{syn_out_fn},{out_inv_fn}] ', verbose=True)
-            #[{nl_itr_str},1e-08,20]
 
     if not os.path.exists(out_fn):
         shell(f'antsApplyTransforms -i {seg_rsl_fn} -r {srv_rsl_fn}  -t {prefix_syn}Composite.h5  -o {out_fn}')
@@ -326,8 +325,10 @@ def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, sl
     if os.path.exists(manual_points_fn) and not os.path.exists( manual_affine_fn ) :
         points2tfm( manual_points_fn, manual_affine_fn)
 
+    ydim = nib.load(srv_rsl_fn).shape[1]
+
     # get the start and end values of the slab in srv voxel coordinates
-    y0, y1 = get_slab_start_end(df, slabs, ystep, ystart, slab, srv_min, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction, manual_points_fn)
+    y0, y1 = get_slab_start_end(df, slabs, ystep, ystart, slab, srv_min, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction, manual_points_fn, ydim)
  
     # get iteration schedules for the linear and non-linear portion of the ants alignment
     f_str, s_str, lin_itr_str, nl_itr_str = get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr)

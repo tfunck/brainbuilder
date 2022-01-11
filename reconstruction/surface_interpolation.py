@@ -1,6 +1,7 @@
 import os
 import argparse
-import nibabel as nib
+import utils.ants_nibabel as nib
+#import nibabel as nib
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt

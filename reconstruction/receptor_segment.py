@@ -7,7 +7,8 @@ import scipy
 import os
 import ants
 import imageio
-import nibabel as nib
+import utils.ants_nibabel as nib
+import nibabel as nibabel
 import gzip
 import multiprocessing
 import shutil
@@ -52,7 +53,6 @@ def downsample_2d(in_fn, resolution, out_fn, y=0):
         vol = gaussian_filter(vol, (float(resolution)/0.02)/np.pi)
         
         #create a new Nifti1Image so that we can resample it with nibabel
-        
         img = nib.Nifti1Image(vol,img.affine)
         
         # resample to new resolution
@@ -79,17 +79,19 @@ def downsample_2d(in_fn, resolution, out_fn, y=0):
 def resample_and_transform(output_dir, resolution_2d, resolution_3d, row):
     seg_fn = row['seg_fn']
 
-    seg_rsl_fn = get_seg_fn(output_dir, row['volume_order'], resolution_2d, seg_fn, '_rsl')
+    seg_rsl_fn = get_seg_fn(output_dir, row['slab_order'], resolution_2d, seg_fn, '_rsl')
     tfm_input_fn = seg_rsl_fn
-    seg_rsl_tfm_fn = get_seg_fn(output_dir, row['volume_order'], resolution_3d, seg_fn, '_rsl_tfm')
+    seg_rsl_tfm_fn = get_seg_fn(output_dir, row['slab_order'], resolution_3d, seg_fn, '_rsl_tfm')
 
     new_starts = [ None, -126. + 0.02 * row['global_order'], None ]
-
-    prefilter_and_downsample(seg_fn, [resolution_2d]*2, seg_rsl_fn, new_starts=new_starts  )
+    
+    if not os.path.exists(seg_rsl_fn) :
+        prefilter_and_downsample(seg_fn, [resolution_2d]*2, seg_rsl_fn, new_starts=new_starts  )
     
     if resolution_2d != resolution_3d :
-        tfm_input_fn = get_seg_fn(output_dir, row['volume_order'], resolution_2d, seg_fn, '_rsl')
-        prefilter_and_downsample(seg_fn, [resolution_3d]*2, tfm_input_fn, new_starts = new_starts  )
+        tfm_input_fn = get_seg_fn(output_dir, row['slab_order'], resolution_2d, seg_fn, '_rsl')
+        if not os.path.exists(tfm_input_fn):
+            prefilter_and_downsample(seg_fn, [resolution_3d]*2, tfm_input_fn, new_starts = new_starts  )
 
     if not os.path.exists(seg_rsl_tfm_fn) : 
         # get initial rigid transform
@@ -114,48 +116,6 @@ def resample_transform_segmented_images(df,resolution_2d,resolution_3d, output_d
 
 
 
-def threshold(img,sd=1):
-    img = gaussian_filter(img, sd)
-    out = np.zeros(img.shape)
-    out[ img > threshold_li(img[img>0]) ] = 1
-    return out
-
-def compress(ii, oo) :
-    print("Gzip compression from ", ii, 'to', oo)
-    with open(ii, 'rb') as f_in, gzip.open(oo, 'wb') as f_out:
-        shutil.copyfileobj(f_in, f_out)
-    
-    if os.path.exists(oo) : 
-        os.remove(ii)
-    return 0
-
-def denoise(s) :
-    cc, nlabels = label(s, structure=np.ones([3,3,3]))
-    cc_unique = np.unique(cc)
-    numPixels = np.bincount(cc.reshape(-1,))
-
-    numPixels = numPixels[1:]
-    cc_unique = cc_unique[1:]
-    
-    idx = numPixels < (np.max(numPixels) * 0.01)
-    labels_to_remove = cc_unique[ idx ]
-    labels_to_keep = cc_unique[ ~ idx ]
-    
-    out = np.zeros(cc.shape)
-    for i in labels_to_keep :
-        out[ cc == i ] = 1
-    
-    return out
-
-def safe_h5py_open(filename, mode='r+'):
-    '''open hdf5 file, exit elegantly on failure'''
-    try :
-        f = h5py.File(filename, mode)
-        return f
-    except OSError :
-        print('Error: Could not open', filename)
-        exit(1)
-
 
 def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=5, clobber=False, resolution=0.2) :
     if not os.path.exists(out_fn)  or clobber :
@@ -176,7 +136,6 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         vol1 = nib.load(in_fn)
         example_2d_list = glob(in_dir +'/*nii.gz') # os.path.basename(df['seg_fn'].iloc[0])
         assert len(example_2d_list) > 0 , 'Error: no files found in {}'.format(in_dir)
-
         example_2d_img = nib.load(example_2d_list[0])
         data = np.zeros([example_2d_img.shape[0], vol1.shape[1], example_2d_img.shape[1]],dtype=np.float32)
 
@@ -184,18 +143,17 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         qc=[]
 
         for i, row in df.iterrows() :
-            s0 = int(row['volume_order'])
-            fn = get_seg_fn(in_dir, row['volume_order'], resolution, row['seg_fn'], '_rsl_tfm')
+            s0 = int(row['slab_order'])
+            fn = get_seg_fn(in_dir, row['slab_order'], resolution, row['seg_fn'], '_rsl_tfm')
             img_2d = nib.load(fn).get_fdata()
             #FIXME : Skipping frames that have been rotated
             if img_2d.shape != example_2d_img.shape :
                 pass
             else :
                 data[:,s0,:] = img_2d.reshape([img_2d.shape[0],img_2d.shape[1]]) 
-            #print(img_2d.max())
-            valid_slices.append(int(row['volume_order']))
+            valid_slices.append(int(row['slab_order']))
       
-        invalid_slices = [ i for i in range(1+int(df['volume_order'].max()) ) if not i in valid_slices ]
+        invalid_slices = [ i for i in range(1+int(df['slab_order'].max()) ) if not i in valid_slices ]
 
         #
         # Fill in missing slices using nearest neighbour interpolation
@@ -236,17 +194,22 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         xstep =  float(vol1.affine[0][0])
         zstep =  float(vol1.affine[2][2])
 
-        aff=np.array([  [-resolution, 0, 0, xstart],
-                        [0, -0.02, 0, ystart ],
-                        [0, 0,  -resolution, zstart], 
+        aff=np.array([  [resolution, 0, 0, xstart],
+                        [0, 0.02, 0, ystart ],
+                        [0, 0,  resolution, zstart], 
                         [0, 0, 0, 1]]).astype(float)
-
-        img_cls = nib.Nifti1Image(data, aff )     
-
-        print("Writing output to", out_fn)
-        img_cls = resample_to_output(img_cls, [float(resolution)]*3, order=5)
         
-        img_cls.to_filename(out_fn)
+        img_cls = nibabel.Nifti1Image(data, aff )     
+        
+        print("Writing output to", out_fn)
+        #print(aff)
+        img_cls = resample_to_output(img_cls, [float(resolution)]*3, order=5)
+        #print(img_cls.affine)
+
+        # flip the volume along the y-axis so that the image is in RAS coordinates because ANTs requires RAS
+        vol = img_cls.get_fdata()
+        #vol = np.flip(vol,axis=1)
+        nib.Nifti1Image(vol, img_cls.affine).to_filename(out_fn)
 
         return 0
 

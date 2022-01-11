@@ -17,7 +17,7 @@ import pandas as pd
 import ants
 import multiprocessing
 from scipy.ndimage import rotate
-from utils.utils import safe_imread, downsample, shell, write_nifti
+from utils.utils import safe_imread, downsample, shell
 from scipy.ndimage.filters import gaussian_filter
 from skimage.filters import threshold_otsu, threshold_li
 from glob import glob
@@ -97,7 +97,6 @@ def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn, y, slab, 
         out = np.zeros_like(mask_vol)
     else :
         features_std = np.std(np.array(features), axis=0)
-        print(features_std)
         features_std[ features_std < 0.001 ] = 1
         features = (np.array(features) - np.mean(features, axis=0)) / features_std
         #print('\t\tn features =', features.shape[0], autoradiograph_fn)
@@ -135,7 +134,6 @@ def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn, y, slab, 
         if np.sum(out) == 0 : out = mask_vol
 
     # save classified image as nifti
-    #write_nifti(out.astype(np.uint32), img.affine, out_fn)
     nib.Nifti1Image(out.astype(np.uint32), img.affine).to_filename(out_fn)
 
 
@@ -164,7 +162,8 @@ def gen_affine(row, scale,global_order_min):
 def threshold(img,sd=1):
     img = gaussian_filter(img, sd)
     out = np.zeros(img.shape)
-    out[ img > threshold_li(img[img>0]) ] = 1
+    idx = img > threshold_otsu(img[img>0])
+    out[ idx ] = 1
     return out
 
 def process_image(img, mask_fn, row, scale, pad, affine): 
@@ -188,9 +187,9 @@ def process_image(img, mask_fn, row, scale, pad, affine):
     #plt.imshow(img)
     #plt.imshow(mask,alpha=0.5)
 
-    if direction == "rostral_to_caudal": 
-        img = np.flip( img, 1 )
-    img = np.flip(img, 0)
+    #if direction == "rostral_to_caudal": 
+    #    img = np.flip( img, 1 )
+    #img = np.flip(img, 0)
 
     #plt.subplot(4,1,3)
     #plt.imshow(img)
@@ -237,6 +236,7 @@ def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pytorch_mod
         img = imageio.imread(fn)
 
         affine = gen_affine(row, scale, global_order_min)
+        print('1',affine); 
         
         img = process_image(img, mask_fn, row, scale, pad, affine)
 
@@ -246,7 +246,6 @@ def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pytorch_mod
         #ants.image_write(ants_image, crop_fn)
     
         nib.Nifti1Image(img, affine ).to_filename(crop_fn)
-    
     seg_fn = row['seg_fn']
     temp_crop_fn=crop_fn
     
@@ -256,7 +255,7 @@ def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pytorch_mod
             img = nib.load(crop_fn)
             ar = img.get_fdata()
             ar = threshold(ar)
-            #write_nifti(ar, img.affine, seg_fn)
+            print('2',img.affine); 
             nib.Nifti1Image(ar, img.affine ).to_filename(seg_fn)
         else :
 
@@ -279,22 +278,21 @@ def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pytorch_mod
     if not os.path.exists(pseudo_cls_fn) :
         print('\t pseudo-cls_fn', pseudo_cls_fn) 
         pseudo_classify_autoradiograph( crop_fn, seg_fn, pseudo_cls_fn, int(row['volume_order']), int(row['slab']), resolution )
-        print('\t classified')
 
-    vol0 = nib.load(temp_crop_fn).get_fdata()
-    vol1 = nib.load(seg_fn).get_fdata()
-    perc0 = np.percentile(vol0,[0,98])
-    perc1 = np.percentile(vol1,[0,100])
-    plt.figure(figsize=(6,9))
-    plt.subplot(3,1,1); plt.imshow( vol0, vmin=perc0[0], vmax=perc0[1] ); plt.colorbar()
-    plt.subplot(3,1,2); plt.hist( vol0 );
-    plt.subplot(3,1,3); plt.imshow( vol1, vmin=perc1[0], vmax=perc1[1] )
-    plt.tight_layout()
-    qc_fn = sub('nii.gz','png', crop_fn)
-    plt.savefig(qc_fn)
-    plt.cla()
-    plt.clf()
-    print('\tQC:', qc_fn)
+    #vol0 = nib.load(temp_crop_fn).get_fdata()
+    #vol1 = nib.load(seg_fn).get_fdata()
+    #perc0 = np.percentile(vol0,[0,98])
+    #perc1 = np.percentile(vol1,[0,100])
+    #plt.figure(figsize=(6,9))
+    #plt.subplot(3,1,1); plt.imshow( vol0, vmin=perc0[0], vmax=perc0[1] ); plt.colorbar()
+    #plt.subplot(3,1,2); plt.hist( vol0 );
+    #plt.subplot(3,1,3); plt.imshow( vol1, vmin=perc1[0], vmax=perc1[1] )
+    #plt.tight_layout()
+    #qc_fn = sub('nii.gz','png', crop_fn)
+    #plt.savefig(qc_fn)
+    #plt.cla()
+    #plt.clf()
+    #print('\tQC:', qc_fn)
 
 def crop(src_dir, mask_dir, out_dir, df, scale_factors_json, resolution, pytorch_model='', remote=False,clobber=False):
     '''take raw linearized images and crop them'''
@@ -316,7 +314,6 @@ def crop(src_dir, mask_dir, out_dir, df, scale_factors_json, resolution, pytorch
     df_to_process = df.loc[ missing_files ]  
 
     global_order_min = df["global_order"].min()
-    print('Cropping')
     Parallel(n_jobs=14)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min, resolution, pytorch_model=pytorch_model) for i, row in  df_to_process.iterrows()) 
     
     return 0

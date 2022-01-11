@@ -1,5 +1,6 @@
 import numpy as np
-import nibabel as nib
+import utils.ants_nibabel as nib
+#import nibabel as nib
 import pandas as pd
 import sys
 import os
@@ -53,7 +54,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     n3 = len(nl_itr_str.split('x'))
     assert n0==n1==n2==n3 , "Error: Incorrect lengths for ANTs parameters"
 
-    y=row['volume_order']
+    y=row['slab_order']
 
     prefix = f'{tfm_dir}/y-{y}' 
     fx_fn = gen_2d_fn(prefix,'_fx')
@@ -70,8 +71,8 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     #else :
     nl_metric=f'Mattes[{fx_fn},{mv_fn},1,20,Regular,1]'
 
-    fix_affine(fx_fn)
-    fix_affine(mv_fn)
+    #fix_affine(fx_fn)
+    #fix_affine(mv_fn)
 
     affine_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2 --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[.1] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t Affine[.1] -c {lin_itr_str} -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} '
 
@@ -84,7 +85,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     return 0
     
 def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
-    y=row['volume_order']
+    y=row['slab_order']
     prefix=f'{tfm_dir}/y-{y}' 
     crop_rsl_fn=f'{prefix}_{resolution}mm.nii.gz'
     cls_rsl_fn = prefix+'_cls_rsl.nii.gz'
@@ -100,8 +101,8 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     vol = gaussian_filter(vol, sd )
     nib.Nifti1Image(vol, img.affine).to_filename(crop_rsl_fn)
     
-    fix_affine(crop_rsl_fn)
-    fix_affine(fx_fn)
+    #fix_affine(crop_rsl_fn)
+    #fix_affine(fx_fn)
     print(f'antsApplyTransforms -v 1 -d 2 -n NearestNeighbor -i {crop_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
     shell(f'antsApplyTransforms -v 1 -d 2 -n NearestNeighbor -i {crop_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
     
@@ -131,16 +132,16 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
     to_do_df = pd.DataFrame([])
     to_do_resample_df = pd.DataFrame([])
     df['tfm_affine']=['']*df.shape[0]
+
     for i, row in df.iterrows() :
-        y = row['volume_order']
+        y = row['slab_order']
         prefix = f'{tfm_dir}/y-{y}' 
         cls_fn = prefix+'_cls_rsl.nii.gz'
         out_fn = prefix+'_rsl.nii.gz'
         tfm_fn = prefix+'_Composite.h5'
         tfm_affine_fn = prefix+'_Affine_Composite.h5'
-        df['tfm'].loc[ df['volume_order'] == y ] = tfm_fn
-        df['tfm_affine'].loc[ df['volume_order'] == y ] = tfm_affine_fn
-
+        df['tfm'].loc[ df['slab_order'] == y ] = tfm_fn
+        df['tfm_affine'].loc[ df['slab_order'] == y ] = tfm_affine_fn
         
         if not os.path.exists(tfm_fn) or not os.path.exists(cls_fn):
             to_do_df = to_do_df.append(row)
@@ -155,13 +156,13 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
         Parallel(n_jobs=num_cores)(delayed(apply_transforms_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, row) for i, row in  to_do_resample_df.iterrows()) 
     
     for i, row in df.iterrows() :
-        y = row['volume_order']
+        y = row['slab_order']
         prefix = f'{tfm_dir}/y-{y}' 
         out_fn = prefix+'_rsl.nii.gz'
         tfm_fn = prefix+'_Composite.h5'
         tfm_affine_fn = prefix+'_Affine_Composite.h5'
-        df['tfm'].loc[ df['volume_order'] == y ] = tfm_fn
-        df['tfm_affine'].loc[ df['volume_order'] == y ] = tfm_affine_fn
+        df['tfm'].loc[ df['slab_order'] == y ] = tfm_fn
+        df['tfm_affine'].loc[ df['slab_order'] == y ] = tfm_affine_fn
 
     #df['init_tfm'] = df['tfm']
 
@@ -176,13 +177,13 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='r
     target_name = 'nl_2d_'+target_str
 
     df[target_name] = [''] * df.shape[0]
+    
 
     for idx, (i, row) in enumerate(df.iterrows()):
-        y = row['volume_order'] 
+        y = row['slab_order'] 
         prefix = f'{tfm_dir}/y-{y}'
-        y = row['volume_order'] 
         fn = f'{tfm_dir}/y-{y}_{target_str}.nii.gz' 
-
+        
         df[target_name].loc[i] = fn
         try : 
             out_vol[:,int(y),:] = nib.load(fn).get_fdata()
@@ -193,5 +194,6 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='r
 
         if exit_flag : exit(1)
     print('\t\tWriting 3D non-linear:', out_fn)
+    #out_vol = np.flip(out_vol, axis=1)
     nib.Nifti1Image(out_vol, hires_img.affine).to_filename(out_fn)
     return df 

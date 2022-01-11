@@ -2,7 +2,8 @@ import imageio
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-import nibabel as nib
+import utils.ants_nibabel as nib
+#import nibabel as nib
 from sklearn.cluster import KMeans
 from scipy.ndimage import label
 from re import sub

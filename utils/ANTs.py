@@ -2,7 +2,7 @@ from shutil import copy
 from os.path import basename
 from os import makedirs
 from nibabel.processing import resample_from_to
-from utils.utils import shell,splitext, write_nifti
+from utils.utils import shell,splitext 
 from scipy.ndimage import gaussian_filter
 from skimage.filters import threshold_otsu
 from re import sub
@@ -24,8 +24,7 @@ def generate_mask(fn, out_fn, sigma=8) :
     idx  = vol > threshold_otsu(vol)
     vol[ idx ]  = 1
     vol[ ~idx ] = 0
-    #nib.Nifti1Image(vol, img.affine).to_filename(out_fn)
-    write_nifti(vol, img.affine, out_fn)
+    nib.Nifti1Image(vol, img.affine).to_filename(out_fn)
     return 0
 
 
@@ -91,8 +90,11 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
         if r != 0 : 
             moving_mask_fn = moving_mask_fn = None 
 
+    print(moving_fn)
+    img_fx = nib.load(fixed_fn)
+    img_mv = nib.load(moving_fn)
     #If image volume is empty, write identity matrix
-    if np.sum(nib.load(fixed_fn).get_data()) == 0  or np.sum( nib.load(moving_fn).get_data() ) == 0 :
+    if np.sum(img_fx.get_data()) == 0  or np.sum( img_mv.get_data() ) == 0 :
         print("Warning: at least one of the image volume is empty")
         identity = sitk.Transform(3, sitk.sitkIdentity)
         sitk.WriteTransform(identity, final_tfm_fn)

@@ -1,4 +1,5 @@
-import nibabel as nib 
+import utils.ants_nibabel as nib
+#import nibabel as nib 
 import ants 
 import numpy as np 
 from scipy.ndimage.measurements import center_of_mass 

@@ -7,7 +7,8 @@ from neuroCombat import neuroCombat,neuroCombatFromTraining
 from skimage.filters import threshold_otsu, threshold_li
 import pandas as pd
 import numpy as np
-import nibabel as nib
+import utils.ants_nibabel as nib
+#import nibabel as nib
 import os
 from statsmodels.nonparametric.smoothers_lowess import lowess
 from scipy.interpolate import interp1d
