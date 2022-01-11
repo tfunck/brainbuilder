@@ -6,7 +6,8 @@ import shutil
 import multiprocessing
 import re
 import pandas as pd
-import nibabel as nib
+import nibabel 
+import utils.nifty_nibabel as nib
 from skimage.transform import resize
 from scipy.ndimage.filters import gaussian_filter
 from utils.ANTs import ANTs
@@ -146,8 +147,8 @@ def add_histology_images(hist_files):
     return df
 
 
-def create_section_dataframe(auto_dir, hist_dir, crop_dir, csv_fn ):
-
+def create_section_dataframe(auto_dir, crop_dir, csv_fn ):
+    
     # Define the order of ligands in "short" repeats
     short_repeat = ['ampa', 'kain', 'mk80', 'cellbody_a', 'musc', 'cgp5', 'flum', 'pire', 'hist_myelin', 'oxot', 'damp', 'epib', 'praz', 'uk14','cellbody_b', 'dpat', 'keta', 'sch2', 'racl', 'hist_myelin', 'dpmg', 'zm24']
 
@@ -162,7 +163,6 @@ def create_section_dataframe(auto_dir, hist_dir, crop_dir, csv_fn ):
     
         # load raw tif files
         auto_files = [ fn for fn in glob(f'{auto_dir}/*TIF') ] #if not 'UB' in fn and not '#00' in fn ]
-        
         short_repeat_size = len(short_repeat_dict) + 2 # +2 because there are two cell body and two myelin stains 
         long_repeat_size = len(long_repeat_dict) + 2
 
@@ -198,7 +198,8 @@ def create_section_dataframe(auto_dir, hist_dir, crop_dir, csv_fn ):
         df['crop'] = df['raw'].apply(lambda fn: '{}/{}'.format(crop_dir,os.path.splitext(os.path.basename(fn))[0]+'_crop.nii.gz') )
         df['aligned']=[False]*df.shape[0]
         df.sort_values(['order'],inplace=True)
-        
+       
+        '''
         for hemisphere in ['left']:#,'right'] :
             hist_list = glob(f'{hist_dir}/*{hemisphere}*nii.gz') #if not 'UB' in fn and not '#00' in fn ]
             hist_list.sort()
@@ -214,11 +215,10 @@ def create_section_dataframe(auto_dir, hist_dir, crop_dir, csv_fn ):
                 new_row['raw'] = hist_list[i]
                 new_row['hemisphere'] = hemisphere
                 df = df.append(new_row)
-
+        '''
         df.sort_values(['order'],inplace=True)
         df.to_csv(csv_fn)
         print(csv_fn)
-        exit(0)
     else : 
         df = pd.read_csv(csv_fn)
     return df
@@ -334,20 +334,21 @@ def align(df, init_dir, volume_fn ):
     concat_section_to_volume(aligned_df, volume_fn )
     return aligned_df
 
-def reconstruct(subject_id,auto_dir, hist_dir, out_dir, csv_fn, ligands_to_exclude):
+def reconstruct(subject_id, auto_dir, out_dir='macaque/output/', ligands_to_exclude=[]):
 
+    csv_fn = f'{out_dir}/{subject_id}/{subject_id}.csv'
+    crop_dir = f'{out_dir}/{subject_id}/crop/'
+    init_dir = f'{out_dir}/{subject_id}/init_align/'
 
-    crop_dir = 'macaque/output/{subject_id}/crop/'
-    init_dir = 'macaque/output/{subject_id}/init_align/'
-
+    os.makedirs(out_dir, exist_ok=True)
     os.makedirs(crop_dir,exist_ok=True)
     os.makedirs(init_dir,exist_ok=True)
-
-    df = pd.read_csv(csv_fn)
+    
+    df = create_section_dataframe(auto_dir, crop_dir, csv_fn )
 
     # Output volumes
-    volume_fn = 'macaque/output/{subject_id}/{subject_id}_volume.nii.gz'
-    volume_init_fn = 'macaque/output/{subject_id}/init_volume.nii.gz'
+    volume_fn = f'macaque/output/{subject_id}/{subject_id}_volume.nii.gz'
+    volume_init_fn = f'macaque/output/{subject_id}/init_volume.nii.gz'
 
     ### 1. Section Ordering
     print('1. Section Ordering')
