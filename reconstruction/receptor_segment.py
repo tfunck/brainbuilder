@@ -7,11 +7,13 @@ import scipy
 import os
 import ants
 import imageio
-import nibabel as nib
+import utils.ants_nibabel as nib
+import nibabel as nibabel
 import gzip
 import multiprocessing
 import shutil
 import re
+from utils.utils import get_section_intervals
 from glob import glob
 from re import sub
 from utils.utils import *
@@ -52,7 +54,6 @@ def downsample_2d(in_fn, resolution, out_fn, y=0):
         vol = gaussian_filter(vol, (float(resolution)/0.02)/np.pi)
         
         #create a new Nifti1Image so that we can resample it with nibabel
-        
         img = nib.Nifti1Image(vol,img.affine)
         
         # resample to new resolution
@@ -79,30 +80,34 @@ def downsample_2d(in_fn, resolution, out_fn, y=0):
 def resample_and_transform(output_dir, resolution_2d, resolution_3d, row):
     seg_fn = row['seg_fn']
 
-    seg_rsl_fn = get_seg_fn(output_dir, row['volume_order'], resolution_2d, seg_fn, '_rsl')
+    seg_rsl_fn = get_seg_fn(output_dir, row['slab_order'], resolution_2d, seg_fn, '_rsl')
     tfm_input_fn = seg_rsl_fn
-    seg_rsl_tfm_fn = get_seg_fn(output_dir, row['volume_order'], resolution_3d, seg_fn, '_rsl_tfm')
+    seg_rsl_tfm_fn = get_seg_fn(output_dir, row['slab_order'], resolution_3d, seg_fn, '_rsl_tfm')
 
     new_starts = [ None, -126. + 0.02 * row['global_order'], None ]
-
-    prefilter_and_downsample(seg_fn, [resolution_2d]*2, seg_rsl_fn, new_starts=new_starts  )
+    
+    if not os.path.exists(seg_rsl_fn) :
+        prefilter_and_downsample(seg_fn, [resolution_2d]*2, seg_rsl_fn, new_starts=new_starts  )
     
     if resolution_2d != resolution_3d :
-        tfm_input_fn = get_seg_fn(output_dir, row['volume_order'], resolution_2d, seg_fn, '_rsl')
-        prefilter_and_downsample(seg_fn, [resolution_3d]*2, tfm_input_fn, new_starts = new_starts  )
+        tfm_input_fn = get_seg_fn(output_dir, row['slab_order'], resolution_2d, seg_fn, '_rsl')
+        if not os.path.exists(tfm_input_fn):
+            prefilter_and_downsample(seg_fn, [resolution_3d]*2, tfm_input_fn, new_starts = new_starts  )
 
     if not os.path.exists(seg_rsl_tfm_fn) : 
         # get initial rigid transform
         tfm_fn = row['tfm']  
-        print('\n-->',tfm_fn,'\n')
         if type(tfm_fn) == str :
+            print('\n-->',tfm_fn, os.path.exists(tfm_fn),'\n')
+            print('\n-->',tfm_input_fn, os.path.exists(tfm_input_fn),'\n')
+            print('\n-->',seg_rsl_fn, os.path.exists(seg_rsl_fn), '\n')
             tfm = ants.read_transform(tfm_fn)
             cmdline = f'antsApplyTransforms -n NearestNeighbor -v 1 -d 2 -i {tfm_input_fn} -r {seg_rsl_fn} -t {tfm_fn} -o {seg_rsl_tfm_fn}'
             print(cmdline)
             shell(cmdline)
         else :
-            shutil.copy(tfm_input_fn, seg_rsl_tfm_fn)
             print('\tNo transform for', seg_rsl_fn)
+            shutil.copy(tfm_input_fn, seg_rsl_tfm_fn)
 
 
 
@@ -110,51 +115,29 @@ def resample_transform_segmented_images(df,resolution_2d,resolution_3d, output_d
 
     os.makedirs(output_dir, exist_ok=True)
     num_cores = min(14, multiprocessing.cpu_count() )
-    Parallel(n_jobs=num_cores)(delayed(resample_and_transform)(output_dir, resolution_2d, resolution_3d, row) for i, row in df.iterrows()) 
+    #Parallel(n_jobs=num_cores)(delayed(resample_and_transform)(output_dir, resolution_2d, resolution_3d, row) for i, row in df.iterrows()) 
+    for i, row in df.iterrows():
+        resample_and_transform(output_dir, resolution_2d, resolution_3d, row)
 
-
-
-def threshold(img,sd=1):
-    img = gaussian_filter(img, sd)
-    out = np.zeros(img.shape)
-    out[ img > threshold_li(img[img>0]) ] = 1
-    return out
-
-def compress(ii, oo) :
-    print("Gzip compression from ", ii, 'to', oo)
-    with open(ii, 'rb') as f_in, gzip.open(oo, 'wb') as f_out:
-        shutil.copyfileobj(f_in, f_out)
-    
-    if os.path.exists(oo) : 
-        os.remove(ii)
-    return 0
-
-def denoise(s) :
-    cc, nlabels = label(s, structure=np.ones([3,3,3]))
-    cc_unique = np.unique(cc)
-    numPixels = np.bincount(cc.reshape(-1,))
-
-    numPixels = numPixels[1:]
-    cc_unique = cc_unique[1:]
-    
-    idx = numPixels < (np.max(numPixels) * 0.01)
-    labels_to_remove = cc_unique[ idx ]
-    labels_to_keep = cc_unique[ ~ idx ]
-    
-    out = np.zeros(cc.shape)
-    for i in labels_to_keep :
-        out[ cc == i ] = 1
-    
-    return out
-
-def safe_h5py_open(filename, mode='r+'):
-    '''open hdf5 file, exit elegantly on failure'''
-    try :
-        f = h5py.File(filename, mode)
-        return f
-    except OSError :
-        print('Error: Could not open', filename)
-        exit(1)
+def interpolate_missing_sections(vol) :
+    vol_dil = binary_erosion(binary_dilation(vol,iterations=4),iterations=4).astype(int)
+    intervals = get_section_intervals(vol_dil)
+    print(intervals)
+    for i in range(len(intervals)-1) :
+        j=i+1
+        x0,x1 = intervals[i]
+        y0,y1 = intervals[j]
+        x = np.mean(vol[:,x0:(x1+1),:], axis=1)
+        y = np.mean(vol[:,y0:(y1+1),:], axis=1)
+        vol[:,x0:x1,:]  = np.repeat(x.reshape(x.shape[0],1,x.shape[1]), x1-x0, axis=1)
+        
+        for ii in range(x1+1,y0) :
+            den = (y0-x1-1)
+            assert den != 0, 'Error: 0 denominator when interpolating missing sections'
+            d = (ii - x1)/den
+            z = x * (1-d) + d * y
+            vol[:,ii,:] = z
+    return vol
 
 
 def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=5, clobber=False, resolution=0.2) :
@@ -176,56 +159,17 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         vol1 = nib.load(in_fn)
         example_2d_list = glob(in_dir +'/*nii.gz') # os.path.basename(df['seg_fn'].iloc[0])
         assert len(example_2d_list) > 0 , 'Error: no files found in {}'.format(in_dir)
-
         example_2d_img = nib.load(example_2d_list[0])
         data = np.zeros([example_2d_img.shape[0], vol1.shape[1], example_2d_img.shape[1]],dtype=np.float32)
 
-        valid_slices = []
-        qc=[]
-
         for i, row in df.iterrows() :
-            s0 = int(row['volume_order'])
-            fn = get_seg_fn(in_dir, row['volume_order'], resolution, row['seg_fn'], '_rsl_tfm')
+            s0 = int(row['slab_order'])
+            fn = get_seg_fn(in_dir, row['slab_order'], resolution, row['seg_fn'], '_rsl_tfm')
             img_2d = nib.load(fn).get_fdata()
             #FIXME : Skipping frames that have been rotated
-            if img_2d.shape != example_2d_img.shape :
-                pass
-            else :
-                data[:,s0,:] = img_2d.reshape([img_2d.shape[0],img_2d.shape[1]]) 
-            #print(img_2d.max())
-            valid_slices.append(int(row['volume_order']))
-      
-        invalid_slices = [ i for i in range(1+int(df['volume_order'].max()) ) if not i in valid_slices ]
+            data[:,s0,:] = img_2d 
 
-        #
-        # Fill in missing slices using nearest neighbour interpolation
-        #
-        valid_slices = np.array(valid_slices) 
-        print("num of invalid slices:", len(valid_slices))
-        for i in invalid_slices :
-            dif = np.argsort( np.absolute(valid_slices - i) )
-
-            i0=valid_slices[dif[0]]
-            i1=valid_slices[dif[1]]
-            i2=valid_slices[dif[2]]
-            i3=valid_slices[dif[3]]
-            #nearest neighbough interpolation
-            data[:,i,:] = data[:,i0,:]
-            #use weighting from adjacent sections
-            #data[:,i,:] = data[:,i0,:]*0.4 + data[:,i1,:]*0.35  + data[:,i2,:]*0.25
-
-        # Denoise data
-        #data[data<0.55] =0 
-        #data[data>=0.55] =1 
-        structure = np.zeros([3,3,3])
-        structure[1,:,1] = 1
-        
-        # Gaussian blurring
-        sd = (float(resolution)/0.02)/np.pi
-        #effective resolution across y is really actually closer to 1mm not 0.02, so trying that instead 
-        #sd = (float(resolution)/1)/np.pi
-        #only smooth along y axis because x and z axes are already at lower resolution
-        data = gaussian_filter1d(data.astype(float), sd, axis=1 ).astype(float)
+        data = interpolate_missing_sections(data)
 
         #
         # Save output volume
@@ -233,20 +177,21 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         xstart = float(vol1.affine[0][3])
         ystart = float(vol1.affine[1][3])
         zstart = float(vol1.affine[2][3])
-        xstep =  float(vol1.affine[0][0])
-        zstep =  float(vol1.affine[2][2])
 
-        aff=np.array([  [-resolution, 0, 0, xstart],
-                        [0, -0.02, 0, ystart ],
-                        [0, 0,  -resolution, zstart], 
+        aff=np.array([  [resolution, 0, 0, xstart],
+                        [0, 0.02, 0, ystart ],
+                        [0, 0,  resolution, zstart], 
                         [0, 0, 0, 1]]).astype(float)
+        
 
-        img_cls = nib.Nifti1Image(data, aff )     
-
+        img_cls = nibabel.Nifti1Image(data, aff )     
+        
         print("Writing output to", out_fn)
         img_cls = resample_to_output(img_cls, [float(resolution)]*3, order=5)
         
-        img_cls.to_filename(out_fn)
+        vol = img_cls.get_fdata()
+        #vol = np.flip(vol,axis=1)
+        nib.Nifti1Image(vol, img_cls.affine).to_filename(out_fn)
 
         return 0
 

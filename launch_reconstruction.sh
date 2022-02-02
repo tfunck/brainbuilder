@@ -1,16 +1,8 @@
-#!/bin/bash
-#SBATCH --nodes 4
-#SBATCH --mem 18G
-#SBATCH --time=04:59:00
-#SBATCH --job-name=job_reconstruct
-#SBATCH --output=%j.out
-#SBATCH --account=rpp-aevans-ab
 
-#module load singularity/3.6
 brain="MR1"
 hemisphere="R"
 out_dir="/data/receptor/human/output_3_caps/"
-out_dir="/data/receptor/human/output_2/"
+#out_dir="/data/receptor/human/output_2/"
 
 while getopts "s:b:m:i:o:r:c:p:s:" arg; do
   case $arg in

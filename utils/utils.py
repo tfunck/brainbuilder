@@ -5,7 +5,7 @@ import scipy
 import os
 import pandas as pd
 import imageio
-import nibabel as nib
+import utils.ants_nibabel as nib
 import PIL
 import matplotlib
 import time
@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from glob import glob
 from re import sub
+import nibabel
+from ants import get_center_of_mass
 from nibabel.processing import resample_to_output, resample_from_to
 from scipy.ndimage.filters import gaussian_filter 
 from os.path import basename
@@ -22,21 +24,65 @@ from subprocess import call, Popen, PIPE, STDOUT
 from sklearn.cluster import KMeans
 from scipy.ndimage import zoom
 from skimage.transform import resize
+from scipy.ndimage import label, center_of_mass
 
+
+def get_section_intervals(vol):
+    section_sums = np.sum(vol, axis=(0,2))
+    valid_sections = section_sums > np.min(section_sums)
+    plt.subplot(2,1,1); plt.plot(section_sums)
+    plt.subplot(2,1,2); plt.plot(valid_sections); 
+    plt.savefig(f'val_sections_{np.sum(valid_sections)}.png'); plt.clf(); plt.cla()
+    labeled_sections, nlabels = label(valid_sections)
+    assert nlabels >= 2, 'Error: there must be a gap between thickened sections. Use higher resolution volumes.'
+
+    intervals = [ (np.where(labeled_sections==i)[0][0], np.where(labeled_sections==i)[0][-1]) for i in range(1, nlabels) ]
+    assert len(intervals) > 0 , 'Error: no valid intervals found for volume.'  
+    return intervals
+    
+def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, ref_fn, tfm_inv_fn, output_fn):
+    '''
+    About:
+        Apply 3d transformation and resample volume into the same coordinate space as 3d receptor volume.           This produces a volume with 0.02mm dimension size along the y axis.
+
+    Inputs:
+        brain:      current subject brain id
+        hemi:       current hemisphere (R or L)
+        slab:       current slab number
+        resolution:     current resolution level
+        input_fn:     gm super-resolution volume (srv) extracted from donor brain
+        ref_fn:     brain mask of segmented autoradiographs
+        tfm_inv_fn:   3d transformation from mni to receptor coordinate space
+        srv_space_rec_fn:      
+        
+    Outpus:
+        None
+    '''
+    temp_fn=f'/tmp/{brain}-{hemi}-{slab}.nii.gz'
+
+    shell(f'antsApplyTransforms -v 1 -d 3 -i {input_fn} -r {ref_fn} -t {tfm_inv_fn} -o {temp_fn}',True)
+    img = nib.load(temp_fn)
+    vol = img.get_fdata()
+
+    assert np.sum(vol) > 0, f'Error: empty volume {temp_fn}'
+
+    img = resample_to_output(nibabel.Nifti1Image(vol,img.affine), [float(resolution),0.02, float(resolution)], order=5)
+    vol = img.get_fdata()
+    nib.Nifti1Image(vol, img.affine ).to_filename(output_fn)
 
 def fix_affine(fn):
     try :
         ants.image_read(fn)
     except RuntimeError :
         img = nib.load(fn)
-        dim = img.shape
+        dim = vol.shape
         aff = img.affine
         print('\t\t',fn)
         print('\t\t',dim)
         print(aff)
 
-        origin = list(img.affine[ [0,1],[3,3] ])
-        spacing = list( img.affine[ [0,1],[0,1] ])
+        origin = list(affine[ [0,1],[3,3] ])
+        spacing = list( affine[ [0,1],[0,1] ])
         ants_image = ants.from_numpy(img.get_fdata(), origin=origin, spacing=spacing)
         ants_image.to_filename(fn)
         try :
@@ -60,31 +106,77 @@ def read_points(fn, ndim = 3):
             if 'Points' in line : start_read=True
             
             if '%Volume:' in line : 
-                print(line)
                 fn = line.split(' ')[1]
                 fn_list.append( os.path.basename(fn.rstrip()))
-    
+   
+    #print('fixed')
+    #print(fn_list[0])
+    #print( np.array(points0) )
+    #print('moving')
+    #print( fn_list[1] ) 
+    #print( np.array(points1)) 
     return np.array(points0), np.array(points1), fn_list[0], fn_list[1]
 
 def safe_ants_image_read(fn, tol=0.001, clobber=False):
-    img = nib.load(fn)  
-    origin = list(img.affine[ [0,1,2],[3,3,3] ])
-    spacing = list( img.affine[ [0,1,2],[0,1,2] ])
+    img = nib.load(fn)
+    affine = img.affine
+    origin = list(affine[ [0,1,2],[3,3,3] ])
+    spacing = list( affine[ [0,1,2],[0,1,2] ])
     ants_image = ants.from_numpy(img.get_fdata(), origin=origin, spacing=spacing)
-    return ants_image
+    return ants_imag
+
+from utils.fit_transform_to_paired_points import fit_transform_to_paired_points
+
+def points2tfm(points_fn, affine_fn, fixed_fn, moving_fn, ndim=3, transform_type="Affine", invert=False, clobber=False):
 
 
-def points2tfm(points_fn, affine_fn, ndim=3, transform_type="Affine", invert=False, clobber=False):
+    #comFixed=[] 
+    #comMoving=[] 
+    #comMoving[-1] *= 1 
+    print('1')
+    if not os.path.exists(affine_fn) or clobber :
 
-    if not os.path.exists(affine_fn) :
-        # mni_points , rec_points
+        fixed_img = ants.image_read(fixed_fn)
+        moving_img = ants.image_read(moving_fn)
+
+        comFixed = list( get_center_of_mass(fixed_img) ) 
+        comMoving = list( get_center_of_mass(moving_img) )
+
+        fixed_dirs = fixed_img.direction[[0,1,2],[0,1,2]]
+        moving_dirs = moving_img.direction[[0,1,2],[0,1,2]]
+        print('2')
+        # f=rec_points / m=mni_points
         fixed_points, moving_points, fixed_fn, moving_fn = read_points(points_fn, ndim=ndim)
 
         print('\t: Calculate affine matrix from points')
+        if invert:
+            # f=mni_points / m=rec_points
+            temp_points = np.copy(moving_points)
+            moving_points = np.copy(fixed_points)
+            fixed_points = temp_points
+        print('fixed', fixed_points) 
+        print('moving', moving_points) 
 
-        landmark_tfm = ants.fit_transform_to_paired_points(fixed_points, moving_points, transform_type=transform_type)
+        fixed_points = fixed_dirs * fixed_points
+        moving_points = moving_dirs * moving_points
+
+        fixed_points = fixed_points - np.mean(fixed_points,axis=0) + comFixed
+        moving_points = moving_points - np.mean(moving_points,axis=0) + comMoving
+
+
+
+        landmark_tfm = fit_transform_to_paired_points(moving_points, fixed_points, transform_type=transform_type , centerX=comFixed, centerY=comMoving)
 
         ants.write_transform(landmark_tfm, affine_fn)
+        
+        df=pd.DataFrame( {'x':moving_points[:,0],'y':moving_points[:,1],'z':moving_points[:,2]} )
+        
+        rsl_points = ants.apply_transforms_to_points(3, df, affine_fn, whichtoinvert=[True] )
+        
+        error = np.sum(np.sqrt(np.sum(np.power((rsl_points - fixed_points), 2), axis=1)))
+        print('rsl points')
+        print(rsl_points)
+        print('Error', error / rsl_points.shape[0])
 
     return affine_fn
 
@@ -143,46 +235,45 @@ def save_sections(file_list, vol, aff) :
     zstart = aff[2,3]
 
     for fn, y in file_list:
-
-        ystart = aff[1,3] + y * np.abs(ystep)
+        ystart = aff[1,3] + y * ystep
         affine = np.array([  [xstep,  0, 0, xstart ],
                                 [0, zstep, 0, zstart ],
                                 [0, 0,  0.02, 0 ],
                                 [0, 0,  0, 1]])
         i=0
+        print(fn)
         if np.sum(vol[:,int(y),:]) == 0 :
             # Create 2D srv section
             # this little while loop thing is so that if we go beyond  brain tissue in vol,
             # we find the closest y segement in vol with brain tissue
             while np.sum(vol[:,int(y-i),:]) == 0 :
-                i += 1
+                i += (ystep/np.abs(ystep)) * 1
 
         nib.Nifti1Image(vol[ :, int(y-i), : ] , affine).to_filename(fn)
 
 def get_to_do_list(df,out_dir,str_var,ext='.nii.gz'):
     to_do_list=[]
     for idx, (i, row) in enumerate(df.iterrows()):
-        y=row['volume_order'] 
+        y = row['slab_order'] 
         assert int(y) >= 0, f'Error: negative y value found {y}'
-        prefix=f'{out_dir}/y-{y}' 
-        fn=gen_2d_fn(prefix,str_var,ext=ext)
+        prefix = f'{out_dir}/y-{y}' 
+        fn = gen_2d_fn(prefix,str_var,ext=ext)
         if not os.path.exists(fn) : to_do_list.append( [fn, y])
     return to_do_list
 
 def create_2d_sections( df,  srv_fn, resolution, output_dir,clobber=False) :
     fx_to_do=[]
     
-    tfm_dir=output_dir + os.sep + 'tfm'
+    tfm_dir = output_dir + os.sep + 'tfm'
     os.makedirs(tfm_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
     
     fx_to_do = get_to_do_list(df, tfm_dir, '_fx') 
 
-    if len( fx_to_do) > 0 :
+    if len( fx_to_do ) > 0 :
         srv_img = nib.load(srv_fn)
         srv = srv_img.get_fdata()
-
-        affine = srv_img.affine 
+        affine = srv_img.affine
         save_sections(fx_to_do, srv, affine)
         
 
@@ -237,7 +328,6 @@ def add_padding(img, zmax, xmax):
 
 
 def gm_segment(img):
-    print(img.shape)
     mid = np.mean(img[img>0])
     upper=np.max(img)
     if upper > 0 :
@@ -360,7 +450,7 @@ def downsample_and_crop(source_lin_dir, lin_dwn_dir,crop_dir, affine, step=0.2, 
             else : 
                 bounding_box = bounding_box / np.max(bounding_box)
             img = img * bounding_box 
-            nib.processing.resample_to_output(nib.Nifti1Image(img, affine), step, order=5).to_filename(dwn_fn)
+            nib.processing.resample_to_output(nibabel.Nifti1Image(img, affine), step, order=5).to_filename(dwn_fn)
             print("downsampled filename", dwn_fn)
             #nib.Nifti1Image(img, affine).to_filename(dwn_fn)
 
@@ -371,13 +461,14 @@ def downsample_and_crop(source_lin_dir, lin_dwn_dir,crop_dir, affine, step=0.2, 
 def prefilter_and_downsample(input_filename, new_resolution, output_filename, 
                             reference_image_fn='',
                             new_starts=[None, None, None] ):
+
     img = nib.load(input_filename)
-    
     vol = img.get_fdata()
+    affine = img.affine
     
     ndim = len(vol.shape)
 
-    new_affine = np.copy( img.affine )
+    new_affine = np.copy( affine )
     for i, new_start in enumerate(new_starts) :
         if new_start != None : 
             new_affine[3,i] = float( new_start )
@@ -391,10 +482,10 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
         new_affine[0,0] = new_resolution[0]
         new_affine[1,1] = new_resolution[1]
         
-        steps = np.array( [ img.affine[0,0], img.affine[1,1] ] )
+        steps = np.array( [ affine[0,0], affine[1,1] ] )
 
     elif ndim == 3 :
-        steps = np.array( [ img.affine[0,0], img.affine[1,1], img.affine[2,2] ] )
+        steps = np.array( [ affine[0,0], affine[1,1], affine[2,2] ] )
         new_affine[0,0] = new_resolution[0]
         new_affine[1,1] = new_resolution[1]
         new_affine[2,2] = new_resolution[2]
@@ -403,15 +494,11 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
         exit(1)
     
     sd = (  np.array(new_resolution) / steps  ) / np.pi
-    print('\t', new_resolution, steps)
-    print('\tsd',sd, input_filename)
 
     vol = gaussian_filter(vol, sd)
-    
-    img = nib.Nifti1Image(vol, img.affine)
 
     if reference_image_fn == '' :
-        vol = resample_to_output( nib.Nifti1Image(vol, img.affine), new_resolution, order=5).get_fdata()
+        vol = resample_to_output( nibabel.Nifti1Image(vol, affine), new_resolution, order=5).get_fdata()
         new_dims = [ vol.shape[0], vol.shape[1] ]
         if len(vol.shape) == 3 :
             if vol.shape[2] != 1 :
@@ -421,8 +508,11 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
         #           This throws things off for ants so the volume has to be reshaped back to original dimensions.
         vol = vol.reshape(*new_dims) 
         nib.Nifti1Image(vol, new_affine).to_filename(output_filename)
+        #write_nifti(vol, new_affine, output_filename)
     else :
-        resample_from_to(img, nib.load(reference_image_fn), order=5).to_filename(output_filename)
+        vol = resample_from_to(img, nib.load(reference_image_fn), order=5).get_fdata()
+        nib.Nifti1Image(vol, nib.load(reference_image_fn).affine ).to_filename(output_filename)
+        #write_nifti(vol, read_affine(reference_image_fn), output_filename)
 
 
 def rgb2gray(rgb): return np.mean(rgb, axis=2)

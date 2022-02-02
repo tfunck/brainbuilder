@@ -1,6 +1,7 @@
 from sys import argv
 from apply_transforms import safe_ants_image_read
-import nibabel as nib
+import utils.ants_nibabel as nib
+#import nibabel as nib
 
 if __name__ == '__main__'  :
     fn = argv[1]

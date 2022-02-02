@@ -2,7 +2,7 @@ from shutil import copy
 from os.path import basename
 from os import makedirs
 from nibabel.processing import resample_from_to
-from utils.utils import shell,splitext
+from utils.utils import shell,splitext 
 from scipy.ndimage import gaussian_filter
 from skimage.filters import threshold_otsu
 from re import sub
@@ -10,7 +10,8 @@ from skimage.transform import resize
 import numpy as np
 import SimpleITK as sitk
 import os
-import nibabel as nib
+import utils.ants_nibabel as nib
+#import nibabel as nib
 
 def generate_mask(fn, out_fn, sigma=8) :
     if os.path.exists(out_fn) :
@@ -89,8 +90,11 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
         if r != 0 : 
             moving_mask_fn = moving_mask_fn = None 
 
+    print(moving_fn)
+    img_fx = nib.load(fixed_fn)
+    img_mv = nib.load(moving_fn)
     #If image volume is empty, write identity matrix
-    if np.sum(nib.load(fixed_fn).get_data()) == 0  or np.sum( nib.load(moving_fn).get_data() ) == 0 :
+    if np.sum(img_fx.get_data()) == 0  or np.sum( img_mv.get_data() ) == 0 :
         print("Warning: at least one of the image volume is empty")
         identity = sitk.Transform(3, sitk.sitkIdentity)
         sitk.WriteTransform(identity, final_tfm_fn)
@@ -164,7 +168,7 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
             for attempt in range(n_tries) :
                 try : 
                     #Run command line
-                    stdout, stderr, errorcode = shell(cmdline, exit_on_failure=False)
+                    stdout, stderr, errorcode = shell(cmdline, True, exit_on_failure=False)
                     print('Attempt:', attempt, errorcode)
                     if verbose == 1 :
                         print(stdout)
@@ -178,19 +182,18 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
             
             with open(config_file, 'w+') as f :
                 f.write(cmdline)
-            
             #update init_tfm
             init_tfm = [tfm_fn]
             no_init_tfm=False
             init_inverse=False
 
-            if fix_header and os.path.exists(moving_rsl_fn) : 
-                #resample_from_to( nib.load(moving_rsl_fn), nib.load(fixed_fn)).to_filename(moving_rsl_fn)
-                nib.Nifti1Image(  nib.load(moving_rsl_fn).get_data(), nib.load(fixed_fn).affine ).to_filename(moving_rsl_fn)
+            #if fix_header and os.path.exists(moving_rsl_fn) : 
+            #    #nib.Nifti1Image(  nib.load(moving_rsl_fn).get_data(), nib.load(fixed_fn).affine ).to_filename(moving_rsl_fn)
+            #   write_nifti( nib.load(moving_rsl_fn).get_data(), nib.load(fixed_fn).affine, moving_rsl_fn)
             
-            if fix_header and os.path.exists(moving_rsl_fn_inverse) : 
-                #resample_from_to( nib.load(moving_rsl_fn_inverse), nib.load(moving_fn)).to_filename(moving_rsl_fn_inverse)
-                nib.Nifti1Image(  nib.load(moving_rsl_fn_inverse).get_data(), nib.load(moving_fn).affine ).to_filename(moving_rsl_fn_inverse)
+            #if fix_header and os.path.exists(moving_rsl_fn_inverse) : 
+            #    #nib.Nifti1Image(  nib.load(moving_rsl_fn_inverse).get_data(), nib.load(moving_fn).affine ).to_filename(moving_rsl_fn_inverse)
+            #    write_nifti(  nib.load(moving_rsl_fn_inverse).get_data(), nib.load(moving_fn).affine, moving_rsl_fn_inverse)
     
     return final_tfm_fn, final_tfm_inv_fn , moving_rsl_fn
 

@@ -5,7 +5,8 @@ import scipy
 import os
 import pandas as pd
 import imageio
-import nibabel as nib
+import utils.ants_nibabel as nib
+#import nibabel as nib
 import PIL
 import matplotlib
 import time

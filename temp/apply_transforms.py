@@ -1,5 +1,6 @@
 from ants import apply_transforms, image_read, from_numpy
-import nibabel as nib
+import utils.ants_nibabel as nib
+#import nibabel as nib
 from sys import argv
 
 

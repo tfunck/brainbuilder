@@ -5,14 +5,13 @@ import re
 import argparse
 import pandas as pd
 import numpy as np
-import nibabel as nib
+import nibabel
+import utils.ants_nibabel as nib
 from glob import glob
-from validate_interpolation import validate_interpolation
 from scipy.ndimage import label
 from scipy.ndimage import binary_dilation, binary_closing, binary_fill_holes
 from scipy.ndimage.filters import gaussian_filter
-from nibabel.processing import resample_to_output
-from utils.utils import shell, create_2d_sections, run_stage, prefilter_and_downsample
+from utils.utils import shell, create_2d_sections, run_stage, prefilter_and_downsample, resample_to_autoradiograph_sections
 from utils.ANTs import ANTs
 from nibabel.processing import resample_to_output, smooth_image
 from utils.mesh_io import load_mesh_geometry, save_mesh_data, save_obj, read_obj
@@ -22,7 +21,8 @@ from reconstruction.nonlinear_2d_alignment import receptor_2d_alignment, concate
 from reconstruction.init_alignment import receptorRegister
 from reconstruction.surface_interpolation import surface_interpolation
 from reconstruction.crop import crop
-from reconstruction.validate_reconstructed_sections import validate_reconstructed_sections
+from validation.validate_interpolation import validate_interpolation
+from validation.validate_reconstructed_sections import validate_reconstructed_sections
 from preprocessing.preprocessing import fill_regions_3d
 
 global file_dir
@@ -49,7 +49,6 @@ def create_new_srv_volumes(rec_3d_rsl_fn, srv_rsl_fn, cropped_output_list, resol
     print(cropped_output_list)
     print('Next srv fn:', highest_res_srv_rsl_fn)
     for i in range(len(cropped_output_list)-1) : #DEBUG resolution_list[0:-1] :
-        #DEBUG
         lower_res_srv_rsl_fn = cropped_output_list[i]
         if not os.path.exists(lower_res_srv_rsl_fn) :
             r = resolution_list[i]
@@ -117,35 +116,11 @@ def remove_slab_from_srv(slab_to_remove_fn, srv_rsl_fn, new_srv_rsl_fn):
     vol *= mask
 
     print('\t\t\tWriting', new_srv_rsl_fn)
+    #vol = np.flip(vol, axis=1)
     nib.Nifti1Image(vol,img.affine).to_filename(new_srv_rsl_fn)
 
     
 
-def resample_to_autoradiograph_sections(brain, hemi, slab, resolution, srv_rsl_fn, seg_rsl_fn, nl_3d_tfm_inv_fn, srv_space_rec_fn):
-    '''
-    About:
-        Apply 3d transformation and resample volume into the same coordinate space as 3d receptor volume.           This produces a volume with 0.02mm dimension size along the y axis.
-
-    Inputs:
-        brain:      current subject brain id
-        hemi:       current hemisphere (R or L)
-        slab:       current slab number
-        resolution:     current resolution level
-        srv_rsl_fn:     gm super-resolution volume (srv) extracted from donor brain
-        seg_rsl_fn:     brain mask of segmented autoradiographs
-        nl_3d_tfm_inv_fn:   3d transformation from mni to receptor coordinate space
-        srv_space_rec_fn:      
-        
-    Outpus:
-        None
-    '''
-    temp_fn=f'/tmp/{brain}-{hemi}-{slab}.nii.gz'
-    shell(f'antsApplyTransforms -v 1 -d 3 -i {srv_rsl_fn} -r {seg_rsl_fn} -t {nl_3d_tfm_inv_fn} -o {temp_fn}',True)
-    img = nib.load(temp_fn)
-    vol = img.get_fdata()
-
-    img = resample_to_output(nib.Nifti1Image(vol,img.affine), [float(resolution),0.02, float(resolution)], order=5)
-    img.to_filename(srv_space_rec_fn)
         
 
 def calculate_section_order(autoradiograph_info_fn,  out_dir, in_df_fn='section_order/autoradiograph_info.csv') :
@@ -170,6 +145,7 @@ def calculate_section_order(autoradiograph_info_fn,  out_dir, in_df_fn='section_
             idx=(df['mri']==brain) & (df['hemisphere']==hemi) & (df['slab']==slab)
             df['global_order'].loc[ idx ] = sdf['slab_order'] + prev_max
             df['volume_order'].loc[ idx ] = sdf['slab_order'].max() - sdf['slab_order']
+
             prev_max =  sdf['slab_order'].max() + prev_max
             print(brain,hemi,slab, df['volume_order'].loc[idx].min(), df['volume_order'].loc[idx].max(),df['global_order'].loc[idx].min(), df['global_order'].loc[idx].max(), prev_max)
 
@@ -336,6 +312,7 @@ def multiresolution_alignment(slab_info_fn, slab_df,  hemi_df, brain, hemi, slab
     slab_list = [int(i) for i in  files[brain][hemi].keys() ]
     slab_files = files[brain][hemi][str(slab)]
     
+
     ### Iterate over progressively finer resolution
     for resolution_itr, resolution in enumerate(resolution_list) :
         print('\tMulti-Resolution Alignement:',resolution)
@@ -380,7 +357,7 @@ def multiresolution_alignment(slab_info_fn, slab_df,  hemi_df, brain, hemi, slab
         ### Stage 1.25 : Downsample SRV to current resolution
         ###
         print('\t\tStage 1.25' )
-        crop_srv_rsl_fn = files[brain][hemi][str(int(slab))][str(resolution)]['srv_crop_rsl_fn']
+        #crop_srv_rsl_fn = files[brain][hemi][str(int(slab))][str(resolution)]['srv_crop_rsl_fn']
         if run_stage([args.srv_fn], [srv_rsl_fn, crop_srv_rsl_fn]) or args.clobber :
             # downsample the original srv gm mask to current 3d resolution
             prefilter_and_downsample(args.srv_fn, [resolution_3d]*3, srv_rsl_fn)
@@ -388,7 +365,7 @@ def multiresolution_alignment(slab_info_fn, slab_df,  hemi_df, brain, hemi, slab
             # if this is the fiest slab, then the cropped version of the gm mask
             # is the same as the downsampled version because there are no prior slabs to remove.
             # for subsequent slabs, the cropped srv file is created at stage 3.5
-            if int(slab) == int(slab_list[0]) : shutil.copy(srv_rsl_fn, crop_srv_rsl_fn)
+            #if int(slab) == int(slab_list[0]) : shutil.copy(srv_rsl_fn, crop_srv_rsl_fn)
 
         ### Stage 1.5 : combine aligned sections from previous iterations into a volume
         #Combine 2d sections from previous resolution level into a single volume
@@ -414,10 +391,11 @@ def multiresolution_alignment(slab_info_fn, slab_df,  hemi_df, brain, hemi, slab
         stage_3_outputs = [nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_rsl_fn, srv_3d_rsl_fn]
 
         if run_stage(stage_2_outputs, stage_3_outputs) or args.clobber  :
-            print('Cropped rsl fn', crop_srv_rsl_fn)
+            #print('Cropped rsl fn', crop_srv_rsl_fn)
             scale_factors_json = json.load(open(args.scale_factors_fn,'r'))
             slab_direction = scale_factors_json[brain][hemi][slab]['direction']
-            align_slab_to_mri(  brain, hemi, slab, seg_rsl_fn, crop_srv_rsl_fn, align_to_mri_dir, 
+            #align_slab_to_mri(  brain, hemi, slab, seg_rsl_fn, crop_srv_rsl_fn, align_to_mri_dir, 
+            align_slab_to_mri(  brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, align_to_mri_dir, 
                                 hemi_df, args.slabs, nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_rsl_fn, srv_3d_rsl_fn, 
                                 resolution_3d, resolution_itr_3d, 
                                 resolution_list, slab_direction, cfiles['manual_alignment_points'], cfiles['manual_alignment_affine'] )
@@ -438,7 +416,8 @@ def multiresolution_alignment(slab_info_fn, slab_df,  hemi_df, brain, hemi, slab
             if run_stage( stage_3_outputs, stage_3_5_outputs):
                 print('\t\tStage 3.5 : Removing aligned slab from srv')
                 print(resolution_list)
-                create_new_srv_volumes(rec_3d_rsl_fn, crop_srv_rsl_fn, stage_3_5_outputs, resolution_list)
+                #create_new_srv_volumes(rec_3d_rsl_fn, crop_srv_rsl_fn, stage_3_5_outputs, resolution_list)
+                create_new_srv_volumes(rec_3d_rsl_fn, srv_rsl_fn, stage_3_5_outputs, resolution_list)
 
         
         ###
@@ -530,26 +509,8 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
         #hemi_df.iloc[slab_idx] = slab_df
         hemi_df['nl_2d_rsl'].loc[ slab_idx ] = slab_df['nl_2d_rsl'].values
         hemi_df['nl_2d_cls_rsl'].loc[ slab_idx ] = slab_df['nl_2d_cls_rsl'].values
-        #print('slab_df')
-        #print( slab_df['nl_2d_cls_rsl'] )
-        #print('\n')
+   
 
-        #print('hemi_df')
-        #print( hemi_df['nl_2d_cls_rsl'].loc[slab_idx] )
-        #print('\n\n')
-
-        '''
-        def create_brain_mask_sections(slab_df, slab, resolution, tfm_3d_inv_fn, reference_fn, brain_mask_fn):
-            brain_mask_rsl_fn = re.sub('.nii.gz','_space-rec-{slab}.nii.gz')  
-            shell(f'antsApplyTransforms -i {brain_mask_fn} -t {tfm_3d_inv_fn} -r {reference_fn} -o {brain_mask_rsl_fn}')
-            brain_mask_dir = 
-            create_2d_sections( slab_df, brain_mask_rsl_fn, float(resolution), brain_mask_dir )
-
-            for row in slab_df.iterrows():
-            
-                shell('antsApplyTransforms -i {brain_section_fn}'
-        '''
-    
     interp_dir=f'{args.out_dir}/5_surf_interp/'
 
     slab_dict={} 
@@ -605,7 +566,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 
 if __name__ == '__main__':
     resolution_list = ['4.0', '3.5', '3.0', '2.5', '2.0', '1.5', '1.0'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
-    resolution_list = [ '4.0', '3.0', '2.0', '1.0', '0.5'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
+    resolution_list = [ '4.0' ] #, '2.0', '1.0', '0.5'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
 
     args, files = setup_parameters(setup_argparse().parse_args() )
     #Process the base autoradiograph csv
@@ -616,6 +577,7 @@ if __name__ == '__main__':
     
     ### Step 0 : Crop downsampled autoradiographs
     pytorch_model=f'{base_file_dir}/caps/Pytorch-UNet/MODEL.pth'
+    pytorch_model=''
     crop(args.src_dir, args.mask_dir, args.out_dir, df, args.scale_factors_fn, float(resolution_list[-1]), pytorch_model=pytorch_model )
     
     for brain in args.brain :
