@@ -13,6 +13,7 @@ import vast.surface_tools as surface_tools
 import ants
 import tempfile
 import time
+from utils.utils import get_section_intervals
 from utils.combat_slab_normalization import combat_slab_normalization
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage import label
@@ -216,18 +217,7 @@ def vol_surf_interp(val, src, coords, affine, clobber=0 ):
     return val
 
 
-def get_section_intervals(vol):
-    section_sums = np.sum(vol, axis=(0,2))
-    valid_sections = section_sums > np.min(section_sums)
-    plt.subplot(2,1,1); plt.plot(section_sums)
-    plt.subplot(2,1,2); plt.plot(valid_sections); 
-    plt.savefig(f'val_sections_{np.sum(valid_sections)}.png'); plt.clf(); plt.cla()
-    labeled_sections, nlabels = label(valid_sections)
-    assert nlabels >= 2, 'Error: there must be a gap between thickened sections. Use higher resolution volumes.'
 
-    intervals = [ (np.where(labeled_sections==i)[0][0], np.where(labeled_sections==i)[0][-1]) for i in range(1, nlabels) ]
-    assert len(intervals) > 0 , 'Error: no valid intervals found for volume.'  
-    return intervals
     
 
 def get_valid_coords( coords, iw):

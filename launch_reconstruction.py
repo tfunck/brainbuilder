@@ -11,7 +11,7 @@ from glob import glob
 from scipy.ndimage import label
 from scipy.ndimage import binary_dilation, binary_closing, binary_fill_holes
 from scipy.ndimage.filters import gaussian_filter
-from utils.utils import shell, create_2d_sections, run_stage, prefilter_and_downsample
+from utils.utils import shell, create_2d_sections, run_stage, prefilter_and_downsample, resample_to_autoradiograph_sections
 from utils.ANTs import ANTs
 from nibabel.processing import resample_to_output, smooth_image
 from utils.mesh_io import load_mesh_geometry, save_mesh_data, save_obj, read_obj
@@ -124,40 +124,6 @@ def remove_slab_from_srv(slab_to_remove_fn, srv_rsl_fn, new_srv_rsl_fn):
 
     
 
-def resample_to_autoradiograph_sections(brain, hemi, slab, resolution, srv_rsl_fn, seg_rsl_fn, nl_3d_tfm_inv_fn, srv_space_rec_fn):
-    '''
-    About:
-        Apply 3d transformation and resample volume into the same coordinate space as 3d receptor volume.           This produces a volume with 0.02mm dimension size along the y axis.
-
-    Inputs:
-        brain:      current subject brain id
-        hemi:       current hemisphere (R or L)
-        slab:       current slab number
-        resolution:     current resolution level
-        srv_rsl_fn:     gm super-resolution volume (srv) extracted from donor brain
-        seg_rsl_fn:     brain mask of segmented autoradiographs
-        nl_3d_tfm_inv_fn:   3d transformation from mni to receptor coordinate space
-        srv_space_rec_fn:      
-        
-    Outpus:
-        None
-    '''
-    temp_fn=f'/tmp/{brain}-{hemi}-{slab}.nii.gz'
-    print(srv_rsl_fn)
-    print(nib.load(srv_rsl_fn).affine)
-    print(seg_rsl_fn)
-    print(nib.load(seg_rsl_fn).affine)
-
-    shell(f'antsApplyTransforms -v 1 -d 3 -i {srv_rsl_fn} -r {seg_rsl_fn} -t {nl_3d_tfm_inv_fn} -o {temp_fn}',True)
-    img = nib.load(temp_fn)
-    vol = img.get_fdata()
-
-    assert np.sum(vol) > 0, f'Error: empty volume {temp_fn}'
-
-    img = resample_to_output(nibabel.Nifti1Image(vol,img.affine), [float(resolution),0.02, float(resolution)], order=5)
-    #vol = np.flip(img.get_fdata(), axis=1)
-    vol = img.get_fdata()
-    nib.Nifti1Image(vol, img.affine ).to_filename(srv_space_rec_fn)
         
 
 def calculate_section_order(autoradiograph_info_fn,  out_dir, in_df_fn='section_order/autoradiograph_info.csv') :

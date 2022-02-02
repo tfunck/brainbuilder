@@ -19,7 +19,7 @@ from glob import glob
 from utils.utils import *
 
 
-def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
+def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, use_syn=True):
     #Set strings for alignment parameters
     f_list = [ '1', '2', '3', '4', '6', '8', '10', '12', '14', '16', '18', '24']
     s_list = [ '0', '1', '1.5', '2', '3', '4', '5', '6', '7', '8', '9', '16']
@@ -76,11 +76,17 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
 
     affine_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2 --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[.1] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t Affine[.1] -c {lin_itr_str} -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} '
 
-    syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz]  -t SyN[0.1] -m {nl_metric} -c {nl_itr_str} -s {s_str} -f {f_str}' # -t SyN[0.1]  -m CC[{fx_fn},{mv_fn},1,20,Regular,1] -c 100 -s {s_cc}  -f {f_cc}'
     with open(prefix+'_command.txt','w') as f : f.write(affine_command_str)
-    with open(prefix+'_command.txt','w') as f : f.write(syn_command_str)
     shell(affine_command_str)
-    shell(syn_command_str)
+    
+    if use_syn :
+        syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz]  -t SyN[0.1] -m {nl_metric} -c {nl_itr_str} -s {s_str} -f {f_str}' # -t SyN[0.1]  -m CC[{fx_fn},{mv_fn},1,20,Regular,1] -c 100 -s {s_cc}  -f {f_cc}'
+        with open(prefix+'_command.txt','w') as f : f.write(syn_command_str)
+        shell(syn_command_str)
+    else :
+        shutil.copy( f'{prefix}_affine_cls_rsl.nii.gz' , f'{prefix}_cls_rsl.nii.gz' )
+        shutil.copy( f'{prefix}_Affine_Composite.h5' , f'{prefix}_Composite.h5' )
+
     assert os.path.exists(f'{prefix}_cls_rsl.nii.gz') , f'Error: output does not exist {prefix}_cls_rsl.nii.gz'
     return 0
     
@@ -120,7 +126,7 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     assert os.path.exists(f'{out_fn}'), 'Error apply nl 2d tfm to cropped autoradiograph'
     return 0
 
-def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, resolution_itr, batch_processing=False, clobber=False): 
+def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, resolution_itr, use_syn=True, batch_processing=False, clobber=False): 
     df.reset_index(drop=True,inplace=True)
     df.reset_index(drop=True,inplace=True)
 
@@ -150,7 +156,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
             to_do_resample_df = to_do_resample_df.append(row)
 
     if to_do_df.shape[0] > 0 :
-        Parallel(n_jobs=num_cores)(delayed(align_2d_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, row) for i, row in  to_do_df.iterrows()) 
+        Parallel(n_jobs=num_cores)(delayed(align_2d_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, row,use_syn=use_syn) for i, row in  to_do_df.iterrows()) 
         
     if to_do_resample_df.shape[0] > 0 :
         Parallel(n_jobs=num_cores)(delayed(apply_transforms_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, row) for i, row in  to_do_resample_df.iterrows()) 

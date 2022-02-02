@@ -167,7 +167,7 @@ def pad_seg_vol(seg_rsl_fn,max_downsample_level):
     nib.Nifti1Image(seg_vol, pad_affine).to_filename(seg_rsl_pad_fn)
     return ystart, ystep, seg_rsl_pad_fn
 
-def get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr):
+def get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr,base_nl_itr = 250 ):
     f_list=[ str(f) for f in range(max_downsample_level, 0, -1)]# if smallest_dimension / 2**(f-1) > 29 ]
    
     assert len(f_list) != 0, 'Error: no smoothing factors' 
@@ -180,7 +180,7 @@ def get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr
     min_nl_itr = len( [ resolution_list[i] for i in range(resolution_itr) if  float(resolution_list[i]) <= .1 ] )
 
     base_lin_itr= 500
-    base_nl_itr = 250
+    
     max_lin_itr = base_lin_itr * (len(f_list)+1)
     max_nl_itr  = base_nl_itr * (resolution_itr-min_nl_itr+1)
     lin_step = base_lin_itr 
@@ -241,7 +241,7 @@ def gen_mask(fn, clobber=False) :
     
     return out_fn
 
-def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn ):
+def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn, clobber=False ):
     prefix=re.sub('_SyN_Composite.h5','',out_tfm_fn)
     prefix_rigid = prefix+'_Rigid_'
     prefix_similarity = prefix+'_Similarity_'
@@ -251,9 +251,11 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
     
     temp_out_fn='/tmp/tmp.nii.gz'
     
-    affine_out_fn = f'{prefix_affine}Composite.nii.gz'
+    affine_out_fn = f'{prefix_affine}volume.nii.gz'
+    affine_inv_fn = f'{prefix_affine}volume_inverse.nii.gz'
     manual_out_fn = f'{prefix_manual}Composite.nii.gz'
-    syn_out_fn = f'{prefix_syn}Composite.nii.gz'
+    syn_out_fn = f'{prefix_syn}volume.nii.gz'
+    syn_inv_fn = f'{prefix_syn}volume.nii.gz'
 
     seg_mask_fn = gen_mask(seg_rsl_fn,clobber=True)
     srv_mask_fn = gen_mask(srv_rsl_fn,clobber=True)
@@ -261,11 +263,10 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
     srv_tgt_fn=srv_slab_fn
 
     #calculate SyN
-    if float(resolution) >= 1.0 :
-        nl_metric = f'CC[{srv_rsl_fn},{seg_rsl_fn},1,2,Regular,1]'
-    else :
-        nl_metric=f'Mattes[{srv_tgt_fn},{seg_rsl_fn},1,20,Regular,1]'
-
+    #if float(resolution) >= 1.0 :
+    #    nl_metric = f'CC[{srv_rsl_fn},{seg_rsl_fn},1,2,Regular,1]'
+    #else :
+    nl_metric=f'Mattes[{srv_tgt_fn},{seg_rsl_fn},1,20,Regular,1]'
 
     if not os.path.exists(syn_out_fn) or not os.path.exists(out_tfm_fn) or clobber:
         # set initial transform
@@ -273,11 +274,10 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
         skip_manual = True
         if not os.path.exists( manual_affine_fn ) or skip_manual :
             if not os.path.exists(f'{prefix_rigid}Composite.h5'):
-                shell(f'antsRegistration -v 0 -a 1 -d 3  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1] -t Rigid[.1] -c {lin_itr_str}  -m GC[{srv_slab_fn},{seg_rsl_fn},1,30,Regular,1] -s {s_str} -f {f_str} -o [{prefix_rigid},{temp_out_fn},{out_inv_fn}] ', verbose=True)
-            
+                shell(f'antsRegistration -v 1 -a 1 -d 3  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1] -t Rigid[.1] -c {lin_itr_str}  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,30,Regular,1] -s {s_str} -f {f_str} -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] ', verbose=True)
             # calculate similarity registration
             if not os.path.exists(f'{prefix_similarity}Composite.h5'):
-                shell(f'antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform {prefix_rigid}Composite.h5 -t Similarity[.1]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{temp_out_fn},{out_inv_fn}] ', verbose=True)
+                shell(f'antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform {prefix_rigid}Composite.h5 -t Similarity[.1]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] ', verbose=True)
             
             affine_init = f'--initial-moving-transform {prefix_similarity}Composite.h5'
         else :
@@ -286,11 +286,11 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
         
         #calculate affine registration
         if not os.path.exists(f'{prefix_affine}Composite.h5'):
-            shell(f'antsRegistration -v 1 -a 1 -d 3 {affine_init} -t Affine[.1] -m Mattes[{srv_tgt_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{out_inv_fn}] ', verbose=True)
+            shell(f'antsRegistration -v 1 -a 1 -d 3 {affine_init} -t Affine[.1] -m Mattes[{srv_tgt_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] ', verbose=True)
         
         if not os.path.exists(f'{prefix_syn}Composite.h5'):
             # --masks [{srv_mask_fn},{seg_mask_fn}]
-            shell(f'antsRegistration -v 1 -a 1 -d 3   --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[.1] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{syn_out_fn},{out_inv_fn}] ', verbose=True)
+            shell(f'antsRegistration -v 1 -a 1 -d 3  --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[.1] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{syn_out_fn},{syn_inv_fn}] ', verbose=True)
 
     if not os.path.exists(out_fn):
         shell(f'antsApplyTransforms -i {seg_rsl_fn} -r {srv_rsl_fn}  -t {prefix_syn}Composite.h5  -o {out_fn}')
@@ -328,7 +328,6 @@ def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, sl
     # get maximum number steps by which the srv image will be downsampled by 
     # with ants, each step means dividing the image size by 2^(level-1)
     max_downsample_level = get_max_downsample_level(resolution_list, resolution_itr)
-
     # pad the segmented volume so that it can be downsampled by the 
     # ammount of times specified by max_downsample_level
     ystart, ystep, seg_rsl_fn = pad_seg_vol(seg_rsl_fn, max_downsample_level)
@@ -343,7 +342,7 @@ def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, sl
     y0, y1 = get_slab_start_end(df, slabs, ystep, ystart, slab, srv_min, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction, manual_points_fn, ydim)
  
     # get iteration schedules for the linear and non-linear portion of the ants alignment
-    f_str, s_str, lin_itr_str, nl_itr_str = get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr)
+    f_str, s_str, lin_itr_str, nl_itr_str = get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr )
     
     # extract slab from srv and write it
     srv_slab_fn = write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0, y1, resolution, srv_ystep, srv_ystart, max_downsample_level)

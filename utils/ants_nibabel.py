@@ -50,9 +50,9 @@ def read_affine_antspy(fn):
     for i, (s, o) in enumerate(zip(spacing,origin)):
         affine[i,i]=s
         affine[i,3]=o
-
+    orientation = img.orientation
     if len(img.shape) == 3 and img.shape[-1] != 1 :
-        pass #assert img.orientation =='RAS', f'Error: file has {orientation}, not RAS. {fn}'
+        if orientation !='RAS': print(f'Warning: file has {orientation}, not RAS. {fn}')
 
     return affine
 
@@ -84,8 +84,8 @@ def write_nifti(vol, affine, out_fn):
     else :
         # Force to write in RAS coordinates
         direction=[[1., 0., 0.], [0., 1., 0.], [0., 0., -1.]]
-    print('--> spacing', spacing)
-    print('--> origin', origin)
-    print('--> direction', direction)
+    #print('--> spacing', spacing)
+    #print('--> origin', origin)
+    #print('--> direction', direction)
     ants_image = ants.from_numpy(vol, origin=origin, spacing=spacing, direction=direction)
     ants.image_write(ants_image, out_fn)
