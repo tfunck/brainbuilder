@@ -81,7 +81,7 @@ def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_min, srv_max, srv
         print('world to intedx=', y, '->', i)
         i = 868 - i
         print('flip i = ', i)
-        w=-hires_ystart + i * -0.25
+        w=hires_ystart + i * -0.25
         print(w)
         return w
     print(y0w, y1w)
@@ -92,6 +92,7 @@ def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_min, srv_max, srv
     #slab_width = y1w-y0w
     #y0w -= slab_width*0.05
     #y1w += slab_width*0.05
+
     print('srv values;', srv_ystep, srv_ystart)
     y0 = w2v(y0w, -srv_ystep, -srv_ystart)
     y1 = w2v(y1w, -srv_ystep, -srv_ystart)
@@ -198,13 +199,24 @@ def write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0, y1, resolution, s
         print(f'\t\tWriting srv slab for file\n\n{srv_rsl_fn}')
         srv_img = nib.load(srv_rsl_fn)
         srv_vol = srv_img.get_fdata()
-        aff=srv_img.affine
-        aff[1,3] = v2w(y0, srv_ystep, srv_ystart)
+        aff = srv_img.affine 
+        real_aff = nibabel.load(srv_rsl_fn).affine
+         
+        print(srv_ystep, srv_ystart)
+        print(aff)
+        srv_ystep = aff[1,1]
+        srv_ystart = aff[1,3]
+        print(y0, srv_ystep, srv_ystart)
+        aff[1,3] = y0 * srv_ystep + srv_ystart
+        print(aff)
+
         srv_slab = srv_vol[:,y0:y1,:]
         srv_slab, pad_aff = pad_volume(srv_slab, max_downsample_level, aff )
 
-        #srv_slab = np.flip(srv_slab,axis=1)
+        print(pad_aff)
 
+        #srv_slab = np.flip(srv_slab,axis=(0,1,2))
+        print(srv_slab_fn)
         nib.Nifti1Image(srv_slab, pad_aff).to_filename(srv_slab_fn)
     
     return srv_slab_fn
@@ -257,9 +269,9 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
 
     if not os.path.exists(syn_out_fn) or not os.path.exists(out_tfm_fn) or clobber:
         # set initial transform
-
         # calculate rigid registration
-        if os.path.exists( manual_affine_fn ) :
+        skip_manual = True
+        if not os.path.exists( manual_affine_fn ) or skip_manual :
             if not os.path.exists(f'{prefix_rigid}Composite.h5'):
                 shell(f'antsRegistration -v 0 -a 1 -d 3  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1] -t Rigid[.1] -c {lin_itr_str}  -m GC[{srv_slab_fn},{seg_rsl_fn},1,30,Regular,1] -s {s_str} -f {f_str} -o [{prefix_rigid},{temp_out_fn},{out_inv_fn}] ', verbose=True)
             
@@ -269,9 +281,9 @@ def run_alignment(out_dir,out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_f
             
             affine_init = f'--initial-moving-transform {prefix_similarity}Composite.h5'
         else :
-            shell(f'antsApplyTransforms -v 1 -i {seg_rsl_fn} -r {srv_rsl_fn} -t {manual_affine_fn} -o {manual_qout_fn}')
+            shell(f'antsApplyTransforms -v 1 -i {seg_rsl_fn} -r {srv_rsl_fn} -t {manual_affine_fn} -o {manual_out_fn}')
             affine_init = f'--initial-moving-transform [{manual_affine_fn},0]'
-
+        
         #calculate affine registration
         if not os.path.exists(f'{prefix_affine}Composite.h5'):
             shell(f'antsRegistration -v 1 -a 1 -d 3 {affine_init} -t Affine[.1] -m Mattes[{srv_tgt_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{out_inv_fn}] ', verbose=True)

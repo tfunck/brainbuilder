@@ -46,8 +46,10 @@ def create_new_srv_volumes(rec_3d_rsl_fn, srv_rsl_fn, cropped_output_list, resol
     '''
     highest_res_srv_rsl_fn = cropped_output_list[-1]
     remove_slab_from_srv(rec_3d_rsl_fn, srv_rsl_fn, highest_res_srv_rsl_fn)
+    
     print(cropped_output_list)
     print('Next srv fn:', highest_res_srv_rsl_fn)
+
     for i in range(len(cropped_output_list)-1) : #DEBUG resolution_list[0:-1] :
         lower_res_srv_rsl_fn = cropped_output_list[i]
         if not os.path.exists(lower_res_srv_rsl_fn) :
@@ -78,6 +80,7 @@ def remove_slab_from_srv(slab_to_remove_fn, srv_rsl_fn, new_srv_rsl_fn):
 
     #load gm volume
     img = nib.load(srv_rsl_fn)
+    
     vol = img.get_fdata()
     assert np.sum(aligned_slab) > 0 , f'Error: Empty volume in {slab_to_remove_fn}'
     
@@ -294,7 +297,7 @@ def setup_parameters(args) :
     ###
     ### Parameters
     ###
-    args.slabs = ['1', '6', '2','5', '3', '4'] #FIXME shouldnt be hard coded
+    args.slabs = ['1' ] #, '6', '2','5', '3', '4'] #FIXME shouldnt be hard coded
 
     if args.scale_factors_fn == None :
         args.scale_factors_fn=base_file_dir+'/scale_factors.json'
@@ -392,8 +395,10 @@ def multiresolution_alignment(slab_info_fn, slab_df,  hemi_df, brain, hemi, slab
         ###
         print('\t\tStage 1.25' )
         #crop_srv_rsl_fn = files[brain][hemi][str(int(slab))][str(resolution)]['srv_crop_rsl_fn']
-        if run_stage([args.srv_fn], [srv_rsl_fn, crop_srv_rsl_fn]) or args.clobber :
+        if run_stage([args.srv_fn], [srv_rsl_fn,srv_rsl_fn]) or args.clobber :
+        #if run_stage([args.srv_fn], [srv_rsl_fn, crop_srv_rsl_fn]) or args.clobber :
             # downsample the original srv gm mask to current 3d resolution
+            print(nib.load(args.srv_fn).affine)
             prefilter_and_downsample(args.srv_fn, [resolution_3d]*3, srv_rsl_fn)
             
             # if this is the fiest slab, then the cropped version of the gm mask
@@ -544,7 +549,6 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
         hemi_df['nl_2d_rsl'].loc[ slab_idx ] = slab_df['nl_2d_rsl'].values
         hemi_df['nl_2d_cls_rsl'].loc[ slab_idx ] = slab_df['nl_2d_cls_rsl'].values
    
-    exit(0)
 
     interp_dir=f'{args.out_dir}/5_surf_interp/'
 
@@ -600,8 +604,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 #   5. Interpolate missing vertices on sphere, interpolate back to 3D volume
 
 if __name__ == '__main__':
-    resolution_list = ['4.0', '3.5', '3.0', '2.5', '2.0', '1.5', '1.0'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
-    resolution_list = [ '4.0' ] #, '2.0', '1.0', '0.5'] #, '0.8', '0.6', '0.4'] #, '0.2'] #, '0.05' ]
+    resolution_list = ['4.0', '3.0', '2.0', '1.0'] #, '0.5', '0.25'] #, '0.2'] #, '0.05' ]
 
     args, files = setup_parameters(setup_argparse().parse_args() )
     #Process the base autoradiograph csv

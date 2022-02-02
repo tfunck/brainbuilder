@@ -1,10 +1,10 @@
 import os
 import argparse
-import utils.ants_nibabel as nib
-#import nibabel as nib
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+import utils.ants_nibabel as nib
+import nibabel as nb_surf
 import h5py as h5
 import pandas as pd
 import stripy as stripy
@@ -17,7 +17,6 @@ from utils.combat_slab_normalization import combat_slab_normalization
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage import label
 from nibabel.processing import resample_to_output
-from utils.apply_ants_transform_to_obj import apply_ants_transform_to_obj
 from re import sub
 from glob import glob
 from utils.mesh_io import load_mesh_geometry, save_mesh_data, save_obj, read_obj
@@ -27,10 +26,9 @@ from skimage.filters import threshold_otsu, threshold_li
 from ants import  from_numpy,  apply_transforms, apply_ants_transform, read_transform
 from ants import image_read, registration
 from utils.utils import shell, w2v, v2w
-from upsample_gifti import *
+from upsample_gifti import save_gii, upsample_gifti, obj_to_gii
 from vast.surface_volume_mapper import SurfaceVolumeMapper
 #from pykrige.ok import OrdinaryKriging
-
 global surf_base_str
 surf_base_str = '{}/mri1_{}_surface_right_{}{}.{}'
 '''
@@ -78,10 +76,11 @@ def krig(lons_src, lats_src, lats, lons, values ):
 def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, faces_fn, ref_gii_fn):
     print("transforming", in_gii_fn)
     #faces, coords = nib.load(in_gii_fn).agg_data(('triangle', 'pointset'))
-    coords = h5py.File(in_gii_fn)['data'][:]
+    coords = h5.File(in_gii_fn)['data'][:]
     tfm = ants.read_transform(tfm_list[0])
     flip = 1
     if np.sum(tfm.fixed_parameters) != 0 : flip=-1
+    print(f'\nflip would be {flip}\n'); #flip = 1
     
     in_file = open(in_gii_fn, 'r')
     
@@ -91,12 +90,12 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, faces_
     #read the csv with transformed vertex points
     with open(coord_fn, 'w+') as f :  
         f.write('x,y,z,t,label\n') 
-        for x,y,z in coords :  
+        for i, (x,y,z) in enumerate(coords) :  
             f.write('{},{},{},{},{}\n'.format(flip*x,flip*y,z,0,0 ))
             #not zyx
-
+            if i+1 == 1 : print(flip*x,flip*y,z)
     temp_out_fn=tempfile.NamedTemporaryFile().name+'.csv'
-    shell(f'antsApplyTransformsToPoints -d 3 -i {coord_fn} -t [{tfm_list[0]},{invert[0]}]  -o {temp_out_fn}',verbose=True)
+    shell(f'antsApplyTransformsToPoints -d 3 -i {coord_fn} -t [{tfm_list[0]},{invert}]  -o {temp_out_fn}',verbose=True)
 
     # save transformed surfaced as an gii file
     with open(temp_out_fn, 'r') as f :
@@ -104,16 +103,19 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, faces_
         for i, l in enumerate( f.readlines() ):
             if i == 0 : continue
             x,y,z,a,b = l.rstrip().split(',')
+
+            if i == 1 : print(x,y,z) 
             coords[i-1] = [flip*float(x),flip*float(y),float(z)]
     
-    f_h5 = h5py.File(out_gii_fn, 'w')
+    exit(0)
+    f_h5 = h5.File(out_gii_fn, 'w')
     f_h5.create_dataset('data', data=coords) 
 
-    faces = h5py.File(faces_fn,'r')['data'][:]
-    print('ref gii fn',ref_gii_fn)
-    print('out gii', out_path+'.surf.gii')
+    faces = h5.File(faces_fn,'r')['data'][:]
     save_gii(coords,faces,ref_gii_fn,out_path+'.surf.gii')
     obj_fn = out_path+ '.obj'
+    print(coords)
+    print(faces)
     save_obj(obj_fn,coords,faces)
 
 def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution,  depth_list, clobber=False, n_vertices=81920):
@@ -127,8 +129,8 @@ def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, 
     # and then resampled so that it has the high resolution number of vertices.
 
     # create depth mesh
-    gm_mesh = nib.load(gm_surf_fn) 
-    wm_mesh = nib.load(wm_surf_fn)
+    gm_mesh = nb_surf.load(gm_surf_fn) 
+    wm_mesh = nb_surf.load(wm_surf_fn)
    
     gm_coords = gm_mesh.agg_data('NIFTI_INTENT_POINTSET')
 
@@ -175,13 +177,13 @@ def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, resolution, 
 
     depth_fn_dict[depth_list[0]]['upsample_gii_fn'] = upsample_0_fn
     depth_fn_dict[depth_list[-1]]['upsample_gii_fn'] = upsample_1_fn
-
+    
     faces_fn, coords_fn = upsample_gifti(gm_surf_fn, upsample_0_fn, upsample_1_fn, float(resolution), input_list=input_list, output_list=output_list, clobber=clobber)
 
     depth_fn_dict[depth_list[0]]['faces_fn'] = faces_fn
 
-    rsl_faces = h5py.File(faces_fn,'r')['data'][:]
-    rsl_coords = h5py.File(coords_fn, 'r')['data'][:]
+    rsl_faces = h5.File(faces_fn,'r')['data'][:]
+    rsl_coords = h5.File(coords_fn, 'r')['data'][:]
     save_obj(gm_obj_fn, rsl_coords,rsl_faces)
 
     return depth_fn_dict
@@ -397,7 +399,7 @@ def multi_mesh_to_volume(profiles, depth_fn_slab_space, depth_list, dimensions, 
 
     for ii in range(profiles.shape[1]):
         surf_fn = depth_fn_slab_space[depth_list[ii]]['upsample_h5']
-        coords = h5py.File(surf_fn,'r')['data'][:]
+        coords = h5.File(surf_fn,'r')['data'][:]
         vol_interp, n_vol = mesh_to_volume(coords, profiles[:,ii], dimensions, starts, steps, vol_interp, n_vol )
 
     vol_interp[ n_vol>0 ] = vol_interp[n_vol>0] / n_vol[n_vol>0]
@@ -425,7 +427,7 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
         qc_dir = interp_dir + '/qc/'
         os.makedirs(qc_dir, exist_ok=True)
         
-        nvertices = h5py.File(surf_fn_list[0]['upsample_h5'],'r')['data'].shape[0]
+        nvertices = h5.File(surf_fn_list[0]['upsample_h5'],'r')['data'].shape[0]
         #the default value of the vertices is set to -100 to make it easy to distinguish
         #between vertices where a ligand density of 0 is measured versus the default value
         all_values=np.zeros(nvertices) - 100
@@ -442,7 +444,7 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
             print('\t\tVol fn:',vol_fn)
             
             # read surface coordinate values from file
-            coords_h5 = h5py.File(surf_fn['upsample_h5'],'r')
+            coords_h5 = h5.File(surf_fn['upsample_h5'],'r')
             coords = coords_h5['data'][:]
 
             # read slab volume
@@ -515,6 +517,7 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
 
 
 def thicken_sections(interp_dir, slab_dict, df_ligand, resolution, tissue_type='' ):
+
     rec_thickened_dict = {} 
     target_file=f'nl_2d_vol{tissue_type}_fn'
     slab_dict_keys = slab_dict.keys() 
@@ -567,6 +570,7 @@ def thicken_sections(interp_dir, slab_dict, df_ligand, resolution, tissue_type='
 
             assert np.sum(rec_vol) != 0, 'Error: receptor volume for single ligand is empty\n'
             nib.Nifti1Image(rec_vol, array_img.affine).to_filename(thickened_fn)
+            print('Should have written thickened fn')
 
         print('\t-->',i,thickened_fn)
         rec_thickened_dict[i] = thickened_fn
@@ -584,9 +588,8 @@ def create_thickened_volumes(interp_dir, depth_list, depth_fn_slab_space, depth_
         
         # 1. Thicken sections
         thickened_dict = thicken_sections(interp_dir, slab_dict, df_ligand, resolution, tissue_type=tissue_type)
-
         
-        thickened_dict = combat_slab_normalization(df_ligand, thickened_dict)
+        #thickened_dict = combat_slab_normalization(df_ligand, thickened_dict)
 
         # 2. Project autoradiograph densities onto surfaces
         print('\t\t\t\tProjecting volume to surface.')
@@ -599,7 +602,7 @@ def get_profiles(profiles_fn, recon_out_prefix, depth_fn_mni_space, depth_list, 
     # 3. Interpolate missing densities over surface
     if not os.path.exists(profiles_fn) :
         
-        profiles = h5py.File(profiles_fn, 'w') 
+        profiles = h5.File(profiles_fn, 'w') 
         
         profiles.create_dataset('data', (nrows, len(depth_list)) )
 
@@ -622,7 +625,7 @@ def project_volume_to_surfaces(interp_dir, surf_dir, depth_list, slab_dict, df_l
     profiles_fn = f'{recon_out_prefix}_profiles.h5'
     
     example_depth_fn = depth_fn_mni_space[depth_list[0]]['upsample_fn']
-    nrows = h5py.File(example_depth_fn)['data'].shape[0]
+    nrows = h5.File(example_depth_fn)['data'].shape[0]
 
     depth_fn_list = [ sub('.h5', f'_{depth}_raw.csv', profiles_fn) for depth in depth_list ]
    
@@ -636,7 +639,7 @@ def interpolate_over_surface(sphere_obj_fn,surface_val,threshold=0):
     print('\t\tInterpolating Over Surface')
     print('\t\t\tSphere fn:',sphere_obj_fn)
     # get coordinates from dicitonary with mesh info
-    coords = h5py.File(sphere_obj_fn)['data'][:] 
+    coords = h5.File(sphere_obj_fn)['data'][:] 
 
     spherical_coords = surface_tools.spherical_np(coords) 
 
@@ -690,7 +693,7 @@ def transform_surf_to_slab(interp_dir, slab_dict, depth_fn_space_mni, ref_gii_fn
             
             if not os.path.exists(upsample_slab_space_fn) or clobber >= 1 : 
                 print(f"\t\tTransformig surface at depth {depth} to slab {slab}")
-                apply_ants_transform_to_gii(upsample_fn, [cur_slab_dict['nl_3d_tfm_fn']], upsample_slab_space_fn, [0], depth_fn_space_mni[0]['faces_fn'], ref_gii_fn)
+                apply_ants_transform_to_gii(upsample_fn, [cur_slab_dict['nl_3d_tfm_fn']], upsample_slab_space_fn, 0, depth_fn_space_mni[0]['faces_fn'], ref_gii_fn)
      
     return surf_rsl_dict
 
@@ -790,7 +793,7 @@ def create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, p
 
         if not os.path.exists(interp_fn) or clobber : 
             
-            if type(profiles) != type(np.array) : profiles = h5py.File(profiles_fn, 'r')['data'][:]
+            if type(profiles) != type(np.array) : profiles = h5.File(profiles_fn, 'r')['data'][:]
 
             # Load dimensions for output volume
             files_resolution = files[str(int(slab))]
@@ -852,7 +855,7 @@ def interpolate_between_slabs(depth_fn_mni_space, depth_list, profiles_fn, inter
                 origin=starts, filename=None, save_in_absence=False, mask=None,
                 out_dir=npz_dir, left_oriented=False )
 
-    profiles = h5py.File(profiles_fn, 'r')['data'][:]
+    profiles = h5.File(profiles_fn, 'r')['data'][:]
     vol_interp = mapper.map_profiles_to_block(profiles, interpolation='linear')
 
     return vol_interp

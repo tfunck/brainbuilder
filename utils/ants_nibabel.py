@@ -19,6 +19,7 @@ class Nifti1Image():
         self.shape = dataobj.shape
 
     def to_filename(self, filename):
+        print('to_filename')
         write_nifti(self.dataobj, self.affine, filename)
 
     def get_fdata(self):
@@ -51,7 +52,7 @@ def read_affine_antspy(fn):
         affine[i,3]=o
 
     if len(img.shape) == 3 and img.shape[-1] != 1 :
-        assert img.orientation =='RAS', f'Error: file has {orientation}, not RAS. {fn}'
+        pass #assert img.orientation =='RAS', f'Error: file has {orientation}, not RAS. {fn}'
 
     return affine
 

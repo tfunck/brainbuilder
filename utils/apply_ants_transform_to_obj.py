@@ -15,6 +15,9 @@ def apply_ants_transform_to_obj( in_obj_fn, tfm_list, out_obj_fn, invert):
     tfm = ants.read_transform(tfm_list[0])
     flip = 1
     if np.sum(tfm.fixed_parameters) != 0 : flip=-1
+    print('\nflip would be', flip)
+    flip=1
+    exit(0)
     
     in_file = open(in_obj_fn, 'r')
     #out_file=open(out_obj_fn, 'w+')
