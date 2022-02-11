@@ -166,12 +166,13 @@ def threshold(img,sd=1):
     out[ idx ] = 1
     return out
 
-def process_image(img, mask_fn, row, scale, pad, affine): 
-    mask_lores = imageio.imread(mask_fn)
-    mask = resize(mask_lores, [img.shape[0],img.shape[1]],order=0).astype(int)
-    #plt.subplot(4,1,1)
-    #plt.imshow(img)
-    #plt.imshow(mask,alpha=0.5)
+def process_image(img, row, scale, pad, affine, mask_fn=''): 
+    if mask_fn != '':
+        mask_lores = imageio.imread(mask_fn)
+        mask = resize(mask_lores, [img.shape[0],img.shape[1]],order=0).astype(int)
+        # apply mask to image
+        img[ mask < np.max(mask)*0.5 ] = 0
+
     brain = row['mri']
     hemi = row['hemisphere']
     slab = row['slab']
@@ -179,21 +180,12 @@ def process_image(img, mask_fn, row, scale, pad, affine):
     p = int(pad/2)
     direction = scale[brain][hemi][str(slab)]["direction"]
 
-    # apply mask to image
-    img[ mask < np.max(mask)*0.5 ] = 0
     img = img.reshape(img.shape[0], img.shape[1])
 
-    #plt.subplot(4,1,2)
-    #plt.imshow(img)
-    #plt.imshow(mask,alpha=0.5)
-
-    #if direction == "rostral_to_caudal": 
-    #    img = np.flip( img, 1 )
+    if direction == "caudal_to_rostral": 
+        img = np.flip( img, 1 )
     #img = np.flip(img, 0)
 
-    #plt.subplot(4,1,3)
-    #plt.imshow(img)
-   
     ## pad image in case it needs to be rotated
     # all images are padded regardless of whether they are rotated because that way they all 
     # have the same image dimensions
@@ -206,17 +198,23 @@ def process_image(img, mask_fn, row, scale, pad, affine):
     except IndexError : 
         pass
 
-    #plt.subplot(4,1,4)
-    #plt.imshow(img_pad)
-    #plt.savefig(os.path.basename(mask_fn))
-
     return img_pad
+
+def find_landmark_files(landmark_dir, brain, hemisphere, slab, volume_order) :
+    landmark_files = glob(f'{landmark_dir}/{brain}_{hemisphere}_{slab}_*_{volume_order}.png')
+    print('N landmarks:', len(landmark_files))
+    return landmark_files 
 
 def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pytorch_model='', pad = 1000, clobber=True ):
     fn = row['lin_fn']
     base = row['lin_base_fn'] # os.path.splitext( os.path.basename(fn) )[0]
 
     crop_fn = row['crop_fn'] #'{}/{}.nii.gz'.format(out_dir , base)
+    
+    brain = row['mri']
+    hemi = row['hemisphere']
+    slab = row['slab']
+    volume_order = row['volume_order']
 
     if not os.path.exists(crop_fn) or clobber : 
         print('\t crop_fn', crop_fn) 
@@ -238,7 +236,7 @@ def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pytorch_mod
         affine = gen_affine(row, scale, global_order_min)
         print('1',affine); 
         
-        img = process_image(img, mask_fn, row, scale, pad, affine)
+        img = process_image(img, row, scale, pad, affine, mask_fn=mask_fn)
 
         #origin = list(affine[ [0,1],[3,3] ])
         #spacing = list( affine[ [0,1],[0,1] ])
@@ -294,10 +292,12 @@ def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pytorch_mod
     #plt.clf()
     #print('\tQC:', qc_fn)
 
-def crop(src_dir, mask_dir, out_dir, df, scale_factors_json, resolution, pytorch_model='', remote=False,clobber=False):
+def crop(mask_dir, landmark_in_dir, landmark_out_dir, df, scale_factors_json, resolution, pytorch_model='', remote=False,clobber=False):
     '''take raw linearized images and crop them'''
     df = df.loc[ (df['hemisphere'] == 'R') & (df['mri'] == 'MR1' ) ] #FIXME, will need to be removed
-    
+   
+    pad=1000
+    global_order_min = df["global_order"].min()
     with open(scale_factors_json) as f : scale=json.load(f)
    
     file_check = lambda x : not os.path.exists(x)
@@ -305,16 +305,31 @@ def crop(src_dir, mask_dir, out_dir, df, scale_factors_json, resolution, pytorch
     seg_check =  df['seg_fn'].apply( file_check ).values
     cls_check =  df['pseudo_cls_fn'].apply( file_check ).values
 
+
+
+
+    # identify landmark file
+    for (brain, hemisphere, slab), temp_df in df.groupby(['mri','hemisphere','slab']) :
+        for i, row in temp_df.iterrows():
+            volume_order = row['volume_order']
+            landmark_files = find_landmark_files(landmark_in_dir, brain, hemisphere, slab, volume_order)
+            if len(landmark_files) != 0 :
+                for landmark_fn in landmark_files:
+                    print(landmarks_fn)
+                    affine = gen_affine(row, scale, global_order_min)
+                    landmark_ar = process_image(imageio.imread(landmark_fn), row, scale, pad, affine)
+                    landmark_nii_fn=f'{landmark_out_dir}/{os.path.splitext(os.path.basename(landmark_fn))}.nii.gz'
+                    nib.Nifti1Image(landmark_ar, affine ).to_filename(landmark_nii_fn)
+    exit(0)
+    
     missing_files = crop_check + seg_check + cls_check
     if np.sum( missing_files ) > 0 : 
         pass
     else : return 0
-
-    os.makedirs(out_dir,exist_ok=True)
+    #os.makedirs(out_dir,exist_ok=True)
     df_to_process = df.loc[ missing_files ]  
 
-    global_order_min = df["global_order"].min()
-    Parallel(n_jobs=14)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min, resolution, pytorch_model=pytorch_model) for i, row in  df_to_process.iterrows()) 
+    Parallel(n_jobs=14)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min, resolution, pytorch_model=pytorch_model, pad=pad) for i, row in  df_to_process.iterrows()) 
     
     return 0
 

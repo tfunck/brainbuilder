@@ -56,11 +56,6 @@ def downsample_2d(in_fn, resolution, out_fn, y=0):
         #create a new Nifti1Image so that we can resample it with nibabel
         img = nib.Nifti1Image(vol,img.affine)
         
-        # resample to new resolution
-        print('1',img.shape)
-        #img = resample_to_output(img, [float(resolution)]*2,order=5)
-        print('2',img.shape)
-        
         resize(img.get_fdata())
 
         # get image volume again
@@ -190,8 +185,10 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         img_cls = resample_to_output(img_cls, [float(resolution)]*3, order=5)
         
         vol = img_cls.get_fdata()
-        #vol = np.flip(vol,axis=1)
-        nib.Nifti1Image(vol, img_cls.affine).to_filename(out_fn)
+        print(vol)
+        print(img_cls.affine)
+        img_out = nib.Nifti1Image(vol, img_cls.affine, direction=[[1.,0.,0.],[0.,1.,0.],[0.,0.,-1.]])
+        img_out.to_filename(out_fn)
 
         return 0
 

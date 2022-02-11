@@ -108,7 +108,6 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, faces_
             if i == 1 : print(x,y,z) 
             coords[i-1] = [flip*float(x),flip*float(y),float(z)]
     
-    exit(0)
     f_h5 = h5.File(out_gii_fn, 'w')
     f_h5.create_dataset('data', data=coords) 
 
@@ -221,8 +220,10 @@ def vol_surf_interp(val, src, coords, affine, clobber=0 ):
     
 
 def get_valid_coords( coords, iw):
-
-    valid_coords_idx = (coords[:,1] >= iw[0]) & (coords[:,1]<iw[1])
+    lower = min(iw)
+    upper = max(iw)
+    print('lower', lower, 'upper', upper)
+    valid_coords_idx = (coords[:,1] >= lower) & (coords[:,1] <= upper)
     valid_coords_idx = valid_coords_idx.reshape(valid_coords_idx.shape[0])
     valid_coords = coords[valid_coords_idx, :]
 
@@ -412,7 +413,7 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
     Outputs :
         None
     '''
-
+    print('interp csv', interp_csv)
     if not os.path.exists(interp_csv) or clobber: 
         qc_dir = interp_dir + '/qc/'
         os.makedirs(qc_dir, exist_ok=True)
@@ -422,7 +423,6 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
         #between vertices where a ligand density of 0 is measured versus the default value
         all_values=np.zeros(nvertices) - 100
     
-        print(thickened_dict);
         #Iterate over slabs within a given 
         for i, surf_fn in enumerate(surf_fn_list) :
             print(i)
@@ -440,16 +440,16 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
             # read slab volume
             img = nib.load(vol_fn)
             vol = img.get_fdata()
-
+            affine = nb_surf.load(vol_fn).affine
             assert np.max(vol) != np.min(vol) , f'Error: empty volume {vol_fn}; {np.max(vol) != np.min(vol)} '
 
             # set variable names for coordinate system
-            xstart = img.affine[0,3]
-            ystart = img.affine[1,3]
-            zstart = img.affine[2,3]
-            xstep = np.abs(img.affine[0,0])
-            ystep = np.abs(img.affine[1,1])
-            zstep = np.abs(img.affine[2,2])
+            xstart = affine[0,3]
+            ystart = affine[1,3]
+            zstart = affine[2,3]
+            xstep = affine[0,0]
+            ystep = affine[1,1]
+            zstep = affine[2,2]
 
             # get the intervals along the y-axis of the volume where
             # we have voxel intensities that should be interpolated onto the surfaces
@@ -457,52 +457,42 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
 
             #convert from voxel values to real world coordinates
             
-            for iv in intervals_voxel : 
-                #plt.figure(figsize=(9,9))
-                #plt.imshow(vol[:,iv[0],:])
+            #for iv in intervals_voxel : 
+            for y0, y1 in intervals_voxel : #range(iv[0],iv[1]+1):
+                #print('\tintervals:',y0, y1, ystart, ystep)
+                #y1 = y0 + 1
+                #print('step start', ystep, ystart)
+                y0w = y0 * ystep + ystart 
+                y1w = y1 * ystep + ystart 
+                
+                #the voxel values should be the same along the y-axis within an interval
+                #WARNING: this will NOT work if there isn't a gap between thickened autoradiograph sections!
+                section = vol[:,y0,:]
+                assert np.max(section) != np.min(section), 'Error: emptry section before interpolation '
+                valid_coords_world, valid_coords_idx = get_valid_coords( coords, [y0w,y1w])
+                #print('sum', np.sum(valid_coords_idx))
+                #print('\t\t',valid_coords_world.shape[0], y0w, y1w)
+                #print(np.min(coords[:,1]), np.max(coords[:,1]))
+                if valid_coords_world.shape[0] != 0  :
+                    x = np.rint( (valid_coords_world[:,0] - xstart)/xstep ).astype(int)
+                    z = np.rint( (valid_coords_world[:,2] - zstart)/zstep ).astype(int)
 
-                for y0 in range(iv[0],iv[1]+1):
-                    y1 = y0 + 1
-                    y0w = y0 * ystep + ystart 
-                    y1w = y1 * ystep + ystart 
-                    
-                    #the voxel values should be the same along the y-axis within an interval
-                    #WARNING: this will NOT work if there isn't a gap between thickened autoradiograph sections!
-                    section = vol[:,y0,:]
-                    assert np.max(section) != np.min(section), 'Error: emptry section before interpolation '
-                    valid_coords_world, valid_coords_idx = get_valid_coords( coords, [y0w,y1w])
+                    xmax = np.max(x)
+                    zmax = np.max(z)
 
-                    if valid_coords_world.shape[0] != 0  :
-                        x = np.rint( (valid_coords_world[:,0] - xstart)/xstep ).astype(int)
-                        z = np.rint( (valid_coords_world[:,2] - zstart)/zstep ).astype(int)
-
-                        xmax = np.max(x)
-                        zmax = np.max(z)
-
-                        #plt.scatter(z,x,s=1,c='r',marker='.')
-
-
-                        assert zmax < section.shape[1] , f'Error: z index {zmax} is greater than dimension {section.shape[1]}'
-                        assert xmax < section.shape[0] , f'Error: x index {xmax} is greater than dimension {section.shape[0]}'
-                        # get nearest neighbour voxel intensities at x and z coordinate locations
-                        values = section[x,z]
+                    assert zmax < section.shape[1] , f'Error: z index {zmax} is greater than dimension {section.shape[1]}'
+                    assert xmax < section.shape[0] , f'Error: x index {xmax} is greater than dimension {section.shape[0]}'
+                    # get nearest neighbour voxel intensities at x and z coordinate locations
+                    values = section[x,z]
 
 
-                        #plt.savefig(f'{qc_dir}/{iv[0]}_{iv[1]}.png', dpi=400)
+                    #plt.savefig(f'{qc_dir}/{iv[0]}_{iv[1]}.png', dpi=400)
 
-                        assert np.sum(np.isnan(values)) == 0 , f'Error: nan found in values from {vol_fn}'
+                    assert np.sum(np.isnan(values)) == 0 , f'Error: nan found in values from {vol_fn}'
 
-                        assert np.mean(values) > np.min(vol), f'Error: empty section {y0} in {vol_fn}'
-                        all_values[valid_coords_idx] = values 
+                    assert np.mean(values) > np.min(vol), f'Error: empty section {y0} in {vol_fn}'
+                    all_values[valid_coords_idx] = values 
 
-                #plt.savefig(f'{qc_dir}/{iv[0]}_{iv[1]}.png', dpi=400)
-                #print('\tSaved', f'{qc_dir}/{iv[0]}_{iv[1]}.png')
-                #plt.clf()
-                #plt.cla()
-
-            #DEBUG
-            #threshold=1000
-            #all_values[all_values < threshold] = 0
             np.savetxt(interp_csv, all_values)
 
 
@@ -620,7 +610,6 @@ def project_volume_to_surfaces(interp_dir, surf_dir, depth_list, slab_dict, df_l
     depth_fn_list = [ sub('.h5', f'_{depth}_raw.csv', profiles_fn) for depth in depth_list ]
    
     thickened_dict = create_thickened_volumes(interp_dir, depth_list, depth_fn_slab_space, depth_fn_list, slab_dict, df_ligand, resolution, tissue_type=tissue_type)
-    
     profiles_fn = get_profiles(profiles_fn, recon_out_prefix, depth_fn_mni_space, depth_list, depth_fn_list, nrows)
 
     return thickened_dict, profiles_fn
@@ -739,17 +728,19 @@ class ImageParameters():
 
 def get_image_parameters(fn, resolution):
     img = nib.load(fn)
+    affine = nb_surf.load(fn).affine
+    #affine = nib.load(fn).affine
 
-    starts = np.array(img.affine[[0,1,2],3])
+    starts = np.array(affine[[0,1,2],3])
 
-    steps_lo = [resolution]*3
-    steps_hi = np.abs(img.affine[[0,1,2],[0,1,2]])
+    #steps_lo = [resolution]*3
+    steps_hi = affine[[0,1,2],[0,1,2]]
+    steps_lo = resolution * steps_hi / abs(steps_hi)
 
     dimensions_hi = img.shape
-    dimensions_lo = np.array([ img.shape[0] * img.affine[0,0]/resolution, 
-                            img.shape[1] * img.affine[1,1]/resolution, 
-                            img.shape[2] * img.affine[2,2]/resolution]).astype(int)
-
+    dimensions_lo = np.array([  img.shape[0] * abs(affine[0,0]/resolution), 
+                                img.shape[1] * abs(affine[1,1]/resolution), 
+                                img.shape[2] * abs(affine[2,2]/resolution) ]).astype(int)
 
     imageParamLo = ImageParameters(starts, steps_lo, dimensions_lo)
     imageParamHi = ImageParameters(starts, steps_hi, dimensions_hi)
@@ -791,26 +782,24 @@ def create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, p
             max_resolution = resolution_list[-1]
             slab_fn = files_resolution[ max_resolution ]['nl_2d_vol_fn'] 
             thickened_fn = thickened_fn_dict[ slab ]
-
+            
             imageParamLo, imageParamHi = get_image_parameters(slab_fn, float(max_resolution))
             
             if use_mapper :
                 #Create an object that will be used to interpolate over the surfaces
                 wm_upsample_fn = depth_fn_slab_space[slab][depth_list[0]]['upsample_gii']
                 gm_upsample_fn = depth_fn_slab_space[slab][depth_list[-1]]['upsample_gii']
-                print('\twm', wm_upsample_fn)
-                print('\tgm', gm_upsample_fn)
                 npz_dir = interp_dir+f'/npz-{slab}_{resolution}mm/'
                 os.makedirs(npz_dir, exist_ok=True)
                 mapper = SurfaceVolumeMapper(white_surf=wm_upsample_fn, gray_surf=gm_upsample_fn, 
                             resolution=imageParamLo.steps, dimensions=imageParamLo.dimensions, 
                             origin=imageParamLo.starts, filename=None, save_in_absence=False, mask=None,
                             out_dir=npz_dir, left_oriented=False )
-
                 vol_interp = mapper.map_profiles_to_block(profiles, interpolation='linear')
 
             else :
                 vol_interp = multi_mesh_to_volume(profiles, depth_fn_slab_space[slab], depth_list, imageParamHi.dimensions, imageParamHi.starts, imageParamHi.steps)
+
             assert np.sum(vol_interp) > 0 , f'Error: interpolated volume is empty using {profiles_fn}'
 
             df_ligand_slab = df_ligand.loc[ df_ligand['slab'].astype(int)==int(slab)]

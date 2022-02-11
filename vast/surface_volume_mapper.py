@@ -259,7 +259,7 @@ class SurfaceVolumeMapper(object):
         nearest neighbour or trilinear (weighted by barycentric)"""
         block = np.zeros(self.dimensions)
         print('writing to block')
-        num_process=8 #multiprocessing.cpu_count()
+        num_process=1 #multiprocessing.cpu_count()
         subsets=range(num_process)
         npz_dir=self.out_dir+'/npz/'
         npz_file_list = glob(f'{npz_dir}/{NPZSTRING}-*_*.npz')
@@ -288,9 +288,12 @@ class SurfaceVolumeMapper(object):
     def volume_mask_triangles(self, triangles_to_include):
             """return triangles with all vertices in block only"""
             vertex_indices = np.unique(triangles_to_include).astype(int)
-            print(vertex_indices)
+            print(self.max_dimension)
+            print(self.origin); 
+            print(np.min(self.gray_surface['coords'],axis=0) , np.max(self.gray_surface['coords'],axis=0))
             #check if vertices inside block.+1 if above max, -1 if below origin
             g_include=(self.gray_surface['coords'][vertex_indices] > self.max_dimension).astype(int) - (self.gray_surface['coords'][vertex_indices] < self.origin).astype(int)
+            print('g include', np.sum(g_include == 0))
             w_include=(self.white_surface['coords'][vertex_indices] > self.max_dimension).astype(int) - (self.white_surface['coords'][vertex_indices] < self.origin).astype(int)
             #exclude if both are either 1 or -1, so if multiplied +1.
             exclude=np.any((g_include*w_include)==1,axis=1)
@@ -423,9 +426,8 @@ class SurfaceVolumeMapper(object):
                 prism = SurfaceVolumeMapper.generate_prism(gray_surface_coords, white_surface_coords, triangles[tri_index])
 
                 bbox = SurfaceVolumeMapper.prism_bounding_box(prism)
-
+                
                 world_coords, voxel_coords=SurfaceVolumeMapper.voxel_world_coords_in_box(bbox,origin,resolution,dimensions)
-
                 wc, vc, depths, tri_coords=SurfaceVolumeMapper.get_depth_and_barycentric_coordinates_for_prism(world_coords,voxel_coords,prism)
                 
                 #if some coordinates are returned, then store these
@@ -472,10 +474,6 @@ class SurfaceVolumeMapper(object):
         return mins, maxs
 
 
-
-
-
-    
     @staticmethod
     def prism_bounding_box(prism):
         """returns the two defining corners of a box enclosing the prism.
@@ -490,11 +488,20 @@ class SurfaceVolumeMapper(object):
         Usually xyz"""
         #calculate box corners in voxel indices. Ensure voxel coordinates are non-negative and do not
         #exceed volume limits
-        indices_min = np.min((np.max((np.floor((box[0] - origin_offset)/voxel_resolution),[0,0,0]),axis=0),dimensions),axis=0).astype(int)
-        indices_max = np.min((np.max((np.ceil((box[1]- origin_offset)/voxel_resolution), [0,0,0]), axis=0),dimensions), axis=0).astype(int)
+        wbox = (box - origin_offset)/voxel_resolution
+        wbox.sort(axis=0)
+
+        indices_min = np.rint(np.min((np.max((np.floor(wbox[0]),[0,0,0]),axis=0),dimensions),axis=0)).astype(int)
+        indices_max = np.rint(np.min((np.max((np.ceil(wbox[1]), [0,0,0]), axis=0),dimensions), axis=0)).astype(int)
+        indices = np.vstack([indices_min, indices_max]).T
+        indices.sort(axis=1)
+        indices_min = indices[:,0]
+        indices_max = indices[:,1]
+
         if (indices_min == indices_max).all():
             #box not in volume block.
             return None, None
+
         #get a grid of coordinates
         voxel_coordinates=np.mgrid[indices_min[0]:indices_max[0],
              indices_min[1]:indices_max[1],

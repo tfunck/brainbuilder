@@ -47,7 +47,6 @@ def create_new_srv_volumes(rec_3d_rsl_fn, srv_rsl_fn, cropped_output_list, resol
     highest_res_srv_rsl_fn = cropped_output_list[-1]
     remove_slab_from_srv(rec_3d_rsl_fn, srv_rsl_fn, highest_res_srv_rsl_fn)
     
-    print(cropped_output_list)
     print('Next srv fn:', highest_res_srv_rsl_fn)
 
     for i in range(len(cropped_output_list)-1) : #DEBUG resolution_list[0:-1] :
@@ -72,6 +71,8 @@ def remove_slab_from_srv(slab_to_remove_fn, srv_rsl_fn, new_srv_rsl_fn):
     Outputs:
         None
     '''
+    print('slab_to_remove_fn', slab_to_remove_fn)
+    print('srv_rsl_fn', srv_rsl_fn)
     #load slab gm mask, not strictly binary
     aligned_slab = nib.load(slab_to_remove_fn).get_fdata()
     
@@ -177,7 +178,6 @@ def setup_argparse():
     parser.add_argument('--chunk','-c', dest='slab_chunk_i', type=int, default=1, help='Subslab to align (use with --nonlinear-only option).')
     parser.add_argument('--nvertices', dest='n_vertices', type=int, default=81920, help='n vertices for mesh')
     parser.add_argument('--ndepths', dest='n_depths', type=int, default=10, help='n depths for mesh')
-    parser.add_argument('--src-dir','-i', dest='src_dir', type=str, default='receptor_dwn', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--mask-dir', dest='mask_dir', type=str, default='/data/receptor/human/crop/', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--out-dir','-o', dest='out_dir', type=str, default='output', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--scale-factors', dest='scale_factors_fn', type=str, default=None, help='json file with scaling and ordering info for each slab')
@@ -242,7 +242,7 @@ def setup_files_json(args ):
                     cdict['nl_2d_vol_fn'] = "{}/{}_{}_{}_nl_2d_{}mm.nii.gz".format(cdict['nl_2d_dir'] ,brain,hemi,slab,resolution) 
                     cdict['nl_2d_vol_cls_fn'] = "{}/{}_{}_{}_nl_2d_cls_{}mm.nii.gz".format(cdict['nl_2d_dir'],brain,hemi,slab,resolution) 
                     cdict['slab_info_fn'] = "{}/{}_{}_{}_{}_slab_info.csv".format(cdict['cur_out_dir'] ,brain,hemi,slab,resolution) 
-                    cdict['srv_space_rec_fn'] = "{}/{}_{}_{}_srv_rsl.nii.gz".format(cdict['nl_2d_dir'], brain, hemi, slab)   
+                    cdict['srv_space_rec_fn'] = "{}/{}_{}_{}_srv_space-rec_{}mm.nii.gz".format(cdict['nl_2d_dir'], brain, hemi, slab, resolution)   
                     #if resolution_itr == max_3d_itr :  
                     #    max_3d_cdict=cdict
                     files[brain][hemi][slab][resolution]=cdict
@@ -263,7 +263,7 @@ def setup_parameters(args) :
     ###
     ### Parameters
     ###
-    args.slabs = ['1' ] #, '6', '2','5', '3', '4'] #FIXME shouldnt be hard coded
+    args.slabs = ['1', '6', '2','5', '3', '4'] #FIXME shouldnt be hard coded
 
     if args.scale_factors_fn == None :
         args.scale_factors_fn=base_file_dir+'/scale_factors.json'
@@ -278,6 +278,11 @@ def setup_parameters(args) :
 
     args.crop_dir = f'{args.out_dir}/0_crop'
     os.makedirs(args.crop_dir,exist_ok=True)
+
+    args.landmark_src_dir=f'{manual_dir}/landmarks/'
+
+    args.landmark_dir=f'{args.out_dir}/landmarks/'
+    os.makedirs(args.landmark_dir, exist_ok=True)
 
     args.files_json = args.out_dir+"/reconstruction_files.json"
     args.manual_2d_dir=f'{manual_dir}/2d/'
@@ -343,6 +348,7 @@ def multiresolution_alignment(slab_info_fn, slab_df,  hemi_df, brain, hemi, slab
         nl_2d_cls_fn = cfiles['nl_2d_vol_cls_fn']
 
         resolution_3d = max(float(resolution), max_resolution)
+        resolution_list_3d = [ float(resolution) if float(resolution) > max_resolution else max_resolution for resolution in resolution_list ]
         if resolution_3d == max_resolution :
             resolution_itr_3d = [ i for i, res in enumerate(resolution_list) if float(res) >= max_resolution ][-1]
         else :
@@ -364,7 +370,6 @@ def multiresolution_alignment(slab_info_fn, slab_df,  hemi_df, brain, hemi, slab
         if run_stage([args.srv_fn], [srv_rsl_fn,srv_rsl_fn]) or args.clobber :
         #if run_stage([args.srv_fn], [srv_rsl_fn, crop_srv_rsl_fn]) or args.clobber :
             # downsample the original srv gm mask to current 3d resolution
-            print(nib.load(args.srv_fn).affine)
             prefilter_and_downsample(args.srv_fn, [resolution_3d]*3, srv_rsl_fn)
             
             # if this is the fiest slab, then the cropped version of the gm mask
@@ -396,7 +401,6 @@ def multiresolution_alignment(slab_info_fn, slab_df,  hemi_df, brain, hemi, slab
         stage_3_outputs = [nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_rsl_fn, srv_3d_rsl_fn]
 
         if run_stage(stage_2_outputs, stage_3_outputs) or args.clobber  :
-            #print('Cropped rsl fn', crop_srv_rsl_fn)
             scale_factors_json = json.load(open(args.scale_factors_fn,'r'))
             slab_direction = scale_factors_json[brain][hemi][slab]['direction']
             #align_slab_to_mri(  brain, hemi, slab, seg_rsl_fn, crop_srv_rsl_fn, align_to_mri_dir, 
@@ -420,9 +424,7 @@ def multiresolution_alignment(slab_info_fn, slab_df,  hemi_df, brain, hemi, slab
             #if run_stage( stage_3_outputs, [highest_res_srv_rsl_fn]) :
             if run_stage( stage_3_outputs, stage_3_5_outputs):
                 print('\t\tStage 3.5 : Removing aligned slab from srv')
-                print(resolution_list)
-                #create_new_srv_volumes(rec_3d_rsl_fn, crop_srv_rsl_fn, stage_3_5_outputs, resolution_list)
-                create_new_srv_volumes(rec_3d_rsl_fn, srv_rsl_fn, stage_3_5_outputs, resolution_list)
+                create_new_srv_volumes(rec_3d_rsl_fn, srv_rsl_fn, stage_3_5_outputs, resolution_list_3d)
 
         
         ###
@@ -570,7 +572,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
 #   5. Interpolate missing vertices on sphere, interpolate back to 3D volume
 
 if __name__ == '__main__':
-    resolution_list = ['4.0', '3.0', '2.0', '1.0'] #, '0.5', '0.25'] #, '0.2'] #, '0.05' ]
+    resolution_list = ['4.0', '3.0', '2.0', '1.0', '0.5', '0.25'] #, '0.2'] #, '0.05' ]
 
     args, files = setup_parameters(setup_argparse().parse_args() )
     #Process the base autoradiograph csv
@@ -582,7 +584,7 @@ if __name__ == '__main__':
     ### Step 0 : Crop downsampled autoradiographs
     pytorch_model=f'{base_file_dir}/caps/Pytorch-UNet/MODEL.pth'
     pytorch_model=''
-    crop(args.src_dir, args.mask_dir, args.out_dir, df, args.scale_factors_fn, float(resolution_list[-1]), pytorch_model=pytorch_model )
+    crop( args.mask_dir,args.landmark_src_dir, args.landmark_dir, df, args.scale_factors_fn, float(resolution_list[-1]), pytorch_model=pytorch_model )
     
     for brain in args.brain :
         for hemi in args.hemi :                     

@@ -60,13 +60,12 @@ def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, 
         None
     '''
     temp_fn=f'/tmp/{brain}-{hemi}-{slab}.nii.gz'
-
     shell(f'antsApplyTransforms -v 1 -d 3 -i {input_fn} -r {ref_fn} -t {tfm_inv_fn} -o {temp_fn}',True)
+    print('reference:', ref_fn)
     img = nib.load(temp_fn)
     vol = img.get_fdata()
-
     assert np.sum(vol) > 0, f'Error: empty volume {temp_fn}'
-
+     
     img = resample_to_output(nibabel.Nifti1Image(vol,img.affine), [float(resolution),0.02, float(resolution)], order=5)
     vol = img.get_fdata()
     nib.Nifti1Image(vol, img.affine ).to_filename(output_fn)
@@ -235,7 +234,6 @@ def save_sections(file_list, vol, aff) :
     zstart = aff[2,3]
 
     for fn, y in file_list:
-        ystart = aff[1,3] + y * ystep
         affine = np.array([  [xstep,  0, 0, xstart ],
                                 [0, zstep, 0, zstart ],
                                 [0, 0,  0.02, 0 ],
@@ -248,8 +246,10 @@ def save_sections(file_list, vol, aff) :
             # we find the closest y segement in vol with brain tissue
             while np.sum(vol[:,int(y-i),:]) == 0 :
                 i += (ystep/np.abs(ystep)) * 1
-
-        nib.Nifti1Image(vol[ :, int(y-i), : ] , affine).to_filename(fn)
+        sec = vol[ :, int(y-i), : ]
+        print('sec.shape', sec.shape)
+        print(affine)
+        nib.Nifti1Image(sec , affine).to_filename(fn)
 
 def get_to_do_list(df,out_dir,str_var,ext='.nii.gz'):
     to_do_list=[]
@@ -272,8 +272,8 @@ def create_2d_sections( df,  srv_fn, resolution, output_dir,clobber=False) :
 
     if len( fx_to_do ) > 0 :
         srv_img = nib.load(srv_fn)
-        srv = srv_img.get_fdata()
         affine = srv_img.affine
+        srv = srv_img.get_fdata()
         save_sections(fx_to_do, srv, affine)
         
 
@@ -463,6 +463,7 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
                             new_starts=[None, None, None] ):
 
     img = nib.load(input_filename)
+    direction = ants.image_read(input_filename).direction
     vol = img.get_fdata()
     affine = img.affine
     
@@ -507,11 +508,11 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
         #           nibabel's resampling function will change the dimensions from, say, (x,y) to (x,y,1)
         #           This throws things off for ants so the volume has to be reshaped back to original dimensions.
         vol = vol.reshape(*new_dims) 
-        nib.Nifti1Image(vol, new_affine).to_filename(output_filename)
+        nib.Nifti1Image(vol, new_affine,  direction=direction).to_filename(output_filename)
         #write_nifti(vol, new_affine, output_filename)
     else :
         vol = resample_from_to(img, nib.load(reference_image_fn), order=5).get_fdata()
-        nib.Nifti1Image(vol, nib.load(reference_image_fn).affine ).to_filename(output_filename)
+        nib.Nifti1Image(vol, nib.load(reference_image_fn).affine ).to_filename(output_filename, direction=direction)
         #write_nifti(vol, read_affine(reference_image_fn), output_filename)
 
 
