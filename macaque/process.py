@@ -519,31 +519,9 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, out_dir='macaque/o
     
     points2tfm(points_fn, affine_fn, template_fn, volume_init_fn,  ndim=3, transform_type="Affine", invert=True, clobber=True)
     
-    tfm = ants.read_transform(affine_fn)
-    print(tfm.fixed_parameters)
-    print(tfm.parameters)
-    shell(f'antsApplyTransforms -d 3 -v 1 -i {volume_init_fn} -t [{affine_fn},0] -r {template_fn} -o temp.nii.gz')
-    print('1 -->', np.max(nib.load('temp.nii.gz').get_fdata()))
-    exit(0)
-    shell(f'antsApplyTransforms -d 3 -v 1 -i {volume_init_fn} -t [{affine_fn},0] -r {template_fn} -o temp.nii.gz'); 
-    print('2 -->', np.max( nib.load('temp.nii.gz').get_fdata()))
-
-    print('3 -->', np.max( ants.apply_transforms(ants.image_read(template_fn), 
-                                                ants.image_read(volume_init_fn),
-                                                [affine_fn] ).numpy() ) )
-    print('4 -->', np.max(ants.apply_transforms(ants.image_read(template_fn), 
-                                                ants.image_read(volume_init_fn),
-                                                [ affine_fn ], invert_list=[True] ).numpy() ) )
-
-    print('5 -->', np.max(ants.apply_transforms(ants.image_read(volume_init_fn),
-                                                ants.image_read(template_fn),
-                                                [ affine_fn ], invert_list=[False] ).numpy() ) )
-    print('6 -->', np.max(ants.apply_transforms(ants.image_read(volume_init_fn),
-                                                ants.image_read(template_fn),
-                                                [ affine_fn ], invert_list=[True] ).numpy() ) )
+    #shell(f'antsApplyTransforms -d 3 -v 1 -i {volume_init_fn} -t [{affine_fn},0] -r {template_fn} -o temp.nii.gz')
     print('Init 3D')
-    init_3d_fn, init_3d_inv_fn = align_3d(volume_init_fn, template_fn, init_3d_dir, subject_id, lowres, init_tfm=affine_fn)
-    exit(0)
+    #init_3d_fn, init_3d_inv_fn = align_3d(volume_init_fn, template_fn, init_3d_dir, subject_id, lowres, init_tfm=affine_fn)
 
     resolution_list=[4,3,2,1] #[8,6,4,3,2,1]
     for itr, curr_res in enumerate(resolution_list):
@@ -577,7 +555,7 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, out_dir='macaque/o
         if not os.path.exists(current_template_fn):
             prefilter_and_downsample(template_fn, [resolution_3d]*3, current_template_fn)
 
-        tfm_3d_fn, tfm_3d_inv_fn = multires_align_3d(subject_id, align_3d_dir, volume_seg_fn, current_template_fn, resolution_list, curr_res, init_3d_fn)
+        tfm_3d_fn, tfm_3d_inv_fn = multires_align_3d(subject_id, align_3d_dir, volume_seg_fn, current_template_fn, resolution_list, curr_res, affine_fn)
         
         ### 7. 2d alignement
         if not os.path.exists(template_rec_space_fn) : 
