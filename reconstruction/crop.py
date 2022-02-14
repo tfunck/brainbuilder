@@ -201,8 +201,10 @@ def process_image(img, row, scale, pad, affine, mask_fn=''):
     return img_pad
 
 def find_landmark_files(landmark_dir, brain, hemisphere, slab, volume_order) :
-    landmark_files = glob(f'{landmark_dir}/{brain}_{hemisphere}_{slab}_*_{volume_order}.png')
-    print('N landmarks:', len(landmark_files))
+    fn=f'{landmark_dir}/{brain}_{hemisphere}_{slab}_src_*_{int(volume_order)}.png'
+    print(fn)
+    landmark_files = glob(fn)
+    if len(landmark_files) != 0 : print(landmark_files)
     return landmark_files 
 
 def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pytorch_model='', pad = 1000, clobber=True ):
@@ -292,11 +294,44 @@ def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pytorch_mod
     #plt.clf()
     #print('\tQC:', qc_fn)
 
-def crop(mask_dir, landmark_in_dir, landmark_out_dir, df, scale_factors_json, resolution, pytorch_model='', remote=False,clobber=False):
+def process_landmark_images(df, landmark_in_dir, landmark_out_dir,  scale_factors_json, pad=1000):
+    global_order_min = df["global_order"].min()
+    # identify landmark file
+    landmark_df = pd.DataFrame({'volume_order':[], 'tiff':[], 'crop':[], 'init':[] })
+
+    with open(scale_factors_json) as f : scale=json.load(f)
+
+    landmark_csv_fn = f'{landmark_out_dir}/landmarks.csv'
+
+    if not os.path.exists(landmark_csv_fn) :
+        for (brain, hemisphere, slab), temp_df in df.groupby(['mri','hemisphere','slab']) :
+            for i, row in temp_df.iterrows():
+                volume_order = row['volume_order']
+                landmark_files = find_landmark_files(landmark_in_dir, brain, hemisphere, slab, volume_order)
+                if len(landmark_files) != 0 :
+                    for landmark_fn in landmark_files:
+                        landmark_nii_fn=f'{landmark_out_dir}/{os.path.splitext(os.path.basename(landmark_fn))[0]}.nii.gz'
+                        if not os.path.exists(landmark_nii_fn) :
+                            affine = gen_affine(row, scale, global_order_min)
+                            img = imageio.imread(landmark_fn)
+                            if len(img.shape) == 3: img = np.max(img, axis=2)
+                            landmark_ar = process_image(img, row, scale, pad, affine)
+                            nib.Nifti1Image(landmark_ar, affine ).to_filename(landmark_nii_fn)
+                
+                        landmark_row = pd.DataFrame({'volume_order':[volume_order], 'tiff':[landmark_fn], 'crop':[landmark_nii_fn], 'init':[''] })
+                        landmark_df = landmark_df.append(landmark_row)
+
+        landmark_df.to_csv(landmark_csv_fn)
+
+    landmark_df = pd.read_csv(landmark_csv_fn) 
+
+    return landmark_df
+
+def crop(mask_dir, df, scale_factors_json, resolution, pytorch_model='', remote=False, pad=1000, clobber=False):
     '''take raw linearized images and crop them'''
     df = df.loc[ (df['hemisphere'] == 'R') & (df['mri'] == 'MR1' ) ] #FIXME, will need to be removed
    
-    pad=1000
+    
     global_order_min = df["global_order"].min()
     with open(scale_factors_json) as f : scale=json.load(f)
    
@@ -305,23 +340,6 @@ def crop(mask_dir, landmark_in_dir, landmark_out_dir, df, scale_factors_json, re
     seg_check =  df['seg_fn'].apply( file_check ).values
     cls_check =  df['pseudo_cls_fn'].apply( file_check ).values
 
-
-
-
-    # identify landmark file
-    for (brain, hemisphere, slab), temp_df in df.groupby(['mri','hemisphere','slab']) :
-        for i, row in temp_df.iterrows():
-            volume_order = row['volume_order']
-            landmark_files = find_landmark_files(landmark_in_dir, brain, hemisphere, slab, volume_order)
-            if len(landmark_files) != 0 :
-                for landmark_fn in landmark_files:
-                    print(landmarks_fn)
-                    affine = gen_affine(row, scale, global_order_min)
-                    landmark_ar = process_image(imageio.imread(landmark_fn), row, scale, pad, affine)
-                    landmark_nii_fn=f'{landmark_out_dir}/{os.path.splitext(os.path.basename(landmark_fn))}.nii.gz'
-                    nib.Nifti1Image(landmark_ar, affine ).to_filename(landmark_nii_fn)
-    exit(0)
-    
     missing_files = crop_check + seg_check + cls_check
     if np.sum( missing_files ) > 0 : 
         pass

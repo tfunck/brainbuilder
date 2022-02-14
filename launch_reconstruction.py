@@ -18,9 +18,9 @@ from utils.mesh_io import load_mesh_geometry, save_mesh_data, save_obj, read_obj
 from reconstruction.align_slab_to_mri import align_slab_to_mri
 from reconstruction.receptor_segment import classifyReceptorSlices, resample_transform_segmented_images
 from reconstruction.nonlinear_2d_alignment import receptor_2d_alignment, concatenate_sections_to_volume
-from reconstruction.init_alignment import receptorRegister
+from reconstruction.init_alignment import receptorRegister, apply_transforms_to_landmarks
 from reconstruction.surface_interpolation import surface_interpolation
-from reconstruction.crop import crop
+from reconstruction.crop import crop, process_landmark_images
 from validation.validate_interpolation import validate_interpolation
 from validation.validate_reconstructed_sections import validate_reconstructed_sections
 from preprocessing.preprocessing import fill_regions_3d
@@ -494,11 +494,11 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
             receptorRegister(brain, hemi, slab, init_align_fn, init_tfm_csv, init_align_dir, args.manual_2d_dir, slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
 
 
-
         if not os.path.exists(slab_tfm_csv): 
             slab_df = add_tfm_column(slab_df, init_tfm_csv,slab_tfm_csv)
         else : slab_df = pd.read_csv(slab_tfm_csv)
        
+        apply_transforms_to_landmarks(args.landmark_df, slab_df, args.landmark_dir, init_align_fn)
 
         ### Steps 2-4 : Multiresolution alignment
         final_vol_fn = files[brain][hemi][str(slab)][str(resolution_list[-1])]['nl_2d_vol_fn'] #Current files
@@ -584,8 +584,10 @@ if __name__ == '__main__':
     ### Step 0 : Crop downsampled autoradiographs
     pytorch_model=f'{base_file_dir}/caps/Pytorch-UNet/MODEL.pth'
     pytorch_model=''
-    crop( args.mask_dir,args.landmark_src_dir, args.landmark_dir, df, args.scale_factors_fn, float(resolution_list[-1]), pytorch_model=pytorch_model )
+    crop( args.mask_dir, df, args.scale_factors_fn, float(resolution_list[-1]), pytorch_model=pytorch_model )
     
+    args.landmark_df = process_landmark_images(df, args.landmark_src_dir, args.landmark_dir, args.scale_factors_fn)
+
     for brain in args.brain :
         for hemi in args.hemi :                     
             print('Brain:',brain,'Hemisphere:', hemi)

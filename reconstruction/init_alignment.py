@@ -1,5 +1,5 @@
 import utils.ants_nibabel as nib
-#import nibabel as nib
+import nibabel 
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -16,7 +16,7 @@ from glob import glob
 from skimage.transform import resize
 from utils.utils import set_csv, add_padding
 from utils.ANTs import ANTs
-from ants import write_transform, read_transform, registration, apply_transforms, image_mutual_information, from_numpy, image_similarity, compose_ants_transforms
+from ants import write_transform, read_transform, registration, apply_transforms, image_mutual_information, from_numpy, image_similarity, compose_ants_transforms, get_center_of_mass, image_read
 #matplotlib.use('TKAgg')
 
 def load2d(fn):
@@ -472,6 +472,50 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, m
     df['tier']=1
     if not os.path.exists(init_align_fn) :
         vol = combine_sections_to_vol(df,z_mm,direction,init_align_fn )
+
+from scipy.ndimage import center_of_mass
+def apply_transforms_to_landmarks(landmark_df, slab_df, landmark_dir, init_3d_fn):
+    
+    img_3d = nib.load(init_3d_fn)
+    starts_3d = img_3d.affine[[0,1,2],[3,3,3]]
+    steps_3d = img_3d.affine[[0,1,2],[0,1,2]]
+    print(starts_3d)
+    print(steps_3d)
+
+    for i , row in landmark_df.iterrows() :
+        volume_order = row['volume_order']
+        if volume_order in slab_df['volume_order'].values :
+            landmark_crop_fn = row['crop']
+            landmark_init_fn = re.sub('.nii', '_init.nii', landmark_crop_fn)
+            landmark_df['init'].iloc[i] = landmark_init_fn
+
+            if not os.path.exists(landmark_init_fn) or True:
+                # init aligned images
+                idx = slab_df['volume_order']==volume_order
+                tfm_fn = slab_df['init_tfm'].loc[ idx ].values[0]
+                init_fn = slab_df['crop_fn'].loc[idx].values[0] 
+                shell(f'antsApplyTransforms -v 1 -d 2 -r {init_fn} -i {landmark_crop_fn} -t {tfm_fn} -o {landmark_init_fn}')
+                #img = image_read(landmark_init_fn)
+                img = nibabel.load(landmark_init_fn)
+                print(img.affine)
+                steps = img.affine[[0,1],[0,1]]
+                starts = img.affine[[0,1],[3,3]]
+                print(steps)
+                print(starts)
+                comv = center_of_mass(img.get_fdata())
+                #com = get_center_of_mass(img)
+                print('comv', comv[1]*steps[0]+starts[0])
+                print('comv', comv[0]*-steps[1]-starts[1])
+                #print(img.spacing)
+                #print(img.origin)
+                #x = com[0] 
+                y = slab_df['slab_order'].loc[idx].values[0] * 0.02 + starts_3d[1] 
+                print(y, slab_df['slab_order'].loc[idx].values[0] , 0.02 ,starts_3d[1])
+                #z = com[1] 
+                #print('x,y,z', x,y,z)
+
+
+
 
 if __name__ == '__main__' :
     print(sys.argv)
