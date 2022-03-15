@@ -504,9 +504,11 @@ def upsample_gifti(input_fn,upsample_0_fn, upsample_1_fn, resolution, input_list
     coords_h5_fn = sub('.surf.gii','_new_coords.h5',upsample_0_fn)
     new_edges_h5_fn = sub('.surf.gii','_new_edges.h5',upsample_0_fn)
     if not os.path.exists(coords_h5_fn) :
+        print(os.path.exists(coords_h5_fn), coords_h5_fn)
         upsample_with_h5(input_fn, upsample_0_fn,  faces_h5_fn, coords_h5_fn, new_edges_h5_fn, resolution)
 
     if not os.path.exists(upsample_0_fn) :
+        print(os.path.exists(upsample_0_fn), upsample_0_fn)
         write_gifti_from_h5(upsample_0_fn, coords_h5_fn, faces_h5_fn, input_fn ) 
     
     if input_list != []  and output_list != [] :

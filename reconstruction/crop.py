@@ -20,6 +20,7 @@ from scipy.ndimage import rotate
 from utils.utils import safe_imread, downsample, shell
 from scipy.ndimage.filters import gaussian_filter
 from skimage.filters import threshold_otsu, threshold_li
+from utils.threshold_li import threshold_li
 from glob import glob
 from skimage import exposure
 from nibabel.processing import *
@@ -160,9 +161,10 @@ def gen_affine(row, scale,global_order_min):
 
 
 def threshold(img,sd=1):
-    img = gaussian_filter(img, sd)
+    img = gaussian_filter(img, sd).astype(np.float64)
     out = np.zeros(img.shape)
-    idx = img > threshold_otsu(img[img>0])
+    values = img[img>0]
+    idx = img > threshold_li(values)
     out[ idx ] = 1
     return out
 
@@ -236,7 +238,6 @@ def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pytorch_mod
         img = imageio.imread(fn)
 
         affine = gen_affine(row, scale, global_order_min)
-        print('1',affine); 
         
         img = process_image(img, row, scale, pad, affine, mask_fn=mask_fn)
 
@@ -251,11 +252,11 @@ def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pytorch_mod
     
     if not os.path.exists(seg_fn) or clobber :
         print('\t seg_fn', seg_fn) 
+        print(pytorch_model)
         if pytorch_model == '': 
             img = nib.load(crop_fn)
             ar = img.get_fdata()
             ar = threshold(ar)
-            print('2',img.affine); 
             nib.Nifti1Image(ar, img.affine ).to_filename(seg_fn)
         else :
 
@@ -348,6 +349,8 @@ def crop(mask_dir, df, scale_factors_json, resolution, pytorch_model='', remote=
     df_to_process = df.loc[ missing_files ]  
 
     Parallel(n_jobs=14)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min, resolution, pytorch_model=pytorch_model, pad=pad) for i, row in  df_to_process.iterrows()) 
+    #for i, row in  df_to_process.iterrows():
+    #    crop_parallel(row, mask_dir, scale, global_order_min, resolution, pytorch_model=pytorch_model, pad=pad) 
     
     return 0
 

@@ -12,15 +12,25 @@ import ants
 import numpy as np
 
 ras = np.array([[1.,0.,0.],[0.,1.,0.],[0.,0.,-1.]])
+lpi=np.array([[-1.,0.,0.],[0.,-1.,0.],[0.,0.,1.]])
+
 class Nifti1Image():
-    def __init__(self, dataobj, affine, direction=ras):
+    def __init__(self, dataobj, affine, direction=[], direction_order='ras'):
         self.affine = affine
         self.dataobj= dataobj
         self.shape = dataobj.shape
         ndim=len(self.shape)
-        print(direction)
-        self.direction=list(np.array(direction)[ 0:ndim, 0:ndim ])
+        if direction_order == 'ras' and len(direction) == 0:
+            direction=ras
+        elif direction_order == 'lpi' and len(direction) == 0 :
+            direction=lpi
+        elif len(direction) != 0 :
+            pass
+        else :
+            print('Error: <direction_order> not supported, specify <direction> directly')
+            exit(0)
 
+        self.direction=list(np.array(direction)[ 0:ndim, 0:ndim ])
     def to_filename(self, filename):
         write_nifti(self.dataobj, self.affine, filename, direction=self.direction)
 
@@ -91,12 +101,6 @@ def write_nifti(vol, affine, out_fn, direction=[]):
         else :
             # Force to write in RAS coordinates
             direction = [[1., 0., 0.], [0., 1., 0.], [0., 0., -1.]]
-    print('--> spacing', spacing)
-    print('--> origin', origin)
-    print('--> direction', direction)
-    print(out_fn)
     ants_image = ants.from_numpy(vol, origin=origin, spacing=spacing, direction=direction)
-    print(ants_image.orientation)
-    print(ants_image)
     assert not True in np.isnan(affine.ravel()), 'Bad affine matrix. NaN detected'
     ants.image_write(ants_image, out_fn)

@@ -55,7 +55,6 @@ def get_slab_width(slabs, df, ystep, ystart, unaligned_slab_list):
         slab_max = v2w(slab_vmax, ystep, ystart)
 
 
-        #print('{}\t{}\t{}\t{}'.format(slab_i,slab_vmin,slab_vmax,slab_vmax-slab_vmin) )
         slab_minima[slab_i] = slab_min
         slab_maxima[slab_i] = slab_max
         slab_width[slab_i]  = (slab_vmax-slab_vmin)*ystep
@@ -76,25 +75,17 @@ def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_min, srv_max, srv
     # convert y value to RAS 
     # FIXME : This should not be hardcoded
     def convert_ras(y, hires_ystart=-126): 
-        print(y, hires_ystart)
         i = (y - hires_ystart) / 0.25 
-        print('world to intedx=', y, '->', i)
         i = 868 - i
-        print('flip i = ', i)
         w=hires_ystart + i * -0.25
-        print(w)
         return w
 
     if orientation == 'ras' : 
-        print('fixing for ras', y0w, y1w)
         y0w = convert_ras(y0w) 
         y1w = convert_ras(y1w)
         srv_step *= -1
 
-    print('world converted to RAS', y0w, y1w)
     
-    print('srv values;', srv_ystep, srv_ystart)
-
     y0 = w2v(y0w, srv_ystep, -srv_ystart)
     y1 = w2v(y1w, srv_ystep, -srv_ystart)
 
@@ -102,8 +93,6 @@ def get_slab_start_end(df, slabs, ystep, ystart, cur_slab, srv_min, srv_max, srv
     y1_temp = max(y0,y1)
     y0 = y0_temp
     y1 = y1_temp
-    print(ystep, srv_ystart); 
-    print('final indices', y0,y1)
     assert y0 > 0 , f'Error: y0 is negative: {y0}'
     assert y1 > 0 , f'Error: y1 is negatove: {y1}'
     if verbose : print(y0w,y1w,y0,y1) 
@@ -126,21 +115,14 @@ def pad_volume(vol, max_factor, affine, min_voxel_size=29):
     y_pad = padded_dim(ydim, max_factor, min_voxel_size)
     z_pad = padded_dim(zdim, max_factor, min_voxel_size)
 
-    #print(x_pad,y_pad,z_pad)
-    #print(vol.shape)
     vol_padded = np.pad(vol, ((x_pad, x_pad), (y_pad, y_pad),(z_pad, z_pad))) 
-    print(vol.shape, vol_padded.shape)
-    print('pad', x_pad, y_pad, z_pad) 
     affine[0,3] -= x_pad * affine[0,0]
     affine[1,3] -= y_pad * affine[1,1]
     affine[2,3] -= z_pad * affine[2,2]
     return vol_padded, affine
 
 def get_srv_info(srv_rsl_fn ) : 
-    print('SRV rsl fn:', srv_rsl_fn)
     srv_img = nib.load(srv_rsl_fn)
-    print(srv_img.affine)
-    print(nibabel.load(srv_rsl_fn).affine); 
     srv_vol = srv_img.get_fdata()
     ymax = srv_vol.shape[1]
 
@@ -167,15 +149,13 @@ def pad_seg_vol(seg_rsl_fn,max_downsample_level):
     seg_rsl_pad_fn = re.sub('.nii','_padded.nii', seg_rsl_fn)
    
 
-    print(pad_affine)
     nib.Nifti1Image(seg_vol, pad_affine, direction=direction).to_filename(seg_rsl_pad_fn )
     return ystart, ystep, seg_rsl_pad_fn
 
 def get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr,base_nl_itr = 250 ):
     f_list=[ str(f) for f in range(max_downsample_level, 0, -1)]# if smallest_dimension / 2**(f-1) > 29 ]
-   
+    
     assert len(f_list) != 0, 'Error: no smoothing factors' 
-    print(f_list)
 
     f_str='x'.join([ str(f) for f in f_list ])
     s_list = [(int(f)-1)/np.pi for f in f_list ] 
@@ -192,12 +172,12 @@ def get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr
 
     lin_itr_str='x'.join([str(max_lin_itr - i*lin_step) for i in range(len(f_list))])
     nl_itr_str='x'.join([str(max_nl_itr - i*nl_step) for i in range(len(f_list))  ])
+    
     return f_str, s_str, lin_itr_str, nl_itr_str
 
 def write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0, y1, resolution, srv_ystep, srv_ystart, max_downsample_level, clobber=False):
 
     srv_slab_fn=f'{out_dir}/{brain}_{hemi}_{slab}_{resolution}mm_srv_{y0}_{y1}.nii.gz' 
-    print(srv_slab_fn)
     if not os.path.exists(srv_slab_fn) or clobber :
         # write srv slab if it does not exist
         print(f'\t\tWriting srv slab for file\n\n{srv_rsl_fn}')
@@ -210,9 +190,7 @@ def write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0, y1, resolution, s
          
         srv_ystep = aff[1,1]
         srv_ystart = aff[1,3]
-        print(y0, srv_ystep, srv_ystart)
         aff[1,3] = y0 * srv_ystep + -srv_ystart
-        print(aff)
 
         srv_slab = srv_vol[:,y0:y1,:]
         srv_slab, pad_aff = pad_volume(srv_slab, max_downsample_level, aff )
@@ -266,48 +244,47 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     srv_tgt_fn=srv_slab_fn
 
     #calculate SyN
-    #if float(resolution) >= 1.0 :
-    #    nl_metric = f'CC[{srv_rsl_fn},{seg_rsl_fn},1,2,Regular,1]'
-    #else :
-    nl_metric=f'Mattes[{srv_tgt_fn},{seg_rsl_fn},1,20,Regular,1]'
+    if float(resolution) >= 1.0 :
+        nl_metric = f'CC[{srv_rsl_fn},{seg_rsl_fn},1,2,Regular,1]'
+    else :
+        nl_metric=f'Mattes[{srv_tgt_fn},{seg_rsl_fn},1,20,Regular,1]'
 
     # set initial transform
     # calculate rigid registration
     skip_manual=True
     if not os.path.exists( manual_affine_fn ) or skip_manual :
+        # calculate rigid registration
         if not os.path.exists(f'{prefix_rigid}Composite.h5'):
-            shell(f'antsRegistration -v 1 -a 1 -d 3  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1] -t Rigid[.1] -c {lin_itr_str}  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,30,Regular,1] -s {s_str} -f {f_str} -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] ', verbose=True)
+            shell(f'antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]  -t Rigid[.1]  -m GC[{srv_slab_fn},{seg_rsl_fn},1,30,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] ', verbose=True)
         # calculate similarity registration
         if not os.path.exists(f'{prefix_similarity}Composite.h5'):
-            shell(f'antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform {prefix_rigid}Composite.h5 -t Similarity[.1]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] ', verbose=True)
-        
+            shell(f'antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform  {prefix_rigid}Composite.h5 -t Similarity[.1]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] ', verbose=True)
         affine_init = f'--initial-moving-transform {prefix_similarity}Composite.h5'
     else :
-        shell(f'antsApplyTransforms -v 1 -i {seg_rsl_fn} -r {srv_rsl_fn} -t {manual_affine_fn} -o {manual_out_fn}')
+        print('\tApply manual transformation')
+        shell(f'antsApplyTransforms -v 0 -i {seg_rsl_fn} -r {srv_tgt_fn} -t [{manual_affine_fn},1] -o {manual_out_fn}')
         affine_init = f'--initial-moving-transform [{manual_affine_fn},0]'
-    
+
     #calculate affine registration
     if not os.path.exists(f'{prefix_affine}Composite.h5'):
-        shell(f'antsRegistration -v 1 -a 1 -d 3 {affine_init} -t Affine[.1] -m Mattes[{srv_tgt_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] ', verbose=True)
+        shell(f'antsRegistration -v 0 -a 1 -d 3 {affine_init} -t Affine[.1] -m Mattes[{srv_tgt_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] ', verbose=True)
     
     if not os.path.exists(f'{prefix_syn}Composite.h5'):
         # --masks [{srv_mask_fn},{seg_mask_fn}]
-        shell(f'antsRegistration -v 1 -a 1 -d 3  --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[.1] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{syn_out_fn},{syn_inv_fn}] ', verbose=True)
+        shell(f'antsRegistration -v 0 -a 1 -d 3  --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[.1] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{syn_out_fn},{syn_inv_fn}] ', verbose=True)
 
     if not os.path.exists(out_fn):
-        shell(f'antsApplyTransforms -v 1 -i {seg_rsl_fn} -r {srv_rsl_fn} -t {prefix_syn}Composite.h5  -o {out_fn}')
+        shell(f'antsApplyTransforms -v 0 -i {seg_rsl_fn} -r {srv_rsl_fn} -t {prefix_syn}Composite.h5  -o {out_fn}')
     if not os.path.exists(out_inv_fn) :
-        shell(f'antsApplyTransforms -v 1 -i {srv_rsl_fn} -r {seg_rsl_fn} -t {prefix_syn}InverseComposite.h5  -o {out_inv_fn}')
+        shell(f'antsApplyTransforms -v 0 -i {srv_rsl_fn} -r {seg_rsl_fn} -t {prefix_syn}InverseComposite.h5  -o {out_inv_fn}')
 
-
+    
 def get_max_downsample_level(resolution_list, resolution_itr):
     cur_resolution = float(resolution_list[resolution_itr])
     max_resolution = float(resolution_list[0])
-    print(max_resolution, cur_resolution)
     max_downsample_factor = np.floor( max_resolution / cur_resolution ).astype(int)
 
     # log2(max_downsample_factor) + 1 = L
-    print(max_downsample_factor)
     max_downsample_level = np.int( np.log2(max_downsample_factor) + 1 )
 
     return max_downsample_level
@@ -323,31 +300,27 @@ def get_manual_tfm(resolution_itr,manual_alignment_points, seg_rsl_fn, srv_rsl_f
     return manual_tfm_fn
 
 def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, slabs, out_tfm_fn, out_tfm_inv_fn, out_fn, out_inv_fn,  resolution, resolution_itr, resolution_list, slab_direction, manual_points_fn, manual_affine_fn=None, clobber=False, verbose=True ) :
-    print('\tRunning')
+    print('\tRunning, resolution:', resolution )
     slab=int(slab)
 
-    print('step', 1)
     # Load super-resolution GM volume extracted from donor MRI.
     srv_width, srv_min, srv_max, srv_ystep, srv_ystart =  get_srv_info( srv_rsl_fn ) 
 
     # get maximum number steps by which the srv image will be downsampled by 
     # with ants, each step means dividing the image size by 2^(level-1)
     max_downsample_level = get_max_downsample_level(resolution_list, resolution_itr)
-    print('step',2)
     # pad the segmented volume so that it can be downsampled by the 
     # ammount of times specified by max_downsample_level
     ystart, ystep, seg_rsl_fn = pad_seg_vol(seg_rsl_fn, max_downsample_level)
-    print('ystart/ystep/srv_max', ystart, ystep, srv_max)
 
-    print('step',3);
-    if os.path.exists(manual_points_fn) and not os.path.exists( manual_affine_fn ) :
+    if os.path.exists(manual_points_fn) and not os.path.exists( manual_affine_fn ) or True :
+        print('\tCreating affine transform from manually defined points')
         points2tfm( manual_points_fn, manual_affine_fn, srv_rsl_fn, seg_rsl_fn)
 
     img = nib.load(srv_rsl_fn)
     ydim = img.shape[1] 
     orientation = ants.image_read(srv_rsl_fn).orientation
 
-    print('step',4)
     # get the start and end values of the slab in srv voxel coordinates
     y0, y1 = get_slab_start_end(df, slabs, ystep, ystart, slab, srv_min, srv_max, srv_width, srv_ystep, srv_ystart, slab_direction, manual_points_fn, ydim, orientation)
  

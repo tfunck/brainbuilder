@@ -79,14 +79,14 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, use_syn=
     with open(prefix+'_command.txt','w') as f : f.write(affine_command_str)
     shell(affine_command_str)
     
+    syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz]  -t SyN[0.1] -m {nl_metric} -c {nl_itr_str} -s {s_str} -f {f_str}' # -t SyN[0.1]  -m CC[{fx_fn},{mv_fn},1,20,Regular,1] -c 100 -s {s_cc}  -f {f_cc}'
+
     if use_syn :
-        syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz]  -t SyN[0.1] -m {nl_metric} -c {nl_itr_str} -s {s_str} -f {f_str}' # -t SyN[0.1]  -m CC[{fx_fn},{mv_fn},1,20,Regular,1] -c 100 -s {s_cc}  -f {f_cc}'
         with open(prefix+'_command.txt','w') as f : f.write(syn_command_str)
         shell(syn_command_str)
     else :
         shutil.copy( f'{prefix}_affine_cls_rsl.nii.gz' , f'{prefix}_cls_rsl.nii.gz' )
         shutil.copy( f'{prefix}_Affine_Composite.h5' , f'{prefix}_Composite.h5' )
-
     assert os.path.exists(f'{prefix}_cls_rsl.nii.gz') , f'Error: output does not exist {prefix}_cls_rsl.nii.gz'
     return 0
     
@@ -109,8 +109,7 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     
     #fix_affine(crop_rsl_fn)
     #fix_affine(fx_fn)
-    print(f'antsApplyTransforms -v 1 -d 2 -n NearestNeighbor -i {crop_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
-    shell(f'antsApplyTransforms -v 1 -d 2 -n NearestNeighbor -i {crop_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
+    shell(f'antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {crop_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
     
     #Commented out masking because GM receptor mask not good enough at the moment.
     #rsl_img = nib.load(out_fn)

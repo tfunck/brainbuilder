@@ -494,9 +494,9 @@ class SurfaceVolumeMapper(object):
         indices_min = np.rint(np.min((np.max((np.floor(wbox[0]),[0,0,0]),axis=0),dimensions),axis=0)).astype(int)
         indices_max = np.rint(np.min((np.max((np.ceil(wbox[1]), [0,0,0]), axis=0),dimensions), axis=0)).astype(int)
         indices = np.vstack([indices_min, indices_max]).T
-        indices.sort(axis=1)
-        indices_min = indices[:,0]
-        indices_max = indices[:,1]
+        #indices.sort(axis=1)
+        #indices_min = indices[:,0]
+        #indices_max = indices[:,1]
 
         if (indices_min == indices_max).all():
             #box not in volume block.
