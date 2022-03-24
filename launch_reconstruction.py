@@ -543,7 +543,9 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
             print(f'Error: not including slab {slab} for interpolation (nl 3d tfm exists = {nl_3d_tfm_exists}, 2d nl vol exists = {nl_2d_vol_exists}) ')
 
     assert len(slab_dict.keys()) != 0 , print('No slabs to interpolate over')
-    srv_max_resolution_fn = files[brain][hemi][args.slabs[-1]][resolution_list[-1]]['srv_rsl_fn']
+    
+    srv_max_resolution_fn=f'/data/receptor/human/MR1_R_mri_cortex_{highest_resolution}mm.nii.gz'
+    cortex_fn = srv_max_resolution_fn
 
 
     for ligand, df_ligand in hemi_df.groupby(['ligand']):
@@ -552,25 +554,24 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
             ###
             ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
             ###
+
             scale_factors = json.load(open(args.scale_factors_fn, 'r'))[brain][hemi]
-            surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution,  srv_max_resolution_fn, args, files[brain][hemi], scale_factors, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+            final_ligand_fn = surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, cortex_fn, args, files[brain][hemi], scale_factors, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
             #surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, srv_max_resolution_fn, args, files[brain][hemi],  tissue_type='_cls', surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
-            exit(0)
             ###
             ### 6. Quality Control
             ###
             max_resolution = resolution_list[-1]
-            depth = '0.45'
-            cortex_fn='/data/receptor/human/MR1_R_mri_cortex_0.5mm.nii.gz'
+            depth = '0.5'
             print('\tValidate reconstructed sections:', ligand)
-            validate_reconstructed_sections(max_resolution, args.slabs, args.n_depths, df_ligand, cortex_fn, base_out_dir='/data/receptor/human/output_2/',  clobber=False)
-            exit(0) 
+            #validate_reconstructed_sections(final_ligand_fn, max_resolution, args.n_depths, df_ligand, cortex_fn, base_out_dir='/data/receptor/human/output_3_caps/',  clobber=False)
+            
             #FIXME filename should be passed from surface_interpolation
             ligand_csv = glob(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')[0]   
             sphere_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_inflate_rsl.h5')[0]
             cortex_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_rsl.h5')[0]
             faces_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_0.0_rsl_new_faces.h5')[0]
-            output_dir=f'/data/receptor/human/output_2/6_quality_control/'
+            output_dir=f'/data/receptor/human/output_3_caps/6_quality_control/'
             validate_interpolation(ligand_csv, sphere_mesh_fn, cortex_mesh_fn, faces_fn, output_dir, n_samples=1000, max_depth=6)
     exit(0)
 

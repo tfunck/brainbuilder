@@ -62,7 +62,7 @@ def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn, y, slab, 
     locations = np.vstack( [ xx_valid[0:n * 3], zz_valid[0:n*3] ]).T
     
     # set size of sliding kernel 
-    mm=3
+    mm=2
     kernel_dim = int(1/0.02) * mm
     kernel_pad = int( (kernel_dim+1) / 2 )
 
@@ -278,7 +278,7 @@ def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pytorch_mod
     pseudo_cls_fn = row['pseudo_cls_fn']
     if not os.path.exists(pseudo_cls_fn) :
         print('\t pseudo-cls_fn', pseudo_cls_fn) 
-        pseudo_classify_autoradiograph( crop_fn, seg_fn, pseudo_cls_fn, int(row['volume_order']), int(row['slab']), resolution )
+        pseudo_classify_autoradiograph( crop_fn, seg_fn, pseudo_cls_fn, int(row['slab_order']), int(row['slab']), resolution )
 
     #vol0 = nib.load(temp_crop_fn).get_fdata()
     #vol1 = nib.load(seg_fn).get_fdata()
