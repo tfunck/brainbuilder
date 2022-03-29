@@ -16,6 +16,7 @@ import numpy as np
 from glob import glob
 from re import sub
 import nibabel
+from utils.fit_transform_to_paired_points import fit_transform_to_paired_points
 from ants import get_center_of_mass
 from nibabel.processing import resample_to_output, resample_from_to
 from scipy.ndimage.filters import gaussian_filter 
@@ -36,7 +37,7 @@ def get_section_intervals(vol):
     labeled_sections, nlabels = label(valid_sections)
     assert nlabels >= 2, 'Error: there must be a gap between thickened sections. Use higher resolution volumes.'
 
-    intervals = [ (np.where(labeled_sections==i)[0][0], np.where(labeled_sections==i)[0][-1]) for i in range(1, nlabels) ]
+    intervals = [ (np.where(labeled_sections==i)[0][0], np.where(labeled_sections==i)[0][-1]) for i in range(1, nlabels+1) ]
     assert len(intervals) > 0 , 'Error: no valid intervals found for volume.'  
     return intervals
     
@@ -59,13 +60,12 @@ def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, 
         None
     '''
     temp_fn=f'/tmp/{brain}-{hemi}-{slab}.nii.gz'
-
+    print(temp_fn)
     shell(f'antsApplyTransforms -v 1 -d 3 -i {input_fn} -r {ref_fn} -t {tfm_inv_fn} -o {temp_fn}',True)
     img = nib.load(temp_fn)
     vol = img.get_fdata()
-
     assert np.sum(vol) > 0, f'Error: empty volume {temp_fn}'
-
+     
     img = resample_to_output(nibabel.Nifti1Image(vol,img.affine), [float(resolution),0.02, float(resolution)], order=5)
     vol = img.get_fdata()
     nib.Nifti1Image(vol, img.affine ).to_filename(output_fn)
@@ -77,9 +77,6 @@ def fix_affine(fn):
         img = nib.load(fn)
         dim = vol.shape
         aff = img.affine
-        print('\t\t',fn)
-        print('\t\t',dim)
-        print(aff)
 
         origin = list(affine[ [0,1],[3,3] ])
         spacing = list( affine[ [0,1],[0,1] ])
@@ -109,12 +106,6 @@ def read_points(fn, ndim = 3):
                 fn = line.split(' ')[1]
                 fn_list.append( os.path.basename(fn.rstrip()))
    
-    #print('fixed')
-    #print(fn_list[0])
-    #print( np.array(points0) )
-    #print('moving')
-    #print( fn_list[1] ) 
-    #print( np.array(points1)) 
     return np.array(points0), np.array(points1), fn_list[0], fn_list[1]
 
 def safe_ants_image_read(fn, tol=0.001, clobber=False):
@@ -125,7 +116,6 @@ def safe_ants_image_read(fn, tol=0.001, clobber=False):
     ants_image = ants.from_numpy(img.get_fdata(), origin=origin, spacing=spacing)
     return ants_imag
 
-from utils.fit_transform_to_paired_points import fit_transform_to_paired_points
 
 def points2tfm(points_fn, affine_fn, fixed_fn, moving_fn, ndim=3, transform_type="Affine", invert=False, clobber=False):
 
@@ -133,7 +123,6 @@ def points2tfm(points_fn, affine_fn, fixed_fn, moving_fn, ndim=3, transform_type
     #comFixed=[] 
     #comMoving=[] 
     #comMoving[-1] *= 1 
-    print('1')
     if not os.path.exists(affine_fn) or clobber :
 
         fixed_img = ants.image_read(fixed_fn)
@@ -144,7 +133,6 @@ def points2tfm(points_fn, affine_fn, fixed_fn, moving_fn, ndim=3, transform_type
 
         fixed_dirs = fixed_img.direction[[0,1,2],[0,1,2]]
         moving_dirs = moving_img.direction[[0,1,2],[0,1,2]]
-        print('2')
         # f=rec_points / m=mni_points
         fixed_points, moving_points, fixed_fn, moving_fn = read_points(points_fn, ndim=ndim)
 
@@ -154,8 +142,6 @@ def points2tfm(points_fn, affine_fn, fixed_fn, moving_fn, ndim=3, transform_type
             temp_points = np.copy(moving_points)
             moving_points = np.copy(fixed_points)
             fixed_points = temp_points
-        print('fixed', fixed_points) 
-        print('moving', moving_points) 
 
         fixed_points = fixed_dirs * fixed_points
         moving_points = moving_dirs * moving_points
@@ -174,8 +160,6 @@ def points2tfm(points_fn, affine_fn, fixed_fn, moving_fn, ndim=3, transform_type
         rsl_points = ants.apply_transforms_to_points(3, df, affine_fn, whichtoinvert=[True] )
         
         error = np.sum(np.sqrt(np.sum(np.power((rsl_points - fixed_points), 2), axis=1)))
-        print('rsl points')
-        print(rsl_points)
         print('Error', error / rsl_points.shape[0])
 
     return affine_fn
@@ -235,21 +219,19 @@ def save_sections(file_list, vol, aff) :
     zstart = aff[2,3]
 
     for fn, y in file_list:
-        ystart = aff[1,3] + y * ystep
         affine = np.array([  [xstep,  0, 0, xstart ],
                                 [0, zstep, 0, zstart ],
                                 [0, 0,  0.02, 0 ],
                                 [0, 0,  0, 1]])
         i=0
-        print(fn)
         if np.sum(vol[:,int(y),:]) == 0 :
             # Create 2D srv section
             # this little while loop thing is so that if we go beyond  brain tissue in vol,
             # we find the closest y segement in vol with brain tissue
             while np.sum(vol[:,int(y-i),:]) == 0 :
                 i += (ystep/np.abs(ystep)) * 1
-
-        nib.Nifti1Image(vol[ :, int(y-i), : ] , affine).to_filename(fn)
+        sec = vol[ :, int(y-i), : ]
+        nib.Nifti1Image(sec , affine).to_filename(fn)
 
 def get_to_do_list(df,out_dir,str_var,ext='.nii.gz'):
     to_do_list=[]
@@ -272,8 +254,8 @@ def create_2d_sections( df,  srv_fn, resolution, output_dir,clobber=False) :
 
     if len( fx_to_do ) > 0 :
         srv_img = nib.load(srv_fn)
-        srv = srv_img.get_fdata()
         affine = srv_img.affine
+        srv = srv_img.get_fdata()
         save_sections(fx_to_do, srv, affine)
         
 
@@ -454,19 +436,59 @@ def downsample_and_crop(source_lin_dir, lin_dwn_dir,crop_dir, affine, step=0.2, 
             print("downsampled filename", dwn_fn)
             #nib.Nifti1Image(img, affine).to_filename(dwn_fn)
 
-#def reshape_to_min_dim(vol):
+def world_center_of_mass(vol, affine):
+    affine = np.array(affine)
+    ndim = len(vol.shape)
+    r = np.arange(ndim).astype(int)
+    com = center_of_mass(vol)
+    steps = affine[r,r]
+    starts = affine[r,3]
+    wcom = com * steps + starts
+    return wcom
 
+#def reshape_to_min_dim(vol):
+from scipy.ndimage import shift
+def recenter(vol, affine, direction=np.array([1,1,-1])):
+    affine = np.array(affine)
+    
+    nib.Nifti1Image(vol, affine).to_filename('test_not-shifted.nii.gz')
+    vol_sum_1=np.sum(vol)
+    wcom1 = world_center_of_mass(vol,affine) 
+
+    ndim = len(vol.shape)
+    
+    coi = np.array(vol.shape) / 2
+    com = center_of_mass(vol)
+    d_vox = np.rint(coi - com)
+    d_vox[1]=0
+    d_world = d_vox * affine[range(ndim),range(ndim)]
+    d_world *= direction 
+    affine[range(ndim),3] -= d_world
+    vol = shift(vol,d_vox, order=0)
+
+    nib.Nifti1Image(vol, affine).to_filename('test_shifted.nii.gz')
+    
+    wcom2 = world_center_of_mass(vol,affine) 
+    steps = affine[range(ndim),range(ndim)]
+    #assert np.sum(np.abs(wcom1- wcom2)) < np.sum(np.abs(steps))*3, f'Error: center of mass does not match {wcom1}, {wcom2}'
+    #assert np.abs(vol_sum_1 - np.sum(vol))/vol_sum_1 < 0.02, f'Error: total intensities does not match after recentering'
+    return vol, affine
 
 
 def prefilter_and_downsample(input_filename, new_resolution, output_filename, 
                             reference_image_fn='',
-                            new_starts=[None, None, None] ):
+                            new_starts=[None, None, None], recenter_image=False ):
 
     img = nib.load(input_filename)
+    direction = ants.image_read(input_filename).direction
     vol = img.get_fdata()
     affine = img.affine
     
     ndim = len(vol.shape)
+
+
+    if recenter_image : 
+        vol, affine = recenter(vol,affine)
 
     new_affine = np.copy( affine )
     for i, new_start in enumerate(new_starts) :
@@ -497,6 +519,7 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
 
     vol = gaussian_filter(vol, sd)
 
+
     if reference_image_fn == '' :
         vol = resample_to_output( nibabel.Nifti1Image(vol, affine), new_resolution, order=5).get_fdata()
         new_dims = [ vol.shape[0], vol.shape[1] ]
@@ -507,11 +530,11 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
         #           nibabel's resampling function will change the dimensions from, say, (x,y) to (x,y,1)
         #           This throws things off for ants so the volume has to be reshaped back to original dimensions.
         vol = vol.reshape(*new_dims) 
-        nib.Nifti1Image(vol, new_affine).to_filename(output_filename)
+        nib.Nifti1Image(vol, new_affine,  direction=direction).to_filename(output_filename)
         #write_nifti(vol, new_affine, output_filename)
     else :
         vol = resample_from_to(img, nib.load(reference_image_fn), order=5).get_fdata()
-        nib.Nifti1Image(vol, nib.load(reference_image_fn).affine ).to_filename(output_filename)
+        nib.Nifti1Image(vol, nib.load(reference_image_fn).affine ).to_filename(output_filename, direction=direction)
         #write_nifti(vol, read_affine(reference_image_fn), output_filename)
 
 

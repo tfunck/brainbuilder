@@ -1,5 +1,5 @@
 import utils.ants_nibabel as nib
-#import nibabel as nib
+import nibabel 
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -16,7 +16,7 @@ from glob import glob
 from skimage.transform import resize
 from utils.utils import set_csv, add_padding
 from utils.ANTs import ANTs
-from ants import write_transform, read_transform, registration, apply_transforms, image_mutual_information, from_numpy, image_similarity, compose_ants_transforms
+from ants import write_transform, read_transform, registration, apply_transforms, image_mutual_information, from_numpy, image_similarity, compose_ants_transforms, get_center_of_mass, image_read
 #matplotlib.use('TKAgg')
 
 def load2d(fn):
@@ -237,7 +237,6 @@ def alignment_stage(brain,hemi,slab, df, vol_fn_str, output_dir, scale, transfor
     #else :
     #    df = pd.read_csv(csv_fn)
 
-    print(np.unique(df['ligand'])); 
     return df, transforms
 
 
@@ -265,7 +264,7 @@ def create_manual_2d_df(df, manual_2d_dir):
 
             manual_affine_fn = os.path.splitext(manual_points_fn)[0] + '_affine.mat' 
         
-            points2tfm( manual_points_fn, manual_affine_fn, ndim=2 )
+            points2tfm( manual_points_fn, manual_affine_fn, fixed_points, moving_points, ndim=2 )
             
             assert os.path.exists(manual_affine_fn), f'Error : {manual_affine_fn} does not exist'
 
@@ -277,6 +276,36 @@ def create_manual_2d_df(df, manual_2d_dir):
             manual_2d_df = manual_2d_df.append(row)
     
     return manual_2d_df
+
+def concat_manual_tfm(manual_2d_df, manual_idx, row, original_crop_fn, final_tfm_fn  ):
+    fixed_y = manual_2d_df['fixed_index'].loc[ manual_idx ].values[0].astype(int)
+    print('target ligand:', manual_2d_df['ligand'].loc[ manual_idx ])
+
+    manual_tfm_fn = manual_2d_df['tfm'].loc[ manual_idx ].values[0] 
+   
+    fixed_tfm_fn = df['init_tfm'].loc[ fixed_y == df['slab_order'].values.astype(int) ].values[0] 
+    
+    print('\tmoving', y,'fixed', fixed_y, final_tfm_fn)
+    manual_tfm_ants = read_transform(manual_tfm_fn)
+    print(fixed_tfm_fn)
+    original_crop_fn = row['original_crop_fn'].values[0]
+
+    if not pd.isnull(fixed_tfm_fn) :
+        # Manual points applied after fixed transform
+        print('combining manual and fixed tfm')
+        fixed_tfm_ants = read_transform(fixed_tfm_fn)
+        tfm_concat = compose_ants_transforms( [ manual_tfm_ants, 
+                                                read_transform(fixed_tfm_fn) ] )
+        #write_transform( tfm_concat , final_tfm_fn)
+        #
+        shell(f'antsApplyTransforms -v 1 -d 2 -r {original_crop_fn} -i {original_crop_fn}  -t {fixed_tfm_fn}  -t {manual_tfm_fn}  -o Linear[{final_tfm_fn}]')
+    else :
+        # Manual points but no fixed transform
+        print('copy manual tfm to final')
+        final_tfm_fn=os.path.splitext(final_tfm_fn)[0]+'.mat'
+        shutil.copy(manual_tfm_fn, final_tfm_fn)
+
+    shell(f'antsApplyTransforms -v 1 -d 2 -r {original_crop_fn} -i {original_crop_fn} -t {final_tfm_fn} -o {final_section_fn}')
 
 def create_final_outputs(final_tfm_dir, df, manual_2d_df, step):
     y_idx_tier = df['slab_order'].values.astype(int)
@@ -311,40 +340,17 @@ def create_final_outputs(final_tfm_dir, df, manual_2d_df, step):
             manual_idx = manual_2d_df['moving_index'].apply( lambda x : x == moving_index )
             print(y)
             if np.sum(manual_idx) > 0 :
-                fixed_y = manual_2d_df['fixed_index'].loc[ manual_idx ].values[0].astype(int)
-                print('target ligand:', manual_2d_df['ligand'].loc[ manual_idx ])
-
-                manual_tfm_fn = manual_2d_df['tfm'].loc[ manual_idx ].values[0] 
-               
-                fixed_tfm_fn = df['init_tfm'].loc[ fixed_y == df['slab_order'].values.astype(int) ].values[0] 
+                concat_manual_tfm(manual_2d_df, manual_idx, row, original_crop_fn, final_tfm_fn  )
                 
-                print('\tmoving', y,'fixed', fixed_y, final_tfm_fn)
-                manual_tfm_ants = read_transform(manual_tfm_fn)
-                print(fixed_tfm_fn)
-                original_crop_fn = row['original_crop_fn'].values[0]
-                if not pd.isnull(fixed_tfm_fn) :
-                    # Manual points applied after fixed transform
-                    print('combining manual and fixed tfm')
-                    fixed_tfm_ants = read_transform(fixed_tfm_fn)
-                    tfm_concat = compose_ants_transforms( [ manual_tfm_ants, 
-                                                            read_transform(fixed_tfm_fn) ] )
-                    #write_transform( tfm_concat , final_tfm_fn)
-                    #
-                    shell(f'antsApplyTransforms -v 1 -d 2 -r {original_crop_fn} -i {original_crop_fn}  -t {fixed_tfm_fn}  -t {manual_tfm_fn}  -o Linear[{final_tfm_fn}]')
-                else :
-                    # Manual points but no fixed transform
-                    print('copy manual tfm to final')
-                    final_tfm_fn=os.path.splitext(final_tfm_fn)[0]+'.mat'
-                    shutil.copy(manual_tfm_fn, final_tfm_fn)
-                
-                shell(f'antsApplyTransforms -v 1 -d 2 -r {original_crop_fn} -i {original_crop_fn} -t {final_tfm_fn} -o {final_section_fn}')
                 #vol = apply_transforms(original_crop_fn,original_crop_fn, [final_tfm_fn])
                 #nib.Nifti1Image(vol, nib.load(original_crop_fn).affine ).to_filename(final_section_fn)
 
             elif  type(row['init_tfm'].values[0]) == str  :
                 # standard rigid transformation for moving image
                 shutil.copy(row['init_tfm'].values[0], final_tfm_fn)
-                os.symlink(row['crop_fn'].values[0],final_section_fn)
+
+                if not os.path.exists(final_section_fn) :
+                    os.symlink(row['crop_fn'].values[0],final_section_fn)
             else :
                 if not os.path.exists(final_section_fn) :
                     os.symlink(row['crop_fn'].values[0], final_section_fn)
@@ -390,6 +396,7 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, m
     df_ligand, transforms_1 = alignment_stage(brain,hemi,slab,df_ligand, slab_img_fn_str, output_dir_1, scale, transforms_1,  target_ligand='dpmg',ligand_n=0,target_tier=1, desc=(brain,hemi,slab), clobber=clobber)
    
     # update the master dataframe, df, with new dataframe for the ligand 
+    print(df_ligand['init_tfm'].loc[df['ligand']=='dpmg'].values) 
     df.loc[ df['ligand'] == ligand_intensity_order[0]] = df_ligand
 
     ###########
@@ -397,7 +404,7 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, m
     ###########
     #Align ligands to one another based on mean pixel intensity. Start with highest first because these have better contrast
     output_dir_2 = output_dir + os.sep + 'stage_2'
-    concat_list=[ df.loc[df['ligand'] == ligand_intensity_order[0]]   ]
+    concat_list=[ df_ligand.loc[df_ligand['ligand'] == ligand_intensity_order[0]]   ]
     print('Stage 2') 
     for i in range(1,n_ligands) :
         current_ligands = [ligand_intensity_order[0], ligand_intensity_order[i]]
@@ -462,9 +469,11 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, m
     final_tfm_dir =  output_dir + os.sep + 'final_tfm'
     os.makedirs(final_tfm_dir, exist_ok=True)
     df = stage_2_df
+
     df = create_final_outputs(final_tfm_dir, df, manual_2d_df, 1)
     df = create_final_outputs(final_tfm_dir, df, manual_2d_df, -1)
    
+    print(df['init_tfm'].loc[df['ligand']=='dpmg'].values); 
     print('Writing:',init_tfm_csv)
         
     df.to_csv(init_tfm_csv)
@@ -472,6 +481,48 @@ def receptorRegister(brain,hemi,slab, init_align_fn, init_tfm_csv, output_dir, m
     df['tier']=1
     if not os.path.exists(init_align_fn) :
         vol = combine_sections_to_vol(df,z_mm,direction,init_align_fn )
+
+from scipy.ndimage import center_of_mass
+def apply_transforms_to_landmarks(landmark_df, slab_df, landmark_dir, init_3d_fn):
+    
+    img_3d = nib.load(init_3d_fn)
+    starts_3d = img_3d.affine[[0,1,2],[3,3,3]]
+    steps_3d = img_3d.affine[[0,1,2],[0,1,2]]
+
+    for i , row in landmark_df.iterrows() :
+        volume_order = row['volume_order']
+        if volume_order in slab_df['volume_order'].values :
+            landmark_crop_fn = row['crop']
+            landmark_init_fn = re.sub('.nii', '_init.nii', landmark_crop_fn)
+            landmark_df['init'].iloc[i] = landmark_init_fn
+
+            if not os.path.exists(landmark_init_fn) :
+                # init aligned images
+                idx = slab_df['volume_order']==volume_order
+                tfm_fn = slab_df['init_tfm'].loc[ idx ].values[0]
+                init_fn = slab_df['crop_fn'].loc[idx].values[0] 
+                shell(f'antsApplyTransforms -v 1 -d 2 -r {init_fn} -i {landmark_crop_fn} -t {tfm_fn} -o {landmark_init_fn}')
+                #img = image_read(landmark_init_fn)
+                img = nibabel.load(landmark_init_fn)
+                print(img.affine)
+                steps = img.affine[[0,1],[0,1]]
+                starts = img.affine[[0,1],[3,3]]
+                print(steps)
+                print(starts)
+                comv = center_of_mass(img.get_fdata())
+                #com = get_center_of_mass(img)
+                print('comv', comv[1]*steps[0]+starts[0])
+                print('comv', comv[0]*-steps[1]-starts[1])
+                #print(img.spacing)
+                #print(img.origin)
+                #x = com[0] 
+                y = slab_df['slab_order'].loc[idx].values[0] * 0.02 + starts_3d[1] 
+                print(y, slab_df['slab_order'].loc[idx].values[0] , 0.02 ,starts_3d[1])
+                #z = com[1] 
+                #print('x,y,z', x,y,z)
+
+
+
 
 if __name__ == '__main__' :
     print(sys.argv)

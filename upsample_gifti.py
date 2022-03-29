@@ -2,7 +2,8 @@ import numpy as np
 import os
 import time
 import sys
-import nibabel as nib
+import nibabel as nb
+#import utils.ants_nibabel as nib
 import matplotlib.pyplot as plt
 import h5py as h5
 import tempfile
@@ -61,10 +62,10 @@ def get_ngh(triangles):
     return d 
 
 def save_gii(coords, triangles, reference_fn, out_fn):
-    img = nib.load(reference_fn) 
-    ar1 = nib.gifti.gifti.GiftiDataArray(data=coords.astype(np.float32), intent='NIFTI_INTENT_POINTSET') 
-    ar2 = nib.gifti.gifti.GiftiDataArray(data=triangles.astype(np.int32), intent='NIFTI_INTENT_TRIANGLE') 
-    out = nib.gifti.GiftiImage(darrays=[ar1,ar2], header=img.header, file_map=img.file_map, extra=img.extra, meta=img.meta, labeltable=img.labeltable) 
+    img = nb.load(reference_fn) 
+    ar1 = nb.gifti.gifti.GiftiDataArray(data=coords.astype(np.float32), intent='NIFTI_INTENT_POINTSET') 
+    ar2 = nb.gifti.gifti.GiftiDataArray(data=triangles.astype(np.int32), intent='NIFTI_INTENT_TRIANGLE') 
+    out = nb.gifti.GiftiImage(darrays=[ar1,ar2], header=img.header, file_map=img.file_map, extra=img.extra, meta=img.meta, labeltable=img.labeltable) 
     out.to_filename(out_fn) 
     #print(out.print_summary())
 
@@ -372,7 +373,7 @@ def write_gifti_from_h5(upsample_fn, coords_fn, faces_fn, input_fn ) :
 def setup_h5_arrays(input_fn, upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_h5_fn, clobber=False):
     ext = os.path.splitext(input_fn)[1]
     if ext == '.gii' :
-        mesh = nib.load(input_fn)
+        mesh = nb.load(input_fn)
         faces_npy = mesh.agg_data('NIFTI_INTENT_TRIANGLE')
         coords_npy = mesh.agg_data('NIFTI_INTENT_POINTSET')
     elif ext == '.obj' :
@@ -476,7 +477,7 @@ def resample_gifti_to_h5(new_edges_h5_fn, reference_coords_h5_fn, input_list, ou
     for i, (in_fn, out_fn) in enumerate(zip(input_list,output_list)):
 
         if not os.path.exists(out_fn) :
-            coords = nib.load(in_fn).agg_data('NIFTI_INTENT_POINTSET')
+            coords = nb.load(in_fn).agg_data('NIFTI_INTENT_POINTSET')
             n_coords = coords.shape[0]
 
             rsl_coords_h5 = h5py.File(out_fn, 'w')
@@ -503,9 +504,11 @@ def upsample_gifti(input_fn,upsample_0_fn, upsample_1_fn, resolution, input_list
     coords_h5_fn = sub('.surf.gii','_new_coords.h5',upsample_0_fn)
     new_edges_h5_fn = sub('.surf.gii','_new_edges.h5',upsample_0_fn)
     if not os.path.exists(coords_h5_fn) :
+        print(os.path.exists(coords_h5_fn), coords_h5_fn)
         upsample_with_h5(input_fn, upsample_0_fn,  faces_h5_fn, coords_h5_fn, new_edges_h5_fn, resolution)
 
     if not os.path.exists(upsample_0_fn) :
+        print(os.path.exists(upsample_0_fn), upsample_0_fn)
         write_gifti_from_h5(upsample_0_fn, coords_h5_fn, faces_h5_fn, input_fn ) 
     
     if input_list != []  and output_list != [] :

@@ -10,16 +10,29 @@ import matplotlib
 import time
 import ants
 import numpy as np
-import nibabel as nb
+
+ras = np.array([[1.,0.,0.],[0.,1.,0.],[0.,0.,-1.]])
+lpi=np.array([[-1.,0.,0.],[0.,-1.,0.],[0.,0.,1.]])
 
 class Nifti1Image():
-    def __init__(self, dataobj, affine):
+    def __init__(self, dataobj, affine, direction=[], direction_order='ras'):
         self.affine = affine
         self.dataobj= dataobj
         self.shape = dataobj.shape
+        ndim=len(self.shape)
+        if direction_order == 'ras' and len(direction) == 0:
+            direction=ras
+        elif direction_order == 'lpi' and len(direction) == 0 :
+            direction=lpi
+        elif len(direction) != 0 :
+            pass
+        else :
+            print('Error: <direction_order> not supported, specify <direction> directly')
+            exit(0)
 
+        self.direction=list(np.array(direction)[ 0:ndim, 0:ndim ])
     def to_filename(self, filename):
-        write_nifti(self.dataobj, self.affine, filename)
+        write_nifti(self.dataobj, self.affine, filename, direction=self.direction)
 
     def get_fdata(self):
         return self.dataobj
@@ -66,25 +79,28 @@ def read_affine(fn, use_antspy=True):
 
 def load(fn) :
     affine = read_affine(fn)
-    vol = safe_image_read(fn).numpy()
+    img = ants.image_read(fn)
+    vol = img.numpy()
+    direction = img.direction
+    nii_obj = Nifti1Image(vol,affine, direction=direction)
 
-    return Nifti1Image(vol,affine)
+    return nii_obj
 
-def write_nifti(vol, affine, out_fn):
+def write_nifti(vol, affine, out_fn, direction=[]):
 
     ndim = len(vol.shape)
     idx0 = list(range(0,ndim))
     idx1 = [3]*ndim
 
     origin = list(affine[ idx0, idx1 ])
-    spacing = list( affine[ idx0, idx0 ])
-    if len(spacing) == 2 :
-        direction=[[1., 0.], [0., 1.]]
-    else :
-        # Force to write in RAS coordinates
-        direction=[[1., 0., 0.], [0., 1., 0.], [0., 0., -1.]]
-    #print('--> spacing', spacing)
-    #print('--> origin', origin)
-    #print('--> direction', direction)
+    spacing = list(affine[ idx0, idx0 ])
+    
+    if direction == [] :
+        if len(spacing) == 2 :
+            direction=[[1., 0.], [0., 1.]]
+        else :
+            # Force to write in RAS coordinates
+            direction = [[1., 0., 0.], [0., 1., 0.], [0., 0., -1.]]
     ants_image = ants.from_numpy(vol, origin=origin, spacing=spacing, direction=direction)
+    assert not True in np.isnan(affine.ravel()), 'Bad affine matrix. NaN detected'
     ants.image_write(ants_image, out_fn)

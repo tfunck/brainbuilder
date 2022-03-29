@@ -79,14 +79,14 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, use_syn=
     with open(prefix+'_command.txt','w') as f : f.write(affine_command_str)
     shell(affine_command_str)
     
+    syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz]  -t SyN[0.1] -m {nl_metric} -c {nl_itr_str} -s {s_str} -f {f_str}' # -t SyN[0.1]  -m CC[{fx_fn},{mv_fn},1,20,Regular,1] -c 100 -s {s_cc}  -f {f_cc}'
+
     if use_syn :
-        syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz]  -t SyN[0.1] -m {nl_metric} -c {nl_itr_str} -s {s_str} -f {f_str}' # -t SyN[0.1]  -m CC[{fx_fn},{mv_fn},1,20,Regular,1] -c 100 -s {s_cc}  -f {f_cc}'
         with open(prefix+'_command.txt','w') as f : f.write(syn_command_str)
         shell(syn_command_str)
     else :
         shutil.copy( f'{prefix}_affine_cls_rsl.nii.gz' , f'{prefix}_cls_rsl.nii.gz' )
         shutil.copy( f'{prefix}_Affine_Composite.h5' , f'{prefix}_Composite.h5' )
-
     assert os.path.exists(f'{prefix}_cls_rsl.nii.gz') , f'Error: output does not exist {prefix}_cls_rsl.nii.gz'
     return 0
     
@@ -109,8 +109,7 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     
     #fix_affine(crop_rsl_fn)
     #fix_affine(fx_fn)
-    print(f'antsApplyTransforms -v 1 -d 2 -n NearestNeighbor -i {crop_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
-    shell(f'antsApplyTransforms -v 1 -d 2 -n NearestNeighbor -i {crop_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
+    shell(f'antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {crop_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
     
     #Commented out masking because GM receptor mask not good enough at the moment.
     #rsl_img = nib.load(out_fn)
@@ -134,9 +133,10 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
     os.makedirs(tfm_dir,exist_ok=True)
 
     num_cores = min(14, multiprocessing.cpu_count() )
-    print('num cores', num_cores)
+    
     to_do_df = pd.DataFrame([])
     to_do_resample_df = pd.DataFrame([])
+
     df['tfm_affine']=['']*df.shape[0]
 
     for i, row in df.iterrows() :
@@ -170,9 +170,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
         df['tfm'].loc[ df['slab_order'] == y ] = tfm_fn
         df['tfm_affine'].loc[ df['slab_order'] == y ] = tfm_affine_fn
 
-    #df['init_tfm'] = df['tfm']
-
-    return df
+        return df
 
 def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='rsl'):
     exit_flag=False
@@ -191,15 +189,20 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='r
         fn = f'{tfm_dir}/y-{y}_{target_str}.nii.gz' 
         
         df[target_name].loc[i] = fn
-        try : 
-            out_vol[:,int(y),:] = nib.load(fn).get_fdata()
-        except EOFError :
-            print('Error:', fn)
-            os.remove(fn)
-            exit_flag=True
 
-        if exit_flag : exit(1)
-    print('\t\tWriting 3D non-linear:', out_fn)
-    #out_vol = np.flip(out_vol, axis=1)
-    nib.Nifti1Image(out_vol, hires_img.affine).to_filename(out_fn)
+    if not os.path.exists(out_fn) :
+        for idx, (i, row) in enumerate(df.iterrows()):
+            fn = df[target_name].loc[i]
+            y = row['slab_order'] 
+
+            try : 
+                out_vol[:,int(y),:] = nib.load(fn).get_fdata()
+            except EOFError :
+                print('Error:', fn)
+                os.remove(fn)
+                exit_flag=True
+
+            if exit_flag : exit(1)
+        print('\t\tWriting 3D non-linear:', out_fn)
+        nib.Nifti1Image(out_vol, hires_img.affine).to_filename(out_fn)
     return df 
