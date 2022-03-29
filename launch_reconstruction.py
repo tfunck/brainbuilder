@@ -550,7 +550,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
 
     for ligand, df_ligand in hemi_df.groupby(['ligand']):
 
-        if 'flum' == ligand :
+        if 'flum' == ligand or True:
             ###
             ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
             ###
@@ -572,8 +572,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
             cortex_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_rsl.h5')[0]
             faces_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_0.0_rsl_new_faces.h5')[0]
             output_dir=f'/data/receptor/human/output_3_caps/6_quality_control/'
-            validate_interpolation(ligand_csv, sphere_mesh_fn, cortex_mesh_fn, faces_fn, output_dir, n_samples=1000, max_depth=6)
-    exit(0)
+            validate_interpolation(ligand_csv, sphere_mesh_fn, cortex_mesh_fn, faces_fn, output_dir, n_samples=1000, max_depth=6, ligand=ligand)
 
 ###---------------------###
 ###  PROCESSING STEPS   ###
