@@ -8,6 +8,7 @@ import re
 import pandas as pd
 import nibabel 
 import utils.ants_nibabel as nib
+from reconstruction.surface_interpolation import surface_interpolation
 from utils.utils import prefilter_and_downsample, resample_to_autoradiograph_sections
 from reconstruction.align_slab_to_mri import *
 from utils.utils import get_section_intervals
@@ -574,14 +575,33 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, out_dir='macaque/o
     interp_align_2d_fn=f'{final_3d_dir}/{subject_id}_interp_{curr_res}mm.nii.gz'
     interp_align_2d_template_fn=f'{final_3d_dir}/{subject_id}_interp_space-template_{curr_res}mm.nii.gz'
 
-    img = nib.load(volume_align_2d_fn)
-    data = img.get_fdata()
-    nib.Nifti1Image( interpolate_missing_sections( data ), img.affine).to_filename(interp_align_2d_fn)
+    reconstruct_ligands(ligand_dir, subject_id, resolution_list[-1], aligned_df, template_fn, tfm_3d_fn, interp_align_2d_fn)
 
-    final_3d_fn, final_3d_inv_fn = align_3d(interp_align_2d_fn, template_fn, final_3d_dir, subject_id, curr_res, syn_only=True, init_tfm = tfm_3d_fn)
+    srv_max_resolution_fn=template_fn #might need to be upsampled to maximum resolution
+    surf_dir = f'{auto_dir}/surfaces/'
+    interp_dir = f'{subject_dir}/interp/'
+    brain = '11530'
+    hemi = 'L' 
+    highest_resolution = resolution_list[-1]
+    n_depths=3
+    n_vertices = 0 
+    
+    class Arguments() :
+        pass
+    args=Arguments()
+    args.surf_dir = surf_dir
+    args.n_vertices = n_vertices
 
-    reconstruct_ligands(ligand_dir, subject_id, resolution_list[-1], aligned_df, template_fn, final_3d_fn, volume_align_2d_fn)
+    df_ligand=df
+    files={ brain:{hemi:{'1':{}} }}
+    files[brain][hemi]['1'][highest_resolution] = {
+            'nl_3d_tfm_fn' : tfm_3d_fn,
+            'nl_2d_vol_fn' : interp_align_2d_fn,
+        }
 
+    slab_dict=files 
+
+    surface_interpolation(df_ligand, slab_dict, out_dir, interp_dir, brain, hemi, highest_resolution,  srv_max_resolution_fn, args, files[brain][hemi], surf_dir=surf_dir, n_vertices=n_vertices, n_depths=n_depths)
 
     print('Done')
 

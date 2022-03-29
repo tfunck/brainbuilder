@@ -33,7 +33,7 @@ from vast.surface_volume_mapper import SurfaceVolumeMapper
 #from pykrige.ok import OrdinaryKriging
 
 global surf_base_str
-surf_base_str = '{}/mri1_{}_surface_right_{}{}.{}'
+surf_base_str = '{}/{}_{}_surface_{}_{}{}.{}'
 '''
 def krig(lons_src, lats_src, lats, lons, values ):
     # Make this example reproducible:
@@ -692,19 +692,21 @@ def prepare_surfaces(slab_dict, depth_list, interp_dir, resolution, surf_dir='ci
     os.makedirs(surf_rsl_dir, exist_ok=True)
     
     #Interpolate at coordinate locations
-    ref_surf_fn = surf_base_str.format(surf_dir,'gray', n_vertices,'','surf.gii')
-    ref_surf_obj_fn = surf_base_str.format(surf_dir,'gray', n_vertices,'','obj')
+    brain='mri1'
+    ref_surf_fn = surf_base_str.format(brain, surf_dir,'gray', hemi, n_vertices,'','surf.gii')
+    ref_surf_obj_fn = surf_base_str.format(brain, surf_dir,'gray', hemi, n_vertices,'','obj')
+    print(ref_surf_obj_fn) ; exit(0)
 
     #if not os.path.exists(ref_surf_fn) :
     #    shell('ConvertSurface -i_obj {ref_surf_obj_fn}  -o_gii {ref_surf_fn}')
 
-    surf_gm_obj_fn = surf_base_str.format(surf_dir,'gray', n_vertices,'','obj')
-    surf_wm_obj_fn = surf_base_str.format(surf_dir,'white', n_vertices,'','obj')
+    surf_gm_obj_fn = surf_base_str.format(brain, surf_dir,'gray', hemi, n_vertices,'','obj')
+    surf_wm_obj_fn = surf_base_str.format(brain, surf_dir,'white', hemi, n_vertices,'','obj')
 
-    surf_gm_fn = surf_base_str.format(surf_rsl_dir,'gray', n_vertices,'','surf.gii')
-    surf_wm_fn = surf_base_str.format(surf_rsl_dir,'white', n_vertices,'','surf.gii')
+    surf_gm_fn = surf_base_str.format(brain, surf_rsl_dir,'gray', hemi, n_vertices,'','surf.gii')
+    surf_wm_fn = surf_base_str.format(brain, surf_rsl_dir,'white', hemi, n_vertices,'','surf.gii')
     
-    sphere_obj_fn = surf_base_str.format(surf_dir,'mid', n_vertices,'_sphere','surf.gii')
+    sphere_obj_fn = surf_base_str.format(brain,surf_dir,'mid', hemi, n_vertices,'_sphere','surf.gii')
     obj_to_gii(surf_gm_obj_fn, ref_surf_fn, surf_gm_fn)
     obj_to_gii(surf_wm_obj_fn, ref_surf_fn, surf_wm_fn)
 
@@ -773,10 +775,10 @@ def combine_interpolated_sections(slab_fn, vol_interp, df_ligand_slab, ystart, y
     return vol
 
 
-def create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, profiles_fn, depth_list, depth_fn_slab_space, args, files, resolution, df_ligand, use_mapper=True, clobber=False):
+def create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, profiles_fn, depth_list, depth_fn_slab_space, slabs, files, resolution, df_ligand, use_mapper=True, clobber=False):
     profiles = None
 
-    for interp_fn, slab in zip(interp_fn_list, args.slabs) :
+    for interp_fn, slab in zip(interp_fn_list, slabs) :
 
         if not os.path.exists(interp_fn) or clobber : 
             
@@ -909,7 +911,7 @@ def create_final_reconstructed_volume(final_mni_fn, mni_fn, resolution,  depth_f
     nib.Nifti1Image(output_vol, ref_img.affine).to_filename(final_mni_fn)
 
 
-def surface_interpolation(df_ligand, slab_dict, out_dir, interp_dir, brain, hemi, resolution, mni_fn, args, files,  n_depths=3, tissue_type='', surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, clobber=0):
+def surface_interpolation(df_ligand, slab_dict, out_dir, interp_dir, brain, hemi, resolution, mni_fn, slabs, files,  n_depths=3, tissue_type='', surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, clobber=0):
 
     ligand = df_ligand['ligand'].values[0]
 
@@ -929,7 +931,7 @@ def surface_interpolation(df_ligand, slab_dict, out_dir, interp_dir, brain, hemi
 
 
     print('\tReconstructing', ligand)
-    interp_fn_list, interp_fn_mni_list = find_ligands_to_reconstruction(args.slabs, interp_dir, template_out_prefix)
+    interp_fn_list, interp_fn_mni_list = find_ligands_to_reconstruction(slabs, interp_dir, template_out_prefix)
     
     print('\tInterpolating for ligand:',ligand)
 
@@ -942,7 +944,7 @@ def surface_interpolation(df_ligand, slab_dict, out_dir, interp_dir, brain, hemi
 
     # transform interp_fn to mni space
     print('\tTransform slab to mni')
-    transform_slab_to_mni(args.slabs, slab_dict,mni_fn, template_out_prefix)
+    transform_slab_to_mni(slabs, slab_dict,mni_fn, template_out_prefix)
     
     final_mni_fn = f'{recon_out_prefix}_space-mni.nii.gz'
     # interpolate from surface to volume over entire brain

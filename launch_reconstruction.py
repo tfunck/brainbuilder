@@ -532,8 +532,8 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list):
             ###
             ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
             ###
-            surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution,  srv_max_resolution_fn, args, files[brain][hemi], surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
-            surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, srv_max_resolution_fn, args, files[brain][hemi],  tissue_type='_cls', surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+            surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution,  srv_max_resolution_fn, args.slabs, files[brain][hemi], surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+            surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, srv_max_resolution_fn, args.slabs, files[brain][hemi],  tissue_type='_cls', surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
 
             ###
             ### 6. Quality Control
