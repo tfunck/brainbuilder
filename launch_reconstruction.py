@@ -556,7 +556,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
             ###
 
             scale_factors = json.load(open(args.scale_factors_fn, 'r'))[brain][hemi]
-            final_ligand_fn = surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, cortex_fn, args, files[brain][hemi], scale_factors, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+            final_ligand_fn = surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, cortex_fn, slabs.args, files[brain][hemi], scale_factors, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
             #surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, srv_max_resolution_fn, args, files[brain][hemi],  tissue_type='_cls', surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
             ###
             ### 6. Quality Control

@@ -41,7 +41,7 @@ def get_section_intervals(vol):
     assert len(intervals) > 0 , 'Error: no valid intervals found for volume.'  
     return intervals
     
-def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, ref_fn, tfm_inv_fn, output_fn):
+def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, ref_fn, tfm_inv_fn, iso_output_fn, output_fn):
     '''
     About:
         Apply 3d transformation and resample volume into the same coordinate space as 3d receptor volume.           This produces a volume with 0.02mm dimension size along the y axis.
@@ -59,14 +59,12 @@ def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, 
     Outpus:
         None
     '''
-    temp_fn=f'/tmp/{brain}-{hemi}-{slab}.nii.gz'
-    print(temp_fn)
-    shell(f'antsApplyTransforms -v 1 -d 3 -i {input_fn} -r {ref_fn} -t {tfm_inv_fn} -o {temp_fn}',True)
-    img = nib.load(temp_fn)
+    shell(f'antsApplyTransforms -n HammingWindowedSinc -v 1 -d 3 -i {input_fn} -r {ref_fn} -t {tfm_inv_fn} -o {iso_output_fn}',True)
+    img = nib.load(iso_output_fn)
     vol = img.get_fdata()
-    assert np.sum(vol) > 0, f'Error: empty volume {temp_fn}'
+    assert np.sum(vol) > 0, f'Error: empty volume {iso_output_fn}'
      
-    img = resample_to_output(nibabel.Nifti1Image(vol,img.affine), [float(resolution),0.02, float(resolution)], order=5)
+    img = resample_to_output(nibabel.Nifti1Image(vol,img.affine), [float(resolution),0.02, float(resolution)], order=0)
     vol = img.get_fdata()
     nib.Nifti1Image(vol, img.affine ).to_filename(output_fn)
 
@@ -119,7 +117,6 @@ def safe_ants_image_read(fn, tol=0.001, clobber=False):
 
 def points2tfm(points_fn, affine_fn, fixed_fn, moving_fn, ndim=3, transform_type="Affine", invert=False, clobber=False):
 
-
     #comFixed=[] 
     #comMoving=[] 
     #comMoving[-1] *= 1 
@@ -128,8 +125,12 @@ def points2tfm(points_fn, affine_fn, fixed_fn, moving_fn, ndim=3, transform_type
         fixed_img = ants.image_read(fixed_fn)
         moving_img = ants.image_read(moving_fn)
 
+
         comFixed = list( get_center_of_mass(fixed_img) ) 
         comMoving = list( get_center_of_mass(moving_img) )
+
+        print(comFixed)
+        print(comMoving)
 
         fixed_dirs = fixed_img.direction[[0,1,2],[0,1,2]]
         moving_dirs = moving_img.direction[[0,1,2],[0,1,2]]
@@ -145,11 +146,11 @@ def points2tfm(points_fn, affine_fn, fixed_fn, moving_fn, ndim=3, transform_type
 
         fixed_points = fixed_dirs * fixed_points
         moving_points = moving_dirs * moving_points
+        print(np.mean(fixed_points,axis=0))
+        print(np.mean(moving_points,axis=0))
 
         fixed_points = fixed_points - np.mean(fixed_points,axis=0) + comFixed
         moving_points = moving_points - np.mean(moving_points,axis=0) + comMoving
-
-
 
         landmark_tfm = fit_transform_to_paired_points(moving_points, fixed_points, transform_type=transform_type , centerX=comFixed, centerY=comMoving)
 

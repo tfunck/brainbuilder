@@ -10,10 +10,12 @@ import tempfile
 import argparse
 import h5py
 import tracemalloc
+
+from nibabel import freesurfer
 from guppy import hpy
 from matplotlib.patches import Circle, Wedge, Polygon
 from matplotlib.collections import PatchCollection
-from utils.mesh_io import load_mesh_geometry, save_obj, read_obj
+from utils.mesh_io import save_mesh, load_mesh, load_mesh_geometry, save_obj, read_obj
 from re import sub
 from utils.utils import shell,splitext
 from glob import glob
@@ -62,15 +64,29 @@ def get_ngh(triangles):
     return d 
 
 def save_gii(coords, triangles, reference_fn, out_fn):
-    img = nb.load(reference_fn) 
-    ar1 = nb.gifti.gifti.GiftiDataArray(data=coords.astype(np.float32), intent='NIFTI_INTENT_POINTSET') 
-    ar2 = nb.gifti.gifti.GiftiDataArray(data=triangles.astype(np.int32), intent='NIFTI_INTENT_TRIANGLE') 
-    out = nb.gifti.GiftiImage(darrays=[ar1,ar2], header=img.header, file_map=img.file_map, extra=img.extra, meta=img.meta, labeltable=img.labeltable) 
+    print('ref fb', reference_fn)
+    print(coords[0:5])
+    print(triangles[0:5])
+    assert len(coords) > 0, f'Empty coords when trying to create {out_fn} '
+    assert len(triangles) > 0, f'Empty triangles when trying to create {out_fn} '
+    img = load_mesh(reference_fn) 
+    ar_pointset = nb.gifti.gifti.GiftiDataArray(data=coords.astype(np.float32), intent='NIFTI_INTENT_POINTSET') 
+    ar_triangle = nb.gifti.gifti.GiftiDataArray(data=triangles.astype(np.int32), intent='NIFTI_INTENT_TRIANGLE') 
+    darrays=[ar_pointset,ar_triangle]
+    #darrays=[ar2,ar1] #DEBUG FIXME
+    out = nb.gifti.GiftiImage(darrays=darrays, header=img.header, file_map=img.file_map, extra=img.extra, meta=img.meta, labeltable=img.labeltable) 
     out.to_filename(out_fn) 
     #print(out.print_summary())
 
-def obj_to_gii(obj_fn, gii_ref_fn, gii_out_fn):
-    coords, faces = read_obj(obj_fn)
+def obj_to_gii(in_fn, gii_ref_fn, gii_out_fn):
+    if '.obj' in in_fn :
+        coords, faces = read_obj(obj_fn)
+    elif '.pial' in in_fn or '.white' in in_fn :
+        coords, faces = freesurfer.io.read_geometry(in_fn)
+    else :
+        print('Error: filetype not supported for', in_fn)
+        exit(1)
+
     save_gii(coords, faces, gii_ref_fn, gii_out_fn)
 
 def calc_dist (x,y) : return np.sum(np.abs(x - y), axis=1)
@@ -129,7 +145,9 @@ def get_edges_from_faces(faces):
     edges_sorted = edges_range_sorted[:,0:2]
 
     #convert sorted indices to indices that correspond to face numbers
-    sorted_indices = edges_range_sorted[:,2] % faces.shape[0]
+    #DEBUG commented out following line because it isnt' used:
+    #sorted_indices = edges_range_sorted[:,2] % faces.shape[0]
+
     # the edges are reshuffled once by sorting them by row and then by extracting unique edges
     # we need to keep track of these transformations so that we can relate the shuffled edges to the 
     # faces they belong to.
@@ -148,7 +166,9 @@ def calc_new_coords(faces_h5_fn, coords_h5_fn, resolution, n_new_edges):
     coord_offset = coords_h5['data'][:].shape[0]
     faces_offset = faces_h5['data'][:].shape[0] 
 
+    #get the index number of all the edges in the mesh
     edges = get_edges_from_faces(faces_h5['data'][:]) 
+
     e_0, e_1 = edges[:,0], edges[:,1]
 
     n_edges = e_0.shape[0]
@@ -156,23 +176,33 @@ def calc_new_coords(faces_h5_fn, coords_h5_fn, resolution, n_new_edges):
     c_0 = coords_h5['data'][:][e_0] 
     c_1 = coords_h5['data'][:][e_1]
 
-
+    #calculate the euclidean distance between all points on an edge
     d_ij = calc_dist(c_0, c_1)
 
     long_edges = d_ij >= resolution
-    mm = np.argmax(long_edges)
     
+    '''
+    for e0, e1 in edges[long_edges] :
+        check=False
+        if e0 in [179,85,91] and e1 in [179,85,91] :
+            for a,b,c in faces_h5['data'][:] :
+                if e0 in [a,b,c] and e1 in [a,b,c] :
+                    check=True
+                    break
+            if not check :
+                print('uh ok, found a bad edge', e0, e1, 'is not in', a,b,c)
+                exit(0)
+
+            print('problematic edge', e0,e1, check, a,b,c)
+    '''        
     n_valid=np.sum(~long_edges)
     n_long=np.sum(long_edges).astype(int)
 
     n_total_coords = coord_offset + n_long
 
-    #new_coord_normals=[]
-    #if coord_normals  != [] :
-    #    new_coord_normals = calculate_new_coords(coord_normals, e_0, e_1, long_edges)
-
     coords_h5['data'].resize((n_total_coords,3))
     coords_h5['data'][coord_offset:] = ( coords_h5['data'][:][e_0][long_edges] + coords_h5['data'][:][e_1][long_edges] )/2.
+    print('coords shape', coords_h5['data'][:].shape)
     coords_h5.close()
     faces_h5.close()
     
@@ -196,10 +226,29 @@ def get_opposite_poly(edges, edge_counter, ngh, faces_dict, debug=False ):
 
     c = ab_ngh[0]
     d = ab_ngh[1]
+
+    
+    #print('a, b', a,b)
+    #print('c, d', c,d)
+
+    #if not a in ngh : 
+    #    print('a not in ngh')
+    #    exit(0)
+
+    #if not b in ngh : 
+    #    print('b not in ngh')
+    #    exit(0)
+    #if not c in ngh : 
+    #    print('c not in ngh')
+    #    exit(0)
+    #if not d in ngh : 
+    #    print('d not in ngh')
+    #    exit(0)
+
     face_idx=faces_dict[sorted_str([a,b,c])]
 
     #ar = list_intersect(ngh[a], ngh[b])
-    opposite_poly_index=faces_dict[sorted_str([a,b,d])]
+    opposite_poly_index = faces_dict[sorted_str([a,b,d])]
 
     #the idea is that the new coordinate that was interpolated between vertex a and b is stored
     #in new_coords[index]
@@ -225,7 +274,7 @@ def update_faces(edges, edge_counter, ngh, faces_h5, faces_dict, face_idx, faces
     faces_dict[sorted_str([index,c,b])] = opposite_poly_index
     faces_dict[sorted_str([a,index,d])] = faces_offset
     faces_dict[sorted_str([index,b,d])] = faces_offset+1
-    
+
     #update the neighbours of each vertex to reflect changes to mesh
     ngh[a] = [ ii if ii != b else index for ii in ngh[a] ] 
     ngh[b] = [ ii if ii != a else index for ii in ngh[b] ]
@@ -263,11 +312,14 @@ def upsample_edges(coords_h5_fn, faces_h5_fn, faces_dict, new_edges_h5_fn,  reso
     new_edges_h5.close()
 
     ngh = get_ngh_from_h5(faces_h5_fn) 
+
+    #print('max ngh',np.max(ngh))
     
     faces_h5 = h5py.File(faces_h5_fn, 'a')
     n_new_faces = faces_h5['data'].shape[0]+n_long*2
     faces_h5['data'].resize( (n_new_faces, 3) )
     faces_h5['data'][faces_offset:,:] = -1
+
 
     #
     #           d
@@ -342,7 +394,7 @@ def fix_normals(faces,coords,coord_normals):
         x=np.dot(average_normal, test_normal)
         if x < 0 : faces[i]=[c,b,a]
     return faces
-
+'''
 def write_mesh( coords, faces, input_fn, upsample_fn ):
     ext = upsample_fn.split('.')[-1]
     if ext == 'gii' :
@@ -352,7 +404,7 @@ def write_mesh( coords, faces, input_fn, upsample_fn ):
     else :
         print('not implemented for ext', ext)
         exit(1)
-
+'''
 
 def write_gifti_from_h5(upsample_fn, coords_fn, faces_fn, input_fn ) :
     print('\tFrom coords:', coords_fn)
@@ -362,7 +414,8 @@ def write_gifti_from_h5(upsample_fn, coords_fn, faces_fn, input_fn ) :
     
     coords_h5 = h5py.File(coords_fn,'r')
     faces_h5 = h5py.File(faces_fn,'r')
-    write_mesh( coords_h5['data'][:], faces_h5['data'][:], input_fn, upsample_fn )
+    volume_info = load_mesh(input_fn)[2]
+    save_mesh(upsample_fn, coords_h5['data'][:], faces_h5['data'][:], volume_info)
     #if temp_alt_coords != None :
     #    for orig_fn, fn in temp_alt_coords.items() :
     #        alt_upsample_fn=sub('.surf.gii','_rsl.surf.gii',orig_fn)
@@ -372,6 +425,10 @@ def write_gifti_from_h5(upsample_fn, coords_fn, faces_fn, input_fn ) :
 
 def setup_h5_arrays(input_fn, upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_h5_fn, clobber=False):
     ext = os.path.splitext(input_fn)[1]
+    print(input_fn)
+    coords_npy, faces_npy, volume_info = load_mesh(input_fn,correct_offset=False)
+    
+    '''
     if ext == '.gii' :
         mesh = nb.load(input_fn)
         faces_npy = mesh.agg_data('NIFTI_INTENT_TRIANGLE')
@@ -383,11 +440,12 @@ def setup_h5_arrays(input_fn, upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_
     else :
         print('Error: could not recognize filetype from extension,',ext)
         exit(1)
-
+    '''
     faces_h5 = h5py.File(faces_h5_fn,'w')
     faces_h5.create_dataset('data', data=faces_npy, maxshape=(None, 3))
     del faces_npy
 
+    print(coords_h5_fn);
     coords_h5 = h5py.File(coords_h5_fn,'w')
     coords_h5.create_dataset('data', data=coords_npy, maxshape=(None, 3))
     del coords_npy
@@ -435,18 +493,18 @@ def get_mesh_stats(faces_h5_fn, coords_h5_fn):
 def upsample_with_h5(input_fn,upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_h5_fn, resolution, test=False, clobber=False, debug=False):
         
         faces_dict = setup_h5_arrays(input_fn, upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_h5_fn, clobber=clobber)
-
+        
         max_len, avg_len, perc95, n_coords, n_faces = get_mesh_stats(faces_h5_fn, coords_h5_fn)
 
         #calculate surface normals
         coord_normals=[]
-        if resolution > 1 :
-            faces_h5 = h5.File(faces_h5_fn, 'r')
-            coords_h5 = h5.File(coords_h5_fn, 'r')
-            normals = np.array([ np.cross(coords_h5['data'][b]-coords_h5['data'][a],coords_h5['data'][c]-coords_h5['data'][a]) for a,b,c in faces_h5['data'][:] ])
-            coord_normals = setup_coordinate_normals(faces_h5['data'][:],normals,coords_h5['data'][:])
-            del faces_h5
-            del coords_h5
+        #if resolution > 1 :
+        #    faces_h5 = h5.File(faces_h5_fn, 'r')
+        #    coords_h5 = h5.File(coords_h5_fn, 'r')
+        #    normals = np.array([ np.cross(coords_h5['data'][b]-coords_h5['data'][a],coords_h5['data'][c]-coords_h5['data'][a]) for a,b,c in faces_h5['data'][:] ])
+        #    coord_normals = setup_coordinate_normals(faces_h5['data'][:],normals,coords_h5['data'][:])
+        #    del faces_h5
+        #    del coords_h5
        
         print('\tmax edge',max_len,'\tavg', avg_len,'\tcoords=', n_coords , '\tfaces=',n_faces )
 
@@ -467,57 +525,61 @@ def upsample_with_h5(input_fn,upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_
 
         del faces_dict 
 
-def resample_gifti_to_h5(new_edges_h5_fn, reference_coords_h5_fn, input_list, output_list) :
+        return n_new_edges
+
+def resample_gifti_to_h5(new_edges_h5_fn, reference_coords_h5_fn, input_list, output_list, n_new_edges) :
 
     new_edges_h5 = h5py.File(new_edges_h5_fn, 'r')
     reference_coords_h5 = h5py.File(reference_coords_h5_fn, 'r')
     n = reference_coords_h5['data'].shape[0]
     n_edges = new_edges_h5['data'].shape[0]
-    print('n=',n)
+    if n_edges == 1 and np.sum(new_edges_h5['data'][:]) == 0 : n_edges=0
+    
     for i, (in_fn, out_fn) in enumerate(zip(input_list,output_list)):
-
+        print(in_fn)
         if not os.path.exists(out_fn) :
-            coords = nb.load(in_fn).agg_data('NIFTI_INTENT_POINTSET')
+            #coords = nb.load(in_fn).agg_data('NIFTI_INTENT_POINTSET')
+            coords = load_mesh(in_fn, correct_offset=False)[0] 
             n_coords = coords.shape[0]
-
+            print('n coords',n_coords)
             rsl_coords_h5 = h5py.File(out_fn, 'w')
             rsl_coords_h5.create_dataset('data', (n,3) )
             rsl_coords_h5['data'][ 0 : n_coords] = coords
             rsl_coords = rsl_coords_h5['data'][:]
 
             new_edges = new_edges_h5['data'][:].astype(int)
-            for ii in range( n_edges) :
-                #c0, c1 = new_edges_h5['data'][ii,:]
-                #rsl_coords_h5['data'][ ii, : ] = (rsl_coords_h5['data'][int(c0),:] + rsl_coords_h5['data'][int(c1),:])/2.
-                c0, c1 = new_edges[ii,:]
-                rsl_coords[ n_coords + ii, : ] = (rsl_coords[int(c0),:] + rsl_coords[int(c1),:])/2.
-                if ii % 100000 == 0 : 
-                    print(100.*ii/n, n, c0, c1, rsl_coords[ii,:])
-
+            if n_new_edges > 0 :
+                for ii in range(n_new_edges) :
+                    #c0, c1 = new_edges_h5['data'][ii,:]
+                    #rsl_coords_h5['data'][ ii, : ] = (rsl_coords_h5['data'][int(c0),:] + rsl_coords_h5['data'][int(c1),:])/2.
+                    c0, c1 = new_edges[ii,:]
+                    rsl_coords[ n_coords + ii, : ] = (rsl_coords[int(c0),:] + rsl_coords[int(c1),:])/2.
+                    if ii % 100000 == 0 : 
+                        print(100.*ii/n, n, c0, c1, rsl_coords[ii,:])
             rsl_coords_h5['data'][:] = rsl_coords
             rsl_coords_h5.close()
 
 
 def upsample_gifti(input_fn,upsample_0_fn, upsample_1_fn, resolution, input_list=[], output_list=[], test=False, clobber=False, debug=False):
 
-    faces_h5_fn = sub('.surf.gii','_new_faces.h5',upsample_0_fn)
-    coords_h5_fn = sub('.surf.gii','_new_coords.h5',upsample_0_fn)
-    new_edges_h5_fn = sub('.surf.gii','_new_edges.h5',upsample_0_fn)
+    faces_h5_fn = os.path.splitext(upsample_0_fn)[0] + '_new_faces.h5' # sub('.surf.gii','_new_faces.h5',upsample_0_fn)
+    coords_h5_fn =  os.path.splitext(upsample_0_fn)[0] + '_new_coords.h5' #sub('.surf.gii','_new_coords.h5',upsample_0_fn)
+    new_edges_h5_fn =  os.path.splitext(upsample_0_fn)[0] + '_new_edges.h5'  #sub('.surf.gii','_new_edges.h5',upsample_0_fn)
     if not os.path.exists(coords_h5_fn) :
         print(os.path.exists(coords_h5_fn), coords_h5_fn)
-        upsample_with_h5(input_fn, upsample_0_fn,  faces_h5_fn, coords_h5_fn, new_edges_h5_fn, resolution)
+        n_new_edges = upsample_with_h5(input_fn, upsample_0_fn,  faces_h5_fn, coords_h5_fn, new_edges_h5_fn, resolution)
 
-    if not os.path.exists(upsample_0_fn) :
+    #if not os.path.exists(upsample_0_fn) :
         print(os.path.exists(upsample_0_fn), upsample_0_fn)
         write_gifti_from_h5(upsample_0_fn, coords_h5_fn, faces_h5_fn, input_fn ) 
     
-    if input_list != []  and output_list != [] :
+    #if input_list != []  and output_list != [] :
         print('new edges h5',new_edges_h5_fn)
         print('coords h5',coords_h5_fn)
         print('upsample 0', upsample_0_fn)
-        resample_gifti_to_h5(new_edges_h5_fn, coords_h5_fn, input_list, output_list)
+        resample_gifti_to_h5(new_edges_h5_fn, coords_h5_fn, input_list, output_list, n_new_edges)
 
-    if not os.path.exists(upsample_1_fn) :
+    #if not os.path.exists(upsample_1_fn) :
         write_gifti_from_h5(upsample_1_fn, output_list[-2], faces_h5_fn, input_fn ) 
 
     return faces_h5_fn, coords_h5_fn

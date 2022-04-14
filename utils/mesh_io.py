@@ -1,14 +1,37 @@
 import nibabel as nb
+from nibabel import freesurfer
 import numpy as np
 
-# function to load mesh geometry
-def load_mesh_geometry(surf_mesh):
-    # returns coords, numbers of neighbours per vertex, and indices of neighbours
+def save_mesh(out_fn, coords, faces, volume_info=None):
+    if '.gii' in out_fn :
+        save_gii( coords, faces, volume_info, out_fn)
+    elif '.white' in out_fn or '.pial' in out_fn or '.sphere' in out_fn or '.inflate' in out_fn :
+        freesurfer.io.write_geometry(out_fn, coords, faces, volume_info=volume_info)
+    elif '.obj' in out_fn :
+        save_obj(out_fn, coords, faces)
+    else :
+        print('Error: filetype not recognized for file', out_fn)
+
+def load_mesh(surf_mesh,correct_offset=False):
+    volume_info=None
     if isinstance(surf_mesh, str):
         if (surf_mesh.endswith('orig') or surf_mesh.endswith('pial') or
                 surf_mesh.endswith('white') or surf_mesh.endswith('sphere') or
                 surf_mesh.endswith('inflated')):
-            coords, faces = nb.freesurfer.io.read_geometry(surf_mesh)
+            coords, faces, volume_info = nb.freesurfer.io.read_geometry(surf_mesh, read_metadata=True)
+            if correct_offset :
+                origin=volume_info['cras'] 
+                xdir=max(volume_info['xras'])
+                ydir=max(volume_info['yras'])
+                zdir=max(volume_info['xras'])
+                #coords[:,0] -= origin[0] 
+                #coords[:,1] -= 30.56
+                #coords[:,2] += 24.94
+                print(xdir, ydir, zdir)
+                print(origin)
+                coords[:,0] = coords[:,0] + origin[0]
+                coords[:,1] = coords[:,1] + origin[1]
+                coords[:,2] = coords[:,2] + origin[2]
         elif surf_mesh.endswith('gii'):
             coords, faces = nb.gifti.read(surf_mesh).getArraysFromIntent(nb.nifti1.intent_codes['NIFTI_INTENT_POINTSET'])[0].data, \
                             nb.gifti.read(surf_mesh).getArraysFromIntent(nb.nifti1.intent_codes['NIFTI_INTENT_TRIANGLE'])[0].data
@@ -27,6 +50,12 @@ def load_mesh_geometry(surf_mesh):
         else:
             raise ValueError('surf_mesh must be a either filename or a dictionary '
                              'containing items with keys "coords" and "faces"')
+    return coords, faces, volume_info
+
+# function to load mesh geometry
+def load_mesh_geometry(surf_mesh):
+    # returns coords, numbers of neighbours per vertex, and indices of neighbours
+    coords, faces, _ = load_mesh(surf_mesh)
     neighbours, counts = get_neighbours(faces)
     return {'coords':coords,'neighbour_count':counts, 'neighbours':neighbours}
 
