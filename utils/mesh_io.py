@@ -2,6 +2,21 @@ import nibabel as nb
 from nibabel import freesurfer
 import numpy as np
 
+def save_gii(coords, triangles, reference_fn, out_fn):
+    print('ref fb', reference_fn)
+    print(coords[0:5])
+    print(triangles[0:5])
+    assert len(coords) > 0, f'Empty coords when trying to create {out_fn} '
+    assert len(triangles) > 0, f'Empty triangles when trying to create {out_fn} '
+    img = load_mesh(reference_fn) 
+    ar_pointset = nb.gifti.gifti.GiftiDataArray(data=coords.astype(np.float32), intent='NIFTI_INTENT_POINTSET') 
+    ar_triangle = nb.gifti.gifti.GiftiDataArray(data=triangles.astype(np.int32), intent='NIFTI_INTENT_TRIANGLE') 
+    darrays=[ar_pointset,ar_triangle]
+    #darrays=[ar2,ar1] #DEBUG FIXME
+    out = nb.gifti.GiftiImage(darrays=darrays, header=img.header, file_map=img.file_map, extra=img.extra, meta=img.meta, labeltable=img.labeltable) 
+    out.to_filename(out_fn) 
+
+
 def save_mesh(out_fn, coords, faces, volume_info=None):
     if '.gii' in out_fn :
         save_gii( coords, faces, volume_info, out_fn)
