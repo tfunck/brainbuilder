@@ -8,6 +8,7 @@ import re
 import pandas as pd
 import nibabel 
 import utils.ants_nibabel as nib
+from nibabel.processing import resample_to_output
 from reconstruction.surface_interpolation import surface_interpolation
 from utils.utils import prefilter_and_downsample, resample_to_autoradiograph_sections
 from reconstruction.align_slab_to_mri import *
@@ -372,7 +373,7 @@ def _get_section_intervals(vol, interp_dir):
 
 
     
-def align_3d(rec_fn, template_fn, out_dir, subject_id, res, syn_only=False, init_tfm=''):
+def align_3d(rec_fn, template_fn, out_dir, subject_id, res, f_str='5x4x3x2', s_str='2.5x2x1.5x1', lin_itr_str='1000x500x250x125', syn_only=False, init_tfm=''):
     current_template_fn = f'{out_dir}/'+os.path.basename(re.sub('.nii',f'_{res}mm.nii', template_fn))
     rec_interp_fn = f'{out_dir}/'+os.path.basename(re.sub('.nii',f'_{res}mm.nii', rec_fn))
    
@@ -381,6 +382,7 @@ def align_3d(rec_fn, template_fn, out_dir, subject_id, res, syn_only=False, init
         data = img.get_fdata()
         data = interpolate_missing_sections(data)
         nib.Nifti1Image(data, img.affine).to_filename(rec_interp_fn)
+        prefilter_and_downsample(rec_interp_fn, [res]*3, rec_interp_fn)
 
     if not os.path.exists(current_template_fn) :
         prefilter_and_downsample(template_fn, [res]*3, current_template_fn)
@@ -397,10 +399,9 @@ def align_3d(rec_fn, template_fn, out_dir, subject_id, res, syn_only=False, init
     tfm_fn=f'{prefix}Composite.h5'
     inv_fn=f'{prefix}InverseComposite.h5'
     out_fn=f'{out_dir}/{subject_id}_{tfm_type}.nii.gz'
-    inv_fn=f'{out_dir}/{subject_id}_{tfm_type}_inverse.nii.gz'
-    f_str='5x4x3x2'
-    s_str='2.5x2x1.5x1'
-    lin_itr_str='1000x500x250x125'
+    out_inv_fn=f'{out_dir}/{subject_id}_{tfm_type}_inverse.nii.gz'  
+    
+    
     
     if init_tfm != '' :
         init_str=f'--initial-moving-transform {init_tfm}'
@@ -409,15 +410,15 @@ def align_3d(rec_fn, template_fn, out_dir, subject_id, res, syn_only=False, init
 
     if not syn_only :
         ants_str = f'antsRegistration -v 1 -a 1 -d 3  {init_str}' 
-        rigid_str = f'-t Rigid[.1] -c {lin_itr_str}  -m Mattes[{current_template_fn},{rec_interp_fn},1,30,Regular,1] -s {s_str} -f {f_str}' 
-        similarity_str = f'-t Similarity[.1]  -m Mattes[{current_template_fn},{rec_interp_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}'  
-        str = f'-t Affine[.1] -m Mattes[{current_template_fn},{rec_interp_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}'
-        out_str = f'-o [{prefix},{out_fn},{inv_fn}] '
-        cmd_str = f'{ants_str} {rigid_str} {similarity_str} {str} {out_str}'
+        rigid_str = f'-t Rigid[.1] -c {lin_itr_str}  -m GC[{current_template_fn},{rec_interp_fn},1,30,Regular,1] -s {s_str} -f {f_str}' 
+        similarity_str = f'-t Similarity[.1]  -m GC[{current_template_fn},{rec_interp_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}'  
+        affine_str = f'-t Affine[.1] -m GC[{current_template_fn},{rec_interp_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}'
+        out_str = f'-o [{prefix},{out_fn},{out_inv_fn}] '
+        cmd_str = f'{ants_str} {rigid_str} {similarity_str} {affine_str} {out_str}'
     else :
         ants_str = f'antsRegistration -v 1 -a 1 -d 3  {init_str}' 
         syn_str = f'-t SyN[.1] -c {lin_itr_str}  -m CC[{current_template_fn},{rec_interp_fn},1,30,Regular,1] -s {s_str} -f {f_str}' 
-        out_str = f'-o [{prefix},{out_fn},{inv_fn}] '
+        out_str = f'-o [{prefix},{out_fn},{out_inv_fn}] '
         cmd_str = f'{ants_str} {syn_str} {out_str}'
     
     if not os.path.exists(tfm_fn) :
@@ -426,9 +427,10 @@ def align_3d(rec_fn, template_fn, out_dir, subject_id, res, syn_only=False, init
 
     return tfm_fn, inv_fn
 
-def multires_align_3d(subject_id, out_dir, volume_interp_fn, template_fn, resolution_list, curr_res, init_affine_fn):
+def multires_align_3d(subject_id, out_dir, volume_interp_fn, template_fn, resolution_list, curr_res, init_affine_fn=''):
     out_tfm_fn=f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN_Composite.h5' 
-    out_inv_fn=f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN_InverseComposite.h5' 
+    out_tfm_inv_fn=f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN_InverseComposite.h5' 
+    out_inv_fn=f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN_inverse.nii.gz' 
     out_fn=    f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN.nii.gz' 
 
     resolution_itr = resolution_list.index( curr_res)
@@ -438,7 +440,7 @@ def multires_align_3d(subject_id, out_dir, volume_interp_fn, template_fn, resolu
     f_str, s_str, lin_itr_str, nl_itr_str = get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr, base_nl_itr=100)
     run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, template_fn, template_fn, volume_interp_fn, s_str, f_str, lin_itr_str, nl_itr_str, curr_res, manual_affine_fn=init_affine_fn )
 
-    return out_tfm_fn, out_inv_fn
+    return out_tfm_fn, out_tfm_inv_fn
 
 def align_2d(df, output_dir, rec_fn, template_rsl_fn, mv_dir, resolution, resolution_itr, use_syn=False):
     df['slab_order'] = df['order']
@@ -451,7 +453,7 @@ def reconstruct_ligands(ligand_dir, subject_id, curr_res, aligned_df,template_fn
     img = nib.load(volume_align_2d_fn) 
     data = img.get_fdata()
     for ligand, ligand_df in aligned_df.groupby(['ligand']) : 
-        if ligand != 'flum' : continue
+        if ligand != 'dpmg' : continue
 
         ligand_no_interp_fn=f'{ligand_dir}/{subject_id}_{ligand}_space-nat_no-interp_{curr_res}mm.nii.gz'
         ligand_nat_fn=f'{ligand_dir}/{subject_id}_{ligand}_space-nat_{curr_res}mm.nii.gz'
@@ -471,7 +473,7 @@ def reconstruct_ligands(ligand_dir, subject_id, curr_res, aligned_df,template_fn
 
         shell(f'antsApplyTransforms -i {ligand_nat_fn} -t {final_3d_fn} -r {template_fn} -o {ligand_stereo_fn}')
 
-def reconstruct(subject_id, auto_dir, template_fn, points_fn, out_dir='macaque/output/', ligands_to_exclude=[]):
+def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json_fn, out_dir='macaque/output/', ligands_to_exclude=[]):
     subject_dir=f'{out_dir}/{subject_id}/' 
     crop_dir = f'{out_dir}/{subject_id}/crop/'
     init_dir = f'{out_dir}/{subject_id}/init_align/'
@@ -517,13 +519,13 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, out_dir='macaque/o
     if not os.path.exists(volume_init_fn) : concat_section_to_volume(df, affine, volume_fn, file_var='crop' )
     aligned_df = align(df, init_dir )
     concat_section_to_volume(aligned_df, affine, volume_init_fn, file_var='init' )
-    
-    points2tfm(points_fn, affine_fn, template_fn, volume_init_fn,  ndim=3, transform_type="Affine", invert=True, clobber=True)
+    #points2tfm(points_fn, affine_fn, template_fn, volume_init_fn,  ndim=3, transform_type="Affine", invert=True, clobber=True)
     
     #shell(f'antsApplyTransforms -d 3 -v 1 -i {volume_init_fn} -t [{affine_fn},0] -r {template_fn} -o temp.nii.gz')
     print('Init 3D')
-    #init_3d_fn, init_3d_inv_fn = align_3d(volume_init_fn, template_fn, init_3d_dir, subject_id, lowres, init_tfm=affine_fn)
-
+    affine_fn, init_3d_inv_fn = align_3d(volume_init_fn, template_fn, init_3d_dir, subject_id, 6, 
+                                f_str='3x2x1', s_str='2x1x0', lin_itr_str='2000x1000x1000') #, init_tfm=affine_fn)
+    
     resolution_list=[4,3,2,1] #[8,6,4,3,2,1]
     for itr, curr_res in enumerate(resolution_list):
         # Define some variables
@@ -546,11 +548,12 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, out_dir='macaque/o
         volume_seg_fn = f'{seg_dir}/{subject_id}_segment_volume.nii.gz'
         volume_align_2d_fn = f'{align_2d_dir}/{subject_id}_align_2d_space-nat.nii.gz'
         current_template_fn = f'{align_2d_dir}/'+os.path.basename(re.sub('.nii',f'_{curr_res}mm.nii', template_fn))
-        template_rec_space_fn = f'{align_2d_dir}/'+os.path.basename(re.sub('.nii',f'_{curr_res}mm_space-nat.nii', template_fn))
+        template_rec_space_fn = f'{align_2d_dir}/'+os.path.basename(re.sub('.nii',f'_{curr_res}mm_y-0.02_space-nat.nii', template_fn))
+        template_iso_rec_space_fn = f'{align_2d_dir}/'+os.path.basename(re.sub('.nii',f'_{curr_res}mm_space-nat.nii', template_fn))
 
         ### 5. Segment
-        resample_transform_segmented_images(aligned_df, resolution_2d, resolution_3d, seg_2d_dir)
-        classifyReceptorSlices(aligned_df, volume_init_fn, seg_2d_dir, seg_dir, volume_seg_fn, resolution=resolution_3d)
+        resample_transform_segmented_images(aligned_df, itr, resolution_2d, resolution_3d, seg_2d_dir)
+        classifyReceptorSlices(aligned_df, volume_init_fn, seg_2d_dir, seg_dir, volume_seg_fn, resolution=resolution_3d, interpolation='linear')
 
         ### 6. 3D alignment
         if not os.path.exists(current_template_fn):
@@ -560,13 +563,13 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, out_dir='macaque/o
         
         ### 7. 2d alignement
         if not os.path.exists(template_rec_space_fn) : 
-            resample_to_autoradiograph_sections(subject_id, '', '', float(curr_res), current_template_fn, volume_seg_fn, tfm_3d_inv_fn, template_rec_space_fn)
-        
+            resample_to_autoradiograph_sections(subject_id, '', '', float(curr_res), current_template_fn, volume_seg_fn, tfm_3d_inv_fn, template_iso_rec_space_fn, template_rec_space_fn)
+       
         create_2d_sections(aligned_df, template_rec_space_fn, float(curr_res), align_2d_dir )
         
         aligned_df = align_2d(aligned_df, align_2d_dir, volume_init_fn, template_rec_space_fn, seg_2d_dir, resolution_2d, itr, use_syn=True)
-        if not os.path.exists(volume_align_2d_fn): 
-            aligned_df = concatenate_sections_to_volume( aligned_df, template_rec_space_fn, align_2d_dir, volume_align_2d_fn)
+        
+        aligned_df = concatenate_sections_to_volume( aligned_df, template_rec_space_fn, align_2d_dir, volume_align_2d_fn)
 
 
     ### 8. Perform a final alignment to the template
@@ -575,15 +578,14 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, out_dir='macaque/o
     interp_align_2d_fn=f'{final_3d_dir}/{subject_id}_interp_{curr_res}mm.nii.gz'
     interp_align_2d_template_fn=f'{final_3d_dir}/{subject_id}_interp_space-template_{curr_res}mm.nii.gz'
 
-    reconstruct_ligands(ligand_dir, subject_id, resolution_list[-1], aligned_df, template_fn, tfm_3d_fn, interp_align_2d_fn)
-
+    #reconstruct_ligands(ligand_dir, subject_id, resolution_list[-1], aligned_df, template_fn, tfm_3d_fn, interp_align_2d_fn)
     srv_max_resolution_fn=template_fn #might need to be upsampled to maximum resolution
     surf_dir = f'{auto_dir}/surfaces/'
     interp_dir = f'{subject_dir}/interp/'
     brain = '11530'
     hemi = 'L' 
     highest_resolution = resolution_list[-1]
-    n_depths=3
+    n_depths=10
     n_vertices = 0 
     
     class Arguments() :
@@ -591,17 +593,24 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, out_dir='macaque/o
     args=Arguments()
     args.surf_dir = surf_dir
     args.n_vertices = n_vertices
+    args.slabs=['1']
 
-    df_ligand=df
+    df_ligand=aligned_df
+    df_ligand['slab']=['1'] * df_ligand.shape[0]
+    df_ligand['conversion_factor']=[1] * df_ligand.shape[0]
+    df_ligand = df_ligand[ df_ligand['ligand']=='flum']
     files={ brain:{hemi:{'1':{}} }}
     files[brain][hemi]['1'][highest_resolution] = {
             'nl_3d_tfm_fn' : tfm_3d_fn,
-            'nl_2d_vol_fn' : interp_align_2d_fn,
+            'nl_2d_vol_fn' : volume_align_2d_fn,
+            'srv_space_rec_fn':template_rec_space_fn,
+            'srv_iso_space_rec_fn':template_iso_rec_space_fn
         }
 
-    slab_dict=files 
+    slab_dict={'1':files[brain][hemi]['1'][highest_resolution]}
 
-    surface_interpolation(df_ligand, slab_dict, out_dir, interp_dir, brain, hemi, highest_resolution,  srv_max_resolution_fn, args, files[brain][hemi], surf_dir=surf_dir, n_vertices=n_vertices, n_depths=n_depths)
+    scale_factors_json = json.load(open(scale_factors_json_fn,'r'))[brain][hemi]
+    surface_interpolation(df_ligand, slab_dict, out_dir, interp_dir, brain, hemi, highest_resolution,  template_fn, args.slabs, files[brain][hemi], scale_factors_json, surf_dir=surf_dir, n_vertices=n_vertices, upsample_resolution=20, n_depths=n_depths)
 
     print('Done')
 

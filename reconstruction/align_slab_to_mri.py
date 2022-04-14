@@ -251,7 +251,7 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
 
     # set initial transform
     # calculate rigid registration
-    skip_manual=True
+    skip_manual=False
     if not os.path.exists( manual_affine_fn ) or skip_manual :
         # calculate rigid registration
         if not os.path.exists(f'{prefix_rigid}Composite.h5'):
@@ -262,13 +262,13 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
         affine_init = f'--initial-moving-transform {prefix_similarity}Composite.h5'
     else :
         print('\tApply manual transformation')
-        shell(f'antsApplyTransforms -v 0 -i {seg_rsl_fn} -r {srv_tgt_fn} -t [{manual_affine_fn},1] -o {manual_out_fn}')
+        shell(f'antsApplyTransforms -v 0 -i {seg_rsl_fn} -r {srv_tgt_fn} -t [{manual_affine_fn},0] -o {manual_out_fn}', verbose=True)
         affine_init = f'--initial-moving-transform [{manual_affine_fn},0]'
-
+    
     #calculate affine registration
     if not os.path.exists(f'{prefix_affine}Composite.h5'):
         shell(f'antsRegistration -v 0 -a 1 -d 3 {affine_init} -t Affine[.1] -m Mattes[{srv_tgt_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] ', verbose=True)
-    
+     
     if not os.path.exists(f'{prefix_syn}Composite.h5'):
         # --masks [{srv_mask_fn},{seg_mask_fn}]
         shell(f'antsRegistration -v 0 -a 1 -d 3  --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[.1] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{syn_out_fn},{syn_inv_fn}] ', verbose=True)

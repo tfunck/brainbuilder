@@ -93,12 +93,12 @@ def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution
         # if this is not the first iteration in the multiresolution hierarchy)
         # then use the new x and z start coordiantes
         if not os.path.exists(tfm_ref_fn) : 
-            ref_img= nib.load(row['nl_2d_rsl'])
+            ref_img = nib.load(row['nl_2d_rsl'])
             xstart, zstart = ref_img.affine[[0,1],3]
-            affine=np.array([  [resolution_3d, 0, 0, xstart],
-                               [0,  resolution_3d, 0,zstart],
-                               [0, 0,  0, 1],
-                               [0, 0, 0, 1]]).astype(float)
+            affine = np.array([ [resolution_3d, 0, 0, xstart],
+                              [0,  resolution_3d, 0,zstart],
+                              [0, 0,  0, 1],
+                              [0, 0, 0, 1]]).astype(float)
             nib.Nifti1Image(nib.load(seg_rsl_fn).get_fdata(), affine).to_filename(tfm_ref_fn)
     else :
         tfm_ref_fn=seg_rsl_fn
@@ -159,7 +159,7 @@ def interpolate_missing_sections(vol, dilate_volume=False) :
 
 
 
-def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=5, clobber=False, resolution=0.2) :
+def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=5, clobber=False, resolution=0.2, interpolation='nearest') :
     if not os.path.exists(out_fn)  or clobber :
         #
         # Check Inputs
@@ -182,42 +182,44 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         data = np.zeros([example_2d_img.shape[0], vol1.shape[1], example_2d_img.shape[1]],dtype=np.float32)
 
         #TODO this works well for macaque but less so for human
-        #for i, row in df.iterrows() :
-        #    s0 = int(row['slab_order'])
-        #    fn = get_seg_fn(in_dir, row['slab_order'], resolution, row['seg_fn'], '_rsl_tfm')
-        #    img_2d = nib.load(fn).get_fdata()
-        #    #FIXME : Skipping frames that have been rotated
-        #    data[:,s0,:] = img_2d 
-        #data = interpolate_missing_sections(data)
+        if interpolation=='linear' :
+            print('\n\nokay!!!!\n\n')
+            for i, row in df.iterrows() :
+                s0 = int(row['slab_order'])
+                fn = get_seg_fn(in_dir, row['slab_order'], resolution, row['seg_fn'], '_rsl_tfm')
+                img_2d = nib.load(fn).get_fdata()
+                #FIXME : Skipping frames that have been rotated
+                data[:,s0,:] = img_2d 
+            data = interpolate_missing_sections(data, dilate_volume=True)
+        else :
+            valid_slices = []
+            for i, row in df.iterrows() :
+                s0 = int(row['slab_order'])
+                fn = get_seg_fn(in_dir, row['slab_order'], resolution, row['seg_fn'], '_rsl_tfm')
+                img_2d = nib.load(fn).get_fdata()
+                #FIXME : Skipping frames that have been rotated
+                if img_2d.shape != example_2d_img.shape :
+                    pass
+                else :
+                    data[:,s0,:] = img_2d.reshape([img_2d.shape[0],img_2d.shape[1]]) 
+                valid_slices.append(int(row['slab_order']))
+          
+            invalid_slices = [ i for i in range(1+int(df['slab_order'].max()) ) if not i in valid_slices ]
 
-        valid_slices = []
-        for i, row in df.iterrows() :
-            s0 = int(row['slab_order'])
-            fn = get_seg_fn(in_dir, row['slab_order'], resolution, row['seg_fn'], '_rsl_tfm')
-            img_2d = nib.load(fn).get_fdata()
-            #FIXME : Skipping frames that have been rotated
-            if img_2d.shape != example_2d_img.shape :
-                pass
-            else :
-                data[:,s0,:] = img_2d.reshape([img_2d.shape[0],img_2d.shape[1]]) 
-            valid_slices.append(int(row['slab_order']))
-      
-        invalid_slices = [ i for i in range(1+int(df['slab_order'].max()) ) if not i in valid_slices ]
+            #
+            # Fill in missing slices using nearest neighbour interpolation
+            #
+            valid_slices = np.array(valid_slices) 
+            print("num of invalid slices:", len(valid_slices))
+            for i in invalid_slices :
+                dif = np.argsort( np.absolute(valid_slices - i) )
 
-        #
-        # Fill in missing slices using nearest neighbour interpolation
-        #
-        valid_slices = np.array(valid_slices) 
-        print("num of invalid slices:", len(valid_slices))
-        for i in invalid_slices :
-            dif = np.argsort( np.absolute(valid_slices - i) )
-
-            i0=valid_slices[dif[0]]
-            i1=valid_slices[dif[1]]
-            #i2=valid_slices[dif[2]]
-            #i3=valid_slices[dif[3]]
-            #nearest neighbough interpolation
-            data[:,i,:] = data[:,i0,:]
+                i0=valid_slices[dif[0]]
+                i1=valid_slices[dif[1]]
+                #i2=valid_slices[dif[2]]
+                #i3=valid_slices[dif[3]]
+                #nearest neighbough interpolation
+                data[:,i,:] = data[:,i0,:]
 
         #
         # Save output volume
@@ -242,7 +244,7 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
 
         img_cls = nibabel.Nifti1Image(data, aff )     
 
-        img_cls.to_filename(re.sub('.nii','_full.nii', out_fn))
+        #img_cls.to_filename(re.sub('.nii','_full.nii', out_fn))
         
         print("Writing output to", out_fn)
         img_cls = resample_to_output(img_cls, [float(resolution)]*3, order=5)
