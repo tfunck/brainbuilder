@@ -248,6 +248,8 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
         nl_metric = f'CC[{srv_rsl_fn},{seg_rsl_fn},1,2,Regular,1]'
     else :
         nl_metric=f'Mattes[{srv_tgt_fn},{seg_rsl_fn},1,20,Regular,1]'
+    #DEBUG FIXME USING ONLY MATTES TO TEST alignment with WM
+    nl_metric=f'Mattes[{srv_tgt_fn},{seg_rsl_fn},1,20,Regular,1]'
 
     # set initial transform
     # calculate rigid registration
@@ -255,7 +257,7 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     if not os.path.exists( manual_affine_fn ) or skip_manual :
         # calculate rigid registration
         if not os.path.exists(f'{prefix_rigid}Composite.h5'):
-            shell(f'antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]  -t Rigid[.1]  -m GC[{srv_slab_fn},{seg_rsl_fn},1,30,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] ', verbose=True)
+            shell(f'antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]  -t Rigid[.1]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,30,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] ', verbose=True)
         # calculate similarity registration
         if not os.path.exists(f'{prefix_similarity}Composite.h5'):
             shell(f'antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform  {prefix_rigid}Composite.h5 -t Similarity[.1]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] ', verbose=True)

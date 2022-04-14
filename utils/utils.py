@@ -479,6 +479,7 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
                             reference_image_fn='',
                             new_starts=[None, None, None], recenter_image=False ):
 
+    print(input_filename)
     img = nib.load(input_filename)
     direction = ants.image_read(input_filename).direction
     vol = img.get_fdata()

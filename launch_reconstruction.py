@@ -597,8 +597,8 @@ if __name__ == '__main__':
     
     ### Step 0 : Crop downsampled autoradiographs
     pytorch_model=f'{base_file_dir}/caps/Pytorch-UNet/MODEL.pth'
-    pytorch_model=''
-    crop( args.mask_dir, df, args.scale_factors_fn, float(resolution_list[-1]), pytorch_model=pytorch_model )
+    #pytorch_model=''
+    crop( args.crop_dir, args.mask_dir, df, args.scale_factors_fn, float(resolution_list[-1]), pytorch_model=pytorch_model )
     
     args.landmark_df = process_landmark_images(df, args.landmark_src_dir, args.landmark_dir, args.scale_factors_fn)
 

@@ -244,7 +244,6 @@ def multi_mesh_to_volume(profiles, depth_fn_slab_space, depth_list, dimensions, 
     interp_vol = np.zeros(dimensions)
     n_vol = np.zeros_like(interp_vol)
 
-
     for ii in range(profiles.shape[1]):
         try :
             surf_fn = depth_fn_slab_space[depth_list[ii]]['upsample_h5']
