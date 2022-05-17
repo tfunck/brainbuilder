@@ -59,14 +59,21 @@ def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, 
     Outpus:
         None
     '''
-    shell(f'antsApplyTransforms -n HammingWindowedSinc -v 1 -d 3 -i {input_fn} -r {ref_fn} -t {tfm_inv_fn} -o {iso_output_fn}',True)
-    img = nib.load(iso_output_fn)
+    shell(f'antsApplyTransforms -n HammingWindowedSinc -v 1 -d 3 -i {input_fn} -r {ref_fn} -t {tfm_inv_fn} -o /tmp/tmp.nii.gz',True)
+    img = nib.load('/tmp/tmp.nii.gz')
     vol = img.get_fdata()
     assert np.sum(vol) > 0, f'Error: empty volume {iso_output_fn}'
      
+    img = resample_to_output(nibabel.Nifti1Image(vol,img.affine), [float(resolution)]*3, order=0)
+    vol = img.get_fdata()
+    nib.Nifti1Image(vol, img.affine ).to_filename(iso_output_fn)
+
     img = resample_to_output(nibabel.Nifti1Image(vol,img.affine), [float(resolution),0.02, float(resolution)], order=0)
     vol = img.get_fdata()
     nib.Nifti1Image(vol, img.affine ).to_filename(output_fn)
+
+    os.remove('/tmp/tmp.nii.gz')
+
 
 def fix_affine(fn):
     try :

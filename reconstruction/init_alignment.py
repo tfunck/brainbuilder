@@ -277,7 +277,7 @@ def create_manual_2d_df(df, manual_2d_dir):
     
     return manual_2d_df
 
-def concat_manual_tfm(manual_2d_df, manual_idx, row, original_crop_fn, final_tfm_fn  ):
+def concat_manual_tfm(df, manual_2d_df, manual_idx,y, row, original_crop_fn, final_tfm_fn  ):
     fixed_y = manual_2d_df['fixed_index'].loc[ manual_idx ].values[0].astype(int)
     print('target ligand:', manual_2d_df['ligand'].loc[ manual_idx ])
 
@@ -339,13 +339,13 @@ def create_final_outputs(final_tfm_dir, df, manual_2d_df, step):
             moving_index = row['slab_order'].values[0].astype(int)
             manual_idx = manual_2d_df['moving_index'].apply( lambda x : x == moving_index )
             print(y)
-            if np.sum(manual_idx) > 0 :
-                concat_manual_tfm(manual_2d_df, manual_idx, row, original_crop_fn, final_tfm_fn  )
+            #if np.sum(manual_idx) > 0 :
+            #    concat_manual_tfm(df, manual_2d_df, manual_idx, row, y, original_crop_fn, final_tfm_fn  )
                 
                 #vol = apply_transforms(original_crop_fn,original_crop_fn, [final_tfm_fn])
                 #nib.Nifti1Image(vol, nib.load(original_crop_fn).affine ).to_filename(final_section_fn)
 
-            elif  type(row['init_tfm'].values[0]) == str  :
+            if  type(row['init_tfm'].values[0]) == str  :
                 # standard rigid transformation for moving image
                 shutil.copy(row['init_tfm'].values[0], final_tfm_fn)
 

@@ -8,7 +8,8 @@ def save_gii(coords, triangles, reference_fn, out_fn):
     print(triangles[0:5])
     assert len(coords) > 0, f'Empty coords when trying to create {out_fn} '
     assert len(triangles) > 0, f'Empty triangles when trying to create {out_fn} '
-    img = load_mesh(reference_fn) 
+    #coords, faces, volume_info = load_mesh(reference_fn) 
+    img = nb.load(reference_fn)
     ar_pointset = nb.gifti.gifti.GiftiDataArray(data=coords.astype(np.float32), intent='NIFTI_INTENT_POINTSET') 
     ar_triangle = nb.gifti.gifti.GiftiDataArray(data=triangles.astype(np.int32), intent='NIFTI_INTENT_TRIANGLE') 
     darrays=[ar_pointset,ar_triangle]
