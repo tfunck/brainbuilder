@@ -38,7 +38,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, use_syn=
 
     lin_itr_str='x'.join([str(base_lin_itr *(max_itr+1) + i * lin_step) for i in range(max_itr+1)])
     nl_itr_str='x'.join( [str(base_nl_itr *(max_itr+1) + i * nl_step) for i in range(max_itr+1)])
-
+    nl_itr_str='[ '+ nl_itr_str +',1e-7,20 ]'
     f_str='x'.join( [ f_list[i] for i in range(max_itr+1)])
     s_str='x'.join( [ s_list[i] for i in range(max_itr+1)]) + 'vox'
 
@@ -66,20 +66,23 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, use_syn=
     #if type(init_tfm) == str :
     #    init_str = init_tfm
 
-    #if float(resolution) >= 1.0 :
-    #    nl_metric = f'CC[{fx_fn},{mv_fn},1,2,Regular,1]'
+    #if float(resolution) >= 0.5 :
+    #nl_metric = f'CC[{fx_fn},{mv_fn},1,3,Regular,1]'
     #else :
-    nl_metric=f'Mattes[{fx_fn},{mv_fn},1,20,Regular,1]'
+    #    nl_metric=f'Mattes[{fx_fn},{mv_fn},1,16,Regular,1]'
+
+    #DEBUG FIXME USING ONLY MATTES TO TEST alignment with WM
+    #nl_metric=f'Mattes[{fx_fn},{mv_fn},1,12,Regular,1]'
 
     #fix_affine(fx_fn)
     #fix_affine(mv_fn)
 
-    affine_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2 --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[.1] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} -t Affine[.1] -c {lin_itr_str} -m Mattes[{fx_fn},{mv_fn},1,20,Regular,1] -s {s_str} -f {f_str} '
+    affine_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2 --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[.5] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_fn},1,12,Regular,1] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m Mattes[{fx_fn},{mv_fn},1,12,Regular,1] -s {s_str} -f {f_str} -t Affine[.5] -c {lin_itr_str} -m Mattes[{fx_fn},{mv_fn},1,12,Regular,1] -s {s_str} -f {f_str} '
 
     with open(prefix+'_command.txt','w') as f : f.write(affine_command_str)
     shell(affine_command_str)
     
-    syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz]  -t SyN[0.1] -m {nl_metric} -c {nl_itr_str} -s {s_str} -f {f_str}' # -t SyN[0.1]  -m CC[{fx_fn},{mv_fn},1,20,Regular,1] -c 100 -s {s_cc}  -f {f_cc}'
+    syn_command_str = f'antsRegistration -n NearestNeighbor -v 1 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.5] -m Mattes[{fx_fn},{mv_fn},1,16,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}  -t SyN[0.5] -m CC[{fx_fn},{mv_fn},1,3,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}' 
 
     if use_syn :
         with open(prefix+'_command.txt','w') as f : f.write(syn_command_str)

@@ -244,6 +244,7 @@ def setup_files_json(args ):
                     cdict['nl_2d_vol_cls_fn'] = "{}/{}_{}_{}_nl_2d_cls_{}mm.nii.gz".format(cdict['nl_2d_dir'],brain,hemi,slab,resolution) 
                     cdict['slab_info_fn'] = "{}/{}_{}_{}_{}_slab_info.csv".format(cdict['cur_out_dir'] ,brain,hemi,slab,resolution) 
                     cdict['srv_space_rec_fn'] = "{}/{}_{}_{}_srv_space-rec_{}mm.nii.gz".format(cdict['nl_2d_dir'], brain, hemi, slab, resolution)   
+                    cdict['srv_iso_space_rec_fn'] = "{}/{}_{}_{}_srv_space-rec_{}mm_iso.nii.gz".format(cdict['nl_2d_dir'], brain, hemi, slab, resolution)   
                     #if resolution_itr == max_3d_itr :  
                     #    max_3d_cdict=cdict
                     files[brain][hemi][slab][resolution]=cdict
@@ -345,6 +346,7 @@ def multiresolution_alignment(slab_info_fn, slab_df,  hemi_df, brain, hemi, slab
         rec_3d_rsl_fn = cfiles['rec_3d_rsl_fn']
         srv_3d_rsl_fn = cfiles['srv_3d_rsl_fn']
         srv_space_rec_fn = cfiles['srv_space_rec_fn']
+        srv_iso_space_rec_fn = cfiles['srv_iso_space_rec_fn']
         nl_2d_vol_fn = cfiles['nl_2d_vol_fn']
         nl_2d_cls_fn = cfiles['nl_2d_vol_cls_fn']
 
@@ -411,8 +413,8 @@ def multiresolution_alignment(slab_info_fn, slab_df,  hemi_df, brain, hemi, slab
         ###
         ### Stage 4 : 2D alignment of receptor to resample MRI GM vol
         ###
-        if run_stage([srv_rsl_fn], [srv_space_rec_fn]) or args.clobber :
-            resample_to_autoradiograph_sections(brain, hemi, slab, float(resolution), srv_rsl_fn, seg_rsl_fn, nl_3d_tfm_inv_fn, srv_space_rec_fn)
+        if run_stage([srv_rsl_fn], [srv_iso_space_rec_fn, srv_space_rec_fn]) or args.clobber :
+            resample_to_autoradiograph_sections(brain, hemi, slab, float(resolution), srv_rsl_fn, seg_rsl_fn, nl_3d_tfm_inv_fn, srv_iso_space_rec_fn, srv_space_rec_fn)
         
         create_2d_sections( slab_df, srv_space_rec_fn, float(resolution), nl_2d_dir )
             
@@ -508,7 +510,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
         ### Steps 2-4 : Multiresolution alignment
         cfiles=files[brain][hemi][str(slab)]
         multiresolution_outputs = []
-        for file_name in ['seg_rsl_fn','nl_3d_tfm_fn','nl_3d_tfm_inv_fn','rec_3d_rsl_fn','srv_3d_rsl_fn','srv_space_rec_fn','nl_2d_vol_fn','nl_2d_vol_cls_fn']:
+        for file_name in ['seg_rsl_fn','nl_3d_tfm_fn','nl_3d_tfm_inv_fn','rec_3d_rsl_fn','srv_3d_rsl_fn','srv_iso_space_rec_fn','srv_space_rec_fn','nl_2d_vol_fn','nl_2d_vol_cls_fn']:
             multiresolution_outputs += [ cfiles[str(resolution)][file_name] for resolution in resolution_list ]
             
 
@@ -554,9 +556,8 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
             ###
             ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
             ###
-
             scale_factors = json.load(open(args.scale_factors_fn, 'r'))[brain][hemi]
-            final_ligand_fn = surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, cortex_fn, slabs.args, files[brain][hemi], scale_factors, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+            final_ligand_fn = surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, cortex_fn, args.slabs, files[brain][hemi], scale_factors, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
             #surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, srv_max_resolution_fn, args, files[brain][hemi],  tissue_type='_cls', surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
             ###
             ### 6. Quality Control
@@ -597,8 +598,8 @@ if __name__ == '__main__':
     
     ### Step 0 : Crop downsampled autoradiographs
     pytorch_model=f'{base_file_dir}/caps/Pytorch-UNet/MODEL.pth'
-    pytorch_model=''
-    crop( args.mask_dir, df, args.scale_factors_fn, float(resolution_list[-1]), pytorch_model=pytorch_model )
+    #pytorch_model=''
+    crop( args.crop_dir, args.mask_dir, df, args.scale_factors_fn, float(resolution_list[-1]), pytorch_model=pytorch_model )
     
     args.landmark_df = process_landmark_images(df, args.landmark_src_dir, args.landmark_dir, args.scale_factors_fn)
 

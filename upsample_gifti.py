@@ -561,10 +561,17 @@ def resample_gifti_to_h5(new_edges_h5_fn, reference_coords_h5_fn, input_list, ou
 
 
 def upsample_gifti(input_fn,upsample_0_fn, upsample_1_fn, resolution, input_list=[], output_list=[], test=False, clobber=False, debug=False):
+    if '.surf.gii' in upsample_0_fn : ext = '.surf.gii'
+    elif '.white' in upsample_0_fn : ext = '.white'
+    elif '.pial' in upsample_0_fn : ext = '.pial'
+    elif '.obj' in upsample_0_fn : ext = '.obj'
+    else :
+        print('Error: no extension found for', upsmaple_0_fn)
+        exit(1)
 
-    faces_h5_fn = os.path.splitext(upsample_0_fn)[0] + '_new_faces.h5' # sub('.surf.gii','_new_faces.h5',upsample_0_fn)
-    coords_h5_fn =  os.path.splitext(upsample_0_fn)[0] + '_new_coords.h5' #sub('.surf.gii','_new_coords.h5',upsample_0_fn)
-    new_edges_h5_fn =  os.path.splitext(upsample_0_fn)[0] + '_new_edges.h5'  #sub('.surf.gii','_new_edges.h5',upsample_0_fn)
+    faces_h5_fn =  sub(ext,'_new_faces.h5',upsample_0_fn)
+    coords_h5_fn =   sub(ext,'_new_coords.h5',upsample_0_fn)
+    new_edges_h5_fn =   sub(ext,'_new_edges.h5',upsample_0_fn)
     if not os.path.exists(coords_h5_fn) :
         print(os.path.exists(coords_h5_fn), coords_h5_fn)
         n_new_edges = upsample_with_h5(input_fn, upsample_0_fn,  faces_h5_fn, coords_h5_fn, new_edges_h5_fn, resolution)
