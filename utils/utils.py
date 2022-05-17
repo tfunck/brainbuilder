@@ -225,6 +225,7 @@ def save_sections(file_list, vol, aff) :
                                 [0, 0,  0.02, 0 ],
                                 [0, 0,  0, 1]])
         i=0
+        print(y,fn)
         if np.sum(vol[:,int(y),:]) == 0 :
             # Create 2D srv section
             # this little while loop thing is so that if we go beyond  brain tissue in vol,
