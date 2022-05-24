@@ -54,7 +54,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, use_syn=
     n3 = len(nl_itr_str.split('x'))
     assert n0==n1==n2==n3 , "Error: Incorrect lengths for ANTs parameters"
 
-    y=row['slab_order']
+    y=int(row['slab_order'])
 
     prefix = f'{tfm_dir}/y-{y}' 
     fx_fn = gen_2d_fn(prefix,'_fx')
@@ -94,7 +94,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, use_syn=
     return 0
     
 def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
-    y=row['slab_order']
+    y=int(row['slab_order'])
     prefix=f'{tfm_dir}/y-{y}' 
     crop_rsl_fn=f'{prefix}_{resolution}mm.nii.gz'
     cls_rsl_fn = prefix+'_cls_rsl.nii.gz'
@@ -143,7 +143,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
     df['tfm_affine']=['']*df.shape[0]
 
     for i, row in df.iterrows() :
-        y = row['slab_order']
+        y = int(row['slab_order'])
         prefix = f'{tfm_dir}/y-{y}' 
         cls_fn = prefix+'_cls_rsl.nii.gz'
         out_fn = prefix+'_rsl.nii.gz'
@@ -165,7 +165,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
         Parallel(n_jobs=num_cores)(delayed(apply_transforms_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, row) for i, row in  to_do_resample_df.iterrows()) 
     
     for i, row in df.iterrows() :
-        y = row['slab_order']
+        y = int(row['slab_order'])
         prefix = f'{tfm_dir}/y-{y}' 
         out_fn = prefix+'_rsl.nii.gz'
         tfm_fn = prefix+'_Composite.h5'
@@ -187,7 +187,7 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='r
     
 
     for idx, (i, row) in enumerate(df.iterrows()):
-        y = row['slab_order'] 
+        y = int(row['slab_order'])
         prefix = f'{tfm_dir}/y-{y}'
         fn = f'{tfm_dir}/y-{y}_{target_str}.nii.gz' 
         
@@ -196,7 +196,7 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='r
     if not os.path.exists(out_fn) :
         for idx, (i, row) in enumerate(df.iterrows()):
             fn = df[target_name].loc[i]
-            y = row['slab_order'] 
+            y = int(row['slab_order'])
 
             try : 
                 out_vol[:,int(y),:] = nib.load(fn).get_fdata()

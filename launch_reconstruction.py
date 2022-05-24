@@ -179,7 +179,7 @@ def setup_argparse():
     parser.add_argument('--chunk','-c', dest='slab_chunk_i', type=int, default=1, help='Subslab to align (use with --nonlinear-only option).')
     parser.add_argument('--nvertices', dest='n_vertices', type=int, default=81920, help='n vertices for mesh')
     parser.add_argument('--ndepths', dest='n_depths', type=int, default=10, help='n depths for mesh')
-    parser.add_argument('--mask-dir', dest='mask_dir', type=str, default='/data/receptor/human/crop/', help='Slabs to reconstruct. Default = reconstruct all slabs.')
+    parser.add_argument('--mask-dir', dest='mask_dir', type=str, default='/data/receptor/human/crop/combined_final/mask/', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--out-dir','-o', dest='out_dir', type=str, default='output', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--scale-factors', dest='scale_factors_fn', type=str, default=None, help='json file with scaling and ordering info for each slab')
     parser.add_argument('--mri-gm', dest='srv_fn', type=str, default='/data/receptor/human/mri1_R_gm_bg_srv.nii.gz', help='mri gm super-resolution volume (srv)')
@@ -600,7 +600,10 @@ if __name__ == '__main__':
     ### Step 0 : Crop downsampled autoradiographs
     pytorch_model=f'{base_file_dir}/caps/Pytorch-UNet/MODEL.pth'
     #pytorch_model=''
-    crop( args.crop_dir, args.mask_dir, df, args.scale_factors_fn, float(resolution_list[-1]), pytorch_model=pytorch_model )
+    df = df.loc[ (df['hemisphere'] == 'R') & (df[brain_str] == 'MR1' ) ] #FIXME, will need to be removed
+
+    flip_axes_dict = {'caudal_to_rostral':(1,)}
+    crop( args.crop_dir, args.mask_dir, df, args.scale_factors_fn, flip_axes_dict=flip_axes_dict,  pytorch_model=pytorch_model )
     
     args.landmark_df = process_landmark_images(df, args.landmark_src_dir, args.landmark_dir, args.scale_factors_fn)
 

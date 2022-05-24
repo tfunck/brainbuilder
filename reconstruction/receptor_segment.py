@@ -44,7 +44,7 @@ def downsample_2d(in_fn, resolution, out_fn, y=0):
         img.affine[2,3] = 0
         shape = img.shape
         #load volume 
-        try :
+        try:
             vol = img.get_fdata()
         except EOFError :
             print('Errror: ', in_fn)
@@ -117,6 +117,7 @@ def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution
             print('\n-->',seg_rsl_fn, os.path.exists(seg_rsl_fn), '\n')
 
             cmdline = f'antsApplyTransforms -n NearestNeighbor -v 0 -d 2 -i {tfm_input_fn} -r {tfm_ref_fn} -t {tfm_fn} -o {seg_rsl_tfm_fn}'
+            print(cmdline)
             shell(cmdline)
         else :
             print('\tNo transform for', seg_rsl_fn)
@@ -159,7 +160,7 @@ def interpolate_missing_sections(vol, dilate_volume=False) :
 
 
 
-def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=5, clobber=False, resolution=0.2, interpolation='nearest') :
+def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=5, flip_axes=(), clobber=False, resolution=0.2, interpolation='nearest') :
     if not os.path.exists(out_fn)  or clobber :
         #
         # Check Inputs
@@ -228,13 +229,16 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         ystart = float(vol1.affine[1][3])
         zstart = float(vol1.affine[2][3])
 
+        print(xstart,ystart,zstart)
         aff=np.array([  [resolution, 0, 0, xstart],
                         [0, 0.02, 0, ystart ],
                         [0, 0,  resolution, zstart], 
                         [0, 0, 0, 1]]).astype(float)
-        
-
+        if flip_axes != () :
+            data = np.flip(data,axis=flip_axes)    
+    
         data, aff = recenter(data, aff)
+
         # Gaussian blurring
         sd = (float(resolution)/0.02)/np.pi
         #effective resolution across y is really actually closer to 1mm not 0.02, so trying that instead 
@@ -244,7 +248,7 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
 
         img_cls = nibabel.Nifti1Image(data, aff )     
 
-        #img_cls.to_filename(re.sub('.nii','_full.nii', out_fn))
+        img_cls.to_filename(re.sub('.nii','_full.nii', out_fn))
         
         print("Writing output to", out_fn)
         img_cls = resample_to_output(img_cls, [float(resolution)]*3, order=5)

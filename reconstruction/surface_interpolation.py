@@ -239,7 +239,7 @@ def get_valid_coords( coords, iw):
 
 
 
-def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[1,0,0], interp_vol=None, n_vol=None ):
+def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[0,0,0], interp_vol=None, n_vol=None ):
     '''
     About
         Interpolate mesh values into a volume
@@ -262,9 +262,7 @@ def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[1,0
     coords[:,0] += origin[0]
     coords[:,1] += origin[1]
     coords[:,2] += origin[2]
-   
-    print('origin', origin)
-
+    print('Origin offset being applied:', origin);
     #coords[:,0] -= 0.04
     #coords[:,1] -= -30.56
     #coords[:,2] += 24.94
@@ -640,8 +638,8 @@ def prepare_surfaces(slab_dict, depth_list, interp_dir, resolution, upsample_res
     surf_wm_fn, _ = get_surface_filename(surf_wm_obj_fn, surf_wm_gii_fn, surf_wm_fs_fn)
 
     origin=[0,0,0]
-    if ext.gm == 'pial' : origin= load_mesh(surf_gm_fn)[2]['cras']
-
+    if ext.gm == '.pial' : origin= load_mesh(surf_gm_fn)[2]['cras']
+    
     sphere_obj_fn = surf_base_str.format(surf_dir, brain, 'mid', hemi, n_vertices,'_sphere',ext.gm)
     
     #upsample transformed surfaces to given resolution
@@ -771,7 +769,6 @@ def create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, p
             
             if not os.path.exists(multi_mesh_interp_fn) : 
                 interp_vol = multi_mesh_to_volume(profiles, depth_fn_slab_space[slab], depth_list, imageParamLo.dimensions, imageParamLo.starts, imageParamLo.steps, origin=origin)
-                #interp_vol = multi_mesh_to_volume(profiles, depth_fn_slab_space[slab], depth_list, imageParamHi.dimensions, imageParamHi.starts, imageParamHi.steps, origin=origin)
                 nib.Nifti1Image(interp_vol, out_affine ).to_filename(multi_mesh_interp_fn)
                 interp_vol = fill_in_missing_voxels(interp_vol, mask_vol)
             else : 
@@ -875,7 +872,7 @@ def fill_in_missing_voxels(interp_vol, mask_vol):
     return interp_vol
 
 
-def interpolate_between_slabs(depth_fn_mni_space, depth_list, profiles_fn, ref_fn, interp_dir, srv_rsl_fn, resolution):
+def interpolate_between_slabs(depth_fn_mni_space, depth_list, profiles_fn, ref_fn, interp_dir, srv_rsl_fn, resolution, origin=[0,0,0]):
     #img = nib.load(srv_rsl_fn)
     img = nb_surf.load(ref_fn)
     starts = np.array(img.affine[[0,1,2],3])
@@ -900,7 +897,7 @@ def interpolate_between_slabs(depth_fn_mni_space, depth_list, profiles_fn, ref_f
     #            out_dir=npz_dir, left_oriented=False )
     #mask_vol = mapper.map_profiles_to_block(profiles, interpolation='nearest')
 
-    interp_vol = multi_mesh_to_volume(profiles, depth_fn_mni_space, depth_list, dimensions, starts, steps)
+    interp_vol = multi_mesh_to_volume(profiles, depth_fn_mni_space, depth_list, dimensions, starts, steps, origin=origin)
     mask_vol = resize(mask_vol, interp_vol.shape, order=0) 
 
     interp_vol = fill_in_missing_voxels(interp_vol, mask_vol)
@@ -946,7 +943,7 @@ def transform_slab_to_mni(slabs, slab_dict, mni_fn,  template_out_prefix):
         if not os.path.exists(interp_space_mni_fn) :
             shell(f'antsApplyTransforms -d 3 -n NearestNeighbor -i {interp_fn} -r {mni_fn} -t {tfm} -o {interp_space_mni_fn}')
 
-def create_final_reconstructed_volume(final_mni_fn, mni_fn, resolution,  depth_fn_mni_space, depth_list, interp_dir, interp_fn_mni_list, recon_out_prefix, profiles_fn, n_depths ):
+def create_final_reconstructed_volume(final_mni_fn, mni_fn, resolution,  depth_fn_mni_space, depth_list, interp_dir, interp_fn_mni_list, recon_out_prefix, profiles_fn, n_depths, origin=[0,0,0] ):
     combined_slab_mni_fn = f'{recon_out_prefix}_space-mni_not_filled_l{n_depths}.nii.gz'
     surf_interp_mni_fn = f'{recon_out_prefix}_surf-interp_space-mni_l{n_depths}.nii.gz'
 
@@ -955,7 +952,7 @@ def create_final_reconstructed_volume(final_mni_fn, mni_fn, resolution,  depth_f
     combine_slabs_to_volume(interp_fn_mni_list, combined_slab_mni_fn)
 
     print('\tInterpolate between slabs')
-    interp_vol = interpolate_between_slabs(depth_fn_mni_space, depth_list, profiles_fn, interp_fn_mni_list[0], interp_dir, mni_fn,  resolution)
+    interp_vol = interpolate_between_slabs(depth_fn_mni_space, depth_list, profiles_fn, interp_fn_mni_list[0], interp_dir, mni_fn,  resolution, origin=origin)
     
     print('\tWriting surface interpolation volume:\n\t\t', final_mni_fn)
     nib.Nifti1Image(interp_vol, ref_img.affine, direction_order='lpi').to_filename(surf_interp_mni_fn)
@@ -1020,7 +1017,7 @@ def surface_interpolation(df_ligand, slab_dict, out_dir, interp_dir, brain, hemi
         
         # interpolate from surface to volume over entire brain
         print('\tCreate final reconstructed volume')
-        create_final_reconstructed_volume(final_mni_fn, mni_fn, resolution, depth_fn_mni_space, depth_list, interp_dir, interp_fn_mni_list, recon_out_prefix, profiles_fn, n_depths )
+        create_final_reconstructed_volume(final_mni_fn, mni_fn, resolution, depth_fn_mni_space, depth_list, interp_dir, interp_fn_mni_list, recon_out_prefix, profiles_fn, n_depths, origin=origin )
 
     return final_mni_fn
 
