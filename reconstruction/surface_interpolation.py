@@ -800,7 +800,6 @@ def create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, p
             # prefilter the output volume for when it gets resampled to mni space
             print('Writing', interp_fn)
             nib.Nifti1Image(output_vol, mask_img.affine ).to_filename(interp_fn)
-            exit(0)
             print('\nDone.')
         else :
             print(interp_fn, 'already exists')
