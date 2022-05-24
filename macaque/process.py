@@ -14,6 +14,7 @@ from utils.utils import prefilter_and_downsample, resample_to_autoradiograph_sec
 from reconstruction.align_slab_to_mri import *
 from utils.utils import get_section_intervals
 from reconstruction.nonlinear_2d_alignment import create_2d_sections, receptor_2d_alignment, concatenate_sections_to_volume
+from reconstruction.crop import crop
 from reconstruction.receptor_segment import classifyReceptorSlices, interpolate_missing_sections, resample_transform_segmented_images
 from skimage.transform import resize
 from scipy.ndimage.filters import gaussian_filter
@@ -109,7 +110,7 @@ def add_histology_images(hist_files):
         fn_split = re.sub(ext, '', os.path.basename(fn)).split('#')
         #'RH11530#L#AG#25.png'
         
-        brain, hemisphere, ligand, repeat = [fn_split[i] for i in [0,1,2,3]]
+        brain, hemisphere, ligand, repeat = [fn_split[i] for i in [2,3,4,6]]
         
         print(fn)
         print(brain, hemisphere, ligand, repeat)
@@ -180,7 +181,7 @@ def create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn ):
    
         # load raw tif files
         auto_files = [ fn for fn in glob(f'{auto_dir}/**/*TIF') ] #if not 'UB' in fn and not '#00' in fn ]
-        hist_files = [ fn for fn in glob(f'{auto_dir}/**/*AG*png') ] 
+        hist_files = [ fn for fn in glob(f'{auto_dir}/img_histology/*AG*png') ] 
 
         df_auto = add_autoradiographs_images(auto_files)
         df_hist = add_histology_images(hist_files)
@@ -270,6 +271,19 @@ def create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn ):
     df['order'] = df['order'].max() - df['order']
     df['slab_order'] = df['order']
     df['global_order']=df['order'] 
+    df['volume_order']=df['order'] 
+
+    df['slab']=[1] * df.shape[0]
+    df['slab'].loc[df['repeat'].astype(int) > 37 ] = 2
+
+    df['rotate']=[0] * df.shape[0]
+
+    df['seg_fn'] = [''] * df.shape[0]
+    for i, (index, row) in enumerate(df.iterrows()):
+        crop_fn = row['raw']
+        fn = os.path.splitext(row['raw'])[0]+'_seg.nii.gz'
+        seg_fn = f'{crop_dir}/{os.path.basename(fn)}'
+        df['seg_fn'].iloc[i]=seg_fn
     return df
 
 
@@ -366,6 +380,12 @@ def concat_section_to_volume(df, affine, volume_fn, file_var='crop'):
                 #section = gaussian_filter(section, affine[0,0]/(2*0.02))
                 #section = resize(section, [xdim,zdim], order=0)
                 volume[:,y,:] = section
+                plt.title(fn)
+                #plt.imshow(section)
+                #print(f'/tmp/{y}.png')
+                #plt.savefig(f'/tmp/{y}.png')
+                #plt.cla()
+                #plt.clf()
         
         print('\tWriting to', volume_fn)
         #volume
@@ -401,6 +421,7 @@ def downsample(df, downsample_dir, resolution_2d):
         if not os.path.exists(crop_rsl_fn) :
             print(crop_fn)
             prefilter_and_downsample(crop_fn, [resolution_2d]*2, crop_rsl_fn)
+
         #print('Downsampled:', i, crop_rsl_fn)
         df['crop'].iloc[i] = crop_rsl_fn
         #print(df['crop'].iloc[i])
@@ -531,7 +552,6 @@ def get_receptor_y_scale(file_list, axis=0, ystep=0.02163):
         #print('1.', im.shape)
         im = np.sum(im, axis=axis)
         #print('2.', im.shape)
-        #exit(0)
         first, last = np.where(im>0)[0][[0,-1]]
         y_list.append([first,last])
 
@@ -612,6 +632,7 @@ def get_section_scale_factor(out_dir, template_fn, section_files):
 
 
 def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json_fn, out_dir='macaque/output/', native_pixel_size=0.02163, ligands_to_exclude=[]):
+    mask_dir = f'{auto_dir}/mask_dir/'
     subject_dir=f'{out_dir}/{subject_id}/' 
     crop_dir = f'{out_dir}/{subject_id}/crop/'
     init_dir = f'{out_dir}/{subject_id}/init_align/'
@@ -620,12 +641,17 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
     ligand_dir = f'{subject_dir}/ligand/'
     csv_fn = f'{out_dir}/{subject_id}/{subject_id}.csv'
 
+    srv_max_resolution_fn=template_fn #might need to be upsampled to maximum resolution
+    surf_dir = f'{auto_dir}/surfaces/'
+    interp_dir = f'{subject_dir}/interp/'
+    brain = '11530'
+    hemi = 'L' 
     for dirname in [subject_dir, crop_dir, init_dir, downsample_dir, init_3d_dir, ligand_dir] : os.makedirs(dirname, exist_ok=True)
 
     lowres=0.4
-    affine=np.array([[lowres,0,0,0],[0,0.02,0,0.0],[0,0,lowres,0],[0,0,0,1]])
+    affine=np.array([[lowres,0,0,-90],[0,0.02,0,0.0],[0,0,lowres,-70],[0,0,0,1]])
 
-    df = create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn )
+    df = create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn)
     
     # Output files
     affine_fn = f'{init_3d_dir}/{subject_id}_affine.mat'
@@ -633,6 +659,8 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
     volume_init_fn = f'macaque/output/{subject_id}/{subject_id}_init-align_volume.nii.gz'
     volume_seg_fn = f'{subject_dir}/{subject_id}_segment_volume.nii.gz'
     volume_seg_iso_fn = f'{subject_dir}/{subject_id}_segment_iso_volume.nii.gz'
+
+    scale_factors_json = json.load(open(scale_factors_json_fn,'r'))[brain][hemi]
 
     ### 1. Section Ordering
     print('1. Section Ordering')
@@ -645,20 +673,26 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
     
     ### 2. Crop
     print('2. Cropping')
-    crop_to_do = [ (y, raw_fn, crop_fn, ligand) for y, raw_fn, crop_fn, ligand in zip(df['repeat'], df['raw'], df['crop'],df['ligand']) if not os.path.exists(crop_fn) ]
+    #crop_to_do = [ (y, raw_fn, crop_fn, ligand) for y, raw_fn, crop_fn, ligand in zip(df['repeat'], df['raw'], df['crop'],df['ligand']) if not os.path.exists(crop_fn) ]
     num_cores = min(1, multiprocessing.cpu_count() )
-    Parallel(n_jobs=num_cores)(delayed(crop_image)(crop_dir, y, ligand, fn, crop_fn, pixel_size) for y, fn, crop_fn, ligand in  crop_to_do) 
-    df['crop_raw_fn'] = df['crop']
+    
+    flip_dict = {'rostral_to_caudal':(0,), 'caudal_to_rostral':(0,1) }
+    
+    # Crop non-cellbody stains
+    crop(crop_dir, mask_dir, df.loc[df['ligand'] != 'cellbody'], scale_factors_json_fn, res=[60,45], remote=False, pad=0, clobber=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model='Task501')
+    
+    # Crop cellbody stains
+    crop(crop_dir, mask_dir, df.loc[ df['ligand'] == 'cellbody' ], scale_factors_json_fn, res=[91,91], remote=False, pad=0, clobber=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model='Task501')
 
-    ### 3. Segment
-    df = segment(subject_id, df, crop_dir)
+    df['crop_raw_fn'] = df['crop']
 
     ### 3. Resample images
     df = downsample(df, downsample_dir, lowres)
 
     ### 4. Align
     print('3. Init Alignment')
-    if not os.path.exists(volume_init_fn) : concat_section_to_volume(df, affine, volume_fn, file_var='crop' )
+    concat_section_to_volume(df, affine, volume_fn, file_var='crop' )
+
     aligned_df = align(df, init_dir )
     concat_section_to_volume(aligned_df, affine, volume_init_fn, file_var='init' )
     #points2tfm(points_fn, affine_fn, template_fn, volume_init_fn,  ndim=3, transform_type="Affine", invert=True, clobber=True)
@@ -694,7 +728,7 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
 
         ### 5. Segment
         resample_transform_segmented_images(aligned_df, itr, resolution_2d, resolution_3d, seg_2d_dir)
-        classifyReceptorSlices(aligned_df, volume_init_fn, seg_2d_dir, seg_dir, volume_seg_fn, resolution=resolution_3d, interpolation='linear')
+        classifyReceptorSlices(aligned_df, volume_init_fn, seg_2d_dir, seg_dir, volume_seg_fn, resolution=resolution_3d, interpolation='linear', flip_axes=())
 
         ### 6. 3D alignment
         if not os.path.exists(current_template_fn):
@@ -720,11 +754,7 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
     interp_align_2d_template_fn=f'{final_3d_dir}/{subject_id}_interp_space-template_{curr_res}mm.nii.gz'
 
     #reconstruct_ligands(ligand_dir, subject_id, resolution_list[-1], aligned_df, template_fn, tfm_3d_fn, interp_align_2d_fn)
-    srv_max_resolution_fn=template_fn #might need to be upsampled to maximum resolution
-    surf_dir = f'{auto_dir}/surfaces/'
-    interp_dir = f'{subject_dir}/interp/'
-    brain = '11530'
-    hemi = 'L' 
+
     highest_resolution = resolution_list[-1]
     n_depths=10
     n_vertices = 0 
@@ -750,7 +780,6 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
 
     slab_dict={'1':files[brain][hemi]['1'][highest_resolution]}
 
-    scale_factors_json = json.load(open(scale_factors_json_fn,'r'))[brain][hemi]
     surface_interpolation(df_ligand, slab_dict, out_dir, interp_dir, brain, hemi, highest_resolution,  template_fn, args.slabs, files[brain][hemi], scale_factors_json, surf_dir=surf_dir, n_vertices=n_vertices, upsample_resolution=20, n_depths=n_depths)
 
     print('Done')

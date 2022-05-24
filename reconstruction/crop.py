@@ -21,7 +21,7 @@ from scipy.ndimage import rotate
 from utils.utils import safe_imread, downsample, shell
 from scipy.ndimage.filters import gaussian_filter
 from skimage.filters import threshold_otsu, threshold_li
-from utils.threshold_li import threshold_li
+#from utils.threshold_li import threshold_li
 from glob import glob
 from skimage import exposure
 from nibabel.processing import *
@@ -143,15 +143,22 @@ def get_base(fn) :
     fn = os.path.splitext(os.path.basename(fn))[0] 
     return fn
 
-def gen_affine(row, scale,global_order_min):
-    brain = row['mri']
+def gen_affine(row, scale, dims, global_order_min, xstep_from_size=False, brain_str='mri'):
+    brain = row[brain_str]
     hemi = row['hemisphere']
     slab = row['slab']
 
     direction = scale[brain][hemi][str(slab)]["direction"]
+
     z_mm = scale[brain][hemi][str(slab)]["size"]
-    xstep = 0.02
-    zstep = z_mm / 4164. # pixel size in z-axis is variable depending on microscope magnification
+
+    zstep = z_mm / dims[1] #4164. # pixel size in z-axis is variable depending on microscope magnification
+
+    if xstep_from_size : 
+        xstep = z_mm / dims[0] # pixel size in z-axis is variable depending on microscope magnification
+    else :
+        xstep = 0.02
+    print('\tDigitized step size:', xstep, zstep)
     #commented becaause this doesn't seem to make sense
     
     affine=np.array([[xstep, 0, 0, -90],
@@ -169,24 +176,39 @@ def threshold(img,sd=1):
     out[ idx ] = 1
     return out
 
-def process_image(img, row, scale, pad, affine, mask_fn=''): 
+
+def process_image(img, row, scale, pad, affine,brain_str='mri', mask_fn='', flip_axes_dict={}): 
     if mask_fn != '':
         mask_lores = imageio.imread(mask_fn)
         mask = resize(mask_lores, [img.shape[0],img.shape[1]],order=0).astype(int)
         # apply mask to image
         img[ mask < np.max(mask)*0.5 ] = 0
 
-    brain = row['mri']
+    brain = row[brain_str]
     hemi = row['hemisphere']
     slab = row['slab']
 
     p = int(pad/2)
     direction = scale[brain][hemi][str(slab)]["direction"]
 
+    print(img.shape)
     img = img.reshape(img.shape[0], img.shape[1])
 
-    if direction == "caudal_to_rostral": 
-        img = np.flip( img, 1 )
+    for  dict_direction, flip_axes in flip_axes_dict.items() :
+        if direction == dict_direction :
+            print(direction, dict_direction, flip_axes)
+            #plt.subplot(1,2,1); plt.imshow(img)
+            #plt.title(f'{row["order"]}, {row["slab"]}')
+            img = np.flip(img, axis=flip_axes)
+            #plt.subplot(1,2,2); plt.imshow(img)
+            #temp_fn = f'/tmp/{row["repeat"]}.png'
+            #plt.savefig(temp_fn)
+            #plt.clf()
+            #plt.cla()
+
+    # deleteme if flip_axes_dict works
+    #if direction == "caudal_to_rostral": 
+    #    img = np.flip( img, 1 )
     #img = np.flip(img, 0)
 
     ## pad image in case it needs to be rotated
@@ -210,37 +232,38 @@ def find_landmark_files(landmark_dir, brain, hemisphere, slab, volume_order) :
     if len(landmark_files) != 0 : print(landmark_files)
     return landmark_files 
 
-def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pytorch_model='', pad = 1000, clobber=True ):
-    fn = row['lin_fn']
-    base = row['lin_base_fn'] # os.path.splitext( os.path.basename(fn) )[0]
+def crop_parallel(row, mask_dir, scale, global_order_min, brain_str='mri', crop_str='crop_fn', lin_str='lin_fn', pytorch_model='', pad = 1000, clobber=True, flip_axes_dict={} ):
+    fn = row[lin_str]
+    base = os.path.splitext( os.path.basename(fn) )[0]
 
-    crop_fn = row['crop_fn'] #'{}/{}.nii.gz'.format(out_dir , base)
+    crop_fn = row[crop_str] #'{}/{}.nii.gz'.format(out_dir , base)
     
-    brain = row['mri']
+    brain = row[brain_str]
     hemi = row['hemisphere']
     slab = row['slab']
     volume_order = row['volume_order']
 
     if not os.path.exists(crop_fn) or clobber : 
+        print('\tinput_fn', fn)
         print('\t crop_fn', crop_fn) 
-
         # identify mask image filename
-        mask_fn=glob(f'{mask_dir}/combined_final/mask/{base}*.png')
+        mask_fn=glob(f'{mask_dir}/{base}*.png')
         
         if len(mask_fn) > 0 : 
             mask_fn = mask_fn[0]
         else : 
-            print('Skipping', fn,f'{mask_dir}/combined_final/mask/{base}*.png' )
-            mask_fn = f'{mask_dir}/combined_final/mask/{base}.png'
+            print('Skipping', fn,f'{mask_dir}/{base}*.png' )
+            mask_fn = f'{mask_dir}/{base}.png'
             
         print('\t\tMask fn:', mask_fn)
         
         # load mask image 
         img = imageio.imread(fn)
+        if len(img.shape) > 2 : img = img[:,:,0]
 
-        affine = gen_affine(row, scale, global_order_min)
+        affine = gen_affine(row, scale, img.shape, global_order_min, xstep_from_size=True, brain_str=brain_str)
         
-        img = process_image(img, row, scale, pad, affine, mask_fn=mask_fn)
+        img = process_image(img, row, scale, pad, affine, brain_str=brain_str, mask_fn=mask_fn, flip_axes_dict=flip_axes_dict)
 
         #origin = list(affine[ [0,1],[3,3] ])
         #spacing = list( affine[ [0,1],[0,1] ])
@@ -248,9 +271,10 @@ def crop_parallel(row, mask_dir, scale,global_order_min, resolution, pytorch_mod
         #ants.image_write(ants_image, crop_fn)
     
         nib.Nifti1Image(img, affine ).to_filename(crop_fn)
+
+    '''
     seg_fn = row['seg_fn']
     temp_crop_fn=crop_fn
-    '''
     if not os.path.exists(seg_fn) or clobber :
         print('\t seg_fn', seg_fn) 
         print(pytorch_model)
@@ -328,7 +352,7 @@ def process_landmark_images(df, landmark_in_dir, landmark_out_dir,  scale_factor
     return landmark_df
 
 
-def convert_2d_array_to_nifti(f: str, output_filename: str, spacing=(999, 1, 1),
+def convert_2d_array_to_nifti(f: str, output_filename: str, res=[20,20], spacing=(999, 1, 1),
                               transform=None, is_seg: bool = False) -> None:
     """
     Converts numpy into a series of niftis.
@@ -349,14 +373,14 @@ def convert_2d_array_to_nifti(f: str, output_filename: str, spacing=(999, 1, 1),
     :return:
     """
     if not os.path.exists(output_filename ) :
-        img=np.array(nib.load(f).dataobj)
-        res = 20
-        resized = resize(img, np.round(np.array(img.shape)*res/200).astype(int),order=3)
-        print(f)
+        print('\tFrom:',f)
+        img=np.array(nib.load(f).get_fdata())
+
+        img = resize(img, np.round(np.array(img.shape)*np.array(res)/200).astype(int),order=3)
+        print(img.shape)
 
         if transform is not None:
             img = transform(img)
-
         if len(img.shape) == 2:  # 2d image with no color channels
             img = img[None, None]  # add dimensions
         else:
@@ -366,6 +390,9 @@ def convert_2d_array_to_nifti(f: str, output_filename: str, spacing=(999, 1, 1),
             # add third dimension
             img = img[:, None]
         # image is now (c, x, x, z) where x=1 since it's 2d
+
+        img=img.astype(np.uint32)
+        
         if is_seg:
             assert img.shape[0] == 1, 'segmentations can only have one color channel, not sure what happened here'
 
@@ -377,12 +404,12 @@ def convert_2d_array_to_nifti(f: str, output_filename: str, spacing=(999, 1, 1),
             itk_img = sitk.GetImageFromArray(i)
             itk_img.SetSpacing(list(spacing)[::-1])
             if not is_seg:
-                print('\t1.',  output_filename )
                 #sitk.WriteImage(itk_img, output_filename_truncated + "_%04.0d.nii.gz" % j)
                 sitk.WriteImage(itk_img, output_filename)
             else:
                 print('\t2.', output_filename_truncated + ".nii.gz")
                 #sitk.WriteImage(itk_img, output_filename_truncated + ".nii.gz")
+        print('Wrote:',output_filename)
 
 def convert_from_nnunet(fn, crop_fn, seg_fn, crop_dir, scale):
     crop_img = nib.load(crop_fn)
@@ -405,20 +432,24 @@ def convert_from_nnunet(fn, crop_fn, seg_fn, crop_dir, scale):
     nib.Nifti1Image(ar, crop_img.affine).to_filename(seg_fn)
 
 
-def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='', remote=False, pad=1000, clobber=False):
+def crop(crop_dir, mask_dir, df, scale_factors_json, pytorch_model='', remote=False, pad=1000, clobber=False, brain_str='mri', crop_str='crop_fn', lin_str='lin_fn', res=[20,20], flip_axes_dict={}, create_pseudo_cls=False):
     '''take raw linearized images and crop them'''
-    df = df.loc[ (df['hemisphere'] == 'R') & (df['mri'] == 'MR1' ) ] #FIXME, will need to be removed
-   
-
 
     global_order_min = df["global_order"].min()
     with open(scale_factors_json) as f : scale=json.load(f)
-   
+    print(df) 
     file_check = lambda x : not os.path.exists(x)
-    crop_check = df['crop_fn'].apply( file_check ).values
+    crop_check = df[crop_str].apply( file_check ).values
+    print(crop_str)
+    print(df[crop_str])
     #seg_check =  df['seg_fn'].apply( file_check ).values
-    cls_check =  df['pseudo_cls_fn'].apply( file_check ).values
 
+    if create_pseudo_cls :
+        cls_check =  df['pseudo_cls_fn'].apply( file_check ).values
+    else :
+        cls_check= np.zeros_like(crop_check)
+
+    print(crop_check)
     #missing_files = crop_check + seg_check + cls_check
     missing_files = crop_check + cls_check
     if np.sum( missing_files ) > 0 : 
@@ -429,9 +460,8 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
     #os.makedirs(out_dir,exist_ok=True)
     df_to_process = df.loc[ missing_files ]  
 
-    Parallel(n_jobs=14)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min, resolution, pytorch_model=pytorch_model, pad=pad) for i, row in  df_to_process.iterrows()) 
-    #for i, row in  df_to_process.iterrows():
-    #    crop_parallel(row, mask_dir, scale, global_order_min, resolution, pytorch_model=pytorch_model, pad=pad) 
+    Parallel(n_jobs=14)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min, pytorch_model=pytorch_model, pad=pad, brain_str=brain_str, crop_str=crop_str, lin_str=lin_str, flip_axes_dict=flip_axes_dict) for i, row in  df_to_process.iterrows()) 
+
     
     if pytorch_model != '' :
 
@@ -444,37 +474,42 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
 
 
         to_do = []
-        for f in df['crop_fn'].values:
+        for f in df[crop_str].values:
             fname=os.path.split(f)[1].split('.')[0]
             output_filename_truncated = os.path.join(nnunet_in_dir,fname)
             output_filename = output_filename_truncated + "_0000.nii.gz"
             if not os.path.exists(output_filename) :
                 to_do.append([f, output_filename]) 
         
-        Parallel(n_jobs=14)(delayed(convert_2d_array_to_nifti)(ii_fn,oo_fn) for ii_fn, oo_fn in to_do) 
-
+        Parallel(n_jobs=1)(delayed(convert_2d_array_to_nifti)(ii_fn,oo_fn,res=res) for ii_fn, oo_fn in to_do) 
+        
         #shell(f'nnUNet_predict -i {nnunet_in_dir} -o {nnunet_out_dir} -t 502')
         to_do = []
-        for fn in glob(f'{nnunet_out_dir}/*nii.gz') :
-            crop_fn = crop_dir+os.sep+os.path.basename(fn)
-            seg_fn = df['seg_fn'].loc[df['crop_fn'] == crop_fn].values[0]
-
+        #for fn in glob(f'{nnunet_out_dir}/*nii.gz') :
+        for i, row in df.iterrows():
+            
+            crop_fn = row[crop_str] #crop_dir+os.sep+os.path.basename(fn)
+            seg_fn = row['seg_fn'] #df['seg_fn'].loc[df[crop_str] == crop_fn].values[0]
+            print(f'{nnunet_out_dir}/{os.path.basename(crop_fn)}')
+            fn = glob(f'{nnunet_out_dir}/{os.path.basename(crop_fn)}')[0]
+            print("convert", fn)
             if not os.path.exists(seg_fn) : to_do.append((fn,crop_fn,seg_fn))
         print('\tConvert Files from nnUNet nifti files')
-        Parallel(n_jobs=14)(delayed(convert_from_nnunet)(fn, crop_fn, seg_fn, crop_dir,scale) for fn, crop_fn, seg_fn in to_do) 
-
+        Parallel(n_jobs=2)(delayed(convert_from_nnunet)(fn, crop_fn, seg_fn, crop_dir,scale) for fn, crop_fn, seg_fn in to_do) 
     
-    to_do=[]
-    for i, row in df.iterrows():
-        pseudo_cls_fn = row['pseudo_cls_fn']
-        crop_fn = row['pseudo_cls_fn']
-        seg_fn = row['pseudo_cls_fn']
-        slab_order = int(row['slab_order'])
-        slabr = int(row['slab'])
-        if not os.path.exists(pseudo_cls_fn) : to_do.append([crop_fn, seg_fn,pseudo_cls_fn,slab_order,slab])
-    
+    if create_pseudo_cls :
+        to_do=[]
+        for i, row in df.iterrows():
 
-    #Parallel(n_jobs=14)(delayed(pseudo_classify_autoradiograph)(crop_fn, seg_fn, pseudo_cls_fn, slab_order,slab,resolution) for fn, crop_fn, seg_fn, crop_fn, slab_order, slab in to_do) 
+            pseudo_cls_fn = row['pseudo_cls_fn']
+            crop_fn = row['pseudo_cls_fn']
+            seg_fn = row['pseudo_cls_fn']
+            slab_order = int(row['slab_order'])
+            slabr = int(row['slab'])
+            if not os.path.exists(pseudo_cls_fn) : to_do.append([crop_fn, seg_fn,pseudo_cls_fn,slab_order,slab])
+        
+
+        #Parallel(n_jobs=14)(delayed(pseudo_classify_autoradiograph)(crop_fn, seg_fn, pseudo_cls_fn, slab_order,slab,resolution) for fn, crop_fn, seg_fn, crop_fn, slab_order, slab in to_do) 
 
     return 0
 
