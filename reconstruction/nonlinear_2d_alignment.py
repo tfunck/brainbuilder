@@ -82,7 +82,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, use_syn=
     with open(prefix+'_command.txt','w') as f : f.write(affine_command_str)
     shell(affine_command_str)
     
-    syn_command_str = f'antsRegistration -n NearestNeighbor -v 1 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.5] -m Mattes[{fx_fn},{mv_fn},1,16,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}  -t SyN[0.5] -m CC[{fx_fn},{mv_fn},1,3,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}' 
+    syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.5] -m Mattes[{fx_fn},{mv_fn},1,16,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}  -t SyN[0.5] -m Mattes[{fx_fn},{mv_fn},1,3,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}' 
 
     if use_syn :
         with open(prefix+'_command.txt','w') as f : f.write(syn_command_str)
@@ -135,8 +135,13 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
     tfm_dir = output_dir + os.sep + 'tfm'
     os.makedirs(tfm_dir,exist_ok=True)
 
-    num_cores = min(14, multiprocessing.cpu_count() )
-    
+    os_info = os.uname()
+
+    if os_info[1] == 'imenb079':
+        num_cores = 1 
+    else :
+        num_cores = min(14, multiprocessing.cpu_count() )
+
     to_do_df = pd.DataFrame([])
     to_do_resample_df = pd.DataFrame([])
 
