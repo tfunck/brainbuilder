@@ -419,7 +419,7 @@ def convert_from_nnunet(fn, crop_fn, seg_fn, crop_dir, scale):
     crop_img = nib.load(crop_fn)
     ar = nib.load(fn).get_fdata()
     
-    if np.sum(ar) == 0 :
+    if np.sum(ar==1) == 0 :
         print('\nWarning: Found a section that nnUNet failed to segment!\n')
         print(crop_fn)
         ar = threshold(nib.load(crop_fn).dataobj)
@@ -429,11 +429,12 @@ def convert_from_nnunet(fn, crop_fn, seg_fn, crop_dir, scale):
             print('Error: empty segmented image with nnunet')
             exit(0)
         ar[ (ar == 3) | (ar==4) ] = 1
-
+        
         gm=ar == 1
         wm=ar == 2
+        ar *= 0
         ar[gm] = 2
-        ar[wm] = 1
+        #ar[wm] = 1
         ar = ar.reshape([ar.shape[0],ar.shape[1]])
         ar = ar.T
         ar = resize(ar, crop_img.shape, order=0 )
