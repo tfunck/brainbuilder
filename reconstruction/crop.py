@@ -221,17 +221,21 @@ def crop_parallel(row, mask_dir, scale, global_order_min, brain_str='mri', crop_
         
         # load mask image 
         img = imageio.imread(fn)
-        if len(img.shape) > 2 : img = img[:,:,0]
-
+        if len(img.shape) > 2 : img = img[:,:,0] #np.max(img,axis=2)
+        print(img.shape)
+        print( len(np.unique(img)))
         affine = gen_affine(row, scale, img.shape, global_order_min, xstep_from_size=True, brain_str=brain_str)
         
         img = process_image(img, row, scale, pad, affine, brain_str=brain_str, mask_fn=mask_fn, flip_axes_dict=flip_axes_dict)
+        print( len(np.unique(img)))
 
         #origin = list(affine[ [0,1],[3,3] ])
         #spacing = list( affine[ [0,1],[0,1] ])
         #ants_image = ants.from_numpy(img, origin=origin, spacing=spacing)
         #ants.image_write(ants_image, crop_fn)
-    
+        if np.max(img) == np.min(img) :
+            print('Failed to create\n\t',crop_fn)
+            exit(1)
         nib.Nifti1Image(img, affine ).to_filename(crop_fn)
 
     '''
@@ -378,17 +382,24 @@ def convert_from_nnunet(fn, crop_fn, seg_fn, crop_dir, scale):
     ar = nib.load(fn).get_fdata()
    
     
-    if np.sum(ar) == 0 :
+    if np.sum(ar==1) == 0 :
         print('\nWarning: Found a section that nnUNet failed to segment!\n')
+        print(crop_fn)
         ar = threshold(nib.load(crop_fn).dataobj)
     else :
+        
+        if np.sum(ar) == 0 :
+            print('Error: empty segmented image with nnunet')
+            exit(0)
         ar[ (ar == 3) | (ar==4) ] = 1
+        
         gm=ar == 1
         wm=ar == 2
+        
+        ar *= 0
         ar[gm] = 1
-        #NOTE TEMPORARILY removing WM from segmentation
         #ar[wm] = 1
-        ar[wm] = 0
+        
         ar = ar.reshape([ar.shape[0],ar.shape[1]])
         ar = ar.T
         ar = resize(ar, crop_img.shape, order=0 )
@@ -399,6 +410,15 @@ def convert_from_nnunet(fn, crop_fn, seg_fn, crop_dir, scale):
 
 def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='', remote=False, pad=1000, clobber=False, brain_str='mri', crop_str='crop_fn', lin_str='lin_fn', res=[20,20], flip_axes_dict={}, create_pseudo_cls=True):
     '''take raw linearized images and crop them'''
+
+
+
+    os_info = os.uname()
+
+    if os_info[1] == 'imenb079':
+        num_cores = 1 
+    else :
+        num_cores = min(14, multiprocessing.cpu_count() )
 
     global_order_min = df["global_order"].min()
     
@@ -423,9 +443,8 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
 
     df_to_process = df.loc[ crop_check ]  
 
-    Parallel(n_jobs=14)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min, pytorch_model=pytorch_model, pad=pad, brain_str=brain_str, crop_str=crop_str, lin_str=lin_str, flip_axes_dict=flip_axes_dict) for i, row in  df_to_process.iterrows()) 
+    Parallel(n_jobs=num_cores)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min, pytorch_model=pytorch_model, pad=pad, brain_str=brain_str, crop_str=crop_str, lin_str=lin_str, flip_axes_dict=flip_axes_dict) for i, row in  df_to_process.iterrows()) 
 
-    
     if pytorch_model != '' :
 
         nnunet_in_dir=f'{crop_dir}/nnunet/'
@@ -433,7 +452,7 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
         os.makedirs(nnunet_in_dir, exist_ok=True)
         os.makedirs(nnunet_out_dir, exist_ok=True)
 
-        #Parallel(n_jobs=14)(delayed(convert_for_nnunet)(row, nnunet_in_dir) for i, row in  df.iterrows()) 
+        #Parallel(n_jobs=num_cores)(delayed(convert_for_nnunet)(row, nnunet_in_dir) for i, row in  df.iterrows()) 
 
         to_do = []
         for f in df[crop_str].values:
@@ -443,8 +462,13 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
             if not os.path.exists(output_filename) :
                 to_do.append([f, output_filename]) 
         
+<<<<<<< HEAD
         Parallel(n_jobs=14)(delayed(convert_2d_array_to_nifti)(ii_fn,oo_fn,res=res) for ii_fn, oo_fn in to_do) 
         
+=======
+        Parallel(n_jobs=num_cores)(delayed(convert_2d_array_to_nifti)(ii_fn,oo_fn,res=res) for ii_fn, oo_fn in to_do) 
+
+>>>>>>> f052ac21fc1ee79557b839aa807361e758974969
         #shell(f'nnUNet_predict -i {nnunet_in_dir} -o {nnunet_out_dir} -t 502')
         to_do = []
         for i, row in df.iterrows():

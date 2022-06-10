@@ -511,7 +511,7 @@ def upsample_with_h5(input_fn,upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_
         counter=0
         n_new_edges = 0
         metric = max_len
-        
+         
         print('target reslution:', resolution)
         while metric > resolution :
             print(metric, resolution, metric > resolution)

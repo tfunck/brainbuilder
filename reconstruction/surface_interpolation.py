@@ -36,6 +36,7 @@ from vast.surface_volume_mapper import SurfaceVolumeMapper
 #from pykrige.ok import OrdinaryKriging
 global surf_base_str
 surf_base_str = '{}/{}_{}_surface_{}_{}{}.{}'
+
 '''
 def krig(lons_src, lats_src, lats, lons, values ):
     # Make this example reproducible:
@@ -207,7 +208,8 @@ def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, ext, resolut
    
         if not os.path.exists(sphere_fn) or  clobber :
             print('\tInflate to sphere')
-            shell('~/freesurfer/bin/mris_inflate -n 500  {} {}'.format(depth_surf_fn, sphere_fn))
+            #shell('~/freesurfer/bin/mris_inflate -n 500  {} {}'.format(depth_surf_fn, sphere_fn))
+            shell('~/freesurfer/bin/mris_inflate -n 10  {} {}'.format(depth_surf_fn, sphere_fn))
         
         input_list += [depth_surf_fn, sphere_fn]
         output_list+= [upsample_fn, sphere_rsl_fn]
@@ -311,7 +313,7 @@ def multi_mesh_to_volume(profiles, depth_fn_slab_space, depth_list, dimensions, 
     assert np.sum(interp_vol) != 0 , 'Error: interpolated volume is empty'
     return interp_vol
 
-def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp_dir, clobber=False):
+def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp_dir, origin=np.array([0,0,0]), clobber=False):
     '''
     About : For a given ligand, interpoalte the autoradiograph receptor densities 
             onto each surface depth for each slab. The interpolation onto the surface is currently 
@@ -344,6 +346,7 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
             # read surface coordinate values from file
             coords_h5 = h5.File(surf_fn['upsample_h5'],'r')
             coords = coords_h5['data'][:]
+            coords += origin
            
             #These offsets were used for the macaque brain, but in theory they should
             # be accounted for when transforming the coordinates to slab space and shouldn't
@@ -352,7 +355,6 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
             #coords[:,1] -= 30.56
             #coords[:,2] += 24.94
             #for i in range(3) : coords[:,i] += origin[i]
-
 
             # read slab volume
             img = nib.load(vol_fn)
@@ -382,7 +384,7 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
                 #the voxel values should be the same along the y-axis within an interval
                 #WARNING: this will NOT work if there isn't a gap between thickened autoradiograph sections!
                 section = vol[:,y0,:]
-                assert np.sum(section) != 0, f'Error: emptry section before interpolation for section {y0} '
+                #assert np.sum(section) != 0, f'Error: emptry section before interpolation for section {y0} '
                 valid_coords_world, valid_coords_idx = get_valid_coords( coords, [y0w,y1w])
 
                 if valid_coords_world.shape[0] != 0  :
@@ -415,6 +417,66 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
             assert np.sum(np.abs(all_values)) > 0, 'Error, empty array all_values in project_volumes_to_surfaces'
             np.savetxt(interp_csv, all_values)
 
+from scipy.interpolate import interp1d, CubicSpline
+
+def setup_section_normalization(ligand, slab_df, array_src):
+    normalize_sections = False 
+    mean_list=[]
+    std_list=[]
+    y_list=[]
+    group_mean=0
+    group_std=0
+    slab_df = slab_df.sort_values(['slab_order'])
+    if ligand in [] :# [ 'cellbody' , 'myelin' ] : 
+        print('Normalizing', ligand)
+
+        normalize_sections=True  
+        for row_i, row in slab_df.iterrows() : 
+            y = int(row['slab_order'])
+
+            # Conversion of radioactivity values to receptor density values
+            section = array_src[:, y, :]
+            
+            idx = section>=0
+
+            mean_list.append(np.mean(section[idx]))
+            std_list.append(np.std(section[idx]))
+            y_list.append(y)
+        
+        mean_list=np.array(mean_list) 
+        pad=2
+        new_mean_list=[]
+        i_list = range(len(mean_list))
+        
+        new_mean_list.append(mean_list[0])
+        for i, y, mean in zip(i_list[1:-1], y_list[1:-1], mean_list[1:-1]) :
+            i0=max(i-pad,0)
+            i1=min(i+pad,len(mean_list)-1)
+            print(i0,'-->',i, '-->', i1)
+            x = list(y_list[i0:i]) + list(y_list[i+1:i1+1])
+            print('x',x)
+            print('y->',y,y_list[i])
+            z = list(mean_list[i0:i]) + list(mean_list[i+1:i1+1])
+            print('z',z)
+            kind_dict={ 1:'nearest', 2:'linear',  3:'quadratic', 4:'cubic', 5:'cubic'}
+            interp_f = interp1d(x,z,kind=kind_dict[min(5,len(x))])
+            #interp_f = CubicSpline(x,z)
+            new_mean = interp_f(y)
+            new_mean_list.append(new_mean)
+        new_mean_list.append(mean_list[-1])
+
+        for y, new_mean in zip(y_list, new_mean_list):
+            section = array_src[:, y, :]
+            print(new_mean)
+            section[section>0] = new_mean + section[section>0] - np.mean(section[section>0]) #+ new_mean
+            array_src[:,y,:] = section
+        #plt.plot(mean_list,c='r')
+        #plt.plot(new_mean_list,c='b')
+        #plt.savefig('/tmp/tmp.png')
+        #group_mean=np.mean(mean_list)
+        #group_std = np.std(std_list)
+
+    return array_src, normalize_sections
 
 def thicken_sections(interp_dir, slab_dict, df_ligand, n_depths, resolution, tissue_type='' ):
 
@@ -422,13 +484,15 @@ def thicken_sections(interp_dir, slab_dict, df_ligand, n_depths, resolution, tis
     target_file=f'nl_2d_vol{tissue_type}_fn'
     slab_dict_keys = slab_dict.keys() 
     slab_dict_keys = sorted(slab_dict_keys)
+   
+    ligand = np.unique(df_ligand['ligand'])[0]
     
     for  i in slab_dict_keys :
         slab = slab_dict[i]
         slab_df = df_ligand.loc[df_ligand['slab'].astype(int)==int(i)]
         source_image_fn = slab[target_file]
+
         print('\t\tSource image for thickening:', source_image_fn)
-        ligand = slab_df['ligand'].values[0]
         thickened_fn = f'{interp_dir}thickened_{int(i)}_{ligand}_{resolution}{tissue_type}_l{n_depths}.nii.gz'
 
         print('\t\tThickened Filename', thickened_fn)
@@ -439,13 +503,15 @@ def thicken_sections(interp_dir, slab_dict, df_ligand, n_depths, resolution, tis
             
             assert np.sum(array_src) != 0, 'Error: source volume for thickening sections is empty\n'+ source_image_fn
 
-            width = np.round(1+resolution/(0.02*2)).astype(int)
-            print('\t\tThickening sections to ',0.02*width*2)
+
+            array_src, normalize_sections = setup_section_normalization(ligand, slab_df, array_src)
+            width = np.round(1*(1+resolution/(0.02*2))).astype(int)
+            print('\t\tThickening sections to ', 0.02*width*2)
             dim=[array_src.shape[0], 1, array_src.shape[2]]
             rec_vol = np.zeros_like(array_src)
+
             for row_i, row in slab_df.iterrows() : 
                 y = int(row['slab_order'])
-                
                 # Conversion of radioactivity values to receptor density values
                 section = array_src[:, y, :].copy()
 
@@ -461,20 +527,33 @@ def thicken_sections(interp_dir, slab_dict, df_ligand, n_depths, resolution, tis
                 y0 = int(y)-width if int(y)-width > 0 else 0
                 y1 = 1+int(y)+width if int(y)+width <= array_src.shape[1] else array_src.shape[1]
                 #put ligand sections into rec_vol
-                
-                rep = np.repeat(section, y1-y0, axis=1)
-                #rep[rep > 0] = y0 #DEBUG float(i) *1000 +
-                rec_vol[:, y0:y1, :] = rep 
-                
 
-            assert np.sum(rec_vol) != 0, 'Error: receptor volume for single ligand is empty\n'
+
+                #aa = np.ones( [section.shape[0], section.shape[2]] ) * np.arange(section.shape[0]).T 
+                #print(aa.shape)
+                #aa[section[:,0,:]==0] = 0
+                #aa=aa.reshape(section.shape)
+                
+                #plt.imshow(aa)
+                #plt.savefig('/tmp/tmp.png');
+                rep = np.repeat(section, y1-y0, axis=1)
+                print('ligand', row['ligand'], row['slab_order'], np.max(section) ) 
+
+                #rep = np.repeat(aa, y1-y0, axis=1)
+                #rep[rep > 0] = aa[rep>0] #1000 # y0 #DEBUG 
+
+                rec_vol[:, y0:y1, :] = rep 
+            
+            #if not normalize_sections : 
+            #    assert np.sum(rec_vol) != 0, 'Error: receptor volume for single ligand is empty\n'
             nib.Nifti1Image(rec_vol, array_img.affine).to_filename(thickened_fn)
 
         rec_thickened_dict[i] = thickened_fn
+    exit(0)
     return rec_thickened_dict
 
 
-def create_thickened_volumes(interp_dir, depth_list, depth_fn_slab_space, depth_fn_list, slab_dict, df_ligand, n_depths, resolution, tissue_type=''):
+def create_thickened_volumes(interp_dir, depth_list, depth_fn_slab_space, depth_fn_list, slab_dict, df_ligand, n_depths, resolution, origin=np.array([0,0,0]), tissue_type=''):
     for depth_index, (depth, depth_fn) in enumerate(zip(depth_list,depth_fn_list)):
         # Get surfaces transformed into slab space
         slabs = list(slab_dict.keys())
@@ -488,7 +567,7 @@ def create_thickened_volumes(interp_dir, depth_list, depth_fn_slab_space, depth_
 
         # 2. Project autoradiograph densities onto surfaces
         print('\t\tProjecting volume to surface.')
-        project_volumes_to_surfaces(surf_fn_list, thickened_dict, depth_fn, interp_dir)
+        project_volumes_to_surfaces(surf_fn_list, thickened_dict, depth_fn, interp_dir, origin=origin)
     return thickened_dict
 
 def get_profiles(profiles_fn, recon_out_prefix, depth_fn_mni_space, depth_list, depth_fn_list, nrows):
@@ -508,14 +587,14 @@ def get_profiles(profiles_fn, recon_out_prefix, depth_fn_mni_space, depth_list, 
             sphere_rsl_fn = depth_fn_mni_space[depth]['sphere_rsl_fn'] 
             surface_val = profiles_raw.values.reshape(-1,) 
           
-            profile_vector = interpolate_over_surface(sphere_rsl_fn, surface_val,threshold=0.02)
+            profile_vector = interpolate_over_surface(sphere_rsl_fn, surface_val,threshold=0.02,order=1)
 
             profiles['data'][:,depth_index] = profile_vector
             del profile_vector
 
     return profiles_fn
 
-def project_volume_to_surfaces(interp_dir, surf_dir, depth_list, slab_dict, df_ligand, depth_fn_mni_space, depth_fn_slab_space, n_depths, resolution, recon_out_prefix, tissue_type='', clobber=False):
+def project_volume_to_surfaces(interp_dir, surf_dir, depth_list, slab_dict, df_ligand, depth_fn_mni_space, depth_fn_slab_space, n_depths, resolution, recon_out_prefix, tissue_type='', origin=np.array([0,0,0]), clobber=False):
     
     profiles_fn = f'{recon_out_prefix}_l{n_depths}_profiles.h5'
     
@@ -523,12 +602,12 @@ def project_volume_to_surfaces(interp_dir, surf_dir, depth_list, slab_dict, df_l
     nrows = h5.File(example_depth_fn)['data'].shape[0]
     depth_fn_list = [ sub('.h5', f'_{depth}_l{n_depths}_raw.csv', profiles_fn) for depth in depth_list ]
    
-    thickened_dict = create_thickened_volumes(interp_dir, depth_list, depth_fn_slab_space, depth_fn_list, slab_dict, df_ligand, n_depths, resolution, tissue_type=tissue_type)
+    thickened_dict = create_thickened_volumes(interp_dir, depth_list, depth_fn_slab_space, depth_fn_list, slab_dict, df_ligand, n_depths, resolution, origin=origin, tissue_type=tissue_type)
     profiles_fn = get_profiles(profiles_fn, recon_out_prefix, depth_fn_mni_space, depth_list, depth_fn_list, nrows)
 
     return thickened_dict, profiles_fn
      
-def interpolate_over_surface(sphere_obj_fn,surface_val,threshold=0):
+def interpolate_over_surface(sphere_obj_fn,surface_val,threshold=0,order=1):
     print('\tInterpolating Over Surface')
     print('\t\t\tSphere fn:',sphere_obj_fn)
     # get coordinates from dicitonary with mesh info
@@ -560,7 +639,7 @@ def interpolate_over_surface(sphere_obj_fn,surface_val,threshold=0):
     mesh = stripy.sTriangulation(lons_src, lats_src)
     lats, lons = spherical_coords[:,1]-np.pi/2, spherical_coords[:,2]
     
-    interp_val, interp_type = mesh.interpolate(lons,lats, zdata=surface_val[surface_mask], order=1)
+    interp_val, interp_type = mesh.interpolate(lons,lats, zdata=surface_val[surface_mask], order=order)
         
     return interp_val
 
@@ -708,7 +787,8 @@ def combine_interpolated_sections(slab_fn, interp_vol, ystep_lo, ystart_lo) :
     return interp_vol
 
 
-def create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, profiles_fn, depth_list, depth_fn_slab_space, slabs, files, resolution, df_ligand, scale_factors_json, use_mapper=True, clobber=False, origin=[0,0,0]):
+def create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, profiles_fn, depth_list, depth_fn_slab_space, slabs, files, resolution, df_ligand, scale_factors_json, use_mapper=True, clobber=False, origin=[0,0,0],gm_label = 2. ):
+            
     profiles = None
     print(scale_factors_json) 
     for interp_fn, slab in zip(interp_fn_list, slabs) :
@@ -753,9 +833,9 @@ def create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, p
             mask_img=nib.load(srv_iso_space_rec_fn)
             mask_vol = mask_img.get_fdata()
 
-            gm_label = 2.
-            valid_idx = (mask_vol >= (gm_label-0.499)) & (mask_vol < (gm_label + 0.499))
-            print('SUM', np.sum(valid_idx))
+            gm_lo = gm_label * 0.75
+            gm_hi = gm_label * 1.25
+            valid_idx = (mask_vol >= gm_lo) & (mask_vol < gm_hi)
             mask_vol = np.zeros_like(mask_vol).astype(np.uint8)
             mask_vol[ valid_idx ] = 1
             
@@ -764,7 +844,7 @@ def create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, p
             multi_mesh_interp_fn = re.sub('.nii','_multimesh.nii', interp_fn)
             gm_mask_fn = re.sub('.nii','_gm-mask.nii', interp_fn)
             nib.Nifti1Image(mask_vol, out_affine ).to_filename(gm_mask_fn)
-            
+
             if not os.path.exists(multi_mesh_interp_fn) : 
                 interp_vol = multi_mesh_to_volume(profiles, depth_fn_slab_space[slab], depth_list, imageParamLo.dimensions, imageParamLo.starts, imageParamLo.steps, origin=origin)
                 nib.Nifti1Image(interp_vol, out_affine ).to_filename(multi_mesh_interp_fn)
@@ -807,8 +887,6 @@ def create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, p
 def fill_in_missing_voxels(interp_vol, mask_vol):
     print('\tFilling in missing voxels.')
     mask_vol = np.rint(mask_vol)
-    print(mask_vol.shape)
-    print(interp_vol.shape)
     mask_vol = np.pad(mask_vol, ((1,1),(1,1),(1,1)) )
     interp_vol = np.pad(interp_vol, ((1,1),(1,1),(1,1)) )
 
@@ -820,10 +898,11 @@ def fill_in_missing_voxels(interp_vol, mask_vol):
     yv = yv.reshape(-1,1)
     zv = zv.reshape(-1,1)
 
-    missing_voxels = (mask_vol[xv,yv,zv] == 1) & (interp_vol[xv,yv,zv] == 0)
+    missing_voxels = (mask_vol[xv,yv,zv] > 0) & (interp_vol[xv,yv,zv] == 0)
     
     counter=0
     last_missing_voxels = np.sum(missing_voxels) + 1
+    print( np.sum(missing_voxels) > 0 , np.sum(missing_voxels) < last_missing_voxels )
     while np.sum(missing_voxels) > 0 and np.sum(missing_voxels) < last_missing_voxels: 
         last_missing_voxels = np.sum(missing_voxels)
         xvv = xv[missing_voxels]
@@ -866,7 +945,7 @@ def fill_in_missing_voxels(interp_vol, mask_vol):
    
         interp_vol[xvv, yvv, zvv] = interp_values
   
-        missing_voxels = (mask_vol[xv,yv,zv] == 1) & (interp_vol[xv,yv,zv] == 0)
+        missing_voxels = (mask_vol[xv,yv,zv] > 0 ) & (interp_vol[xv,yv,zv] == 0)
         print('missing', np.sum(missing_voxels))
         counter += 1
 
@@ -875,35 +954,24 @@ def fill_in_missing_voxels(interp_vol, mask_vol):
 
 
 def interpolate_between_slabs(depth_fn_mni_space, depth_list, profiles_fn, ref_fn, interp_dir, srv_rsl_fn, resolution, origin=[0,0,0]):
-    #img = nib.load(srv_rsl_fn)
     img = nb_surf.load(ref_fn)
     starts = np.array(img.affine[[0,1,2],3])
     steps = np.array(img.affine[[0,1,2],[0,1,2]])
     dimensions = img.shape
-    #dimensions = np.array([ img.shape[0] * img.affine[0,0]/resolution, 
-    #                        img.shape[1] * img.affine[1,1]/resolution, 
-    #                        img.shape[2] * img.affine[2,2]/resolution]).astype(int)
 
     wm_upsample_fn = depth_fn_mni_space[depth_list[0]]['upsample_gii_fn']
     gm_upsample_fn = depth_fn_mni_space[depth_list[-1]]['upsample_gii_fn']
 
     profiles = h5.File(profiles_fn, 'r')['data'][:]
-    #npz_dir = interp_dir+f'/npz-mni/'
 
-    #os.makedirs(npz_dir, exist_ok=True)
     mask_vol = np.rint(nib.load(srv_rsl_fn).get_fdata() )
    
-    #mapper = SurfaceVolumeMapper(white_surf=wm_upsample_fn, gray_surf=gm_upsample_fn, 
-    #            resolution=steps, dimensions=dimensions, 
-    #            origin=starts, filename=None, save_in_absence=False, mask=None,
-    #            out_dir=npz_dir, left_oriented=False )
-    #mask_vol = mapper.map_profiles_to_block(profiles, interpolation='nearest')
 
     interp_vol = multi_mesh_to_volume(profiles, depth_fn_mni_space, depth_list, dimensions, starts, steps, origin=origin)
     mask_vol = resize(mask_vol, interp_vol.shape, order=0) 
-
+    print('should see fillin gin missing voxels here')
     interp_vol = fill_in_missing_voxels(interp_vol, mask_vol)
-    return interp_vol
+    return interp_vol, mask_vol
 
 def combine_slabs_to_volume(interp_fn_mni_list, output_fn):
     ref_img = nib.load(interp_fn_mni_list[0])
@@ -935,11 +1003,13 @@ def find_ligands_to_reconstruction(slabs, interp_dir, template_out_prefix ):
 
     return interp_fn_list, interp_fn_mni_list
 
-def transform_slab_to_mni(slabs, slab_dict, mni_fn,  template_out_prefix):
+def transform_slab_to_mni(slabs, thickened_dict, slab_dict, mni_fn,  template_out_prefix):
 
     for slab in slabs :
         slab_out_prefix = sub('_slab_', f'_{slab}_', template_out_prefix)
-        interp_fn  = f'{slab_out_prefix}_space-slab.nii.gz'
+        #DEBUG
+        #interp_fn  = f'{slab_out_prefix}_space-slab.nii.gz'
+        interp_fn = thickened_dict[slab]
         interp_space_mni_fn  = f'{slab_out_prefix}_space-mni.nii.gz'
         tfm = slab_dict[slab]['nl_3d_tfm_fn']
         if not os.path.exists(interp_space_mni_fn) :
@@ -948,19 +1018,21 @@ def transform_slab_to_mni(slabs, slab_dict, mni_fn,  template_out_prefix):
 def create_final_reconstructed_volume(final_mni_fn, mni_fn, resolution,  depth_fn_mni_space, depth_list, interp_dir, interp_fn_mni_list, recon_out_prefix, profiles_fn, n_depths, origin=[0,0,0] ):
     combined_slab_mni_fn = f'{recon_out_prefix}_space-mni_not_filled_l{n_depths}.nii.gz'
     surf_interp_mni_fn = f'{recon_out_prefix}_surf-interp_space-mni_l{n_depths}.nii.gz'
+    final_mask_fn = f'{recon_out_prefix}_surf-interp_space-mni_l{n_depths}_mask.nii.gz'
 
     ref_img = nib.load(mni_fn) 
     ystart = ref_img.affine[1,3]
-    combine_slabs_to_volume(interp_fn_mni_list, combined_slab_mni_fn)
+    #combine_slabs_to_volume(interp_fn_mni_list, combined_slab_mni_fn)
 
     print('\tInterpolate between slabs')
-    interp_vol = interpolate_between_slabs(depth_fn_mni_space, depth_list, profiles_fn, interp_fn_mni_list[0], interp_dir, mni_fn,  resolution, origin=origin)
+    interp_vol, mask_vol = interpolate_between_slabs(depth_fn_mni_space, depth_list, profiles_fn, interp_fn_mni_list[0], interp_dir, mni_fn,  resolution, origin=origin)
     
-    print('\tWriting surface interpolation volume:\n\t\t', final_mni_fn)
-    nib.Nifti1Image(interp_vol, ref_img.affine, direction_order='lpi').to_filename(surf_interp_mni_fn)
+    #print('\tWriting surface interpolation volume:\n\t\t', final_mni_fn)
+    #nib.Nifti1Image(interp_vol, ref_img.affine, direction_order='lpi').to_filename(surf_interp_mni_fn)
     
     # fill in missing sections in whole brain
     print('\tCombine interpoalted section with slabs to fill gaps')
+    '''
     combined_slab_vol = nib.load(combined_slab_mni_fn).get_fdata()
     #FIXME DEBUG
     #idx = combined_slab_vol <=300
@@ -968,13 +1040,15 @@ def create_final_reconstructed_volume(final_mni_fn, mni_fn, resolution,  depth_f
     
     combined_slab_vol[ idx ] = interp_vol[ idx ]
     output_vol = combined_slab_vol
-
+    '''
+    output_vol = interp_vol
     print('\tWriting', final_mni_fn)
     nib.Nifti1Image(output_vol, ref_img.affine, direction_order='lpi').to_filename(final_mni_fn)
+    print('\tWriting', final_mask_fn)
+    nib.Nifti1Image(mask_vol, ref_img.affine, direction_order='lpi').to_filename(final_mask_fn)
 
 
-def surface_interpolation(df_ligand, slab_dict, out_dir, interp_dir, brain, hemi, resolution, mni_fn, slabs, files, scale_factors_json, n_depths=3, upsample_resolution=0, tissue_type='', surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, clobber=0):
-
+def surface_interpolation(df_ligand, slab_dict, out_dir, interp_dir, brain, hemi, resolution, mni_fn, slabs, files, scale_factors_json, n_depths=3, upsample_resolution=0, tissue_type='', surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, gm_label=2, clobber=0):
     if upsample_resolution == 0 : upsample_resolution=resolution
 
     ligand = df_ligand['ligand'].values[0]
@@ -1007,15 +1081,15 @@ def surface_interpolation(df_ligand, slab_dict, out_dir, interp_dir, brain, hemi
         print('\tInterpolating for ligand:',ligand)
 
         # Extract profiles from the slabs using the surfaces 
-        thickened_dict, profiles_fn = project_volume_to_surfaces(interp_dir, interp_dir+'/surfaces/', depth_list, slab_dict, df_ligand, depth_fn_mni_space, depth_fn_slab_space, n_depths, resolution,  recon_out_prefix, tissue_type=tissue_type)
+        thickened_dict, profiles_fn = project_volume_to_surfaces(interp_dir, interp_dir+'/surfaces/', depth_list, slab_dict, df_ligand, depth_fn_mni_space, depth_fn_slab_space, n_depths, resolution,  recon_out_prefix,origin=origin, tissue_type=tissue_type)
         
         # Interpolate a 3D receptor volume from the surface mesh profiles
         print('\tCreate Reconstructed Volume')
-        create_reconstructed_volume(interp_fn_list, interp_dir, thickened_dict, profiles_fn, depth_list, depth_fn_slab_space, slabs, files, resolution, df_ligand, scale_factors_json, use_mapper=True, clobber=clobber, origin=origin)
-
+        #create_reconstructed_volume(interp_fn_list, interp_dir, thickened_dict, profiles_fn, depth_list, depth_fn_slab_space, slabs, files, resolution, df_ligand, scale_factors_json, use_mapper=True, clobber=clobber, origin=origin, gm_label=gm_label)
+        
         # transform interp_fn to mni space
         print('\tTransform slab to mni')
-        transform_slab_to_mni(slabs, slab_dict,mni_fn, template_out_prefix)
+        transform_slab_to_mni(slabs, thickened_dict, slab_dict,mni_fn, template_out_prefix)
         
         # interpolate from surface to volume over entire brain
         print('\tCreate final reconstructed volume')

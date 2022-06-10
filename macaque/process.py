@@ -101,7 +101,7 @@ def add_autoradiographs_images(auto_files):
     
     return df
 
-def add_histology_images(hist_files):
+def add_histology_images(hist_files, ligand = 'cellbody'):
 
     df_list = []
     for fn in hist_files :
@@ -110,7 +110,7 @@ def add_histology_images(hist_files):
         fn_split = re.sub(ext, '', os.path.basename(fn)).split('#')
         #'RH11530#L#AG#25.png'
         
-        brain, hemisphere, ligand, repeat = [fn_split[i] for i in [2,3,4,6]]
+        brain, hemisphere, ligand_label, repeat = [fn_split[i] for i in [2,3,4,6]]
         
         print(fn)
         print(brain, hemisphere, ligand, repeat)
@@ -118,7 +118,6 @@ def add_histology_images(hist_files):
         if hemisphere == 'right' : hemisphere = 'R'
         elif hemisphere == 'left' : hemisphere = 'L'
         
-        ligand = 'cellbody'
         binding = 'hist' 
         
         df_list.append(pd.DataFrame({'raw':[fn], 'brain':[brain], 'hemisphere':[hemisphere], 'ligand':[ligand], 'repeat':[int(repeat)],'binding':[binding] }))
@@ -130,26 +129,40 @@ def add_histology_images(hist_files):
     return df
 
 
-def get_section_numbering(df,short_repeat_dict,long_repeat_dict): 
+def get_section_for_repeated(repeat_count, first_in_repeat, short_section, long_section):
+    if repeat_count > 30 : #if repeat_count > 30 then this is a long repeat section
+        if first_in_repeat :
+            section = long_section[0] - 1 #7-1
+            first_section_in_repeat = False
+        else :
+            section = long_section[1] - 1 #27-1
+            first_in_repeat=True
+    else : # if repeat_count <= 30 then this is a short repeat section
+        if first_in_repeat :
+            section = short_section[0] - 1 #4-1
+            first_section_in_repeat = False
+        else :
+            section = short_section[1] #15-1
+            first_in_repeat=True
+    return section, first_in_repeat
+
+def get_section_numbering(df,short_repeat_dict,long_repeat_dict, short_repeat, long_repeat): 
     first_cellbody_in_repeat=True
+    first_myelin_in_repeat=True
     section_list = []
+
+    cellbody_short_repeats = get_index_numbers('cellbody', short_repeat)
+    cellbody_long_repeats = get_index_numbers('cellbody', long_repeat)
+    
+    myelin_short_repeats = get_index_numbers('myelin', short_repeat)
+    myelin_long_repeats = get_index_numbers('myelin', long_repeat)
 
     for ligand, repeat_count in zip(df['ligand'],df['repeat_count']) :
         if ligand == 'cellbody' :
-            if repeat_count > 30 : #if repeat_count > 30 then this is a long repeat section
-                if first_cellbody_in_repeat :
-                    section = 7-1
-                    first_section_in_repeat = False
-                else :
-                    section = 27-1
-                    first_cellbody_in_repeat=True
-            else : # if repeat_count <= 30 then this is a short repeat section
-                if first_cellbody_in_repeat :
-                    section = 4-1
-                    first_section_in_repeat = False
-                else :
-                    section = 15-1
-                    first_cellbody_in_repeat=True
+            section, first_cellbody_in_repeat = get_section_for_repeated(repeat_count, first_cellbody_in_repeat, cellbody_short_repeats, cellbody_long_repeats)
+        if ligand == 'myelin' :
+            section, first_myelin_in_repeat = get_section_for_repeated(repeat_count, first_myelin_in_repeat, myelin_short_repeats, myelin_long_repeats)
+
         #TODO add same as above for myelin stains
         else : # ligand is not cellbody, i.e. is an autoradiograph
             if repeat_count > 30 : #if repeat_count > 30 then this is a long repeat section
@@ -161,17 +174,20 @@ def get_section_numbering(df,short_repeat_dict,long_repeat_dict):
 
     return np.array(section_list)
 
+def get_index_numbers(element, ll):
+    return [index for index, value in enumerate(ll) if value == element]
+
 def create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn ):
     
     # Define the order of ligands in "short" repeats
     # cell body
     # DEBUG: 11531 only has a single cellbody that comes at position 27, will have to remove later
-    short_repeat = ['ampa', 'kain', 'mk80', 'cellbody', 'musc', 'cgp5', 'flum', 'pire', 'hist_myelin', 'oxot', 'damp', 'epib', 'praz', 'uk14','cellbody', 'dpat', 'keta', 'sch2', 'racl', 'hist_myelin', 'dpmg', 'zm24']
-    #short_repeat = ['ampa', 'kain', 'mk80', 'cellbody_a', 'musc', 'cgp5', 'flum', 'pire', 'hist_myelin', 'oxot', 'damp', 'epib', 'praz', 'uk14','cellbody_b', 'dpat', 'keta', 'sch2', 'racl', 'hist_myelin', 'dpmg', 'zm24']
+    short_repeat = ['ampa', 'kain', 'mk80', 'cellbody', 'musc', 'cgp5', 'flum', 'pire', 'myelin', 'oxot', 'damp', 'epib', 'praz', 'uk14','cellbody', 'dpat', 'keta', 'sch2', 'racl', 'myelin', 'dpmg', 'zm24']
+    #short_repeat = ['ampa', 'kain', 'mk80', 'cellbody_a', 'musc', 'cgp5', 'flum', 'pire', 'myelin', 'oxot', 'damp', 'epib', 'praz', 'uk14','cellbody_b', 'dpat', 'keta', 'sch2', 'racl', 'myelin', 'dpmg', 'zm24']
 
     # Define the order of ligands in "long" repeats
-    long_repeat = ['ampa', 'ampa_ub', 'kain', 'kain_ub', 'mk80', 'mk80_ub', 'cellbody', 'musc', 'musc_ub', 'cgp5', 'cgp5_ub','flum', 'flum_ub', 'pire', 'pire_ub', 'hist_myelin', 'oxot', 'oxot_ub', 'damp', 'damp_ub', 'epib', 'epib_ub', 'praz', 'praz_ub', 'uk14', 'uk14_ub', 'cellbody', 'dpat', 'dpat_ub', 'keta', 'keta_ub', 'sch2', 'sch2_ub', 'racl', 'racl_ub', 'hist_myelin', 'dpmg', 'dpmg_ub', 'zm24', 'zm24_ub']
-    #long_repeat = ['ampa', 'ampa_ub', 'kain', 'kain_ub', 'mk80', 'mk80_ub','cellbody_a', 'musc', 'musc_ub', 'cgp5', 'cgp5_ub','flum', 'flum_ub', 'pire', 'pire_ub', 'hist_myelin', 'oxot', 'oxot_ub', 'damp', 'damp_ub', 'epib', 'epib_ub', 'praz', 'praz_ub', 'uk14', 'uk14_ub', 'cellbody_b', 'dpat', 'dpat_ub', 'keta', 'keta_ub', 'sch2', 'sch2_ub', 'racl', 'racl_ub', 'hist_myelin', 'dpmg', 'dpmg_ub', 'zm24', 'zm24_ub']
+    long_repeat = ['ampa', 'ampa_ub', 'kain', 'kain_ub', 'mk80', 'mk80_ub', 'cellbody', 'musc', 'musc_ub', 'cgp5', 'cgp5_ub','flum', 'flum_ub', 'pire', 'pire_ub', 'myelin', 'oxot', 'oxot_ub', 'damp', 'damp_ub', 'epib', 'epib_ub', 'praz', 'praz_ub', 'uk14', 'uk14_ub', 'cellbody', 'dpat', 'dpat_ub', 'keta', 'keta_ub', 'sch2', 'sch2_ub', 'racl', 'racl_ub', 'myelin', 'dpmg', 'dpmg_ub', 'zm24', 'zm24_ub']
+    #long_repeat = ['ampa', 'ampa_ub', 'kain', 'kain_ub', 'mk80', 'mk80_ub','cellbody_a', 'musc', 'musc_ub', 'cgp5', 'cgp5_ub','flum', 'flum_ub', 'pire', 'pire_ub', 'myelin', 'oxot', 'oxot_ub', 'damp', 'damp_ub', 'epib', 'epib_ub', 'praz', 'praz_ub', 'uk14', 'uk14_ub', 'cellbody_b', 'dpat', 'dpat_ub', 'keta', 'keta_ub', 'sch2', 'sch2_ub', 'racl', 'racl_ub', 'myelin', 'dpmg', 'dpmg_ub', 'zm24', 'zm24_ub']
 
     # create dictionaries for short and long repeats with integers associated with each ligand
     short_repeat_dict = { v:k for k,v in enumerate(short_repeat) }
@@ -180,14 +196,15 @@ def create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn ):
     if not os.path.exists(csv_fn) or True :
    
         # load raw tif files
-        auto_files = [ fn for fn in glob(f'{auto_dir}/**/*TIF') ] #if not 'UB' in fn and not '#00' in fn ]
-        hist_files = [ fn for fn in glob(f'{auto_dir}/img_histology/*AG*png') ] 
+        auto_files = [ fn for fn in glob(f'{auto_dir}/img_lin_modified/*TIF') ]  #if not 'UB' in fn and not '#00' in fn ]
+        hist_files = [ fn for fn in glob(f'{auto_dir}/img_histology/*AG*.png') ] 
+        myelin_files = [ fn for fn in glob(f'{auto_dir}/img_histology/*MS*.png') ] 
 
         df_auto = add_autoradiographs_images(auto_files)
         df_hist = add_histology_images(hist_files)
-        df = pd.concat([df_auto,df_hist])
+        df_ms = add_histology_images(myelin_files,ligand='myelin')
+        df = pd.concat([df_auto,df_hist,df_ms])
        
-
         repeat_gap_n = get_repeat_gap_size(template_fn, df.shape[0], df['repeat'].max(), 0.02)
 
         short_repeat_size = len(short_repeat)
@@ -209,7 +226,7 @@ def create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn ):
         fix_repeat_order = lambda repeat: repeat if repeat <= 37 else max_repeat - repeat + min_repeat
         fix_section_order = lambda repeat, section, section_count: section if repeat <= 37 else section_count - section
 
-        section = get_section_numbering(df,short_repeat_dict,long_repeat_dict) 
+        section = get_section_numbering(df,short_repeat_dict,long_repeat_dict, short_repeat, long_repeat) 
         
         #section = np.array([  long_repeat_dict[ligand] if repeat_count > 30 else short_repeat_dict[ligand] for ligand, repeat_count in zip(df['ligand'],df['repeat_count']) ])
      
@@ -343,8 +360,8 @@ def align_sections(df, i_list, init_dir, reference_ligand, direction) :
                 ANTs(tfm_prefix=outprefix,
                     fixed_fn=fixed_row[file_to_align], moving_fn=moving_row[file_to_align],  moving_rsl_prefix=outprefix, 
                     metrics=['Mattes'], tfm_type=['Rigid'],
-                    iterations=['1000x500x250x125'],
-                    #iterations=['10x5x2x1'],
+                    #iterations=['1000x500x250x125'],
+                    iterations=['100x50x20x10'],
                     shrink_factors=['4x3x2x1'], 
                     smoothing_sigmas=['2.0x1.0x0.5x0'], 
                     init_tfm=None, no_init_tfm=False, dim=2, nbins=32,
@@ -398,9 +415,10 @@ def align(df, init_dir):
     df['init']=df['crop']
     df['tfm']=[None]*df.shape[0]
     aligned_df_list=[]
-    ligand_contrast_order = ['cellbody',  'flum', 'mk80', 'musc', 'cgp5', 'ampa', 'kain', 'pire', 'damp', 'praz', 'uk14', 'keta', 'sch2', 'dpmg', 'dpat'] #,  'zm24', 'racl', 'oxot', 'epib']
+    ligand_contrast_order = ['flum', 'mk80', 'musc', 'cgp5', 'ampa', 'kain', 'pire', 'damp', 'praz', 'uk14', 'keta', 'sch2', 'dpmg', 'dpat', 'cellbody', 'myelin']
+            #,  'zm24', 'racl', 'oxot', 'epib']
     ligand_contrast_order = [ ligand for ligand in ligand_contrast_order if ligand in np.unique(df['ligand']) ]
-
+    df = df.loc[df['ligand'].apply(lambda x: x in ligand_contrast_order)]    
     for i, ligand in enumerate(ligand_contrast_order) : 
         ligand_check_fn = f'{init_dir}/{ligand}.csv'
         idx = df['ligand'].apply(lambda x : x in [reference_ligand,ligand])
@@ -419,7 +437,6 @@ def downsample(df, downsample_dir, resolution_2d):
         crop_fn = row['crop']
         crop_rsl_fn=f'{downsample_dir}/{os.path.basename(crop_fn)}'
         if not os.path.exists(crop_rsl_fn) :
-            print(crop_fn)
             prefilter_and_downsample(crop_fn, [resolution_2d]*2, crop_rsl_fn)
 
         #print('Downsampled:', i, crop_rsl_fn)
@@ -656,7 +673,7 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
     # Output files
     affine_fn = f'{init_3d_dir}/{subject_id}_affine.mat'
     volume_fn = f'macaque/output/{subject_id}/{subject_id}_volume.nii.gz'
-    volume_init_fn = f'macaque/output/{subject_id}/{subject_id}_init-align_volume.nii.gz'
+    volume_init_fn = f'{out_dir}/{subject_id}/{subject_id}_init-align_volume.nii.gz'
     volume_seg_fn = f'{subject_dir}/{subject_id}_segment_volume.nii.gz'
     volume_seg_iso_fn = f'{subject_dir}/{subject_id}_segment_iso_volume.nii.gz'
 
@@ -695,6 +712,7 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
 
     aligned_df = align(df, init_dir )
     concat_section_to_volume(aligned_df, affine, volume_init_fn, file_var='init' )
+
     #points2tfm(points_fn, affine_fn, template_fn, volume_init_fn,  ndim=3, transform_type="Affine", invert=True, clobber=True)
     
     #shell(f'antsApplyTransforms -d 3 -v 1 -i {volume_init_fn} -t [{affine_fn},0] -r {template_fn} -o temp.nii.gz')
@@ -741,7 +759,6 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
             resample_to_autoradiograph_sections(subject_id, '', '', float(curr_res), current_template_fn, volume_seg_fn, tfm_3d_inv_fn, template_iso_rec_space_fn, template_rec_space_fn)
        
         create_2d_sections(aligned_df, template_rec_space_fn, float(curr_res), align_2d_dir )
-        
         aligned_df = align_2d(aligned_df, align_2d_dir, volume_init_fn, template_rec_space_fn, seg_2d_dir, resolution_2d, itr, use_syn=True)
         
         aligned_df = concatenate_sections_to_volume( aligned_df, template_rec_space_fn, align_2d_dir, volume_align_2d_fn)
@@ -765,11 +782,11 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
     args.surf_dir = surf_dir
     args.n_vertices = n_vertices
     args.slabs=['1']
-
     df_ligand=aligned_df
     df_ligand['slab']=['1'] * df_ligand.shape[0]
     df_ligand['conversion_factor']=[1] * df_ligand.shape[0]
-    df_ligand = df_ligand[ df_ligand['ligand']=='cellbody']
+    to_reconstruct=['cellbody','flum','myelin']
+    df_ligand = df_ligand[ df_ligand['ligand'].apply(lambda x: x in to_reconstruct ) ]
     files={ brain:{hemi:{'1':{}} }}
     files[brain][hemi]['1'][highest_resolution] = {
             'nl_3d_tfm_fn' : tfm_3d_fn,
@@ -777,10 +794,13 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
             'srv_space_rec_fn':template_rec_space_fn,
             'srv_iso_space_rec_fn':template_iso_rec_space_fn
         }
-
+    
+    gm_label= np.percentile(nib.load(template_rec_space_fn).dataobj, [95])[0]
+    
     slab_dict={'1':files[brain][hemi]['1'][highest_resolution]}
 
-    surface_interpolation(df_ligand, slab_dict, out_dir, interp_dir, brain, hemi, highest_resolution,  template_fn, args.slabs, files[brain][hemi], scale_factors_json, surf_dir=surf_dir, n_vertices=n_vertices, upsample_resolution=20, n_depths=n_depths)
+    for ligand, cur_df_ligand in df_ligand.groupby(["ligand"]):
+        surface_interpolation(cur_df_ligand, slab_dict, out_dir, interp_dir, brain, hemi, highest_resolution,  template_fn, args.slabs, files[brain][hemi], scale_factors_json, surf_dir=surf_dir, n_vertices=n_vertices, upsample_resolution=20, n_depths=n_depths, gm_label=gm_label)
 
     print('Done')
 

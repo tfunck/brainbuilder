@@ -128,7 +128,14 @@ def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution
 def resample_transform_segmented_images(df,resolution_itr,resolution_2d,resolution_3d, output_dir):
 
     os.makedirs(output_dir, exist_ok=True)
-    num_cores = min(14, multiprocessing.cpu_count() )
+    os_info = os.uname()
+
+    if os_info[1] == 'imenb079':
+        num_cores = 1 
+    else :
+        num_cores = min(14, multiprocessing.cpu_count() )
+
+
     Parallel(n_jobs=num_cores)(delayed(resample_and_transform)(output_dir, resolution_itr, resolution_2d, resolution_3d, row) for i, row in df.iterrows()) 
 
 def interpolate_missing_sections(vol, dilate_volume=False) :
