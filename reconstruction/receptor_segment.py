@@ -76,9 +76,9 @@ def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution
     seg_fn = row['seg_fn']
     
     tfm_ref_fn = output_dir+'/2d_reference_image.nii.gz'
-    seg_rsl_fn = get_seg_fn(output_dir, row['slab_order'], resolution_2d, seg_fn, '_rsl')
+    seg_rsl_fn = get_seg_fn(output_dir, int(row['slab_order']), resolution_2d, seg_fn, '_rsl')
     tfm_input_fn = seg_rsl_fn
-    seg_rsl_tfm_fn = get_seg_fn(output_dir, row['slab_order'], resolution_3d, seg_fn, '_rsl_tfm')
+    seg_rsl_tfm_fn = get_seg_fn(output_dir, int(row['slab_order']), resolution_3d, seg_fn, '_rsl_tfm')
 
     new_starts = [ None, -126. + 0.02 * row['global_order'], None ]
 
@@ -104,7 +104,7 @@ def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution
         tfm_ref_fn=seg_rsl_fn
 
     if resolution_2d != resolution_3d :
-        tfm_input_fn = get_seg_fn(output_dir, row['slab_order'], resolution_3d, seg_fn, '_rsl')
+        tfm_input_fn = get_seg_fn(output_dir, int(row['slab_order']), resolution_3d, seg_fn, '_rsl')
         if not os.path.exists(tfm_input_fn):
             prefilter_and_downsample(seg_fn, [resolution_3d]*2, tfm_input_fn, new_starts = new_starts )
     if not os.path.exists(seg_rsl_tfm_fn) : 
@@ -187,7 +187,7 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
             print('\n\nokay!!!!\n\n')
             for i, row in df.iterrows() :
                 s0 = int(row['slab_order'])
-                fn = get_seg_fn(in_dir, row['slab_order'], resolution, row['seg_fn'], '_rsl_tfm')
+                fn = get_seg_fn(in_dir, int(row['slab_order']), resolution, row['seg_fn'], '_rsl_tfm')
                 img_2d = nib.load(fn).get_fdata()
                 #FIXME : Skipping frames that have been rotated
                 data[:,s0,:] = img_2d 
@@ -196,7 +196,7 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
             valid_slices = []
             for i, row in df.iterrows() :
                 s0 = int(row['slab_order'])
-                fn = get_seg_fn(in_dir, row['slab_order'], resolution, row['seg_fn'], '_rsl_tfm')
+                fn = get_seg_fn(in_dir, int(row['slab_order']), resolution, row['seg_fn'], '_rsl_tfm')
                 img_2d = nib.load(fn).get_fdata()
                 #FIXME : Skipping frames that have been rotated
                 if img_2d.shape != example_2d_img.shape :
@@ -248,7 +248,7 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
 
         img_cls = nibabel.Nifti1Image(data, aff )     
 
-        img_cls.to_filename(re.sub('.nii','_full.nii', out_fn))
+        #img_cls.to_filename(re.sub('.nii','_full.nii', out_fn))
         
         print("Writing output to", out_fn)
         img_cls = resample_to_output(img_cls, [float(resolution)]*3, order=5)

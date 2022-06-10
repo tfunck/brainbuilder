@@ -451,15 +451,13 @@ def thicken_sections(interp_dir, slab_dict, df_ligand, n_depths, resolution, tis
 
                 if np.sum(section) == 0 : 
                     print(f'Warning: empty frame {i} {row}\n')
-                np.sum(section) 
+                
                 section = section.reshape(dim)
                 if row['conversion_factor'] > 0 and tissue_type != '_cls' :
                      section *= row['conversion_factor']
                 elif row['conversion_factor'] == 0 : 
                     continue
                 
-
-
                 y0 = int(y)-width if int(y)-width > 0 else 0
                 y1 = 1+int(y)+width if int(y)+width <= array_src.shape[1] else array_src.shape[1]
                 #put ligand sections into rec_vol
@@ -774,12 +772,16 @@ def create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, p
             else : 
                 interp_vol = nib.load(multi_mesh_interp_fn).get_fdata()
 
-            if sectioning_direction  == 'rostral_to_caudal' :
-                limit = df_ligand_slab['slab_order'].max()
-                interp_vol[ :, int(limit):, : ] = 0
-            else :
-                limit = df_ligand_slab['slab_order'].min()
-                interp_vol[ :, 0:int(limit), : ] = 0
+            #if sectioning_direction  == 'rostral_to_caudal' :
+            #    limit = df_ligand_slab['slab_order'].max()
+            #    interp_vol[ :, int(limit):, : ] = 0
+            #else :
+            #    limit = df_ligand_slab['slab_order'].min()
+            #    print('LIMIT', limit, sectioning_direction)
+            #    print('INTERP VOL SUM', np.sum(interp_vol))
+            #    
+            #    interp_vol[ :, 0:int(limit), : ] = 0
+            #    print('INTERP VOL SUM', np.sum(interp_vol))
            
             ystep_interp = imageParamHi.steps[1]
             ystart_interp = imageParamHi.starts[1]

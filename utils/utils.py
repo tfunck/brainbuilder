@@ -212,7 +212,7 @@ def run_stage(input_list, output_list):
 
 
 def get_seg_fn(dirname, y, resolution, filename, suffix=''):
-    filename = re.sub('.nii.gz',f'_y-{y}_{resolution}mm{suffix}.nii.gz', os.path.basename(filename))
+    filename = re.sub('.nii.gz',f'_y-{int(y)}_{resolution}mm{suffix}.nii.gz', os.path.basename(filename))
     return '{}/{}'.format(dirname, filename )
 
 def gen_2d_fn(prefix,suffix,ext='.nii.gz'):
@@ -245,10 +245,11 @@ def save_sections(file_list, vol, aff) :
 def get_to_do_list(df,out_dir,str_var,ext='.nii.gz'):
     to_do_list=[]
     for idx, (i, row) in enumerate(df.iterrows()):
-        y = row['slab_order'] 
+        y = int(row['slab_order'])
         assert int(y) >= 0, f'Error: negative y value found {y}'
         prefix = f'{out_dir}/y-{y}' 
         fn = gen_2d_fn(prefix,str_var,ext=ext)
+        print(fn)
         if not os.path.exists(fn) : to_do_list.append( [fn, y])
     return to_do_list
 
