@@ -66,6 +66,7 @@ def load_mesh(surf_mesh,correct_offset=False):
         else:
             raise ValueError('surf_mesh must be a either filename or a dictionary '
                              'containing items with keys "coords" and "faces"')
+
     return coords, faces, volume_info
 
 # function to load mesh geometry

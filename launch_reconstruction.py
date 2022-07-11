@@ -552,7 +552,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
 
     for ligand, df_ligand in hemi_df.groupby(['ligand']):
 
-        if 'flum' == ligand :
+        if 'flum' == ligand or True :
             ###
             ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
             ###
@@ -566,7 +566,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
             depth = '0.5'
             print('\tValidate reconstructed sections:', ligand)
             validate_reconstructed_sections(final_ligand_fn, max_resolution, args.n_depths, df_ligand, cortex_fn, base_out_dir='/data/receptor/human/output_4_caps4real/',  clobber=False)
-            exit(0) 
+            
             #FIXME filename should be passed from surface_interpolation
             print(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')
             ligand_csv = glob(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')[0]   
@@ -604,7 +604,7 @@ if __name__ == '__main__':
 
     flip_axes_dict = {'caudal_to_rostral':(1,)}
     crop( args.crop_dir, args.mask_dir, df, args.scale_factors_fn, float(resolution_list[-1]), flip_axes_dict=flip_axes_dict,  pytorch_model=pytorch_model )
-    
+    print('\tFinished cropping') 
     #args.landmark_df = process_landmark_images(df, args.landmark_src_dir, args.landmark_dir, args.scale_factors_fn)
 
     for brain in args.brain :

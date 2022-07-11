@@ -39,8 +39,8 @@ from skimage.segmentation import slic
 np.set_printoptions(suppress=True)
 
 
-def classify_section(crop, seg, max_roi=20):
-    n_roi = np.random.randint(2,max_roi)
+def classify_section(crop, seg, max_roi=5):
+    n_roi = np.random.randint(1,max_roi)
     
     im_cls = slic(crop,n_segments=n_roi, mask=seg)
     
@@ -92,7 +92,7 @@ def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn, y, slab, 
     print(np.max(out))
     if np.sum(out) == 0 : 
         print('Error empty pseudo cls'); exit(1)
-    out = out.astype(np.uint32)
+    out = np.ceil(out).astype(np.uint32)
     if np.sum(out) == 0 : 
         print('Error empty pseudo cls after conversion to int'); exit(1)
     
@@ -411,8 +411,6 @@ def convert_from_nnunet(fn, crop_fn, seg_fn, crop_dir, scale):
 def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='', remote=False, pad=1000, clobber=False, brain_str='mri', crop_str='crop_fn', lin_str='lin_fn', res=[20,20], flip_axes_dict={}, create_pseudo_cls=True):
     '''take raw linearized images and crop them'''
 
-
-
     os_info = os.uname()
 
     if os_info[1] == 'imenb079':
@@ -461,14 +459,8 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
             output_filename = output_filename_truncated + "_0000.nii.gz"
             if not os.path.exists(output_filename) :
                 to_do.append([f, output_filename]) 
-        
-<<<<<<< HEAD
-        Parallel(n_jobs=14)(delayed(convert_2d_array_to_nifti)(ii_fn,oo_fn,res=res) for ii_fn, oo_fn in to_do) 
-        
-=======
         Parallel(n_jobs=num_cores)(delayed(convert_2d_array_to_nifti)(ii_fn,oo_fn,res=res) for ii_fn, oo_fn in to_do) 
 
->>>>>>> f052ac21fc1ee79557b839aa807361e758974969
         #shell(f'nnUNet_predict -i {nnunet_in_dir} -o {nnunet_out_dir} -t 502')
         to_do = []
         for i, row in df.iterrows():
