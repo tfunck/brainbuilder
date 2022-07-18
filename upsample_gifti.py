@@ -597,7 +597,7 @@ def upsample_edges(output_dir, coords_h5_fn, faces_h5_fn, faces_dict, new_edges_
         #NOTE: faces_dict is a dictionary that maps the index of a face on the surface mesh
         # to an index inthe faces_h5 numpy array. This allows the main data to be stored in the
         # numpy array while accessing it through a dictionary
-        subdivide_triangle(coord_offset, coord_idx, edges, edge_counter, ngh, nngh, faces_dict, faces_offset)
+        subdivide_triangle(coord_offset, coord_idx, edges, edge_counter, ngh, nngh, faces_dict, faces_h5, faces_offset)
         # add two new faces to total number of faces (we go from 2 faces to 4, so net gain of 2) 
         faces_offset += 2
 
