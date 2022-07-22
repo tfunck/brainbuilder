@@ -696,10 +696,14 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
     flip_dict = {'rostral_to_caudal':(0,), 'caudal_to_rostral':(0,1) }
     
     # Crop non-cellbody stains
-    crop(crop_dir, mask_dir, df.loc[df['ligand'] != 'cellbody'], scale_factors_json_fn, res=[60,45], remote=False, pad=0, clobber=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model='Task501')
+    not_auto_list=['cellbody', 'myelin']
+    autoradiographs_idx = df['ligand'].apply(lambda x : not x in not_auto_list)
+
+    crop(crop_dir, mask_dir, df.loc[ autoradiographs_idx ], scale_factors_json_fn, res=[60,45], remote=False, pad=0, clobber=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model='Task501')
     
     # Crop cellbody stains
-    crop(crop_dir, mask_dir, df.loc[ df['ligand'] == 'cellbody' ], scale_factors_json_fn, res=[91,91], remote=False, pad=0, clobber=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model='Task501')
+    # the cellbody and myelin stained sections are already downsampled: 21.63um^2
+    crop(crop_dir, mask_dir, df.loc[ ~ autoradiographs_idx ], scale_factors_json_fn, res=[21.63,21.63], remote=False, pad=0, clobber=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model='Task501')
 
     df['crop_raw_fn'] = df['crop']
 

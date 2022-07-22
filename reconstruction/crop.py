@@ -451,7 +451,7 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, pytorch_model='', remote=Fa
     os_info = os.uname()
 
     if os_info[1] == 'imenb079':
-        num_cores = 1 
+        num_cores = 4 
     else :
         num_cores = min(14, multiprocessing.cpu_count() )
 
