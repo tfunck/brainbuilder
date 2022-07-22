@@ -17,7 +17,7 @@ import re
 from nibabel import freesurfer
 from utils.mesh_io import load_mesh
 from skimage.transform import resize
-from utils.utils import get_section_intervals
+from utils.utils import get_section_intervals, apply_ants_transform_to_gii
 from utils.combat_slab_normalization import combat_slab_normalization
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage import label
@@ -80,62 +80,7 @@ def krig(lons_src, lats_src, lats, lons, values ):
 '''
  
 from ants import get_center_of_mass
-def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, faces_fn, ref_gii_fn, ext, mni_fn):
-    print("transforming", in_gii_fn)
-    #faces, coords = nib.load(in_gii_fn).agg_data(('triangle', 'pointset'))
 
-    origin = [0,0,0]
-    if ext in ['.pial', '.white'] : 
-        _, _, volume_info = load_mesh(ref_gii_fn)
-        origin=volume_info['cras'] 
-    else : volume_info = ref_gii_fn
-
-    coords = h5.File(in_gii_fn)['data'][:]
-    tfm = ants.read_transform(tfm_list[0])
-    flip = 1
-    if np.sum(tfm.fixed_parameters) != 0 : flip=-1
-    
-    in_file = open(in_gii_fn, 'r')
-    
-    out_path, out_ext = os.path.splitext(out_gii_fn)
-    coord_fn = out_path + '_ants_reformat.csv'
-    temp_out_fn=tempfile.NamedTemporaryFile().name+'.csv'
-    coords = np.concatenate([coords, np.zeros([coords.shape[0],2])], axis=1 )
-    print('origin',origin)
-
-    faces_h5=h5.File(faces_fn,'r')
-    faces = faces_h5['data'][:]
-
-    #the for loops are here because it makes it easier to trouble shoot to check how the vertices need to be flipped to be correctly transformed by ants
-    for flipx in [-1]: #[1,-1] :
-        for flipy in [-1]: #[1,-1]:
-            for flipz in [1]: #[1,-1]:
-                coords[0] = flipx*(coords[0] -origin[0])
-                coords[1] = flipy*(coords[1] +origin[1])
-                coords[2] = flipz*(coords[2] +origin[2])
-                
-                df = pd.DataFrame(coords,columns=['x','y','z','t','label'])
-                df.to_csv(coord_fn, columns=['x','y','z','t','label'], header=True, index=False)
-                
-
-                shell(f'antsApplyTransformsToPoints -d 3 -i {coord_fn} -t [{tfm_list[0]},{invert}]  -o {temp_out_fn}',verbose=True)
-                df = pd.read_csv(temp_out_fn,index_col=False)
-                df['x'] = flipx*(df['x'] - origin[0])
-                df['y'] = flipy*(df['y'] - origin[1])
-                df['z'] = flipz*(df['z'] - origin[2])
-
-                new_coords = df[['x','y','z']].values
-
-                f_h5 = h5.File(out_gii_fn, 'w')
-                f_h5.create_dataset('data', data=new_coords) 
-                f_h5.close()
-
-                save_mesh(out_path+f'_{flipx}{flipy}{flipz}'+ext, new_coords, faces, volume_info=volume_info)
-                os.remove(temp_out_fn)
-                #obj_fn = out_path+ f'_{flipx}{flipy}{flipz}'+ '.obj'
-
-                #save_obj(obj_fn,coords, faces)
-                #print(obj_fn)
 
 
 

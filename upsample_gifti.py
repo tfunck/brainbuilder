@@ -19,7 +19,7 @@ from matplotlib.patches import Circle, Wedge, Polygon
 from matplotlib.collections import PatchCollection
 from utils.mesh_io import save_mesh, load_mesh, load_mesh_geometry, save_obj, read_obj
 from re import sub
-from utils.utils import shell,splitext
+from utils.utils import shell,splitext, get_edges_from_faces
 from glob import glob
 from sys import getsizeof
 from time import time
@@ -132,18 +132,6 @@ def add_entry(d,a,lst, nngh):
 
     return d, nngh
 
-#def get_ngh(triangles):
-#    d={}
-#    for i,j,k in triangles:
-#        d = add_entry(d,i,[j,k])
-#        d = add_entry(d,j,[i,k])
-#        d = add_entry(d,k,[j,i])
-#
-#    for key in d.keys():
-#        #d[key] =np.unique(d[key])
-#        d[key] = list(np.array(np.unique(d[key])))
-#    del triangles 
-#    return d 
 
 def get_ngh_h5(faces_h5_fn, ngh_h5_fn, nngh_npz_fn):
 
@@ -240,47 +228,6 @@ def calculate_new_coords(coords, f_i, f_j, idx):
 
 import pandas as pd
 
-def get_edges_from_faces(faces):
-    #for convenience create vector for each set of faces 
-    f_i = faces[:,0]
-    f_j = faces[:,1]
-    f_k = faces[:,2]
-    
-    #combine node pairs together to form edges
-    f_ij = np.column_stack([f_i,f_j])
-    f_jk = np.column_stack([f_j,f_k])
-    f_ki = np.column_stack([f_k,f_i])
-
-    #concatenate the edges into one big array
-    edges_all = np.concatenate([f_ij,f_jk, f_ki],axis=0).astype(np.uint32)
-
-    #there are a lot of redundant edges that we can remove
-    #first sort the edges within rows because the ordering of the nodes doesn't matter
-    edges_all_sorted_0 = np.sort(edges_all,axis=1)
-    #create a vector to keep track of vertex number
-    edges_all_range= np.arange(edges_all.shape[0]).astype(int)
-    #
-    edges_all_sorted = np.column_stack([edges_all_sorted_0, edges_all_range ])
-    
-    #sort the rows so that duplicate edges are adjacent to one another 
-    edges_range_sorted = pd.DataFrame( edges_all_sorted  ).sort_values([0,1]).values
-    edges_sorted = edges_range_sorted[:,0:2]
-
-    #convert sorted indices to indices that correspond to face numbers
-    #DEBUG commented out following line because it isnt' used:
-    #sorted_indices = edges_range_sorted[:,2] % faces.shape[0]
-
-    # the edges are reshuffled once by sorting them by row and then by extracting unique edges
-    # we need to keep track of these transformations so that we can relate the shuffled edges to the 
-    # faces they belong to.
-    edges, edges_idx, counts = np.unique(edges_sorted , axis=0, return_index=True, return_counts=True)
-    edges = edges.astype(np.uint32)
-
-    #print('2.', np.sum( np.sum(edges_all==(26, 22251),axis=1)==2 ) ) 
-    
-    assert np.sum(counts!=2) == 0,'Error: more than two faces per edge {}'.format( edges_sorted[edges_idx[counts!=2]])     
-    #edge_range = np.arange(edges_all.shape[0]).astype(int) % faces.shape[0]
-    return edges
 
 def calc_new_coords(faces_h5_fn, coords_h5_fn, resolution, n_new_edges):
     # Open h5py file

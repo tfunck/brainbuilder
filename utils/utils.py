@@ -27,6 +27,107 @@ from scipy.ndimage import zoom
 from skimage.transform import resize
 from scipy.ndimage import label, center_of_mass
 
+def get_edges_from_faces(faces):
+    #for convenience create vector for each set of faces 
+    f_i = faces[:,0]
+    f_j = faces[:,1]
+    f_k = faces[:,2]
+    
+    #combine node pairs together to form edges
+    f_ij = np.column_stack([f_i,f_j])
+    f_jk = np.column_stack([f_j,f_k])
+    f_ki = np.column_stack([f_k,f_i])
+
+    #concatenate the edges into one big array
+    edges_all = np.concatenate([f_ij,f_jk, f_ki],axis=0).astype(np.uint32)
+
+    #there are a lot of redundant edges that we can remove
+    #first sort the edges within rows because the ordering of the nodes doesn't matter
+    edges_all_sorted_0 = np.sort(edges_all,axis=1)
+    #create a vector to keep track of vertex number
+    edges_all_range= np.arange(edges_all.shape[0]).astype(int)
+    #
+    edges_all_sorted = np.column_stack([edges_all_sorted_0, edges_all_range ])
+    
+    #sort the rows so that duplicate edges are adjacent to one another 
+    edges_range_sorted = pd.DataFrame( edges_all_sorted  ).sort_values([0,1]).values
+    edges_sorted = edges_range_sorted[:,0:2]
+
+    #convert sorted indices to indices that correspond to face numbers
+    #DEBUG commented out following line because it isnt' used:
+    #sorted_indices = edges_range_sorted[:,2] % faces.shape[0]
+
+    # the edges are reshuffled once by sorting them by row and then by extracting unique edges
+    # we need to keep track of these transformations so that we can relate the shuffled edges to the 
+    # faces they belong to.
+    edges, edges_idx, counts = np.unique(edges_sorted , axis=0, return_index=True, return_counts=True)
+    edges = edges.astype(np.uint32)
+
+    #print('2.', np.sum( np.sum(edges_all==(26, 22251),axis=1)==2 ) ) 
+    
+    assert np.sum(counts!=2) == 0,'Error: more than two faces per edge {}'.format( edges_sorted[edges_idx[counts!=2]])     
+    #edge_range = np.arange(edges_all.shape[0]).astype(int) % faces.shape[0]
+    return edges
+
+def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, faces_fn, ref_gii_fn, ext, mni_fn):
+    print("transforming", in_gii_fn)
+
+    origin = [0,0,0]
+    if ext in ['.pial', '.white'] : 
+        _, _, volume_info = load_mesh(ref_gii_fn)
+        origin=volume_info['cras'] 
+    else : volume_info = ref_gii_fn
+
+    coords = h5.File(in_gii_fn)['data'][:]
+    tfm = ants.read_transform(tfm_list[0])
+    flip = 1
+    if np.sum(tfm.fixed_parameters) != 0 : flip=-1
+    
+    in_file = open(in_gii_fn, 'r')
+    
+    out_path, out_ext = os.path.splitext(out_gii_fn)
+    coord_fn = out_path + '_ants_reformat.csv'
+    temp_out_fn=tempfile.NamedTemporaryFile().name+'.csv'
+    coords = np.concatenate([coords, np.zeros([coords.shape[0],2])], axis=1 )
+    print('flip', flip)
+    print('origin',origin)
+
+    if os.path.splitext(faces_fn)[1] == '.h5' :
+        faces_h5=h5.File(faces_fn,'r')
+        faces = faces_h5['data'][:]
+    else :
+        _, faces, _ = load_mesh(faces_fn)
+
+    #the for loops are here because it makes it easier to trouble shoot to check how the vertices need to be flipped to be correctly transformed by ants
+    #for flipx in [-1]: #[1,-1] :
+    #    for flipy in [-1]: #[1,-1]:
+    #        for flipz in [1]: #[1,-1]:
+    coords[0] = flip*(coords[0] -origin[0])
+    coords[1] = flip*(coords[1] +origin[1])
+    coords[2] = (coords[2] +origin[2])
+    
+    df = pd.DataFrame(coords,columns=['x','y','z','t','label'])
+    df.to_csv(coord_fn, columns=['x','y','z','t','label'], header=True, index=False)
+    
+
+    shell(f'antsApplyTransformsToPoints -d 3 -i {coord_fn} -t [{tfm_list[0]},{invert}]  -o {temp_out_fn}',verbose=True)
+    df = pd.read_csv(temp_out_fn,index_col=False)
+    df['x'] = flip*(df['x'] - origin[0])
+    df['y'] = flip*(df['y'] - origin[1])
+    df['z'] = (df['z'] - origin[2])
+
+    new_coords = df[['x','y','z']].values
+
+    f_h5 = h5.File(out_gii_fn, 'w')
+    f_h5.create_dataset('data', data=new_coords) 
+    f_h5.close()
+
+    save_mesh(out_path, new_coords, faces, volume_info=volume_info)
+    os.remove(temp_out_fn)
+    #obj_fn = out_path+ f'_{flipx}{flipy}{flipz}'+ '.obj'
+
+    #save_obj(obj_fn,coords, faces)
+    #print(obj_fn)
 
 def get_section_intervals(vol):
     section_sums = np.sum(vol, axis=(0,2))
