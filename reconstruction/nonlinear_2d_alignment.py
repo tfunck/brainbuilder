@@ -59,7 +59,9 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, use_syn=
     prefix = f'{tfm_dir}/y-{y}' 
     fx_fn = gen_2d_fn(prefix,'_fx')
 
-    mv_fn = get_seg_fn(mv_dir, y, resolution, row['seg_fn'], suffix='_rsl')
+    mv_fn = get_seg_fn(mv_dir, int(y), resolution, row['seg_fn'], suffix='_rsl')
+
+    print('mv fn', mv_fn)
 
     init_tfm = row['init_tfm']
     init_str = f'[{fx_fn},{mv_fn},1]'

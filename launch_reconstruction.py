@@ -281,10 +281,10 @@ def setup_parameters(args) :
     args.crop_dir = f'{args.out_dir}/0_crop'
     os.makedirs(args.crop_dir,exist_ok=True)
 
-    args.landmark_src_dir=f'{manual_dir}/landmarks/'
+    #args.landmark_src_dir=f'{manual_dir}/landmarks/'
 
-    args.landmark_dir=f'{args.out_dir}/landmarks/'
-    os.makedirs(args.landmark_dir, exist_ok=True)
+    #args.landmark_dir=f'{args.out_dir}/landmarks/'
+    #os.makedirs(args.landmark_dir, exist_ok=True)
 
     args.files_json = args.out_dir+"/reconstruction_files.json"
     args.manual_2d_dir=f'{manual_dir}/2d/'
@@ -505,7 +505,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
             slab_df = add_tfm_column(slab_df, init_tfm_csv,slab_tfm_csv)
         else : slab_df = pd.read_csv(slab_tfm_csv)
        
-        apply_transforms_to_landmarks(args.landmark_df, slab_df, args.landmark_dir, init_align_fn)
+        #apply_transforms_to_landmarks(args.landmark_df, slab_df, args.landmark_dir, init_align_fn)
 
         ### Steps 2-4 : Multiresolution alignment
         cfiles=files[brain][hemi][str(slab)]
@@ -513,7 +513,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
         for file_name in ['seg_rsl_fn','nl_3d_tfm_fn','nl_3d_tfm_inv_fn','rec_3d_rsl_fn','srv_3d_rsl_fn','srv_iso_space_rec_fn','srv_space_rec_fn','nl_2d_vol_fn','nl_2d_vol_cls_fn']:
             multiresolution_outputs += [ cfiles[str(resolution)][file_name] for resolution in resolution_list ]
             
-
+        multiresolution_outputs+=[cfiles[str(resolution_list[-1])]['slab_info_fn']]
         slab_info_fn = cfiles[str(resolution_list[-1])]['slab_info_fn'] #Current files
         if run_stage([init_align_fn], multiresolution_outputs) or args.clobber : 
             multiresolution_alignment(slab_info_fn, slab_df, hemi_df, brain, hemi, slab, slab_index, args,files, resolution_list, resolution_list_3d, init_align_fn, max_resolution_3d)
@@ -552,7 +552,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
 
     for ligand, df_ligand in hemi_df.groupby(['ligand']):
 
-        if 'flum' == ligand :
+        if 'flum' == ligand or True :
             ###
             ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
             ###
@@ -600,12 +600,12 @@ if __name__ == '__main__':
     ### Step 0 : Crop downsampled autoradiographs
     pytorch_model=f'{base_file_dir}/caps/Pytorch-UNet/MODEL.pth'
     #pytorch_model=''
-    df = df.loc[ (df['hemisphere'] == 'R') & (df[brain_str] == 'MR1' ) ] #FIXME, will need to be removed
+    df = df.loc[ (df['hemisphere'] == 'R') & (df['mri'] == 'MR1' ) ] #FIXME, will need to be removed
 
     flip_axes_dict = {'caudal_to_rostral':(1,)}
-    crop( args.crop_dir, args.mask_dir, df, args.scale_factors_fn, flip_axes_dict=flip_axes_dict,  pytorch_model=pytorch_model )
-    
-    args.landmark_df = process_landmark_images(df, args.landmark_src_dir, args.landmark_dir, args.scale_factors_fn)
+    crop( args.crop_dir, args.mask_dir, df, args.scale_factors_fn, float(resolution_list[-1]), flip_axes_dict=flip_axes_dict,  pytorch_model=pytorch_model )
+    print('\tFinished cropping') 
+    #args.landmark_df = process_landmark_images(df, args.landmark_src_dir, args.landmark_dir, args.scale_factors_fn)
 
     for brain in args.brain :
         for hemi in args.hemi :                     

@@ -33,110 +33,72 @@ from skimage.measure import label
 from sklearn.mixture import GaussianMixture
 from scipy.stats import entropy, kurtosis, skew
 from scipy.interpolate import griddata
+from skimage.segmentation import slic
 
 #matplotlib.use("TkAgg")
+np.set_printoptions(suppress=True)
+
+
+def classify_section(crop, seg, max_roi=5):
+    n_roi = np.random.randint(1,max_roi)
+    
+    im_cls = slic(crop,n_segments=n_roi, mask=seg)
+    
+    return im_cls
 
 def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn, y, slab, resolution):
 
-    n=3
     #load autoradiograph
     img = nib.load(autoradiograph_fn)
     vol = img.get_fdata()
-
-    voxel_size = img.affine[0,0] * img.affine[1,1] * img.affine[2,2]
+    
+    original_shape = vol.shape
+    new_shape = np.rint( np.array(vol.shape)/10 )
+    voxel_size = np.product(img.affine[[0,1,2],[0,1,2]])
 
     #load mask
     mask_img = nib.load(mask_fn)
     mask_vol = mask_img.get_fdata()
+    mask_vol_rsl = resize(mask_vol, new_shape, order=0)
+    vol_rsl = resize(vol, new_shape, order=5)
+    out_rsl = classify_section(vol_rsl, mask_vol_rsl)
 
-    #blur to 200um
-    vol = gaussian_filter(vol, (0.5/0.02)/np.pi)
 
-    xdim, zdim = vol.shape
+    out_unique = np.unique(out_rsl)[1:]
+    #out_label_sizes = np.bincount(out_rsl.reshape(-1,))[1:].astype(float)
+    #out_label_sizes = out_label_sizes[ out_label_sizes > 0 ]
+    #out_label_sizes *= voxel_size
 
-    # Define a mesh grid over which we can interpolate label values
-    zz, xx = np.meshgrid(range(zdim), range(xdim))
 
-    xx_valid = xx[mask_vol==1]
-    zz_valid = zz[mask_vol==1]
+    for l in out_unique :
+        index = np.core.defchararray.add(str(slab)+str(y), str(l)).astype(int)
+        out_rsl[ out_rsl==l ] = index
+        
+    print(np.max(out_rsl))
+        #out[ out > 0 ] = index
 
-    locations = np.vstack( [ xx_valid[0:n * 3], zz_valid[0:n*3] ]).T
+    if np.sum(out_rsl) == 0 :
+        print('\tSum Out == 0')
+        out_rsl = mask_vol_rsl
+
+    out = resize(out_rsl.astype(float), original_shape, order=0) 
+   
+    plt.subplot(2,1,1)
+    plt.imshow(out_rsl);
+    plt.subplot(2,1,2)
+    plt.imshow(out)
+    plt.savefig('/tmp/test.png')
     
-    # set size of sliding kernel 
-    mm=2
-    kernel_dim = int(1/0.02) * mm
-    kernel_pad = int( (kernel_dim+1) / 2 )
-
-    features=[]
-    step=int(kernel_dim*1.5)
-    for x,z in locations:
-        if mask_vol[x,z] > 0 :
-            i0=max(0,x-kernel_pad)
-            j0=max(0,z-kernel_pad)
-            
-            i1=min(xdim,x+kernel_pad)
-            j1=min(zdim,z+kernel_pad)
-
-            section = vol[i0:i1, j0:j1 ]
-            mask_section=mask_vol[i0:i1, j0:j1] 
-
-            #plt.imshow(section*mask_section); plt.show()
-            section = section[mask_section>0]
-
-            m=np.mean(section)
-            s=np.std(section)
-            k=kurtosis(section.reshape(-1,1))[0]
-            sk=skew(section.reshape(-1,1))[0]
-            e=entropy( section.reshape(-1,1) )[0]
-            vector = [x,z,m,s,k,sk,e]
-            features.append(vector)
-        else :
-            print('Error: point must be in mask')
-            exit(0)
-    #normalize columns of feature metrics
-    if len(features) <= 1 : 
-        'Error features len == 1 for ' + autoradiograph_fn
-        out = np.zeros_like(mask_vol)
-    else :
-        features_std = np.std(np.array(features), axis=0)
-        features_std[ features_std < 0.001 ] = 1
-        features = (np.array(features) - np.mean(features, axis=0)) / features_std
-        #print('\t\tn features =', features.shape[0], autoradiograph_fn)
-        
-        # Use a gaussian mixture model to classify the features into n class labels
-        if features.shape[0] < n :
-            print(f'Warning: When creating pseudo-classified image, {features.shape[0]} features found but at least {n} required. Occured for image:\n {autoradiograph_fn}')
-            return mask_vol
-
-        features[ pd.isnull(features) ] = 0
-
-        labels = GaussianMixture(n_components=n).fit_predict(features) +1
-        
-        # Apply nearest neighbour interpolation
-        out = griddata(locations, labels, (xx, zz), method='nearest')
-        out[ mask_vol == 0 ] = 0
-        out = label(out)
-        
-        #Get rid of labeled regions that are less than the minimum label size
-        out_unique = np.unique(out)[1:]
-        out_label_sizes = np.bincount(out.reshape(-1,))[1:].astype(float)
-        out_label_sizes = out_label_sizes[ out_label_sizes > 0 ]
-        out_label_sizes *= voxel_size
-
-        assert len(out_label_sizes) == len(out_unique) , 'Error: unique labels doesnt equal size of sums'
-      
-        for l, t in zip(out_unique, out_label_sizes) :
-            if t < resolution :
-                #print('-->',np.sum(out==l), np.sum(out==l)*voxel_size, t, voxel_size)
-                out[ out == l ] = 0
-
-        index = np.core.defchararray.add(str(slab)+str(y), out[out>0].astype(str)).astype(int)
-        out[ out > 0 ] = index
-
-        if np.sum(out) == 0 : out = mask_vol
-
+    print(np.max(out))
+    if np.sum(out) == 0 : 
+        print('Error empty pseudo cls'); exit(1)
+    out = np.ceil(out).astype(np.uint32)
+    if np.sum(out) == 0 : 
+        print('Error empty pseudo cls after conversion to int'); exit(1)
+    
     # save classified image as nifti
-    nib.Nifti1Image(out.astype(np.uint32), img.affine).to_filename(out_fn)
+    print('Writing', out_fn)
+    nib.Nifti1Image(out, img.affine).to_filename(out_fn)
 
 
 def get_base(fn) :
@@ -418,6 +380,7 @@ def convert_2d_array_to_nifti(f: str, output_filename: str, res=[20,20], spacing
 def convert_from_nnunet(fn, crop_fn, seg_fn, crop_dir, scale):
     crop_img = nib.load(crop_fn)
     ar = nib.load(fn).get_fdata()
+   
     
     if np.sum(ar==1) == 0 :
         print('\nWarning: Found a section that nnUNet failed to segment!\n')
@@ -432,21 +395,21 @@ def convert_from_nnunet(fn, crop_fn, seg_fn, crop_dir, scale):
         
         gm=ar == 1
         wm=ar == 2
+        
         ar *= 0
-        ar[gm] = 2
+        ar[gm] = 1
         #ar[wm] = 1
+        
         ar = ar.reshape([ar.shape[0],ar.shape[1]])
         ar = ar.T
         ar = resize(ar, crop_img.shape, order=0 )
 
-    print('\t', seg_fn)
+    print('\tWriting Seg fn', seg_fn)
     nib.Nifti1Image(ar, crop_img.affine).to_filename(seg_fn)
 
 
-def crop(crop_dir, mask_dir, df, scale_factors_json, pytorch_model='', remote=False, pad=1000, clobber=False, brain_str='mri', crop_str='crop_fn', lin_str='lin_fn', res=[20,20], flip_axes_dict={}, create_pseudo_cls=False):
+def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='', remote=False, pad=1000, clobber=False, brain_str='mri', crop_str='crop_fn', lin_str='lin_fn', res=[20,20], flip_axes_dict={}, create_pseudo_cls=True):
     '''take raw linearized images and crop them'''
-
-
 
     os_info = os.uname()
 
@@ -456,12 +419,11 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, pytorch_model='', remote=Fa
         num_cores = min(14, multiprocessing.cpu_count() )
 
     global_order_min = df["global_order"].min()
+    
     with open(scale_factors_json) as f : scale=json.load(f)
-    print(df) 
+    
     file_check = lambda x : not os.path.exists(x)
     crop_check = df[crop_str].apply( file_check ).values
-    print(crop_str)
-    print(df[crop_str])
     #seg_check =  df['seg_fn'].apply( file_check ).values
 
     if create_pseudo_cls :
@@ -475,10 +437,9 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, pytorch_model='', remote=Fa
     if np.sum( missing_files ) > 0 : 
         pass
     else : 
-        pass
-        #return 0
-    #os.makedirs(out_dir,exist_ok=True)
-    df_to_process = df.loc[ missing_files ]  
+        return 0
+
+    df_to_process = df.loc[ crop_check ]  
 
     Parallel(n_jobs=num_cores)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min, pytorch_model=pytorch_model, pad=pad, brain_str=brain_str, crop_str=crop_str, lin_str=lin_str, flip_axes_dict=flip_axes_dict) for i, row in  df_to_process.iterrows()) 
 
@@ -491,7 +452,6 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, pytorch_model='', remote=Fa
 
         #Parallel(n_jobs=num_cores)(delayed(convert_for_nnunet)(row, nnunet_in_dir) for i, row in  df.iterrows()) 
 
-
         to_do = []
         for f in df[crop_str].values:
             fname=os.path.split(f)[1].split('.')[0]
@@ -499,37 +459,32 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, pytorch_model='', remote=Fa
             output_filename = output_filename_truncated + "_0000.nii.gz"
             if not os.path.exists(output_filename) :
                 to_do.append([f, output_filename]) 
-        
         Parallel(n_jobs=num_cores)(delayed(convert_2d_array_to_nifti)(ii_fn,oo_fn,res=res) for ii_fn, oo_fn in to_do) 
 
         #shell(f'nnUNet_predict -i {nnunet_in_dir} -o {nnunet_out_dir} -t 502')
         to_do = []
-        #for fn in glob(f'{nnunet_out_dir}/*nii.gz') :
         for i, row in df.iterrows():
-            
-            crop_fn = row[crop_str] #crop_dir+os.sep+os.path.basename(fn)
-            seg_fn = row['seg_fn'] #df['seg_fn'].loc[df[crop_str] == crop_fn].values[0]
+            crop_fn = row[crop_str] 
+            seg_fn = row['seg_fn'] 
             print(f'{nnunet_out_dir}/{os.path.basename(crop_fn)}')
             fn = glob(f'{nnunet_out_dir}/{os.path.basename(crop_fn)}')[0]
-            print("convert", fn)
-            if not os.path.exists(seg_fn) : to_do.append((fn,crop_fn,seg_fn))
+            if not os.path.exists(seg_fn) : 
+                to_do.append((fn,crop_fn,seg_fn))
         print('\tConvert Files from nnUNet nifti files')
-        Parallel(n_jobs=2)(delayed(convert_from_nnunet)(fn, crop_fn, seg_fn, crop_dir,scale) for fn, crop_fn, seg_fn in to_do) 
+        Parallel(n_jobs=14)(delayed(convert_from_nnunet)(fn, crop_fn, seg_fn, crop_dir,scale) for fn, crop_fn, seg_fn in to_do) 
     
     if create_pseudo_cls :
         to_do=[]
         for i, row in df.iterrows():
 
             pseudo_cls_fn = row['pseudo_cls_fn']
-            crop_fn = row['pseudo_cls_fn']
-            seg_fn = row['pseudo_cls_fn']
+            crop_fn = row[crop_str]
+            seg_fn = row['seg_fn']
             slab_order = int(row['slab_order'])
-            slabr = int(row['slab'])
+            slab = int(row['slab'])
             if not os.path.exists(pseudo_cls_fn) : to_do.append([crop_fn, seg_fn,pseudo_cls_fn,slab_order,slab])
         
-
-        #Parallel(n_jobs=14)(delayed(pseudo_classify_autoradiograph)(crop_fn, seg_fn, pseudo_cls_fn, slab_order,slab,resolution) for fn, crop_fn, seg_fn, crop_fn, slab_order, slab in to_do) 
-
+        Parallel(n_jobs=14)(delayed(pseudo_classify_autoradiograph)(crop_fn, seg_fn, pseudo_cls_fn, slab_order,slab,resolution) for  crop_fn, seg_fn, pseudo_cls_fn, slab_order, slab in to_do) 
     return 0
 
 

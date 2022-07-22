@@ -43,8 +43,6 @@ def load_mesh(surf_mesh,correct_offset=False):
                 #coords[:,0] -= origin[0] 
                 #coords[:,1] -= 30.56
                 #coords[:,2] += 24.94
-                print(xdir, ydir, zdir)
-                print(origin)
                 coords[:,0] = coords[:,0] + origin[0]
                 coords[:,1] = coords[:,1] + origin[1]
                 coords[:,2] = coords[:,2] + origin[2]
@@ -66,6 +64,7 @@ def load_mesh(surf_mesh,correct_offset=False):
         else:
             raise ValueError('surf_mesh must be a either filename or a dictionary '
                              'containing items with keys "coords" and "faces"')
+
     return coords, faces, volume_info
 
 # function to load mesh geometry
