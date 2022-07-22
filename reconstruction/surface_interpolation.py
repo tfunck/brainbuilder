@@ -549,7 +549,6 @@ def thicken_sections(interp_dir, slab_dict, df_ligand, n_depths, resolution, tis
 
 
 def create_thickened_volumes(interp_dir, depth_list, depth_fn_slab_space, depth_fn_list, slab_dict, df_ligand, n_depths, resolution, origin=np.array([0,0,0]), tissue_type=''):
-    print('\tDepth list:',depth_list)
     for depth_index, (depth, depth_fn) in enumerate(zip(depth_list,depth_fn_list)):
         # Get surfaces transformed into slab space
         slabs = list(slab_dict.keys())
