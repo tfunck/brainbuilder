@@ -69,7 +69,7 @@ def get_edges_from_faces(faces):
     #edge_range = np.arange(edges_all.shape[0]).astype(int) % faces.shape[0]
     return edges
 
-def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, faces_fn, ref_gii_fn, ext, mni_fn):
+def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, faces_fn, ref_gii_fn, ext):
     print("transforming", in_gii_fn)
 
     origin = [0,0,0]
