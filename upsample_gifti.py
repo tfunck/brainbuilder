@@ -608,14 +608,17 @@ def fix_normals(faces,coords,coord_normals):
 def write_gifti_from_h5(upsample_fn, coords_fn, faces_fn, input_fn ) :
     print('\tFrom coords:', coords_fn)
     print('\tand faces:',faces_fn)
-    print('\tWriting',upsample_fn)
+    print('\tWriting', upsample_fn)
 
-    
     coords_h5 = h5py.File(coords_fn,'r')
     faces_h5 = h5py.File(faces_fn,'r')
-    volume_info = load_mesh(input_fn)[2]
-    save_mesh(upsample_fn, coords_h5['data'][:], faces_h5['data'][:], input_fn)
-    #save_mesh(upsample_fn, coords_h5['data'][:], faces_h5['data'][:], volume_info)
+    
+    if '.pial' in input_fn or '.white' in input_fn :
+        volume_info = load_mesh(input_fn)[2]
+    else :
+        volume_info = input_fn
+
+    save_mesh(upsample_fn, coords_h5['data'][:], faces_h5['data'][:], volume_info)
     #if temp_alt_coords != None :
     #    for orig_fn, fn in temp_alt_coords.items() :
     #        alt_upsample_fn=sub('.surf.gii','_rsl.surf.gii',orig_fn)
@@ -789,6 +792,8 @@ def identify_target_edges(file_dict, out_dir, surf_fn, ext='.surf.gii'):
         nl_3d_tfm_fn = curr_dict['nl_3d_tfm_inv_fn']
         surf_slab_space_fn = f'{out_dir}/slab-{slab}_{os.path.basename(surf_fn)}' 
         apply_ants_transform_to_gii(surf_fn, [nl_3d_tfm_fn], surf_slab_space_fn, 0, surf_fn, surf_fn, ext)
+        #NOTE should actually recalculate this at every iteration because as the edges get smaller
+        # there are less of them that will cross acquire sections617gg
         edge_mask = identify_target_edges_within_slab(edge_mask, ligand_vol_fn, surf_slab_space_fn)
 
     return edge_mask
