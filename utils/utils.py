@@ -13,9 +13,12 @@ import ants
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+import tempfile
+import h5py as h5
 from glob import glob
 from re import sub
 import nibabel
+from utils.mesh_io import save_mesh, load_mesh
 from utils.fit_transform_to_paired_points import fit_transform_to_paired_points
 from ants import get_center_of_mass
 from nibabel.processing import resample_to_output, resample_from_to
@@ -26,6 +29,7 @@ from sklearn.cluster import KMeans
 from scipy.ndimage import zoom
 from skimage.transform import resize
 from scipy.ndimage import label, center_of_mass
+
 
 def get_edges_from_faces(faces):
     #for convenience create vector for each set of faces 
@@ -78,7 +82,11 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, faces_
         origin=volume_info['cras'] 
     else : volume_info = ref_gii_fn
 
-    coords = h5.File(in_gii_fn)['data'][:]
+    if ext in ['.pial', '.white', '.surf.gii'] : 
+        coords, _, volume_info = load_mesh(in_gii_fn)
+    else :
+        coords = h5.File(in_gii_fn)['data'][:]
+    
     tfm = ants.read_transform(tfm_list[0])
     flip = 1
     if np.sum(tfm.fixed_parameters) != 0 : flip=-1
@@ -108,22 +116,25 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, faces_
     
     df = pd.DataFrame(coords,columns=['x','y','z','t','label'])
     df.to_csv(coord_fn, columns=['x','y','z','t','label'], header=True, index=False)
-    
 
     shell(f'antsApplyTransformsToPoints -d 3 -i {coord_fn} -t [{tfm_list[0]},{invert}]  -o {temp_out_fn}',verbose=True)
     df = pd.read_csv(temp_out_fn,index_col=False)
     df['x'] = flip*(df['x'] - origin[0])
     df['y'] = flip*(df['y'] - origin[1])
     df['z'] = (df['z'] - origin[2])
+    os.remove(temp_out_fn)
 
     new_coords = df[['x','y','z']].values
 
-    f_h5 = h5.File(out_gii_fn, 'w')
-    f_h5.create_dataset('data', data=new_coords) 
-    f_h5.close()
+    if os.path.splitext(out_gii_fn)[0] == '.h5':
+        f_h5 = h5.File(out_gii_fn, 'w')
+        f_h5.create_dataset('data', data=new_coords) 
+        f_h5.close()
+        save_mesh(out_path+'.surf.gii', new_coords, faces, volume_info=volume_info)
+    else :
+        print('\tWriting Transformed Surface:',out_gii_fn, faces.shape )
+        save_mesh(out_gii_fn, new_coords, faces, volume_info=volume_info)
 
-    save_mesh(out_path, new_coords, faces, volume_info=volume_info)
-    os.remove(temp_out_fn)
     #obj_fn = out_path+ f'_{flipx}{flipy}{flipz}'+ '.obj'
 
     #save_obj(obj_fn,coords, faces)

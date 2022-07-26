@@ -10,8 +10,11 @@ import tempfile
 import argparse
 import h5py
 import tracemalloc
-
 import multiprocessing
+import linecache
+import psutil 
+import io
+import utils.ants_nibabel as nib
 from joblib import Parallel, delayed
 from nibabel import freesurfer
 from guppy import hpy
@@ -19,13 +22,11 @@ from matplotlib.patches import Circle, Wedge, Polygon
 from matplotlib.collections import PatchCollection
 from utils.mesh_io import save_mesh, load_mesh, load_mesh_geometry, save_obj, read_obj
 from re import sub
-from utils.utils import shell,splitext, get_edges_from_faces
+from utils.utils import shell,splitext, get_edges_from_faces, apply_ants_transform_to_gii
 from glob import glob
 from sys import getsizeof
 from time import time
-import linecache
-import psutil 
-import io
+
 
 global ram_counter
 global ram_fn
@@ -736,52 +737,58 @@ def identify_target_edges_within_slab(edge_mask, ligand_vol_fn, surf_fn, ext='.n
     coords, faces, surf_info = load_mesh(surf_fn)
 
     edges = get_edges_from_faces(faces)
+    
+    e0 = edges[:,0]
+    e1 = edges[:,1]
+    c0 = coords[e0,1]
+    c1 = coords[e1,1]
+    
+    edge_y_coords = np.vstack([c0,c1]).T
 
-    edge_y_coords = np.hstack([coords[:,edges[:,0],:],coords[:,edges[:,1],:]])
     idx_1 = np.argsort(edge_y_coords,axis=1)
-    sorted_edge_y_coords = edge_y_coords[idx_1]
-    edges = edges[idx_1]
+    edges = np.take_along_axis(edge_y_coords, idx_1, 1)
+    sorted_edge_y_coords = np.take_along_axis(edge_y_coords, idx_1, 1)
+    
 
-    idx_0=np.argsort(sorted_edge_y_coords)
-    sorted_edge_y_coords=sorted_edge_y_coords[idx_0]
-    edges=edges[idx_0]
+    idx_0 = np.argsort(edges,axis=0)
+    sorted_edge_y_coords = np.take_along_axis( sorted_edge_y_coords, idx_0, 0)
+    edges = np.take_along_axis( edges, idx_0, 0)
 
     ligand_y_profile = np.sum(ligand_vol,axis=(0,2))
-    section_numbers = np.where(ligand_y_profile > 0)
-
+    section_numbers = np.where(ligand_y_profile > 0)[0]
+    
     section_counter=0
-    curr_section_vox = section_numbers[section_counter]
-    curr_section_world = curr_section_vox * step + start
+    current_section_vox = section_numbers[section_counter]
+    current_section_world = current_section_vox * step + start
 
-    for i in sorted_edges_idx:
-        y0,y1 = sorted_edge_y_coords[i]
+    for i in np.arange(edges.shape[0]).astype(int) :
+        y0,y1 = sorted_edge_y_coords[i,:]
         e0,e1 = edges[i]
-
-        crossing_edge = y0 < current_section_world & y1 > current_section_world + step
-        start_in_edge = y0 >= current_section_world & y1 > current_section_world + step
-        end_in_edge = y0 < current_section_world & y1 <= current_section_world + step
+        crossing_edge = (y0 < current_section_world) & (y1 > current_section_world + step)
+        start_in_edge = (y0 >= current_section_world) & (y1 > current_section_world + step)
+        end_in_edge = (y0 < current_section_world) & (y1 <= current_section_world + step)
 
         if crossing_edge + start_in_edge + end_in_edge > 0 :
             edge_mask[i]=True
 
         if y0 > current_section_world :
             section_counter += 1
-            if section_counter >= section_counter.shape :
+            if section_counter >= section_numbers.shape[0] :
                 break
             current_section_vox = section_numbers[section_counter]
             current_section_world = current_section_vox * step + start
-
+    print('Percent of Edges that need to be split:', 100.0*np.sum(edge_mask)/edge_mask.shape[0])
     return edge_mask 
 
-def identify_target_edges(file_dict, n_edges, out_dir, surf_fn, ext='.surf.gii'):
-
-    edge_mask = np.zeros_like(n_edges).astype(np.bool)
+def identify_target_edges(file_dict, out_dir, surf_fn, ext='.surf.gii'):
+    edges = get_edges_from_faces(load_mesh(surf_fn)[1])
+    edge_mask = np.zeros(edges.shape[0]).astype(np.bool)
 
     for slab, curr_dict in file_dict.items() :
-        ligand_vol_fn = curr_dict[slab]['nl_2d_vol_fn']
-        nl_3d_tfm_fn = curr_dict[slab]['nl_3d_tfm_inv_fn']
+        ligand_vol_fn = curr_dict['nl_2d_vol_fn']
+        nl_3d_tfm_fn = curr_dict['nl_3d_tfm_inv_fn']
         surf_slab_space_fn = f'{out_dir}/slab-{slab}_{os.path.basename(surf_fn)}' 
-        apply_ants_transform_to_gii(upsample_fn, [nl_3d_tfm_fn], surf_slab_space_fn, 0, upsample_fn, upsample_fn, ext)
+        apply_ants_transform_to_gii(surf_fn, [nl_3d_tfm_fn], surf_slab_space_fn, 0, surf_fn, surf_fn, ext)
         edge_mask = identify_target_edges_within_slab(edge_mask, ligand_vol_fn, surf_slab_space_fn)
 
     return edge_mask
@@ -837,10 +844,10 @@ def upsample_gifti(input_fn,upsample_0_fn, upsample_1_fn, resolution, input_list
     tracemalloc.start()
     if '.surf.gii' in upsample_0_fn : ext = '.surf.gii'
     elif '.white' in upsample_0_fn : ext = '.white'
-elif '.pial' in upsample_0_fn : ext = '.pial'
+    elif '.pial' in upsample_0_fn : ext = '.pial'
     elif '.obj' in upsample_0_fn : ext = '.obj'
-else :
-    print('Error: no extension found for', upsmaple_0_fn)
+    else :
+        print('Error: no extension found for', upsmaple_0_fn)
         exit(1)
 
     assert os.path.exists(input_fn) , 'Error, missing '+ input_fn
@@ -850,7 +857,7 @@ else :
     new_edges_npz_fn =   sub(ext,'_new_edges',upsample_0_fn)
 
 
-    if not os.path.exists(coords_h5_fn) :
+    if not os.path.exists(coords_h5_fn) or not os.path.exists(new_edges_npz_fn+'.npz') :
         n_new_edges = upsample_with_h5(input_fn, upsample_0_fn,  faces_h5_fn, coords_h5_fn, new_edges_npz_fn, resolution, edge_mask=edge_mask)
 
     #if not os.path.exists(upsample_0_fn) :

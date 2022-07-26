@@ -112,9 +112,6 @@ def add_histology_images(hist_files, ligand = 'cellbody'):
         
         brain, hemisphere, ligand_label, repeat = [fn_split[i] for i in [2,3,4,6]]
         
-        print(fn)
-        print(brain, hemisphere, ligand, repeat)
-
         if hemisphere == 'right' : hemisphere = 'R'
         elif hemisphere == 'left' : hemisphere = 'L'
         
@@ -317,7 +314,6 @@ def qc_align(moving_row, fixed_row, init_dir, mv_fn, mv_rsl_fn, qc_fn) :
     
     plt.subplot(2,1,2)
     plt.title('Fx Vs Mv Rsl')
-    print(fixed_row['init'], mv_rsl_fn )
     plt.imshow(nib.load(fixed_row['init']).get_fdata(),cmap='Greys')
     plt.imshow(nib.load(mv_rsl_fn).get_fdata(),alpha=0.5);
 
@@ -380,7 +376,6 @@ def align_sections(df, i_list, init_dir, reference_ligand, direction) :
 def concat_section_to_volume(df, affine, volume_fn, file_var='crop'):
     if not os.path.exists(volume_fn) :
         example_fn = df[file_var].iloc[0]
-        print(example_fn)
         xdim, zdim = np.rint(np.array(nib.load(example_fn).shape)).astype(int)
         
         order_min = df['order'].min()
@@ -389,7 +384,6 @@ def concat_section_to_volume(df, affine, volume_fn, file_var='crop'):
 
         for index, (i, row) in enumerate(df.iterrows()) :
             fn = row[file_var]
-            print(fn)
             if os.path.exists(fn) :
                 y = int(row['order'] - order_min)
                 section = nib.load(fn).get_fdata()
@@ -696,10 +690,10 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
     flip_dict = {'rostral_to_caudal':(0,), 'caudal_to_rostral':(0,1) }
     
     # Crop non-cellbody stains
-    crop(crop_dir, mask_dir, df.loc[df['ligand'] != 'cellbody'], scale_factors_json_fn, res=[60,45], remote=False, pad=0, clobber=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model='Task501')
+    crop(crop_dir, mask_dir, df.loc[df['ligand'] != 'cellbody'], scale_factors_json_fn, resolution=[60,45], remote=False, pad=0, clobber=False, create_pseudo_cls=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model='Task501')
     
     # Crop cellbody stains
-    crop(crop_dir, mask_dir, df.loc[ df['ligand'] == 'cellbody' ], scale_factors_json_fn, res=[91,91], remote=False, pad=0, clobber=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model='Task501')
+    crop(crop_dir, mask_dir, df.loc[ df['ligand'] == 'cellbody' ], scale_factors_json_fn, resolution=[91,91], remote=False, pad=0, clobber=False,create_pseudo_cls=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model='Task501')
 
     df['crop_raw_fn'] = df['crop']
 
@@ -790,6 +784,7 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
     files={ brain:{hemi:{'1':{}} }}
     files[brain][hemi]['1'][highest_resolution] = {
             'nl_3d_tfm_fn' : tfm_3d_fn,
+            'nl_3d_tfm_inv_fn' : tfm_3d_inv_fn,
             'nl_2d_vol_fn' : volume_align_2d_fn,
             'srv_space_rec_fn':template_rec_space_fn,
             'srv_iso_space_rec_fn':template_iso_rec_space_fn

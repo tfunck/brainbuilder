@@ -31,7 +31,7 @@ from skimage.filters import threshold_otsu, threshold_li
 from ants import  from_numpy,  apply_transforms, apply_ants_transform, read_transform
 from ants import image_read, registration
 from utils.utils import shell, w2v, v2w
-from upsample_gifti import save_gii, upsample_gifti, obj_to_gii
+from upsample_gifti import save_gii, upsample_gifti, identify_target_edges, obj_to_gii
 from vast.surface_volume_mapper import SurfaceVolumeMapper
 #from pykrige.ok import OrdinaryKriging
 global surf_base_str
@@ -84,7 +84,7 @@ from ants import get_center_of_mass
 
 
 
-def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, ext, resolution, upsample_resolution,  depth_list, clobber=False, n_vertices=81920):
+def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, ext, resolution, upsample_resolution,  depth_list, slab_dict, clobber=False, n_vertices=81920):
     depth_fn_dict={}
     # Upsampling of meshes at various depths across cortex produces meshes with different n vertices.
     # To create a set of meshes across the surfaces across the cortex that have the same number of 
@@ -127,7 +127,6 @@ def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, ext, resolut
     for depth in depth_list :
         print("\tDepth", depth)
         depth_surf_fn = "{}/surf_{}mm_{}{}".format(surf_dir,resolution,depth, ext.gm)
-        print(depth_surf_fn)
         upsample_fn = "{}/surf_{}mm_{}_rsl.h5".format(surf_dir,resolution,depth)
         upsample_gii_fn = "{}/surf_{}mm_{}_rsl{}".format(surf_dir,resolution,depth, ext.gm)
         sphere_fn = "{}/surf_{}mm_{}_inflate{}".format(surf_dir,resolution,depth, ext.gm_sphere)
@@ -152,17 +151,13 @@ def upsample_and_inflate_surfaces(surf_dir, wm_surf_fn, gm_surf_fn, ext, resolut
     depth_fn_dict[depth_list[0]]['upsample_gii_fn'] = upsample_0_fn
     depth_fn_dict[depth_list[-1]]['upsample_gii_fn'] = upsample_1_fn
 
-    #transform_surf_to_slab()
-
-    
-    edge_mask = identify_target_edges(file_dict, edges.shape[0], out_dir, surf_fn,ext=ext)
+    edge_mask = identify_target_edges(slab_dict,  surf_dir, gm_surf_fn, ext=ext.gm)
     faces_fn, coords_fn = upsample_gifti(gm_surf_fn, upsample_0_fn, upsample_1_fn, float(upsample_resolution), input_list=input_list, output_list=output_list, edge_mask=edge_mask, clobber=clobber)
     
     depth_fn_dict[depth_list[0]]['faces_fn'] = faces_fn
 
     rsl_faces = h5.File(faces_fn,'r')['data'][:]
     rsl_coords = h5.File(coords_fn, 'r')['data'][:]
-    print('save_obj')
     if not os.path.exists(gm_obj_fn) :
         save_obj(gm_obj_fn, rsl_coords,rsl_faces)
 
@@ -241,7 +236,6 @@ def multi_mesh_to_volume(profiles, depth_fn_slab_space, depth_list, dimensions, 
             surf_fn = depth_fn_slab_space[depth_list[ii]]['upsample_fn']
 
         coords = h5.File(surf_fn,'r')['data'][:]
-        print('\t\tsurf fn', surf_fn)
         profiles_vtr = profiles[:,ii]
         assert np.sum(profiles_vtr), f'Error, empty profiles in multi_mesh_to_volume in column {ii}, depth {depth_list[ii]}'
         print(starts)
@@ -283,7 +277,6 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
         for i, surf_fn in enumerate(surf_fn_list) :
             vol_fn = thickened_dict[str(i+1)]
            
-            print('\t\t',surf_fn['upsample_h5'])
             # read surface coordinate values from file
             coords_h5 = h5.File(surf_fn['upsample_h5'],'r')
             coords = coords_h5['data'][:]
@@ -314,7 +307,6 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
             # get the intervals along the y-axis of the volume where
             # we have voxel intensities that should be interpolated onto the surfaces
             intervals_voxel = get_section_intervals(vol)
-            print('-->', vol_fn, np.min(np.array(intervals_voxel))*ystep+ystart, np.max(intervals_voxel)*ystep+ystart )
             #convert from voxel values to real world coordinates
             assert len(intervals_voxel) > 0 , 'Error: the length of intervals_voxels == 0 ' 
             #for iv in intervals_voxel : 
@@ -354,7 +346,6 @@ def project_volumes_to_surfaces(surf_fn_list, thickened_dict, interp_csv, interp
 
                     assert np.sum(np.isnan(values)) == 0 , f'Error: nan found in values from {vol_fn}'
                     all_values[valid_coords_idx] = values 
-            #print( min(coords[:,1][all_values == slab]), max([:,1][all_values == slab]) )
             np.savetxt(interp_csv, all_values)
 
         assert np.sum(all_values>0) > 0, 'Error, empty array all_values in project_volumes_to_surfaces'
@@ -394,12 +385,8 @@ def setup_section_normalization(ligand, slab_df, array_src):
         for i, y, mean in zip(i_list[1:-1], y_list[1:-1], mean_list[1:-1]) :
             i0=max(i-pad,0)
             i1=min(i+pad,len(mean_list)-1)
-            print(i0,'-->',i, '-->', i1)
             x = list(y_list[i0:i]) + list(y_list[i+1:i1+1])
-            print('x',x)
-            print('y->',y,y_list[i])
             z = list(mean_list[i0:i]) + list(mean_list[i+1:i1+1])
-            print('z',z)
             kind_dict={ 1:'nearest', 2:'linear',  3:'quadratic', 4:'cubic', 5:'cubic'}
             interp_f = interp1d(x,z,kind=kind_dict[min(5,len(x))])
             #interp_f = CubicSpline(x,z)
@@ -409,7 +396,6 @@ def setup_section_normalization(ligand, slab_df, array_src):
 
         for y, new_mean in zip(y_list, new_mean_list):
             section = array_src[:, y, :]
-            print(new_mean)
             section[section>0] = new_mean + section[section>0] - np.mean(section[section>0]) #+ new_mean
             array_src[:,y,:] = section
         #plt.plot(mean_list,c='r')
@@ -470,14 +456,6 @@ def thicken_sections(interp_dir, slab_dict, df_ligand, n_depths, resolution, tis
                 y1 = 1+int(y)+width if int(y)+width <= array_src.shape[1] else array_src.shape[1]
                 #put ligand sections into rec_vol
 
-
-                #aa = np.ones( [section.shape[0], section.shape[2]] ) * np.arange(section.shape[0]).T 
-                #print(aa.shape)
-                #aa[section[:,0,:]==0] = 0
-                #aa=aa.reshape(section.shape)
-                
-                #plt.imshow(aa)
-                #plt.savefig('/tmp/tmp.png');
                 rep = np.repeat(section, y1-y0, axis=1)
                 print('ligand', row['ligand'], row['slab_order'], np.max(section) ) 
 
@@ -608,7 +586,7 @@ def transform_surf_to_slab(interp_dir, slab_dict, depth_fn_space_mni, ref_gii_fn
             upsample_slab_space_gii="{}/slab-{}_{}".format(interp_dir,slab,os.path.basename(upsample_gii_fn))
             surf_rsl_dict[slab][depth]['upsample_h5'] = upsample_slab_space_fn
             surf_rsl_dict[slab][depth]['upsample_gii'] = upsample_slab_space_gii
-            
+             
             if not os.path.exists(upsample_slab_space_fn) or clobber >= 1 : 
                 print(f"\t\tTransformig surface at depth {depth} to slab {slab}")
                 apply_ants_transform_to_gii(upsample_fn, [cur_slab_dict['nl_3d_tfm_fn']], upsample_slab_space_fn, 0, depth_fn_space_mni[0]['faces_fn'], ref_gii_fn, ext)
@@ -672,7 +650,7 @@ def prepare_surfaces(slab_dict, depth_list, interp_dir, resolution, upsample_res
     
     #upsample transformed surfaces to given resolution
     print("\tUpsampling and inflating surfaces.") 
-    depth_fn_mni_space = upsample_and_inflate_surfaces(surf_rsl_dir, surf_wm_fn, surf_gm_fn, ext, resolution, upsample_resolution, depth_list)
+    depth_fn_mni_space = upsample_and_inflate_surfaces(surf_rsl_dir, surf_wm_fn, surf_gm_fn, ext, resolution, upsample_resolution, depth_list,slab_dict)
 
     #For each slab, transform the mesh surface to the receptor space
     #TODO: transform points into space of individual autoradiographs
