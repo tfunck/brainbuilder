@@ -16,4 +16,13 @@ while getopts "s:b:m:i:o:r:c:p:s:" arg; do
 done
 
 mkdir -p $out_dir
-singularity exec -B "/data":"/data" ~/receptor-v.1.2.simg bash -c "python3.8 ~/projects/julich-receptor-atlas/launch_reconstruction.py -o $out_dir -b $brain --hemi $hemisphere --mri-gm /data/receptor/human/mri1_R_gm_bg_srv.nii.gz --ndepths 2 "
+
+rm /data/receptor/human/output_4_caps4real/5_surf_interp/surfaces/slab-1_MR1_gray_surface_R_81920.surf*
+#singularity exec -B "/data":"/data" ~/receptor-v.1.2.simg bash -c "python3.8 ~/projects/julich-receptor-atlas/launch_reconstruction.py -o $out_dir -b $brain --hemi $hemisphere --mri-gm /data/receptor/human/mri1_R_gm_bg_srv.nii.gz --ndepths 5 --surf-dir /data/receptor/human/MR1/civet/mri1/surfaces/ "
+
+
+rm /data/receptor/human/output_4_caps4real/5_surf_interp/surfaces/slab-1_MR1_gray_surface_R_81920.surf*gii
+singularity exec -B "/data":"/data" ~/receptor-v.1.2.simg bash -c "python3.8 ~/projects/julich-receptor-atlas/launch_reconstruction.py -o $out_dir -b $brain --hemi $hemisphere --mri-gm /data/receptor/human/mri1_R_gm_bg_srv.nii.gz --ndepths 5 --surf-dir /data/receptor/human/civet/mri1/surfaces/ "
+#/data/receptor/human/civet/mri1/surfaces/
+
+#bash test_ants_transform.sh

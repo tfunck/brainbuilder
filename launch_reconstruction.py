@@ -183,7 +183,8 @@ def setup_argparse():
     parser.add_argument('--out-dir','-o', dest='out_dir', type=str, default='output', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--scale-factors', dest='scale_factors_fn', type=str, default=None, help='json file with scaling and ordering info for each slab')
     parser.add_argument('--mri-gm', dest='srv_fn', type=str, default='/data/receptor/human/mri1_R_gm_bg_srv.nii.gz', help='mri gm super-resolution volume (srv)')
-    parser.add_argument('--surf-dir', dest='surf_dir', type=str, default='/data/receptor/human/MR1/civet/mri1/surfaces/', help='surface directory')
+    parser.add_argument('--cortex-gm', dest='srv_cortex_fn', type=str, default='/data/receptor/human/mri1_gm_srv.nii.gz', help='mri gm super-resolution volume (srv)')
+    parser.add_argument('--surf-dir', dest='surf_dir', type=str, default='/data/receptor/human/civet/mri1/surfaces/', help='surface directory')
     parser.add_argument('--autoradiograph-info', dest='autoradiograph_info_fn', type=str, default=None, help='csv file with section info for each autoradiograph')
 
     return parser
@@ -275,8 +276,7 @@ def setup_parameters(args) :
     if args.autoradiograph_info_fn == None :
         args.autoradiograph_info_fn=args.out_dir+'/autoradiograph_info_volume_order.csv'
 
-    if args.srv_fn == None :
-        args.srv_fn="srv/mri1_gm_bg_srv.nii.gz"
+
 
     args.crop_dir = f'{args.out_dir}/0_crop'
     os.makedirs(args.crop_dir,exist_ok=True)
@@ -549,7 +549,6 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
     srv_max_resolution_fn=f'/data/receptor/human/MR1_R_mri_cortex_{highest_resolution}mm.nii.gz'
     cortex_fn = srv_max_resolution_fn
 
-
     for ligand, df_ligand in hemi_df.groupby(['ligand']):
 
         if 'flum' == ligand or True :
@@ -557,7 +556,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
             ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
             ###
             scale_factors = json.load(open(args.scale_factors_fn, 'r'))[brain][hemi]
-            final_ligand_fn = surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, cortex_fn, args.slabs, files[brain][hemi], scale_factors, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+            final_ligand_fn = surface_interpolation(df_ligand, slab_dict, interp_dir, brain, hemi, highest_resolution, cortex_fn, args.slabs, files[brain][hemi], scale_factors, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
             #surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, srv_max_resolution_fn, args, files[brain][hemi],  tissue_type='_cls', surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
             ###
             ### 6. Quality Control
@@ -588,7 +587,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
 #   5. Interpolate missing vertices on sphere, interpolate back to 3D volume
 
 if __name__ == '__main__':
-    resolution_list = ['4.0', '3.0', '2.0', '1.0', '0.5', '0.25'] 
+    resolution_list = ['4.0', '3.0', '2.0', '1.0'] #, '0.5', '0.25'] 
 
     args, files = setup_parameters(setup_argparse().parse_args() )
     #Process the base autoradiograph csv

@@ -18,7 +18,7 @@ import h5py as h5
 from glob import glob
 from re import sub
 import nibabel
-from utils.mesh_io import save_mesh, load_mesh
+from utils.mesh_io import save_mesh, load_mesh, save_obj, read_obj
 from utils.fit_transform_to_paired_points import fit_transform_to_paired_points
 from ants import get_center_of_mass
 from nibabel.processing import resample_to_output, resample_from_to
@@ -73,60 +73,84 @@ def get_edges_from_faces(faces):
     #edge_range = np.arange(edges_all.shape[0]).astype(int) % faces.shape[0]
     return edges
 
-def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, faces_fn, ref_gii_fn, ext):
+def transform_surface_to_slabs(file_dict, out_dir, surf_fn, ext='.surf.gii'):
+    surf_slab_space_dict = {}
+
+    for slab, curr_dict in file_dict.items() :
+        ligand_vol_fn = curr_dict['nl_2d_vol_fn']
+        nl_3d_tfm_fn = curr_dict['nl_3d_tfm_fn']
+        surf_slab_space_fn = f'{out_dir}/slab-{slab}_{os.path.basename(surf_fn)}' 
+        
+        surf_slab_space_dict[slab] = {}
+        surf_slab_space_dict[slab]['surf'] = surf_slab_space_fn
+        surf_slab_space_dict[slab]['vol'] = ligand_vol_fn
+
+        if not os.path.exists(surf_slab_space_fn) :
+            apply_ants_transform_to_gii(surf_fn, [nl_3d_tfm_fn], surf_slab_space_fn, 0)
+    return surf_slab_space_dict
+
+def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, ref_gii_fn=None, faces_fn=None):
     print("transforming", in_gii_fn)
+    print("to", out_gii_fn)
 
     origin = [0,0,0]
-    if ext in ['.pial', '.white'] : 
+    if type(ref_gii_fn) == type(None) :
+        ref_gii_fn = in_gii_fn
+
+    if os.path.splitext(ref_gii_fn)[1] in ['.pial', '.white'] : 
         _, _, volume_info = load_mesh(ref_gii_fn)
-        origin=volume_info['cras'] 
+        origin = volume_info['cras'] 
     else : volume_info = ref_gii_fn
 
-    if ext in ['.pial', '.white', '.surf.gii'] : 
-        coords, _, volume_info = load_mesh(in_gii_fn)
+    if os.path.splitext(in_gii_fn)[1] in ['.pial', '.white', '.gii'] : 
+        coords, faces, _ = load_mesh(in_gii_fn)
     else :
         coords = h5.File(in_gii_fn)['data'][:]
+        if os.path.splitext(faces_fn)[1] == '.h5' :
+            faces_h5=h5.File(faces_fn,'r')
+            faces = faces_h5['data'][:]
     
     tfm = ants.read_transform(tfm_list[0])
     flip = 1
-    if np.sum(tfm.fixed_parameters) != 0 : flip=-1
+    #if np.sum(tfm.fixed_parameters) != 0 : 
+    #    print( '/MR1/' in os.path.dirname(in_gii_fn))
+    #    if '/MR1/' in os.path.dirname(in_gii_fn):
+    #        flipx=flipy=-1
+    #        flipz=1
+    #        flip_label='MR1'
+    #    else :
+    flipx=flipy=-1
+    flipz=1
+    flip_label=f'{flipx}{flipy}{flipz}'
     
     in_file = open(in_gii_fn, 'r')
     
     out_path, out_ext = os.path.splitext(out_gii_fn)
-    coord_fn = out_path + '_ants_reformat.csv'
-    temp_out_fn=tempfile.NamedTemporaryFile().name+'.csv'
+    coord_fn = out_path + f'_{flip_label}_ants_reformat.csv'
+    #temp_out_fn=tempfile.NamedTemporaryFile().name+'.csv' #DEBUG
+    temp_out_fn = out_path + f'_{flip_label}_ants_reformat_warped.csv'
     coords = np.concatenate([coords, np.zeros([coords.shape[0],2])], axis=1 )
-    print('flip', flip)
-    print('origin',origin)
-
-    if os.path.splitext(faces_fn)[1] == '.h5' :
-        faces_h5=h5.File(faces_fn,'r')
-        faces = faces_h5['data'][:]
-    else :
-        _, faces, _ = load_mesh(faces_fn)
-
     #the for loops are here because it makes it easier to trouble shoot to check how the vertices need to be flipped to be correctly transformed by ants
     #for flipx in [-1]: #[1,-1] :
     #    for flipy in [-1]: #[1,-1]:
     #        for flipz in [1]: #[1,-1]:
-    coords[0] = flip*(coords[0] -origin[0])
-    coords[1] = flip*(coords[1] +origin[1])
-    coords[2] = (coords[2] +origin[2])
-    
+    coords[:,0] = flipx*(coords[:,0] -origin[0])
+    coords[:,1] = flipy*(coords[:,1] +origin[1])
+    coords[:,2] = flipz*(coords[:,2] +origin[2])
+
     df = pd.DataFrame(coords,columns=['x','y','z','t','label'])
     df.to_csv(coord_fn, columns=['x','y','z','t','label'], header=True, index=False)
 
     shell(f'antsApplyTransformsToPoints -d 3 -i {coord_fn} -t [{tfm_list[0]},{invert}]  -o {temp_out_fn}',verbose=True)
     df = pd.read_csv(temp_out_fn,index_col=False)
-    df['x'] = flip*(df['x'] - origin[0])
-    df['y'] = flip*(df['y'] - origin[1])
-    df['z'] = (df['z'] - origin[2])
-    os.remove(temp_out_fn)
+    df['x'] = flipx * (df['x'] - origin[0])
+    df['y'] = flipy * (df['y'] - origin[1])
+    df['z'] = flipz * (df['z'] - origin[2])
+    #os.remove(temp_out_fn) DEBUG
 
     new_coords = df[['x','y','z']].values
 
-    if os.path.splitext(out_gii_fn)[0] == '.h5':
+    if os.path.splitext(out_gii_fn)[1] == '.h5':
         f_h5 = h5.File(out_gii_fn, 'w')
         f_h5.create_dataset('data', data=new_coords) 
         f_h5.close()
@@ -135,10 +159,9 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, faces_
         print('\tWriting Transformed Surface:',out_gii_fn, faces.shape )
         save_mesh(out_gii_fn, new_coords, faces, volume_info=volume_info)
 
-    #obj_fn = out_path+ f'_{flipx}{flipy}{flipz}'+ '.obj'
+    obj_fn = out_path +  '.obj'
 
-    #save_obj(obj_fn,coords, faces)
-    #print(obj_fn)
+    save_obj(obj_fn,coords, faces)
 
 def get_section_intervals(vol):
     section_sums = np.sum(vol, axis=(0,2))
