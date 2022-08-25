@@ -3,7 +3,6 @@ import os
 import time
 import sys
 import nibabel as nb
-#import utils.ants_nibabel as nib
 import matplotlib.pyplot as plt
 import h5py as h5
 import tempfile
@@ -227,7 +226,7 @@ def calculate_new_coords(coords, f_i, f_j, idx):
 import pandas as pd
 
 
-def calc_new_coords(faces_h5_fn, coords_h5_fn, resolution, n_new_edges, new_edges_npz_fn, surf_slab_space_dict=None):
+def calc_new_coords(faces_h5_fn, coords_h5_fn, resolution, n_new_edges, new_edges_npz_fn, df_ligand, surf_slab_space_dict=None):
     # Open h5py file
     faces_h5 = h5py.File(faces_h5_fn, 'r')
     coords_h5 = h5py.File(coords_h5_fn, 'a')
@@ -238,9 +237,10 @@ def calc_new_coords(faces_h5_fn, coords_h5_fn, resolution, n_new_edges, new_edge
     #get the index number of all the edges in the mesh
     edges = get_edges_from_faces(faces_h5['data']) 
     if type(surf_slab_space_dict) == dict :
-        edge_mask = identify_target_edges(edges, surf_slab_space_dict, new_edges_npz_fn)
+        edge_mask = identify_target_edges(edges, df_ligand, surf_slab_space_dict, new_edges_npz_fn, resolution)
         #remove edges that are not in the mask, i.e., edges which do not intersect a histological section
         edges = edges[edge_mask]
+        print('edge mask:', np.sum(edge_mask))
 
     e_0, e_1 = edges[:,0], edges[:,1]
 
@@ -450,9 +450,9 @@ def subdivide_triangle(coord_offset, coord_idx, edges, edge_counter, ngh, nngh, 
     del c 
     del d
 
-def upsample_edges(output_dir, coords_h5_fn, faces_h5_fn, faces_dict, new_edges_npz_fn,  resolution, surf_slab_space_dict=None, temp_alt_coords=None, debug=False, n_new_edges=0, coord_normals = []) :
+def upsample_edges(output_dir, coords_h5_fn, faces_h5_fn, faces_dict, new_edges_npz_fn,  resolution, df_ligand, surf_slab_space_dict=None, temp_alt_coords=None, debug=False, n_new_edges=0, coord_normals = []) :
 
-    edges, n_total_new_edges, long_edges, n_long, coord_offset, faces_offset, n_edges, mesh_stats = calc_new_coords(faces_h5_fn, coords_h5_fn, resolution, n_new_edges, new_edges_npz_fn, surf_slab_space_dict=surf_slab_space_dict)
+    edges, n_total_new_edges, long_edges, n_long, coord_offset, faces_offset, n_edges, mesh_stats = calc_new_coords(faces_h5_fn, coords_h5_fn, resolution, n_new_edges, new_edges_npz_fn, df_ligand, surf_slab_space_dict=surf_slab_space_dict)
     n_coords = coord_offset +  n_long
 
     temp_fn = assign_new_edges(new_edges_npz_fn, edges, n_new_edges, n_total_new_edges, long_edges)
@@ -630,7 +630,7 @@ def get_mesh_stats(faces_h5_fn, coords_h5_fn, edge_mask=None):
     return max_len, avg_len, perc95, n_coords, n_faces
 
 
-def upsample_with_h5(input_fn,upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_npz_fn, resolution, surf_slab_space_dict=None, test=False, clobber=False, debug=False):
+def upsample_with_h5(input_fn,upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_npz_fn, resolution, df_ligand, surf_slab_space_dict=None, test=False, clobber=False, debug=False):
         output_dir = os.path.dirname(upsample_fn)
         print('setup h5 arrays')
         faces_dict = setup_h5_arrays(input_fn, upsample_fn, faces_h5_fn, coords_h5_fn, clobber=clobber)
@@ -656,7 +656,7 @@ def upsample_with_h5(input_fn,upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_
         while metric > resolution :
             old_metric = metric
             print('Number of too long vertices', metric)
-            metric, coord_normals, faces_dict, n_new_edges = upsample_edges(output_dir, coords_h5_fn, faces_h5_fn, faces_dict, new_edges_npz_fn, resolution, surf_slab_space_dict=surf_slab_space_dict, debug=debug,  n_new_edges=n_new_edges, coord_normals=coord_normals)
+            metric, coord_normals, faces_dict, n_new_edges = upsample_edges(output_dir, coords_h5_fn, faces_h5_fn, faces_dict, new_edges_npz_fn, resolution, df_ligand, surf_slab_space_dict=surf_slab_space_dict, debug=debug,  n_new_edges=n_new_edges, coord_normals=coord_normals)
             counter+=1
         if coord_normals != [] :
             faces=fix_normals(faces,coords_h5['data'][:],coord_normals)
@@ -665,19 +665,21 @@ def upsample_with_h5(input_fn,upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_
 
         return n_new_edges
 
-def identify_target_edges_within_slab(edge_mask, ligand_vol_fn, coords, edges, ext='.nii.gz'):
-    
-    img = nib.load(ligand_vol_fn)
+def identify_target_edges_within_slab(edge_mask, section_numbers, ligand_vol_fn, coords, edges, resolution, ext='.nii.gz'):
+    img = nb.load(ligand_vol_fn)
     ligand_vol = img.get_fdata()
     step = img.affine[1,1]
     start = img.affine[1,3]
-
+    ydir = np.sign(step)
+    resolution_step = resolution * ydir
+        
     e0 = edges[:,0]
     e1 = edges[:,1]
     c0 = coords[e0,1]
     c1 = coords[e1,1]
    
-    starting_edge = np.argmax(edge_mask)
+    edge_range = np.arange(0, edges.shape[0]).astype(int)
+    edge_range = edge_range[edge_mask == False]
 
     edge_y_coords = np.vstack([c0,c1]).T
 
@@ -689,22 +691,24 @@ def identify_target_edges_within_slab(edge_mask, ligand_vol_fn, coords, edges, e
     sorted_edge_y_coords = np.take_along_axis( sorted_edge_y_coords, idx_0, 0)
     edges = np.take_along_axis( edges, idx_0, 0)
 
-    ligand_y_profile = np.sum(ligand_vol,axis=(0,2))
-    section_numbers = np.where(ligand_y_profile > 0)[0]
+    #ligand_y_profile = np.sum(ligand_vol,axis=(0,2))
+    #section_numbers = np.where(ligand_y_profile > 0)[0]
     
     section_counter=0
     current_section_vox = section_numbers[section_counter]
     current_section_world = current_section_vox * step + start
 
-    for i in np.arange(starting_edge, edges.shape[0]).astype(int) :
+    for i in edge_range :
         y0,y1 = sorted_edge_y_coords[i,:]
         e0,e1 = edges[i]
-        crossing_edge = (y0 < current_section_world) & (y1 > current_section_world + step)
-        start_in_edge = ((y0 >= current_section_world) & (y0 < current_section_world+step)) & (y1 > current_section_world + step)
-        end_in_edge = (y0 < current_section_world) & ((y1>current_section_world) & (y1 <= current_section_world + step))
-        
+
+        crossing_edge = (y0 < current_section_world) & (y1 > current_section_world + resolution_step)
+
+        start_in_edge = ((y0 >= current_section_world) & (y0 < current_section_world+resolution_step)) & (y1 > current_section_world + resolution_step)
+
+        end_in_edge = (y0 < current_section_world) & ((y1>current_section_world) & (y1 <= current_section_world + resolution_step))
+       
         if crossing_edge + start_in_edge + end_in_edge > 0 :
-            #print('y0-y1', y0, y1, 'sec',current_section_world)
             edge_mask[i]=True
 
         if y0 > current_section_world :
@@ -717,7 +721,7 @@ def identify_target_edges_within_slab(edge_mask, ligand_vol_fn, coords, edges, e
     return edge_mask 
 
 
-def identify_target_edges(edges, slab_dict, new_edges_npz_fn, ext='.surf.gii'):
+def identify_target_edges(edges, df_ligand, slab_dict, new_edges_npz_fn, resolution, ext='.surf.gii'):
     
     edge_mask = np.zeros(edges.shape[0]).astype(np.bool)
 
@@ -728,24 +732,21 @@ def identify_target_edges(edges, slab_dict, new_edges_npz_fn, ext='.surf.gii'):
         # load new edges for resampling of slab space mesh
         new_edges = np.load(new_edges_npz_fn+'.npz')['data'][:]
 
-    #print(slab_list)
     for slab in slab_list :
         cdict = slab_dict[slab]
-        #NOTE should actually recalculate this at every iteration because as the edges get smaller
-        # there are less of them that will cross acquire sections617gg
         coords, _, _ = load_mesh(cdict['surf'])
         n_coords = coords.shape[0]
+        section_numbers = df_ligand['slab_order'].loc[df_ligand['slab'].astype(int) == int(slab)].values
+        section_numbers = np.sort(section_numbers)
         
         if os.path.exists(new_edges_npz_fn+'.npz'): 
             #if this is not hte first iteration of the upsampling, then we need to 
             #add new upsampled points based on the new edges
             coords = np.concatenate([coords,np.zeros([new_edges.shape[0]+1,3])],axis=0)
             coords = generate_upsampled_coordinates(new_edges, coords, n_coords)
-            
-        edge_mask = identify_target_edges_within_slab(edge_mask, cdict['vol'], coords, edges)
+        edge_mask = identify_target_edges_within_slab(edge_mask,section_numbers, cdict['vol'], coords, edges, resolution)
         
         print(f'\tSlab {slab}: % of edges to be split:', 100.0*np.sum(edge_mask)/edge_mask.shape[0])
-
     return edge_mask
 
 def generate_upsampled_coordinates(new_edges, rsl_coords, n_coords):
@@ -788,7 +789,7 @@ def resample_gifti_to_h5(new_edges_npz_fn, reference_coords_h5_fn, input_list, o
             print('Closing', out_fn)
 
 
-def upsample_gifti(input_fn,upsample_0_fn, upsample_1_fn, resolution, input_list=[], output_list=[], surf_slab_space_dict=None, test=False, clobber=False, debug=False):
+def upsample_gifti(input_fn,upsample_0_fn, upsample_1_fn, resolution, df_ligand, input_list=[], output_list=[], surf_slab_space_dict=None, test=False, clobber=False, debug=False):
     tracemalloc.start()
 
     if '.surf.gii' in upsample_0_fn : ext = '.surf.gii'
@@ -800,13 +801,13 @@ def upsample_gifti(input_fn,upsample_0_fn, upsample_1_fn, resolution, input_list
         exit(1)
 
     assert os.path.exists(input_fn) , 'Error, missing '+ input_fn
-
-    faces_h5_fn =  sub(ext,'_new_faces.h5',upsample_0_fn)
-    coords_h5_fn =   sub(ext,'_new_coords.h5',upsample_0_fn)
-    new_edges_npz_fn =   sub(ext,'_new_edges',upsample_0_fn)
+    ligand = np.unique(df_ligand['ligand'])[0]
+    faces_h5_fn =  sub(ext, f'_{ligand}_new_faces.h5',upsample_0_fn)
+    coords_h5_fn =   sub(ext, f'_{ligand}_new_coords.h5',upsample_0_fn)
+    new_edges_npz_fn =   sub(ext, f'_{ligand}_new_edges',upsample_0_fn)
 
     if not os.path.exists(coords_h5_fn) or not os.path.exists(new_edges_npz_fn+'.npz') :
-        n_new_edges = upsample_with_h5(input_fn, upsample_0_fn,  faces_h5_fn, coords_h5_fn, new_edges_npz_fn, resolution, surf_slab_space_dict=surf_slab_space_dict)
+        n_new_edges = upsample_with_h5(input_fn, upsample_0_fn,  faces_h5_fn, coords_h5_fn, new_edges_npz_fn, resolution, df_ligand, surf_slab_space_dict=surf_slab_space_dict)
 
     #if not os.path.exists(upsample_0_fn) :
         write_gifti_from_h5(upsample_0_fn, coords_h5_fn, faces_h5_fn, input_fn ) 
@@ -816,7 +817,7 @@ def upsample_gifti(input_fn,upsample_0_fn, upsample_1_fn, resolution, input_list
 
     if not os.path.exists(upsample_1_fn) :
         write_gifti_from_h5(upsample_1_fn, output_list[-2], faces_h5_fn, input_fn ) 
-
+    
     return faces_h5_fn, coords_h5_fn
 
 if __name__ == "__main__" :

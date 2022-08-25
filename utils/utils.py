@@ -73,20 +73,20 @@ def get_edges_from_faces(faces):
     #edge_range = np.arange(edges_all.shape[0]).astype(int) % faces.shape[0]
     return edges
 
-def transform_surface_to_slabs(file_dict, out_dir, surf_fn, ext='.surf.gii'):
-    surf_slab_space_dict = {}
+def transform_surface_to_slabs(surf_slab_space_dict, slab_dict, thickened_dict,  out_dir, surf_fn, ref_gii_fn=None, faces_fn=None, ext='.surf.gii'):
+    
 
-    for slab, curr_dict in file_dict.items() :
-        ligand_vol_fn = curr_dict['nl_2d_vol_fn']
-        nl_3d_tfm_fn = curr_dict['nl_3d_tfm_fn']
+    for slab, curr_dict in slab_dict.items() :
+        thickened_fn = thickened_dict[str(slab)]
+        nl_3d_tfm_fn = slab_dict[str(slab)]['nl_3d_tfm_fn']
         surf_slab_space_fn = f'{out_dir}/slab-{slab}_{os.path.basename(surf_fn)}' 
         
         surf_slab_space_dict[slab] = {}
         surf_slab_space_dict[slab]['surf'] = surf_slab_space_fn
-        surf_slab_space_dict[slab]['vol'] = ligand_vol_fn
-
+        surf_slab_space_dict[slab]['vol'] = thickened_fn
+        print('\t-->',slab, surf_slab_space_fn)
         if not os.path.exists(surf_slab_space_fn) :
-            apply_ants_transform_to_gii(surf_fn, [nl_3d_tfm_fn], surf_slab_space_fn, 0)
+            apply_ants_transform_to_gii(surf_fn, [nl_3d_tfm_fn], surf_slab_space_fn, 0, faces_fn=faces_fn, ref_gii_fn=ref_gii_fn)
     return surf_slab_space_dict
 
 def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, ref_gii_fn=None, faces_fn=None):
@@ -149,7 +149,7 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, ref_gi
     #os.remove(temp_out_fn) DEBUG
 
     new_coords = df[['x','y','z']].values
-
+    print(os.path.splitext(out_gii_fn))
     if os.path.splitext(out_gii_fn)[1] == '.h5':
         f_h5 = h5.File(out_gii_fn, 'w')
         f_h5.create_dataset('data', data=new_coords) 
@@ -166,13 +166,10 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, ref_gi
 def get_section_intervals(vol):
     section_sums = np.sum(vol, axis=(0,2))
     valid_sections = section_sums > np.min(section_sums)
-    plt.subplot(2,1,1); plt.plot(section_sums)
-    plt.subplot(2,1,2); plt.plot(valid_sections); 
-    plt.savefig(f'val_sections_{np.sum(valid_sections)}.png'); plt.clf(); plt.cla()
     labeled_sections, nlabels = label(valid_sections)
     assert nlabels >= 2, 'Error: there must be a gap between thickened sections. Use higher resolution volumes.'
 
-    intervals = [ (np.where(labeled_sections==i)[0][0], np.where(labeled_sections==i)[0][-1]) for i in range(1, nlabels+1) ]
+    intervals = [ (np.where(labeled_sections==i)[0][0], np.where(labeled_sections==i)[0][-1]+1) for i in range(1, nlabels+1) ]
     assert len(intervals) > 0 , 'Error: no valid intervals found for volume.'  
     return intervals
     
@@ -624,7 +621,6 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
                             reference_image_fn='',
                             new_starts=[None, None, None], recenter_image=False ):
 
-    print(input_filename)
     img = nib.load(input_filename)
     direction = ants.image_read(input_filename).direction
     vol = img.get_fdata()

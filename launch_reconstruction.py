@@ -175,6 +175,7 @@ def setup_argparse():
     parser.add_argument('--ligand', dest='ligand',default='afdx', help='Ligand to reconstruct for final volume.')
     parser.add_argument('--clobber', dest='clobber',default=False,action='store_true', help='Overwrite existing results')
     parser.add_argument('--slab','-s', dest='slab', nargs='+', default=[1], help='Slabs to reconstruct. Default = reconstruct all slabs.')
+    parser.add_argument('--resolutions','-r', dest='resolution_list', nargs='+', default=['4.0', '3.0', '2.0', '1.0', '0.5', '0.25'], help='Resolution list.')
     parser.add_argument('--chunk-perc','-u', dest='slab_chunk_perc', type=float, default=1., help='Subslab size (use with --nonlinear-only option) ')
     parser.add_argument('--chunk','-c', dest='slab_chunk_i', type=int, default=1, help='Subslab to align (use with --nonlinear-only option).')
     parser.add_argument('--nvertices', dest='n_vertices', type=int, default=81920, help='n vertices for mesh')
@@ -210,7 +211,7 @@ def setup_files_json(args ):
             for slab in args.slabs : 
                 files[brain][hemi][slab]={}
 
-                for resolution_itr, resolution in enumerate(resolution_list) :
+                for resolution_itr, resolution in enumerate(args.resolution_list) :
                     cdict={} #current dictionary
                     cdict['brain']=brain        
                     cdict['hemi']=hemi        
@@ -223,7 +224,7 @@ def setup_files_json(args ):
                     cdict['align_to_mri_dir']='{}/3_align_slab_to_mri/'.format(cdict['cur_out_dir'])
                     cdict['nl_2d_dir']='{}/4_nonlinear_2d'.format(cdict['cur_out_dir'])
                     
-                    if resolution == resolution_list[0]:
+                    if resolution == args.resolution_list[0]:
                         cdict['init_align_dir']=f'{args.out_dir}/{brain}_{hemi}_{slab}/1_init_align/'
                         cdict['init_align_fn']=cdict['init_align_dir'] + f'/{brain}_{hemi}_{slab}_init_align.nii.gz'
 
@@ -427,6 +428,8 @@ def multiresolution_alignment(slab_info_fn, slab_df,  hemi_df, brain, hemi, slab
         # Concatenate 2D nonlinear aligned cls sections into an output volume
         slab_df = concatenate_sections_to_volume( slab_df, srv_space_rec_fn, nl_2d_dir, nl_2d_cls_fn, target_str='cls_rsl')
 
+        validate_alignment(nl_2d_dir, nl_2d_dir)
+
     slab_df.to_csv(slab_info_fn)
     return slab_df
 
@@ -516,7 +519,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
         multiresolution_outputs+=[cfiles[str(resolution_list[-1])]['slab_info_fn']]
         slab_info_fn = cfiles[str(resolution_list[-1])]['slab_info_fn'] #Current files
         if run_stage([init_align_fn], multiresolution_outputs) or args.clobber : 
-            multiresolution_alignment(slab_info_fn, slab_df, hemi_df, brain, hemi, slab, slab_index, args,files, resolution_list, resolution_list_3d, init_align_fn, max_resolution_3d)
+            multiresolution_alignment(slab_info_fn, slab_df, hemi_df, brain, hemi, slab, slab_index, args, files, resolution_list, resolution_list_3d, init_align_fn, max_resolution_3d)
     
         create_srv_volumes_for_next_slab(args,files, args.slabs, resolution_list, resolution_list_3d, brain, hemi, slab, slab_index)
 
@@ -546,8 +549,9 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
 
     assert len(slab_dict.keys()) != 0 , print('No slabs to interpolate over')
     
-    srv_max_resolution_fn=f'/data/receptor/human/MR1_R_mri_cortex_{highest_resolution}mm.nii.gz'
-    cortex_fn = srv_max_resolution_fn
+    #DEBUG
+    #srv_max_resolution_fn=f'/data/receptor/human/MR1_R_mri_cortex_{highest_resolution}mm.nii.gz'
+    #cortex_fn = srv_max_resolution_fn
 
     for ligand, df_ligand in hemi_df.groupby(['ligand']):
 
@@ -556,7 +560,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
             ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
             ###
             scale_factors = json.load(open(args.scale_factors_fn, 'r'))[brain][hemi]
-            final_ligand_fn = surface_interpolation(df_ligand, slab_dict, interp_dir, brain, hemi, highest_resolution, cortex_fn, args.slabs, files[brain][hemi], scale_factors, surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+            final_ligand_fn = surface_interpolation(df_ligand, slab_dict, interp_dir, brain, hemi, highest_resolution, args.srv_cortex_fn, args.slabs, files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
             #surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, srv_max_resolution_fn, args, files[brain][hemi],  tissue_type='_cls', surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
             ###
             ### 6. Quality Control
@@ -564,16 +568,19 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
             max_resolution = resolution_list[-1]
             depth = '0.5'
             print('\tValidate reconstructed sections:', ligand)
-            validate_reconstructed_sections(final_ligand_fn, max_resolution, args.n_depths, df_ligand, cortex_fn, base_out_dir='/data/receptor/human/output_4_caps4real/',  clobber=False)
+            validate_reconstructed_sections(final_ligand_fn, max_resolution, args.n_depths, df_ligand, args.srv_cortex_fn, base_out_dir='/data/receptor/human/output_4_caps4real/',  clobber=False)
             
             #FIXME filename should be passed from surface_interpolation
             print(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')
-            ligand_csv = glob(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')[0]   
-            sphere_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_inflate_rsl.h5')[0]
-            cortex_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_rsl.h5')[0]
-            faces_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_0.0_rsl_new_faces.h5')[0]
-            output_dir=f'/data/receptor/human/output_3_caps/6_quality_control/'
-            validate_interpolation(ligand_csv, sphere_mesh_fn, cortex_mesh_fn, faces_fn, output_dir, n_samples=1000, max_depth=6, ligand=ligand)
+            ligand_csv_list = glob(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')
+            if len(ligand_csv_list) > 0 : 
+                sphere_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_inflate_rsl.h5')[0]
+                cortex_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_rsl.h5')[0]
+                faces_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_0.0_rsl_new_faces.h5')[0]
+                output_dir=f'/data/receptor/human/output_3_caps/6_quality_control/'
+                validate_interpolation(ligand_csv, sphere_mesh_fn, cortex_mesh_fn, faces_fn, output_dir, n_samples=1000, max_depth=6, ligand=ligand)
+            else : 
+                print('Could not find file for validate_interpolation')
 
 ###---------------------###
 ###  PROCESSING STEPS   ###
@@ -587,9 +594,9 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
 #   5. Interpolate missing vertices on sphere, interpolate back to 3D volume
 
 if __name__ == '__main__':
-    resolution_list = ['4.0', '3.0', '2.0', '1.0'] #, '0.5', '0.25'] 
 
     args, files = setup_parameters(setup_argparse().parse_args() )
+
     #Process the base autoradiograph csv
     if not os.path.exists(args.autoradiograph_info_fn) : 
         calculate_section_order(args.autoradiograph_info_fn,  args.out_dir, in_df_fn=file_dir+os.sep+'autoradiograph_info.csv')
@@ -602,12 +609,12 @@ if __name__ == '__main__':
     df = df.loc[ (df['hemisphere'] == 'R') & (df['mri'] == 'MR1' ) ] #FIXME, will need to be removed
 
     flip_axes_dict = {'caudal_to_rostral':(1,)}
-    crop( args.crop_dir, args.mask_dir, df, args.scale_factors_fn, float(resolution_list[-1]), flip_axes_dict=flip_axes_dict,  pytorch_model=pytorch_model )
+    crop( args.crop_dir, args.mask_dir, df, args.scale_factors_fn, float(args.resolution_list[-1]), flip_axes_dict=flip_axes_dict,  pytorch_model=pytorch_model )
     print('\tFinished cropping') 
     #args.landmark_df = process_landmark_images(df, args.landmark_src_dir, args.landmark_dir, args.scale_factors_fn)
 
     for brain in args.brain :
         for hemi in args.hemi :                     
             print('Brain:',brain,'Hemisphere:', hemi)
-            reconstruct_hemisphere(df, brain, hemi,  args, files, resolution_list)
+            reconstruct_hemisphere(df, brain, hemi,  args, files, args.resolution_list)
 
