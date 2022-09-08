@@ -7,17 +7,17 @@ import pandas as pd
 import numpy as np
 import nibabel
 import utils.ants_nibabel as nib
+from validation.validate_alignment import validate_alignment
+from reconstruction.multiresolution_alignment import multiresolution_alignment
 from glob import glob
 from scipy.ndimage import label
 from scipy.ndimage import binary_dilation, binary_closing, binary_fill_holes
 from scipy.ndimage.filters import gaussian_filter
 from utils.utils import shell, create_2d_sections, run_stage, prefilter_and_downsample, resample_to_autoradiograph_sections
 from utils.ANTs import ANTs
-from nibabel.processing import resample_to_output, smooth_image
+from nibabel.processing import smooth_image
 from utils.mesh_io import load_mesh_geometry, save_mesh_data, save_obj, read_obj
 from reconstruction.align_slab_to_mri import align_slab_to_mri
-from reconstruction.receptor_segment import classifyReceptorSlices, resample_transform_segmented_images
-from reconstruction.nonlinear_2d_alignment import receptor_2d_alignment, concatenate_sections_to_volume
 from reconstruction.init_alignment import receptorRegister, apply_transforms_to_landmarks
 from reconstruction.surface_interpolation import surface_interpolation
 from reconstruction.crop import crop, process_landmark_images
@@ -180,6 +180,7 @@ def setup_argparse():
     parser.add_argument('--chunk','-c', dest='slab_chunk_i', type=int, default=1, help='Subslab to align (use with --nonlinear-only option).')
     parser.add_argument('--nvertices', dest='n_vertices', type=int, default=81920, help='n vertices for mesh')
     parser.add_argument('--ndepths', dest='n_depths', type=int, default=10, help='n depths for mesh')
+    parser.add_argument('--no-surf', dest='no_surf', action='store_true', default=False, help='Exit after multi-resolution alignment')
     parser.add_argument('--mask-dir', dest='mask_dir', type=str, default='/data/receptor/human/crop/combined_final/mask/', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--out-dir','-o', dest='out_dir', type=str, default='output', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--scale-factors', dest='scale_factors_fn', type=str, default=None, help='json file with scaling and ordering info for each slab')
@@ -297,141 +298,6 @@ def setup_parameters(args) :
 
 
 
-def multiresolution_alignment(slab_info_fn, slab_df,  hemi_df, brain, hemi, slab, slab_index, args, files, resolution_list, resolution_list_3d, init_align_fn, max_resolution=0.3):
-    '''
-    About:
-        Mutliresolution scheme that a. segments autoradiographs, b. aligns these to the donor mri in 3D,
-        and c. aligns autoradiograph sections to donor MRI in 2d. This schema is repeated for each 
-        resolution in the resolution heiarchy.  
-
-    Inputs:
-        slab_df:    data frame with info for autoradiographs in current slab
-        hemi_df     data frame with info for autoradiographs in current hemisphere
-        brain:       name of current subject id
-        hemi:        current hemisphere
-        slab:        current slab
-        args:        user input arguments
-        files:       dictionary with all the filenames used in reconstruction
-        resolution_list:    heirarchy of resolutions  
-        init_align_fn:      filename for initial alignement of autoradiographs
-        max_resolution:     maximum 3d resolution that can be used
-
-    Outputs:
-        slab_df: updated slab_df data frame with filenames for nonlinearly 2d aligned autoradiographs
-
-    '''
-    slab_list = [int(i) for i in  files[brain][hemi].keys() ]
-    slab_files = files[brain][hemi][str(slab)]
-    
-
-    ### Iterate over progressively finer resolution
-    for resolution_itr, resolution in enumerate(resolution_list) :
-        print('\tMulti-Resolution Alignement:',resolution)
-        cfiles = files[brain][hemi][str(slab)][str(resolution)] #Current files
-        
-        cur_out_dir = cfiles['cur_out_dir']
-        seg_dir = cfiles['seg_dir'] 
-        srv_dir = cfiles['srv_dir'] 
-        align_to_mri_dir = cfiles['align_to_mri_dir'] 
-        nl_2d_dir = cfiles['nl_2d_dir']
-
-        for dir_name in [cur_out_dir, align_to_mri_dir , seg_dir, nl_2d_dir, srv_dir ] :
-            os.makedirs(dir_name, exist_ok=True)
-
-        srv_rsl_fn = cfiles['srv_rsl_fn']  
-        srv_crop_rsl_fn = cfiles['srv_crop_rsl_fn']  
-
-        seg_rsl_fn = cfiles['seg_rsl_fn']
-        nl_3d_tfm_fn = cfiles['nl_3d_tfm_fn']
-        nl_3d_tfm_inv_fn = cfiles['nl_3d_tfm_inv_fn']
-        rec_3d_rsl_fn = cfiles['rec_3d_rsl_fn']
-        srv_3d_rsl_fn = cfiles['srv_3d_rsl_fn']
-        srv_space_rec_fn = cfiles['srv_space_rec_fn']
-        srv_iso_space_rec_fn = cfiles['srv_iso_space_rec_fn']
-        nl_2d_vol_fn = cfiles['nl_2d_vol_fn']
-        nl_2d_cls_fn = cfiles['nl_2d_vol_cls_fn']
-
-        resolution_3d = max(float(resolution), max_resolution)
-        if resolution_3d == max_resolution :
-            resolution_itr_3d = [ i for i, res in enumerate(resolution_list) if float(res) >= max_resolution ][-1]
-        else :
-            resolution_itr_3d = resolution_itr
-
-        prev_resolution=resolution_list[resolution_itr-1]
-
-        last_nl_2d_vol_fn = files[brain][hemi][str(slab)][str(resolution_list[resolution_itr-1])]['nl_2d_vol_fn']
-        if resolution_itr > 0 : 
-            align_fn = last_nl_2d_vol_fn
-        else : 
-            align_fn = init_align_fn
-
-        ###
-        ### Stage 1.25 : Downsample SRV to current resolution
-        ###
-        print('\t\tStage 1.25' )
-        crop_srv_rsl_fn = files[brain][hemi][str(int(slab))][str(resolution)]['srv_crop_rsl_fn']
-        if run_stage([args.srv_fn], [srv_rsl_fn, crop_srv_rsl_fn]) or args.clobber :
-            # downsample the original srv gm mask to current 3d resolution
-            prefilter_and_downsample(args.srv_fn, [resolution_3d]*3, srv_rsl_fn)
-            
-            # if this is the fiest slab, then the cropped version of the gm mask
-            # is the same as the downsampled version because there are no prior slabs to remove.
-            # for subsequent slabs, the cropped srv file is created at stage 3.5
-            if int(slab) == int(slab_list[0]) : shutil.copy(srv_rsl_fn, crop_srv_rsl_fn)
-
-        ### Stage 1.5 : combine aligned sections from previous iterations into a volume
-        #Combine 2d sections from previous resolution level into a single volume
-        if resolution != resolution_list[0] and not os.path.exists(last_nl_2d_vol_fn)  :
-            last_nl_2d_dir = files[brain][hemi][slab][prev_resolution]['nl_2d_dir']
-            slab_df = concatenate_sections_to_volume(slab_df, init_align_fn, last_nl_2d_dir, last_nl_2d_vol_fn)
-
-        ###
-        ### Stage 2 : Autoradiograph segmentation
-        ###
-        print('\t\tStep 2: Autoradiograph segmentation')
-        stage_2_outputs=[seg_rsl_fn]
-        if not os.path.exists(seg_rsl_fn) or args.clobber  :
-            resample_transform_segmented_images(slab_df, resolution_itr, resolution, resolution_3d, seg_dir+'/2d/' )
-            #write 2d segmented sections at current resolution. apply initial transform
-            classifyReceptorSlices(slab_df, align_fn, seg_dir+'/2d/', seg_dir, seg_rsl_fn, resolution=resolution_3d )
-
-        ###
-        ### Stage 3 : Align slabs to MRI
-        ###
-        print('\t\tStep 3: align slabs to MRI')
-        stage_3_outputs = [nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_rsl_fn, srv_3d_rsl_fn]
-
-        if run_stage(stage_2_outputs, stage_3_outputs) or args.clobber  :
-            scale_factors_json = json.load(open(args.scale_factors_fn,'r'))
-            slab_direction = scale_factors_json[brain][hemi][slab]['direction']
-            align_slab_to_mri(  brain, hemi, slab, seg_rsl_fn, crop_srv_rsl_fn, align_to_mri_dir, 
-                                hemi_df, args.slabs, nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_rsl_fn, srv_3d_rsl_fn, 
-                                resolution_3d, resolution_itr_3d, 
-                                resolution_list, slab_direction, cfiles['manual_alignment_points'], cfiles['manual_alignment_affine'] )
-        
-
-        
-        ###
-        ### Stage 4 : 2D alignment of receptor to resample MRI GM vol
-        ###
-        if run_stage([srv_rsl_fn], [srv_iso_space_rec_fn, srv_space_rec_fn]) or args.clobber :
-            resample_to_autoradiograph_sections(brain, hemi, slab, float(resolution), srv_rsl_fn, seg_rsl_fn, nl_3d_tfm_inv_fn, srv_iso_space_rec_fn, srv_space_rec_fn)
-        
-        create_2d_sections( slab_df, srv_space_rec_fn, float(resolution), nl_2d_dir )
-            
-        print('\t\tStep 4: 2d nl alignment')
-        stage_4_outputs=[nl_2d_vol_fn, nl_2d_cls_fn]
-        #if run_stage(stage_3_outputs, stage_4_outputs)  or args.clobber:
-        slab_df = receptor_2d_alignment( slab_df, init_align_fn, srv_space_rec_fn,seg_dir+'/2d/', nl_2d_dir,  resolution, resolution_itr)
-        # Concatenate 2D nonlinear aligned sections into output volume
-        slab_df = concatenate_sections_to_volume( slab_df, srv_space_rec_fn, nl_2d_dir, nl_2d_vol_fn)
-        # Concatenate 2D nonlinear aligned cls sections into an output volume
-        slab_df = concatenate_sections_to_volume( slab_df, srv_space_rec_fn, nl_2d_dir, nl_2d_cls_fn, target_str='cls_rsl')
-
-        validate_alignment(nl_2d_dir, nl_2d_dir)
-
-    slab_df.to_csv(slab_info_fn)
-    return slab_df
 
 def add_tfm_column(slab_df, init_tfm_csv, slab_tfm_csv) :
     tfm_df = pd.read_csv(init_tfm_csv)
@@ -475,69 +341,18 @@ def create_srv_volumes_for_next_slab(args,files, slab_list, resolution_list, res
             create_new_srv_volumes(rec_3d_rsl_fn, crop_srv_rsl_fn, stage_3_5_outputs, resolution_list_3d)
     
 
-def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_resolution_3d=0.3):
-    hemi_df = df.loc[ (df['mri']==brain) & (df['hemisphere']==hemi) ]
-    hemi_df['nl_2d_rsl'] = ['empty'] * hemi_df.shape[0]
-    hemi_df['nl_2d_cls_rsl'] = ['empty'] * hemi_df.shape[0]
+def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_dict, interp_dir, brain, hemi, scale_factors) :
+    ###
+    ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
+    ###
+    final_ligand_dict={}
+    for ligand, df_ligand in hemi_df.groupby(['ligand']):
+        final_ligand_fn = surface_interpolation(df_ligand, slab_dict, interp_dir, brain, hemi, highest_resolution, args.srv_cortex_fn, args.slabs, files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+        final_ligand_dict[ligand] = final_ligand_fn
 
-    highest_resolution=resolution_list[-1]
+    return final_ligand_dict
 
-    create_directories(args, files, brain, hemi, resolution_list)
-
-    
-    resolution_list_3d = [ float(resolution) if float(resolution) > max_resolution_3d else max_resolution_3d for resolution in resolution_list ]
-
-    ### Reconstruct slab
-    for slab_index, slab in enumerate(args.slabs) :
-        print('Slab:', slab)
-        cdict = files[brain][hemi][str(slab)][str(resolution_list[0])]
-        slab_df=hemi_df.loc[ hemi_df['slab'].astype(int) ==int(slab) ]
-        init_align_fn = cdict['init_align_fn']
-        init_align_dir = cdict['init_align_dir']
-        init_tfm_csv =f'{init_align_dir}/{brain}_{hemi}_{slab}_final.csv'
-        slab_tfm_csv =f'{init_align_dir}/{brain}_{hemi}_{slab}_slab_tfm.csv'
-
-        ###  Step 1: Initial Alignment
-        print('\tInitial rigid inter-autoradiograph alignment')
-
-        if (not os.path.exists( init_align_fn) or not os.path.exists(init_tfm_csv) or args.clobber) :
-            receptorRegister(brain, hemi, slab, init_align_fn, init_tfm_csv, init_align_dir, args.manual_2d_dir, slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
-
-
-        if not os.path.exists(slab_tfm_csv): 
-            slab_df = add_tfm_column(slab_df, init_tfm_csv,slab_tfm_csv)
-        else : slab_df = pd.read_csv(slab_tfm_csv)
-       
-        #apply_transforms_to_landmarks(args.landmark_df, slab_df, args.landmark_dir, init_align_fn)
-
-        ### Steps 2-4 : Multiresolution alignment
-        cfiles=files[brain][hemi][str(slab)]
-        multiresolution_outputs = []
-        for file_name in ['seg_rsl_fn','nl_3d_tfm_fn','nl_3d_tfm_inv_fn','rec_3d_rsl_fn','srv_3d_rsl_fn','srv_iso_space_rec_fn','srv_space_rec_fn','nl_2d_vol_fn','nl_2d_vol_cls_fn']:
-            multiresolution_outputs += [ cfiles[str(resolution)][file_name] for resolution in resolution_list ]
-            
-        multiresolution_outputs+=[cfiles[str(resolution_list[-1])]['slab_info_fn']]
-        slab_info_fn = cfiles[str(resolution_list[-1])]['slab_info_fn'] #Current files
-        if run_stage([init_align_fn], multiresolution_outputs) or args.clobber : 
-            multiresolution_alignment(slab_info_fn, slab_df, hemi_df, brain, hemi, slab, slab_index, args, files, resolution_list, resolution_list_3d, init_align_fn, max_resolution_3d)
-    
-        create_srv_volumes_for_next_slab(args,files, args.slabs, resolution_list, resolution_list_3d, brain, hemi, slab, slab_index)
-
-        ###
-        ### Stage 4.5 : Create a new srv_rsl_fn file that removes the currently aligned slab
-        ###
-        #check that the current slab isn't the last one
-
-        slab_df = pd.read_csv(slab_info_fn, index_col=None)
-
-        slab_idx = hemi_df['slab'].astype(int) == int(slab)
-        #hemi_df.iloc[slab_idx] = slab_df
-        hemi_df['nl_2d_rsl'].loc[ slab_idx ] = slab_df['nl_2d_rsl'].values
-        hemi_df['nl_2d_cls_rsl'].loc[ slab_idx ] = slab_df['nl_2d_cls_rsl'].values
-   
-
-    interp_dir=f'{args.out_dir}/5_surf_interp/'
-
+def create_file_dict_output_resolution(files, brain, hemi, resolution_list):
     slab_dict={} 
     for slab, temp_slab_dict in files[brain][hemi].items() :
         nl_3d_tfm_exists = os.path.exists(temp_slab_dict[resolution_list[-1]]['nl_3d_tfm_fn'])
@@ -548,39 +363,105 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
             print(f'Error: not including slab {slab} for interpolation (nl 3d tfm exists = {nl_3d_tfm_exists}, 2d nl vol exists = {nl_2d_vol_exists}) ')
 
     assert len(slab_dict.keys()) != 0 , print('No slabs to interpolate over')
+    return slab_dict
+
+def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_resolution_3d=0.3):
+    hemi_df = df.loc[ (df['mri']==brain) & (df['hemisphere']==hemi) ]
+    hemi_df['nl_2d_rsl'] = ['empty'] * hemi_df.shape[0]
+    hemi_df['nl_2d_cls_rsl'] = ['empty'] * hemi_df.shape[0]
+    scale_factors = json.load(open(args.scale_factors_fn, 'r'))[brain][hemi]
+
+    highest_resolution=resolution_list[-1]
+
+    create_directories(args, files, brain, hemi, resolution_list)
+
+    resolution_list_3d = [ float(resolution) if float(resolution) > max_resolution_3d else max_resolution_3d for resolution in resolution_list ]
+
+    ### Reconstruct slab
+    for slab_index, slab in enumerate(args.slabs) :
+        hemi_df= reconstruct_slab(hemi_df, brain, hemi, slab, slab_index, args, files, resolution_list, resolution_list_3d, max_resolution_3d=0.3)
+   
+    interp_dir=f'{args.out_dir}/5_surf_interp/'
+
+    slab_dict = create_file_dict_output_resolution(files, brain, hemi, resolution_list)
     
-    #DEBUG
-    #srv_max_resolution_fn=f'/data/receptor/human/MR1_R_mri_cortex_{highest_resolution}mm.nii.gz'
-    #cortex_fn = srv_max_resolution_fn
+    validate_alignment(f'{args.out_dir}/6_quality_control/validate_alignment/', files[brain][hemi])
+    
+    if args.no_surf : exit(0)
+    
+    final_ligand_dict = surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_dict, interp_dir, brain, hemi, scale_factors)
+    
 
+    ###
+    ### 6. Quality Control
+    ###
     for ligand, df_ligand in hemi_df.groupby(['ligand']):
+        final_ligand_fn=final_ligand_dict[ligand]
+        max_resolution = resolution_list[-1]
+        depth = '0.5'
+        print('\tValidate reconstructed sections:', ligand)
+        validate_reconstructed_sections(final_ligand_fn, max_resolution, args.n_depths, df_ligand, args.srv_cortex_fn, base_out_dir='/data/receptor/human/output_4_caps4real/',  clobber=False)
+        
+        #FIXME filename should be passed from surface_interpolation
+        print(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')
+        ligand_csv_list = glob(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')
+        if len(ligand_csv_list) > 0 : 
+            sphere_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_inflate_rsl.h5')[0]
+            cortex_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_rsl.h5')[0]
+            faces_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_0.0_rsl_new_faces.h5')[0]
+            output_dir=f'/data/receptor/human/output_3_caps/6_quality_control/'
+            validate_interpolation(ligand_csv, sphere_mesh_fn, cortex_mesh_fn, faces_fn, output_dir, n_samples=1000, max_depth=6, ligand=ligand)
+        else : 
+            print('Could not find file for validate_interpolation')
 
-        if 'flum' == ligand or True :
-            ###
-            ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
-            ###
-            scale_factors = json.load(open(args.scale_factors_fn, 'r'))[brain][hemi]
-            final_ligand_fn = surface_interpolation(df_ligand, slab_dict, interp_dir, brain, hemi, highest_resolution, args.srv_cortex_fn, args.slabs, files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
-            #surface_interpolation(df_ligand, slab_dict, args.out_dir, interp_dir, brain, hemi, highest_resolution, srv_max_resolution_fn, args, files[brain][hemi],  tissue_type='_cls', surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
-            ###
-            ### 6. Quality Control
-            ###
-            max_resolution = resolution_list[-1]
-            depth = '0.5'
-            print('\tValidate reconstructed sections:', ligand)
-            validate_reconstructed_sections(final_ligand_fn, max_resolution, args.n_depths, df_ligand, args.srv_cortex_fn, base_out_dir='/data/receptor/human/output_4_caps4real/',  clobber=False)
-            
-            #FIXME filename should be passed from surface_interpolation
-            print(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')
-            ligand_csv_list = glob(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')
-            if len(ligand_csv_list) > 0 : 
-                sphere_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_inflate_rsl.h5')[0]
-                cortex_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_rsl.h5')[0]
-                faces_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_0.0_rsl_new_faces.h5')[0]
-                output_dir=f'/data/receptor/human/output_3_caps/6_quality_control/'
-                validate_interpolation(ligand_csv, sphere_mesh_fn, cortex_mesh_fn, faces_fn, output_dir, n_samples=1000, max_depth=6, ligand=ligand)
-            else : 
-                print('Could not find file for validate_interpolation')
+
+def reconstruct_slab(hemi_df, brain, hemi, slab, slab_index, args, files, resolution_list, resolution_list_3d, max_resolution_3d=0.3):
+    print('Slab:', slab)
+    cdict = files[brain][hemi][str(slab)][str(resolution_list[0])]
+    slab_df=hemi_df.loc[ hemi_df['slab'].astype(int) ==int(slab) ]
+    init_align_fn = cdict['init_align_fn']
+    init_align_dir = cdict['init_align_dir']
+    init_tfm_csv =f'{init_align_dir}/{brain}_{hemi}_{slab}_final.csv'
+    slab_tfm_csv =f'{init_align_dir}/{brain}_{hemi}_{slab}_slab_tfm.csv'
+
+    ###  Step 1: Initial Alignment
+    print('\tInitial rigid inter-autoradiograph alignment')
+
+    if (not os.path.exists( init_align_fn) or not os.path.exists(init_tfm_csv) or args.clobber) :
+        receptorRegister(brain, hemi, slab, init_align_fn, init_tfm_csv, init_align_dir, args.manual_2d_dir, slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
+
+    if not os.path.exists(slab_tfm_csv): 
+        slab_df = add_tfm_column(slab_df, init_tfm_csv,slab_tfm_csv)
+    else : slab_df = pd.read_csv(slab_tfm_csv)
+   
+    #apply_transforms_to_landmarks(args.landmark_df, slab_df, args.landmark_dir, init_align_fn)
+
+    ### Steps 2-4 : Multiresolution alignment
+    cfiles=files[brain][hemi][str(slab)]
+    multiresolution_outputs = []
+    for file_name in ['seg_rsl_fn','nl_3d_tfm_fn','nl_3d_tfm_inv_fn','rec_3d_rsl_fn','srv_3d_rsl_fn','srv_iso_space_rec_fn','srv_space_rec_fn','nl_2d_vol_fn','nl_2d_vol_cls_fn', 'slab_info_fn']:
+        multiresolution_outputs += [ cfiles[str(resolution)][file_name] for resolution in resolution_list ]
+        
+    #multiresolution_outputs+=[cfiles[str(resolution_list[-1])]['slab_info_fn']]
+    if run_stage([init_align_fn], multiresolution_outputs) or args.clobber : 
+        multiresolution_alignment( slab_df, hemi_df, brain, hemi, slab, slab_index, args, files, resolution_list, resolution_list_3d, init_align_fn, max_resolution_3d)
+
+    create_srv_volumes_for_next_slab(args,files, args.slabs, resolution_list, resolution_list_3d, brain, hemi, slab, slab_index)
+
+    ###
+    ### Stage 4.5 : Create a new srv_rsl_fn file that removes the currently aligned slab
+    ###
+    #check that the current slab isn't the last one
+
+    slab_info_fn = cfiles[str(resolution_list[-1])]['slab_info_fn'] #Current files
+    slab_df = pd.read_csv(slab_info_fn, index_col=None)
+
+    slab_idx = hemi_df['slab'].astype(int) == int(slab)
+    #hemi_df.iloc[slab_idx] = slab_df
+    hemi_df['nl_2d_rsl'].loc[ slab_idx ] = slab_df['nl_2d_rsl'].values
+    hemi_df['nl_2d_cls_rsl'].loc[ slab_idx ] = slab_df['nl_2d_cls_rsl'].values
+
+    return hemi_df
 
 ###---------------------###
 ###  PROCESSING STEPS   ###

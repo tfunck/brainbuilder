@@ -14,8 +14,8 @@ import re
 import h5py as h5 
 from glob import glob
 from utils.ANTs import ANTs
-from utils.utils import shell, splitext, points2tfm, read_points
-from nibabel.processing import resample_from_to, resample_to_output
+from utils.utils import shell, splitext, points2tfm, read_points, get_alignment_parameters
+from nibabel.processing import resample_from_to
 from scipy.ndimage.filters import gaussian_filter1d
 from scipy.io import loadmat
 from numpy.linalg import det
@@ -153,15 +153,25 @@ def pad_seg_vol(seg_rsl_fn,max_downsample_level):
     return ystart, ystep, seg_rsl_pad_fn
 
 def get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr,base_nl_itr = 250 ):
-    f_list=[ str(f) for f in range(max_downsample_level, 0, -1)]# if smallest_dimension / 2**(f-1) > 29 ]
-    
-    assert len(f_list) != 0, 'Error: no smoothing factors' 
+    #cur_res/res = 2^(f-1) --> f = 1+ log2(cur_res/res)
 
-    f_str='x'.join([ str(f) for f in f_list ])
-    s_list = [(int(f)-1)/np.pi for f in f_list ] 
-    s_str='x'.join( [str(i) for i in s_list] ) + 'vox'
+
+    f_list, f_str, s_str = get_alignment_parameters(resolution_itr, resolution_list)
+
+    use_old_alignment_parameters=True
+
+    if use_old_alignment_parameters:
+        f_list=[ str(f) for f in range(max_downsample_level, 0, -1)]# if smallest_dimension / 2**(f-1) > 29 ]
+
+        assert len(f_list) != 0, 'Error: no smoothing factors'
+
+        f_str='x'.join([ str(f) for f in f_list ])
+        s_list = [(int(f)-1)/np.pi for f in f_list ]
+        s_str='x'.join( [str(i) for i in s_list] ) + 'vox'
+
 
     min_nl_itr = len( [ resolution_list[i] for i in range(resolution_itr) if  float(resolution_list[i]) <= .1 ] )
+
 
     base_lin_itr= 500
     

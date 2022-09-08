@@ -11,7 +11,6 @@ import time
 import shutil
 import tempfile
 import multiprocessing
-from nibabel.processing import resample_to_output
 from joblib import Parallel, delayed
 from section_2d import section_2d
 from sys import argv
@@ -19,39 +18,44 @@ from glob import glob
 from utils.utils import *
 
 
-def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, use_syn=True):
+def align_2d_parallel(tfm_dir, mv_dir, resolution_list, resolution_itr, resolution, row, use_syn=True):
     #Set strings for alignment parameters
     f_list = [ '1', '2', '3', '4', '6', '8', '10', '12', '14', '16', '18', '24']
     s_list = [ '0', '1', '1.5', '2', '3', '4', '5', '6', '7', '8', '9', '16']
-    max_itr = min(resolution_itr, len(f_list))
     f_list = f_list[0:(max_itr+1)]
     s_list = s_list[0:(max_itr+1)]
     s_list.reverse()
     f_list.reverse()
+    
+    max_itr = resolution_itr # min(resolution_itr, len(f_list))
+    #f_list, f_str, s_str = get_alignment_parameters(resolution_itr, resolution_list)
 
-    base_lin_itr= 1000
-    base_nl_itr = 200
+    base_lin_itr= 100
+    base_nl_itr = 20
     max_lin_itr = base_lin_itr * (resolution_itr+1)
     max_nl_itr  = base_nl_itr * (resolution_itr+1)
     lin_step = -base_lin_itr 
     nl_step  = -base_nl_itr 
-
-    lin_itr_str='x'.join([str(base_lin_itr *(max_itr+1) + i * lin_step) for i in range(max_itr+1)])
-    nl_itr_str='x'.join( [str(base_nl_itr *(max_itr+1) + i * nl_step) for i in range(max_itr+1)])
+    print(max_itr)
+    lin_itr_str='x'.join([str(base_lin_itr * ((max_itr+1) - i)) for i in range(max_itr+1)])
+    nl_itr_str='x'.join( [str(base_nl_itr * ((max_itr+1) - i)) for i in range(max_itr+1)])
+    print(lin_itr_str)
+    print(nl_itr_str)
     nl_itr_str='[ '+ nl_itr_str +',1e-7,20 ]'
-    f_str='x'.join( [ f_list[i] for i in range(max_itr+1)])
-    s_str='x'.join( [ s_list[i] for i in range(max_itr+1)]) + 'vox'
 
-    f_cc = f_list[-1]
-    s_cc = s_list[-1]
+    f_cc = f_str.split('x')[-1]
+    s_cc = s_str.split('x')[-1]
 
     s_str_final = s_str.split(',')[-1]
     f_str_final = f_str.split(',')[-1]
+    print(f_str)
+    print(s_str)
     
     n0 = len(lin_itr_str.split('x'))
-    n1 = len(f_str.split('x'))
+    n1 = len(f_str.split('x')) 
     n2 = len(s_str.split('x'))-1
     n3 = len(nl_itr_str.split('x'))
+    print(n0,n1,n2,n3)
     assert n0==n1==n2==n3 , "Error: Incorrect lengths for ANTs parameters"
 
     y=int(row['slab_order'])
@@ -60,8 +64,6 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, use_syn=
     fx_fn = gen_2d_fn(prefix,'_fx')
 
     mv_fn = get_seg_fn(mv_dir, int(y), resolution, row['seg_fn'], suffix='_rsl')
-
-    print('mv fn', mv_fn)
 
     init_tfm = row['init_tfm']
     init_str = f'[{fx_fn},{mv_fn},1]'
@@ -84,7 +86,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, use_syn=
     with open(prefix+'_command.txt','w') as f : f.write(affine_command_str)
     shell(affine_command_str)
     
-    syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.5] -m Mattes[{fx_fn},{mv_fn},1,16,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}  -t SyN[0.5] -m Mattes[{fx_fn},{mv_fn},1,3,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}' 
+    syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.5] -m GC[{fx_fn},{mv_fn},1,16,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}  -t SyN[0.1] -m CC[{fx_fn},{mv_fn},1,3,Regular,1] -c 25 -s 0 -f 1' 
 
     if use_syn :
         with open(prefix+'_command.txt','w') as f : f.write(syn_command_str)
@@ -130,7 +132,7 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     assert os.path.exists(f'{out_fn}'), 'Error apply nl 2d tfm to cropped autoradiograph'
     return 0
 
-def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, resolution_itr, use_syn=True, batch_processing=False, clobber=False): 
+def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution_list, resolution, resolution_itr, use_syn=True, batch_processing=False, clobber=False): 
     df.reset_index(drop=True,inplace=True)
     df.reset_index(drop=True,inplace=True)
 
@@ -166,10 +168,10 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
             to_do_resample_df = to_do_resample_df.append(row)
 
     if to_do_df.shape[0] > 0 :
-        Parallel(n_jobs=num_cores)(delayed(align_2d_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, row,use_syn=use_syn) for i, row in  to_do_df.iterrows()) 
+        Parallel(n_jobs=num_cores)(delayed(align_2d_parallel)(tfm_dir, mv_dir, resolution_list, resolution_itr, resolution, row,use_syn=use_syn) for i, row in  to_do_df.iterrows()) 
         
     if to_do_resample_df.shape[0] > 0 :
-        Parallel(n_jobs=num_cores)(delayed(apply_transforms_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, row) for i, row in  to_do_resample_df.iterrows()) 
+        Parallel(n_jobs=num_cores)(delayed(apply_transforms_parallel)(tfm_dir, mv_dir,  resolution_itr, resolution, row) for i, row in  to_do_resample_df.iterrows()) 
     
     for i, row in df.iterrows() :
         y = int(row['slab_order'])

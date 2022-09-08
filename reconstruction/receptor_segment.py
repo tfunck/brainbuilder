@@ -17,7 +17,6 @@ from utils.utils import get_section_intervals, recenter
 from glob import glob
 from re import sub
 from utils.utils import *
-from nibabel.processing import resample_to_output
 from skimage.filters import threshold_otsu, threshold_li
 from scipy.ndimage.filters import gaussian_filter, gaussian_filter1d
 from sklearn.cluster import KMeans
@@ -99,7 +98,8 @@ def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution
                               [0,  resolution_3d, 0,zstart],
                               [0, 0,  0, 1],
                               [0, 0, 0, 1]]).astype(float)
-            nib.Nifti1Image(nib.load(seg_rsl_fn).get_fdata(), affine).to_filename(tfm_ref_fn)
+            #nib.Nifti1Image(nib.load(seg_rsl_fn).get_fdata(), affine).to_filename(tfm_ref_fn)
+            nib.Nifti1Image(nib.load(seg_rsl_fn).dataobj, affine).to_filename(tfm_ref_fn)
     else :
         tfm_ref_fn=seg_rsl_fn
 
@@ -112,12 +112,11 @@ def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution
         tfm_fn = row['tfm']  
         
         if type(tfm_fn) == str :
-            print('\n-->',tfm_fn, os.path.exists(tfm_fn),'\n')
-            print('\n-->',tfm_input_fn, os.path.exists(tfm_input_fn),'\n')
-            print('\n-->',seg_rsl_fn, os.path.exists(seg_rsl_fn), '\n')
+            #print('\n-->',tfm_fn, os.path.exists(tfm_fn),'\n')
+            #print('\n-->',tfm_input_fn, os.path.exists(tfm_input_fn),'\n')
+            #print('\n-->',seg_rsl_fn, os.path.exists(seg_rsl_fn), '\n')
 
             cmdline = f'antsApplyTransforms -n NearestNeighbor -v 0 -d 2 -i {tfm_input_fn} -r {tfm_ref_fn} -t {tfm_fn} -o {seg_rsl_tfm_fn}'
-            print(cmdline)
             shell(cmdline)
         else :
             print('\tNo transform for', seg_rsl_fn)
@@ -134,8 +133,7 @@ def resample_transform_segmented_images(df,resolution_itr,resolution_2d,resoluti
         num_cores = 1 
     else :
         num_cores = min(14, multiprocessing.cpu_count() )
-
-
+    
     Parallel(n_jobs=num_cores)(delayed(resample_and_transform)(output_dir, resolution_itr, resolution_2d, resolution_3d, row) for i, row in df.iterrows()) 
 
 def interpolate_missing_sections(vol, dilate_volume=False) :
@@ -187,11 +185,11 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         example_2d_list = glob(in_dir +'/*rsl_tfm.nii.gz') # os.path.basename(df['seg_fn'].iloc[0])
         assert len(example_2d_list) > 0 , 'Error: no files found in {}'.format(in_dir)
         example_2d_img = nib.load(example_2d_list[0])
+
         data = np.zeros([example_2d_img.shape[0], vol1.shape[1], example_2d_img.shape[1]],dtype=np.float32)
 
         #TODO this works well for macaque but less so for human
         if interpolation=='linear' :
-            print('\n\nokay!!!!\n\n')
             for i, row in df.iterrows() :
                 s0 = int(row['slab_order'])
                 fn = get_seg_fn(in_dir, int(row['slab_order']), resolution, row['seg_fn'], '_rsl_tfm')
@@ -236,34 +234,32 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         ystart = float(vol1.affine[1][3])
         zstart = float(vol1.affine[2][3])
 
-        print(xstart,ystart,zstart)
         aff=np.array([  [resolution, 0, 0, xstart],
                         [0, 0.02, 0, ystart ],
                         [0, 0,  resolution, zstart], 
                         [0, 0, 0, 1]]).astype(float)
         if flip_axes != () :
             data = np.flip(data,axis=flip_axes)    
-    
+        
+        
         data, aff = recenter(data, aff)
 
         # Gaussian blurring
         sd = (float(resolution)/0.02)/np.pi
         #effective resolution across y is really actually closer to 1mm not 0.02, so trying that instead 
         #only smooth along y axis because x and z axes are already at lower resolution
+
         data = gaussian_filter1d(data.astype(float), sd, axis=1 ).astype(float)
-
-
-        img_cls = nibabel.Nifti1Image(data, aff )     
-
-        #img_cls.to_filename(re.sub('.nii','_full.nii', out_fn))
+        ydim =  np.ceil( (vol1.affine[1,1] * vol1.shape[1]) / resolution).astype(int)
+        data = resize(data,[example_2d_img.shape[0], ydim, example_2d_img.shape[1]], order=5 )
+        
+        aff[[0,1,2],[0,1,2]]=resolution
         
         print("Writing output to", out_fn)
-        img_cls = resample_to_output(img_cls, [float(resolution)]*3, order=5)
         
-
-        vol = img_cls.get_fdata()
-        img_out = nib.Nifti1Image(vol, img_cls.affine, direction=[[1.,0.,0.],[0.,1.,0.],[0.,0.,-1.]])
+        img_out = nib.Nifti1Image(data, aff, direction=[[1.,0.,0.],[0.,1.,0.],[0.,0.,-1.]])
         img_out.to_filename(out_fn)
+        
         return 0
 
 if __name__ == "__main__":

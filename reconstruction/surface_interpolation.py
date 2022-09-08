@@ -927,7 +927,6 @@ def create_final_reconstructed_volume(final_mni_fn, mni_fn, resolution,  surf_de
     
     print('\tWriting', final_mni_fn)
     nib.Nifti1Image(output_vol, ref_img.affine, direction_order='lpi').to_filename(final_mni_fn)
-    exit(0)
 
 
 

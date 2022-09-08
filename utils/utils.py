@@ -21,7 +21,7 @@ import nibabel
 from utils.mesh_io import save_mesh, load_mesh, save_obj, read_obj
 from utils.fit_transform_to_paired_points import fit_transform_to_paired_points
 from ants import get_center_of_mass
-from nibabel.processing import resample_to_output, resample_from_to
+from nibabel.processing import resample_from_to
 from scipy.ndimage.filters import gaussian_filter 
 from os.path import basename
 from subprocess import call, Popen, PIPE, STDOUT
@@ -173,6 +173,41 @@ def get_section_intervals(vol):
     assert len(intervals) > 0 , 'Error: no valid intervals found for volume.'  
     return intervals
     
+def resample_to_output(vol, aff, resolution_list, order=1):
+    dim_range=range(len(vol.shape))
+    calc_new_dim = lambda length, step, resolution : np.ceil( (length*abs(step))/resolution).astype(int)
+    dim = [ calc_new_dim(vol.shape[i], aff[i,i], resolution_list[i]) for i in dim_range ]
+    assert len(np.where(np.array(dim)<=0)[0]) == 0 , f'Error: dimensions <= 0 in {dim}'
+    print('1.',vol.shape[1], aff[1,1], resolution_list[1])
+    vol = resize(vol, dim, order=order )
+    print('2.',vol.shape[1])
+
+    aff[dim_range,dim_range] = resolution_list
+    print('New Dim', dim)
+    return nib.Nifti1Image(vol, aff )
+
+
+def get_alignment_parameters(resolution_itr, resolution_list):
+
+    calc_factor  = lambda cur_res, image_res: np.rint(1+np.log2(float(cur_res)/float(image_res))).astype(int).astype(str)
+
+    f_list = [ calc_factor(resolution_list[i], resolution_list[resolution_itr]) for i in range(resolution_itr+1)  ]
+
+    
+    assert len(f_list) != 0, 'Error: no smoothing factors' 
+
+    f_str='x'.join([ str(f) for f in f_list ])
+    #DEBUG the followig line is probably wrong because sigma should be calcaulted
+    # as a function of downsample factor in f_list
+    s_list = [ np.round(float(resolution_list[i])/np.pi,2) for i in range(resolution_itr+1) ] 
+    # DEBUG the following is probably correct
+    #s_list = [ np.round((float(f)**(f-1))/np.pi,2) for f in f_list ] 
+    s_str='x'.join( [str(i) for i in s_list] ) + 'vox'
+
+    return f_list, f_str, s_str
+
+
+
 def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, ref_fn, tfm_inv_fn, iso_output_fn, output_fn):
     '''
     About:
@@ -191,18 +226,24 @@ def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, 
     Outpus:
         None
     '''
-    shell(f'antsApplyTransforms -n HammingWindowedSinc -v 1 -d 3 -i {input_fn} -r {ref_fn} -t {tfm_inv_fn} -o /tmp/tmp.nii.gz',True)
+    shell(f'antsApplyTransforms -n HammingWindowedSinc -v 0 -d 3 -i {input_fn} -r {ref_fn} -t {tfm_inv_fn} -o /tmp/tmp.nii.gz',True)
+    print('ref fn',ref_fn)
     img = nib.load('/tmp/tmp.nii.gz')
     vol = img.get_fdata()
     assert np.sum(vol) > 0, f'Error: empty volume {iso_output_fn}'
-     
-    img = resample_to_output(nibabel.Nifti1Image(vol,img.affine), [float(resolution)]*3, order=0)
-    vol = img.get_fdata()
-    nib.Nifti1Image(vol, img.affine ).to_filename(iso_output_fn)
+    
+    aff = img.affine.copy()
+    print('aff', aff) ; print(resolution);
+    img_iso = resample_to_output(vol, aff, [float(resolution)]*3, order=0)
+    print(iso_output_fn)
+    img_iso.to_filename(iso_output_fn)
+    
+    aff = img.affine
+    print('aff 2', aff)
 
-    img = resample_to_output(nibabel.Nifti1Image(vol,img.affine), [float(resolution),0.02, float(resolution)], order=0)
-    vol = img.get_fdata()
-    nib.Nifti1Image(vol, img.affine ).to_filename(output_fn)
+    img3 = resample_to_output(vol, aff, [float(resolution),0.02, float(resolution)], order=0)
+    print(output_fn)
+    img3.to_filename(output_fn)
 
     os.remove('/tmp/tmp.nii.gz')
 
@@ -364,7 +405,6 @@ def save_sections(file_list, vol, aff) :
                                 [0, 0,  0.02, 0 ],
                                 [0, 0,  0, 1]])
         i=0
-        print(y,fn)
         if np.sum(vol[:,int(y),:]) == 0 :
             # Create 2D srv section
             # this little while loop thing is so that if we go beyond  brain tissue in vol,
@@ -381,7 +421,6 @@ def get_to_do_list(df,out_dir,str_var,ext='.nii.gz'):
         assert int(y) >= 0, f'Error: negative y value found {y}'
         prefix = f'{out_dir}/y-{y}' 
         fn = gen_2d_fn(prefix,str_var,ext=ext)
-        print(fn)
         if not os.path.exists(fn) : to_do_list.append( [fn, y])
     return to_do_list
 
@@ -521,7 +560,6 @@ def get_z_x_max(source_files):
         source_files[i] = fn
 
 from scipy.ndimage import zoom
-from nibabel.processing import resample_to_output
 
 
 def safe_imread(fn) :
@@ -574,7 +612,7 @@ def downsample_and_crop(source_lin_dir, lin_dwn_dir,crop_dir, affine, step=0.2, 
             else : 
                 bounding_box = bounding_box / np.max(bounding_box)
             img = img * bounding_box 
-            nib.processing.resample_to_output(nibabel.Nifti1Image(img, affine), step, order=5).to_filename(dwn_fn)
+            resample_to_output(img, affine, [step]*len(img.shape), order=5).to_filename(dwn_fn)
             print("downsampled filename", dwn_fn)
             #nib.Nifti1Image(img, affine).to_filename(dwn_fn)
 
@@ -593,9 +631,9 @@ from scipy.ndimage import shift
 def recenter(vol, affine, direction=np.array([1,1,-1])):
     affine = np.array(affine)
     
-    nib.Nifti1Image(vol, affine).to_filename('test_not-shifted.nii.gz')
+    #nib.Nifti1Image(vol, affine).to_filename('test_not-shifted.nii.gz')
     vol_sum_1=np.sum(vol)
-    wcom1 = world_center_of_mass(vol,affine) 
+    #wcom1 = world_center_of_mass(vol,affine) 
 
     ndim = len(vol.shape)
     
@@ -606,11 +644,11 @@ def recenter(vol, affine, direction=np.array([1,1,-1])):
     d_world = d_vox * affine[range(ndim),range(ndim)]
     d_world *= direction 
     affine[range(ndim),3] -= d_world
+    print('\tShift in Segmented Volume by:', d_vox)
     vol = shift(vol,d_vox, order=0)
-
-    nib.Nifti1Image(vol, affine).to_filename('test_shifted.nii.gz')
+    #nib.Nifti1Image(vol, affine).to_filename('test_shifted.nii.gz')
     
-    wcom2 = world_center_of_mass(vol,affine) 
+    #wcom2 = world_center_of_mass(vol,affine) 
     steps = affine[range(ndim),range(ndim)]
     #assert np.sum(np.abs(wcom1- wcom2)) < np.sum(np.abs(steps))*3, f'Error: center of mass does not match {wcom1}, {wcom2}'
     #assert np.abs(vol_sum_1 - np.sum(vol))/vol_sum_1 < 0.02, f'Error: total intensities does not match after recentering'
@@ -663,7 +701,7 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
 
 
     if reference_image_fn == '' :
-        vol = resample_to_output( nibabel.Nifti1Image(vol, affine), new_resolution, order=5).get_fdata()
+        vol = resample_to_output( vol, affine, new_resolution, order=5).get_fdata()
         new_dims = [ vol.shape[0], vol.shape[1] ]
         if len(vol.shape) == 3 :
             if vol.shape[2] != 1 :
