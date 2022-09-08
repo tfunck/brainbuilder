@@ -523,6 +523,7 @@ def project_volume_to_surfaces(interp_dir, surf_dir, depth_list, slab_dict, df_l
     depth_fn_list = [ sub('.h5', f'_{depth}_l{n_depths}_raw.csv', profiles_fn) for depth in depth_list ]
    
     thickened_dict = create_thickened_volumes(interp_dir, depth_list, depth_fn_slab_space, depth_fn_list, slab_dict, df_ligand, n_depths, resolution, origin=origin, tissue_type=tissue_type)
+    
     profiles_fn = get_profiles(profiles_fn, recon_out_prefix, depth_fn_mni_space, depth_list, depth_fn_list, nrows)
 
     return thickened_dict, profiles_fn
@@ -589,7 +590,7 @@ def transform_surf_to_slab(interp_dir, slab_dict, depth_fn_space_mni, ref_gii_fn
              
             if not os.path.exists(upsample_slab_space_fn) or clobber >= 1 : 
                 print(f"\t\tTransformig surface at depth {depth} to slab {slab}")
-                apply_ants_transform_to_gii(upsample_fn, [cur_slab_dict['nl_3d_tfm_fn']], upsample_slab_space_fn, 0, depth_fn_space_mni[0]['faces_fn'], ref_gii_fn, ext)
+                apply_ants_transform_to_gii(upsample_fn, [cur_slab_dict['nl_3d_tfm_fn']], upsample_slab_space_fn, 0) #, depth_fn_space_mni[0]['faces_fn'])
      
     return surf_rsl_dict
 

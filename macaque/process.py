@@ -190,7 +190,7 @@ def create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn ):
     short_repeat_dict = { v:k for k,v in enumerate(short_repeat) }
     long_repeat_dict = { v:k for k,v in enumerate(long_repeat) }
     
-    if not os.path.exists(csv_fn) or True :
+    if not os.path.exists(csv_fn) :
    
         # load raw tif files
         auto_files = [ fn for fn in glob(f'{auto_dir}/img_lin_modified/*TIF') ]  #if not 'UB' in fn and not '#00' in fn ]
@@ -319,7 +319,7 @@ def qc_align(moving_row, fixed_row, init_dir, mv_fn, mv_rsl_fn, qc_fn) :
 
     plt.savefig(qc_fn)
 
-def align_sections(df, i_list, init_dir, reference_ligand, direction) :
+def align_sections(df, i_list, init_dir, reference_ligand, direction, metric='Mattes') :
 
     # Check if we are doing the initial alignment for the reference ligand
     ligand_list = df['ligand'].unique()
@@ -347,7 +347,7 @@ def align_sections(df, i_list, init_dir, reference_ligand, direction) :
              
             outprefix = f'{init_dir}/{moving_row["order"]}_{moving_row["ligand"]}/'
             os.makedirs(outprefix,exist_ok=True)
-            mv_rsl_fn = outprefix + "_level-0_Mattes_Rigid.nii.gz"
+            mv_rsl_fn = outprefix + f'_level-0_{metric}_Rigid.nii.gz'
             qc_fn=f'{init_dir}/{moving_row["order"]}_{moving_row["ligand"]}.png'
 
             if not os.path.exists(qc_fn) or not os.path.exists(mv_rsl_fn) :
@@ -355,17 +355,16 @@ def align_sections(df, i_list, init_dir, reference_ligand, direction) :
                 print('\t\t\tAligning')
                 ANTs(tfm_prefix=outprefix,
                     fixed_fn=fixed_row[file_to_align], moving_fn=moving_row[file_to_align],  moving_rsl_prefix=outprefix, 
-                    metrics=['Mattes'], tfm_type=['Rigid'],
-                    #iterations=['1000x500x250x125'],
-                    iterations=['100x50x20x10'],
+                    metrics=[metric], tfm_type=['Rigid'],
+                    iterations=['1000x500x250x125'],
                     shrink_factors=['4x3x2x1'], 
-                    smoothing_sigmas=['2.0x1.0x0.5x0'], 
+                    smoothing_sigmas=[8/np.pi, 4/np.pi, 2/np.pi, 0 ], #['2.0x1.0x0.5x0'], 
                     init_tfm=None, no_init_tfm=False, dim=2, nbins=32,
                     sampling_method='Regular',sampling=1, verbose=0, generate_masks=False, clobber=1)
                 qc_align(moving_row, fixed_row, init_dir, moving_row[file_to_align], mv_rsl_fn, qc_fn)
             df['init'].iloc[j] = mv_rsl_fn
             df['aligned'].iloc[j] = True 
-            df['tfm'].iloc[j] = outprefix + '_level-0_Mattes_Rigid_Composite.h5'
+            df['tfm'].iloc[j] = outprefix + f'_level-0_{metric}_Rigid_Composite.h5'
 
             j += direction
             if reference_align : break
@@ -397,19 +396,19 @@ def concat_section_to_volume(df, affine, volume_fn, file_var='crop'):
                 #plt.savefig(f'/tmp/{y}.png')
                 #plt.cla()
                 #plt.clf()
-        
         print('\tWriting to', volume_fn)
-        #volume
+        print(volume.shape)
+        #volum 
         nib.Nifti1Image(volume, affine).to_filename(volume_fn)
 
 
-def align(df, init_dir):
-    reference_ligand='flum'
+def align(df, init_dir, ligand_contrast_order, metric='Mattes'):
+    reference_ligand=ligand_contrast_order[0]
     df['aligned']=[False]*df.shape[0]
     df['init']=df['crop']
     df['tfm']=[None]*df.shape[0]
     aligned_df_list=[]
-    ligand_contrast_order = ['flum', 'mk80', 'musc', 'cgp5', 'ampa', 'kain', 'pire', 'damp', 'praz', 'uk14', 'keta', 'sch2', 'dpmg', 'dpat', 'cellbody', 'myelin']
+    #ligand_contrast_order = ['flum', 'mk80', 'musc', 'cgp5', 'ampa', 'kain', 'pire', 'damp', 'praz', 'uk14', 'keta', 'sch2', 'dpmg', 'dpat', 'cellbody', 'myelin']
             #,  'zm24', 'racl', 'oxot', 'epib']
     ligand_contrast_order = [ ligand for ligand in ligand_contrast_order if ligand in np.unique(df['ligand']) ]
     df = df.loc[df['ligand'].apply(lambda x: x in ligand_contrast_order)]    
@@ -418,8 +417,8 @@ def align(df, init_dir):
         idx = df['ligand'].apply(lambda x : x in [reference_ligand,ligand])
         df_ligand = df.loc[ idx ]
         mid_section = int(df_ligand.shape[0]/2)
-        df.loc[idx] = align_sections(df_ligand, range(mid_section,df_ligand.shape[0]), init_dir, reference_ligand, 1)
-        df.loc[idx] = align_sections(df_ligand, range(mid_section, 0, -1), init_dir, reference_ligand, -1)
+        df.loc[idx] = align_sections(df_ligand, range(mid_section,df_ligand.shape[0]), init_dir, reference_ligand, 1, metric=metric)
+        df.loc[idx] = align_sections(df_ligand, range(mid_section, 0, -1), init_dir, reference_ligand, -1, metric=metric)
         aligned_df_list.append( df_ligand.loc[df_ligand['ligand']==ligand])
     
     aligned_df = pd.concat(aligned_df_list)
@@ -433,27 +432,11 @@ def downsample(df, downsample_dir, resolution_2d):
         if not os.path.exists(crop_rsl_fn) :
             prefilter_and_downsample(crop_fn, [resolution_2d]*2, crop_rsl_fn)
 
-        #print('Downsampled:', i, crop_rsl_fn)
+        print('Downsampled:', i, crop_rsl_fn)
         df['crop'].iloc[i] = crop_rsl_fn
         #print(df['crop'].iloc[i])
     return df
 
-def segment(subject_id, df, seg_dir):
-    df['seg_fn'] = [''] * df.shape[0]
-    for i, (index, row) in enumerate(df.iterrows()):
-        crop_fn = row['crop']
-        fn = os.path.splitext(row['raw'])[0]+'_seg.nii.gz'
-        seg_fn = f'{seg_dir}/{os.path.basename(fn)}'
-        df['seg_fn'].iloc[i] = seg_fn
-        if not os.path.exists(seg_fn) :
-            img = nib.load(crop_fn)
-            data = img.get_fdata()
-            t = threshold_otsu( data[data>0] )
-            data[ data < t ] = 0
-            data[ data > 0 ] = 1
-            nib.Nifti1Image(data, img.affine).to_filename(seg_fn)
-
-    return df
 
 from scipy.ndimage.morphology import binary_dilation, binary_erosion, binary_closing
 def _get_section_intervals(vol, interp_dir):
@@ -641,8 +624,25 @@ def get_section_scale_factor(out_dir, template_fn, section_files):
 
     return section_scale_factor
 
+def get_ligand_contrast_order(df):
 
-def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json_fn, out_dir='macaque/output/', native_pixel_size=0.02163, ligands_to_exclude=[]):
+    df_list=[]
+    for i, ligand_df in df.groupby(['ligand']):
+        
+        for j, row in ligand_df.iterrows() :
+            ar = nib.load(row['raw'].values).dataobj
+            i_max = np.max(ar)
+            i_min = np.min(ar)
+            contrast = (i_max-i_min) / (i_max+i_min)
+
+            df_list.append(  pd.DataFrame({'ligand':[ligand], 'contrast':[contrast]})  )
+
+    df = pd.concat(df_list)
+    df_mean = df.groupby(['ligand']).mean()
+    print(df_mean)
+    
+
+def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_dir, csv_fn, native_pixel_size=0.02163,brain = '11530', hemi='B', pytorch_model='', ligands_to_exclude=[], resolution_list=[4,3,2,1], lowres=0.4, flip_dict={} ):
     mask_dir = f'{auto_dir}/mask_dir/'
     subject_dir=f'{out_dir}/{subject_id}/' 
     crop_dir = f'{out_dir}/{subject_id}/crop/'
@@ -650,23 +650,21 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
     downsample_dir = f'{out_dir}/{subject_id}/downsample'
     init_3d_dir = f'{out_dir}/{subject_id}/init_align_3d/'
     ligand_dir = f'{subject_dir}/ligand/'
-    csv_fn = f'{out_dir}/{subject_id}/{subject_id}.csv'
 
     srv_max_resolution_fn=template_fn #might need to be upsampled to maximum resolution
     surf_dir = f'{auto_dir}/surfaces/'
     interp_dir = f'{subject_dir}/interp/'
-    brain = '11530'
-    hemi = 'L' 
+    
     for dirname in [subject_dir, crop_dir, init_dir, downsample_dir, init_3d_dir, ligand_dir] : os.makedirs(dirname, exist_ok=True)
 
-    lowres=0.4
-    affine=np.array([[lowres,0,0,-90],[0,0.02,0,0.0],[0,0,lowres,-70],[0,0,0,1]])
-
-    df = create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn)
     
+    affine=np.array([[lowres,0,0,-90],[0,0.02,0,0.0],[0,0,lowres,-70],[0,0,0,1]])
+    
+    df = pd.read_csv(csv_fn) 
+
     # Output files
     affine_fn = f'{init_3d_dir}/{subject_id}_affine.mat'
-    volume_fn = f'macaque/output/{subject_id}/{subject_id}_volume.nii.gz'
+    volume_fn = f'{out_dir}/{subject_id}/{subject_id}_volume.nii.gz'
     volume_init_fn = f'{out_dir}/{subject_id}/{subject_id}_init-align_volume.nii.gz'
     volume_seg_fn = f'{subject_dir}/{subject_id}_segment_volume.nii.gz'
     volume_seg_iso_fn = f'{subject_dir}/{subject_id}_segment_iso_volume.nii.gz'
@@ -687,15 +685,16 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
     #crop_to_do = [ (y, raw_fn, crop_fn, ligand) for y, raw_fn, crop_fn, ligand in zip(df['repeat'], df['raw'], df['crop'],df['ligand']) if not os.path.exists(crop_fn) ]
     num_cores = min(1, multiprocessing.cpu_count() )
     
-    flip_dict = {'rostral_to_caudal':(0,), 'caudal_to_rostral':(0,1) }
-    
+   
     # Crop non-cellbody stains
-    crop(crop_dir, mask_dir, df.loc[df['ligand'] != 'cellbody'], scale_factors_json_fn, resolution=[60,45], remote=False, pad=0, clobber=False, create_pseudo_cls=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model='Task501')
+    crop(crop_dir, mask_dir, df.loc[df['ligand'] != 'cellbody'], scale_factors_json_fn, resolution=[60,45], remote=False, pad=0, clobber=False, create_pseudo_cls=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model=pytorch_model )
     
     # Crop cellbody stains
-    crop(crop_dir, mask_dir, df.loc[ df['ligand'] == 'cellbody' ], scale_factors_json_fn, resolution=[91,91], remote=False, pad=0, clobber=False,create_pseudo_cls=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model='Task501')
-
+    crop(crop_dir, mask_dir, df.loc[ df['ligand'] == 'cellbody' ], scale_factors_json_fn, resolution=[91,91], remote=False, pad=0, clobber=False,create_pseudo_cls=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model=pytorch_model)
     df['crop_raw_fn'] = df['crop']
+
+    df = df.loc[ df['crop'].apply(lambda fn : os.path.exists(fn)) ]
+    assert df.shape[0] > 0 , 'Error: empty data frame'
 
     ### 3. Resample images
     df = downsample(df, downsample_dir, lowres)
@@ -704,16 +703,22 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
     print('3. Init Alignment')
     concat_section_to_volume(df, affine, volume_fn, file_var='crop' )
 
-    aligned_df = align(df, init_dir )
+    
+    #TODO: ligand_contrast_order = get_ligand_contrast_order()
+    ligand_contrast_order=['oxot'] #DEBUG just for rat!
+    
+    aligned_df = align(df, init_dir, ligand_contrast_order )
     concat_section_to_volume(aligned_df, affine, volume_init_fn, file_var='init' )
 
     #points2tfm(points_fn, affine_fn, template_fn, volume_init_fn,  ndim=3, transform_type="Affine", invert=True, clobber=True)
     
     #shell(f'antsApplyTransforms -d 3 -v 1 -i {volume_init_fn} -t [{affine_fn},0] -r {template_fn} -o temp.nii.gz')
-    print('Init 3D')
-    affine_fn, init_3d_inv_fn = align_3d(volume_init_fn, template_fn, init_3d_dir, subject_id, 6, 
-                                f_str='5x4x3', s_str='2.5x2x1.5', lin_itr_str='2000x1000x1000') #, init_tfm=affine_fn)
-    resolution_list=[4,3,2,1] #[8,6,4,3,2,1]
+    print('Init 3D', np.power(lowres,5))
+    # .1 , .2, .4, .8, 1.6, 
+    affine_fn, init_3d_inv_fn = align_3d(volume_init_fn, template_fn, init_3d_dir,
+                                        subject_id, lowres*np.power(2,4), 
+                                        f_str='5x4x3', s_str='2.5x2x1.5', lin_itr_str='2000x1000x1000') #, init_tfm=affine_fn)
+    #[8,6,4,3,2,1]
     for itr, curr_res in enumerate(resolution_list):
         # Define some variables
         resolution_2d = curr_res
@@ -740,6 +745,7 @@ def reconstruct(subject_id, auto_dir, template_fn, points_fn, scale_factors_json
 
         ### 5. Segment
         resample_transform_segmented_images(aligned_df, itr, resolution_2d, resolution_3d, seg_2d_dir)
+        print(volume_init_fn)
         classifyReceptorSlices(aligned_df, volume_init_fn, seg_2d_dir, seg_dir, volume_seg_fn, resolution=resolution_3d, interpolation='linear', flip_axes=())
 
         ### 6. 3D alignment

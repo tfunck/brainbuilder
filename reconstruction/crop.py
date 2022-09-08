@@ -21,7 +21,6 @@ from scipy.ndimage import rotate
 from utils.utils import safe_imread, downsample, shell
 from scipy.ndimage.filters import gaussian_filter
 from skimage.filters import threshold_otsu, threshold_li
-#from utils.threshold_li import threshold_li
 from glob import glob
 from skimage import exposure
 from nibabel.processing import *
@@ -161,6 +160,7 @@ def process_image(img, row, scale, pad, affine,brain_str='mri', mask_fn='', flip
             print(direction, dict_direction, flip_axes)
             #plt.subplot(1,2,1); plt.imshow(img)
             #plt.title(f'{row["order"]}, {row["slab"]}')
+            print('Applying flip in axis,',flip)
             img = np.flip(img, axis=flip_axes)
             #plt.subplot(1,2,2); plt.imshow(img)
             #temp_fn = f'/tmp/{row["repeat"]}.png'
@@ -182,7 +182,7 @@ def process_image(img, row, scale, pad, affine,brain_str='mri', mask_fn='', flip
     try :
         section_rotation =  row['rotate']
         if section_rotation != 0 : img_pad = rotate(img_pad, section_rotation, reshape=False)
-    except IndexError : 
+    except KeyError : 
         pass
 
     return img_pad
@@ -215,7 +215,10 @@ def crop_parallel(row, mask_dir, scale, global_order_min, brain_str='mri', crop_
             mask_fn = mask_fn[0]
         else : 
             print('Skipping', fn,f'{mask_dir}/{base}*.png' )
-            mask_fn = f'{mask_dir}/{base}.png'
+            #DEBUG Not clear why mask_fn is being defined if no mask file has been found
+            #maybe before it would be created on the fly?
+            #mask_fn = f'{mask_dir}/{base}.png'
+            mask_fn=''
             
         print('\t\tMask fn:', mask_fn)
         
@@ -407,50 +410,45 @@ def convert_from_nnunet(fn, crop_fn, seg_fn, crop_dir, scale):
     print('\tWriting Seg fn', seg_fn)
     nib.Nifti1Image(ar, crop_img.affine).to_filename(seg_fn)
 
+def create_pseudo_classifications(df):
+    to_do=[]
+    for i, row in df.iterrows():
 
-def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='', remote=False, pad=1000, clobber=False, brain_str='mri', crop_str='crop_fn', lin_str='lin_fn', res=[20,20], flip_axes_dict={}, create_pseudo_cls=True):
-    '''take raw linearized images and crop them'''
+        pseudo_cls_fn = row['pseudo_cls_fn']
+        crop_fn = row[crop_str]
+        seg_fn = row['seg_fn']
+        slab_order = int(row['slab_order'])
+        slab = int(row['slab'])
+        if not os.path.exists(pseudo_cls_fn) : to_do.append([crop_fn, seg_fn,pseudo_cls_fn,slab_order,slab])
 
-    os_info = os.uname()
+    Parallel(n_jobs=14)(delayed(pseudo_classify_autoradiograph)(crop_fn, seg_fn, pseudo_cls_fn, slab_order,slab,resolution) for  crop_fn, seg_fn, pseudo_cls_fn, slab_order, slab in to_do) 
 
-    if os_info[1] == 'imenb079':
-        num_cores = 1 
-    else :
-        num_cores = min(14, multiprocessing.cpu_count() )
+def histogram_gm_segmentation_parallel(seg_fn, crop_fn):
+    print('\t\tReading', crop_fn)
+    img = nib.load(crop_fn)
+    ar = img.get_fdata()
 
-    global_order_min = df["global_order"].min()
+    ar[ ar < threshold_otsu(gaussian_filter(ar,3) ) ] = 0
+    ar[ ar>0 ] = 1
     
-    with open(scale_factors_json) as f : scale=json.load(f)
-    
-    file_check = lambda x : not os.path.exists(x)
-    crop_check = df[crop_str].apply( file_check ).values
-    #seg_check =  df['seg_fn'].apply( file_check ).values
+    print('\t\tWriting',seg_fn)
+    nib.Nifti1Image(ar, img.affine ).to_filename(seg_fn)
 
-    if create_pseudo_cls :
-        cls_check =  df['pseudo_cls_fn'].apply( file_check ).values
-    else :
-        cls_check= np.zeros_like(crop_check)
+def histogram_gm_segmentation(df, crop_str, num_cores, clobber=False):
+    to_do=[]
+    for i, row in df.iterrows():
+        seg_fn = row['seg_fn']
+        crop_fn= row[crop_str]
+        if not os.path.exists(seg_fn) or clobber :
+            to_do.append((seg_fn,crop_fn))
 
-    print(crop_check)
-    #missing_files = crop_check + seg_check + cls_check
-    missing_files = crop_check + cls_check
-    if np.sum( missing_files ) > 0 : 
-        pass
-    else : 
-        return 0
+    Parallel(n_jobs=num_cores)(delayed(histogram_gm_segmentation_parallel)(seg_fn,crop_fn) for seg_fn, crop_fn in to_do) 
 
-    df_to_process = df.loc[ crop_check ]  
-
-    Parallel(n_jobs=num_cores)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min, pytorch_model=pytorch_model, pad=pad, brain_str=brain_str, crop_str=crop_str, lin_str=lin_str, flip_axes_dict=flip_axes_dict) for i, row in  df_to_process.iterrows()) 
-
-    if pytorch_model != '' :
-
+def nnunet_gm_segmentation(crop_dir, df, res, crop_str, num_cores):
         nnunet_in_dir=f'{crop_dir}/nnunet/'
         nnunet_out_dir=f'{crop_dir}/nnunet_out/'
         os.makedirs(nnunet_in_dir, exist_ok=True)
         os.makedirs(nnunet_out_dir, exist_ok=True)
-
-        #Parallel(n_jobs=num_cores)(delayed(convert_for_nnunet)(row, nnunet_in_dir) for i, row in  df.iterrows()) 
 
         to_do = []
         for f in df[crop_str].values:
@@ -459,6 +457,7 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
             output_filename = output_filename_truncated + "_0000.nii.gz"
             if not os.path.exists(output_filename) :
                 to_do.append([f, output_filename]) 
+
         Parallel(n_jobs=num_cores)(delayed(convert_2d_array_to_nifti)(ii_fn,oo_fn,res=res) for ii_fn, oo_fn in to_do) 
 
         #shell(f'nnUNet_predict -i {nnunet_in_dir} -o {nnunet_out_dir} -t 502')
@@ -470,21 +469,59 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
             fn = glob(f'{nnunet_out_dir}/{os.path.basename(crop_fn)}')[0]
             if not os.path.exists(seg_fn) : 
                 to_do.append((fn,crop_fn,seg_fn))
+
         print('\tConvert Files from nnUNet nifti files')
         Parallel(n_jobs=14)(delayed(convert_from_nnunet)(fn, crop_fn, seg_fn, crop_dir,scale) for fn, crop_fn, seg_fn in to_do) 
-    
-    if create_pseudo_cls :
-        to_do=[]
-        for i, row in df.iterrows():
 
-            pseudo_cls_fn = row['pseudo_cls_fn']
-            crop_fn = row[crop_str]
-            seg_fn = row['seg_fn']
-            slab_order = int(row['slab_order'])
-            slab = int(row['slab'])
-            if not os.path.exists(pseudo_cls_fn) : to_do.append([crop_fn, seg_fn,pseudo_cls_fn,slab_order,slab])
+
+def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='', remote=False, pad=1000, clobber=False, brain_str='mri', crop_str='crop_fn', lin_str='lin_fn', res=[20,20], flip_axes_dict={}, create_pseudo_cls=True):
+    '''take raw linearized images and crop them'''
+
+    os_info = os.uname()
+
+    if os_info[1] == 'imenb079':
+        num_cores = 4
+    else :
+        num_cores = min(14, multiprocessing.cpu_count() )
+
+    global_order_min = df["global_order"].min()
+    
+    with open(scale_factors_json) as f : scale=json.load(f)
+    
+    file_check = lambda x : not os.path.exists(x)
+    crop_check = df[crop_str].apply( file_check ).values
+    seg_check =  df['seg_fn'].apply( file_check ).values
+
+    if create_pseudo_cls :
+        cls_check =  df['pseudo_cls_fn'].apply( file_check ).values
+    else :
+        cls_check= np.zeros_like(crop_check)
+
+    if pytorch_model != '':
+        missing_files = crop_check + cls_check
+    else :
+        missing_files = crop_check + seg_check + cls_check
+    
+    if np.sum( missing_files ) > 0 : 
+        pass
+    else : 
+        return 0
+
+    df_to_process = df.loc[ crop_check ]  
+
+    Parallel(n_jobs=num_cores)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min, pytorch_model=pytorch_model, pad=pad, brain_str=brain_str, crop_str=crop_str, lin_str=lin_str, flip_axes_dict=flip_axes_dict) for i, row in  df_to_process.iterrows()) 
+    print('pytorch', pytorch_model)
+    #create binary cortical segmentations
+    if pytorch_model != '' :
+        nnunet_gm_segmentation(crop_dir, df, res, crop_str, num_cores)
+    else : 
+        histogram_gm_segmentation(df,crop_str,num_cores)
+
         
-        Parallel(n_jobs=14)(delayed(pseudo_classify_autoradiograph)(crop_fn, seg_fn, pseudo_cls_fn, slab_order,slab,resolution) for  crop_fn, seg_fn, pseudo_cls_fn, slab_order, slab in to_do) 
+    if create_pseudo_cls :
+        create_pseudo_classifications(df)
+
+        
     return 0
 
 

@@ -32,13 +32,12 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
    
     nLevels = len(iterations)
     tfm_ext='GenericAffine.mat'
-    if 'SyN' in tfm_type : 
+    if 'SyN' in tfm_type and write_composite_transform != 1 : 
         tfm_ext=f'{nLevels-1}Warp.nii.gz'
         tfm_inv_ext=f'{nLevels-1}InverseWarp.nii.gz'
     elif write_composite_transform == 1 : 
         tfm_ext='Composite.h5'
         tfm_inv_ext='InverseComposite.h5'
-
     final_moving_rsl_fn = moving_rsl_prefix + '_level-' + str(nLevels-1) + '_' + metrics[-1] + '_'+ tfm_type[-1] + '.nii.gz'
     final_tfm_fn = f'{tfm_prefix}_level-{str(nLevels-1)}_{metrics[-1]}_{tfm_type[-1]}_{tfm_ext}'
     final_tfm_inv_fn = f'{tfm_prefix}_level-{str(nLevels-1)}_{metrics[-1]}_{tfm_type[-1]}_{tfm_inv_ext}'
@@ -122,6 +121,8 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
             if not no_init_tfm :
                 if init_tfm == None : 
                     cmdline += f" --initial-{init_tfm_direction}-transform [ "+fixed_fn+", "+moving_fn+", 1 ] "
+                elif init_tfm == '':
+                    pass
                 else : 
                     if type(init_tfm) != list :
                         init_tfm=[init_tfm]
@@ -154,8 +155,18 @@ def ANTs( tfm_prefix, fixed_fn, moving_fn, moving_rsl_prefix, iterations, tolera
             else :
                 cmdline += " "+str(radius)+", "
             cmdline += sampling_method +" , "+str(sampling)+" ] "
+            print(iterations)
+            print(level)
             cmdline += " --convergence [ "+iterations[level]+" , "+str(tolerance)+" , 20 ] "
-            cmdline += " --smoothing-sigmas "+smooth_sigma+"vox --shrink-factors "+shrink_factor
+            if type(smooth_sigma) != list :
+                cmdline += f' --smoothing-sigmas {smooth_sigma}vox '
+            else :
+                cmdline += f' --smoothing-sigmas {smooth_sigma[0]}vox '
+            if type(shrink_factor) == str :
+                cmdline += " --shrink-factors "+shrink_factor
+            else : 
+                cmdline += " --shrink-factors "+shrink_factor[0]
+
             cmdline += " --use-estimate-learning-rate-once 1 --use-histogram-matching 0 "
        
 

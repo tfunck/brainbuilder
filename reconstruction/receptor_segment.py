@@ -72,8 +72,8 @@ def downsample_2d(in_fn, resolution, out_fn, y=0):
         #write resample image
         img.to_filename(out_fn)
 
-def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution_3d, row, recenter_image=False):
-    seg_fn = row['seg_fn']
+def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution_3d, row, recenter_image=False, file_to_align='seg_fn'):
+    seg_fn = row[file_to_align]
     
     tfm_ref_fn = output_dir+'/2d_reference_image.nii.gz'
     seg_rsl_fn = get_seg_fn(output_dir, int(row['slab_order']), resolution_2d, seg_fn, '_rsl')
@@ -125,18 +125,18 @@ def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution
 
 
 
-def resample_transform_segmented_images(df,resolution_itr,resolution_2d,resolution_3d, output_dir):
+def resample_transform_segmented_images(df,resolution_itr,resolution_2d,resolution_3d, output_dir, file_to_align='seg_fn'):
 
     os.makedirs(output_dir, exist_ok=True)
     os_info = os.uname()
 
     if os_info[1] == 'imenb079':
-        num_cores = 1 
+        num_cores = 5 
     else :
         num_cores = min(14, multiprocessing.cpu_count() )
 
 
-    Parallel(n_jobs=num_cores)(delayed(resample_and_transform)(output_dir, resolution_itr, resolution_2d, resolution_3d, row) for i, row in df.iterrows()) 
+    Parallel(n_jobs=num_cores)(delayed(resample_and_transform)(output_dir, resolution_itr, resolution_2d, resolution_3d, row, file_to_align=file_to_align) for i, row in df.iterrows()) 
 
 def interpolate_missing_sections(vol, dilate_volume=False) :
     if dilate_volume :
@@ -167,7 +167,7 @@ def interpolate_missing_sections(vol, dilate_volume=False) :
 
 
 
-def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=5, flip_axes=(), clobber=False, resolution=0.2, interpolation='nearest') :
+def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=5, flip_axes=(), clobber=False, resolution=0.2, interpolation='nearest', file_to_align='seg_fn') :
     if not os.path.exists(out_fn)  or clobber :
         #
         # Check Inputs
@@ -184,26 +184,28 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
 
         #
         vol1 = nib.load(in_fn)
-        example_2d_list = glob(in_dir +'/*rsl_tfm.nii.gz') # os.path.basename(df['seg_fn'].iloc[0])
+        example_2d_list = glob(in_dir +'/*rsl_tfm.nii.gz') # os.path.basename(df[file_to_align].iloc[0])
         assert len(example_2d_list) > 0 , 'Error: no files found in {}'.format(in_dir)
         example_2d_img = nib.load(example_2d_list[0])
+        print(example_2d_list[0])
         data = np.zeros([example_2d_img.shape[0], vol1.shape[1], example_2d_img.shape[1]],dtype=np.float32)
 
         #TODO this works well for macaque but less so for human
         if interpolation=='linear' :
-            print('\n\nokay!!!!\n\n')
             for i, row in df.iterrows() :
                 s0 = int(row['slab_order'])
-                fn = get_seg_fn(in_dir, int(row['slab_order']), resolution, row['seg_fn'], '_rsl_tfm')
+                fn = get_seg_fn(in_dir, int(row['slab_order']), resolution, row[file_to_align], '_rsl_tfm')
+                print(fn)
                 img_2d = nib.load(fn).get_fdata()
                 #FIXME : Skipping frames that have been rotated
                 data[:,s0,:] = img_2d 
+
             data = interpolate_missing_sections(data, dilate_volume=True)
         else :
             valid_slices = []
             for i, row in df.iterrows() :
                 s0 = int(row['slab_order'])
-                fn = get_seg_fn(in_dir, int(row['slab_order']), resolution, row['seg_fn'], '_rsl_tfm')
+                fn = get_seg_fn(in_dir, int(row['slab_order']), resolution, row[file_to_align], '_rsl_tfm')
                 img_2d = nib.load(fn).get_fdata()
                 #FIXME : Skipping frames that have been rotated
                 if img_2d.shape != example_2d_img.shape :

@@ -147,10 +147,11 @@ def get_section_intervals(vol):
     plt.subplot(2,1,2); plt.plot(valid_sections); 
     plt.savefig(f'val_sections_{np.sum(valid_sections)}.png'); plt.clf(); plt.cla()
     labeled_sections, nlabels = label(valid_sections)
-    assert nlabels >= 2, 'Error: there must be a gap between thickened sections. Use higher resolution volumes.'
+    if nlabels < 2:
+        print('Error: there must be a gap between thickened sections. Use higher resolution volumes.')
 
     intervals = [ (np.where(labeled_sections==i)[0][0], np.where(labeled_sections==i)[0][-1]) for i in range(1, nlabels+1) ]
-    assert len(intervals) > 0 , 'Error: no valid intervals found for volume.'  
+    if len(intervals) == 0 : print( 'Warning: no valid intervals found for volume.'  )
     return intervals
     
 def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, ref_fn, tfm_inv_fn, iso_output_fn, output_fn):

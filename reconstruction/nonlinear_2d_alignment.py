@@ -19,7 +19,7 @@ from glob import glob
 from utils.utils import *
 
 
-def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, use_syn=True):
+def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, file_to_align='seg_fn', use_syn=True):
     #Set strings for alignment parameters
     f_list = [ '1', '2', '3', '4', '6', '8', '10', '12', '14', '16', '18', '24']
     s_list = [ '0', '1', '1.5', '2', '3', '4', '5', '6', '7', '8', '9', '16']
@@ -59,7 +59,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, use_syn=
     prefix = f'{tfm_dir}/y-{y}' 
     fx_fn = gen_2d_fn(prefix,'_fx')
 
-    mv_fn = get_seg_fn(mv_dir, int(y), resolution, row['seg_fn'], suffix='_rsl')
+    mv_fn = get_seg_fn(mv_dir, int(y), resolution, row[file_to_align], suffix='_rsl')
 
     print('mv fn', mv_fn)
 
@@ -130,7 +130,7 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     assert os.path.exists(f'{out_fn}'), 'Error apply nl 2d tfm to cropped autoradiograph'
     return 0
 
-def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, resolution_itr, use_syn=True, batch_processing=False, clobber=False): 
+def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, resolution_itr, file_to_align='seg_fn', use_syn=True, batch_processing=False, clobber=False): 
     df.reset_index(drop=True,inplace=True)
     df.reset_index(drop=True,inplace=True)
 
@@ -166,7 +166,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
             to_do_resample_df = to_do_resample_df.append(row)
 
     if to_do_df.shape[0] > 0 :
-        Parallel(n_jobs=num_cores)(delayed(align_2d_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, row,use_syn=use_syn) for i, row in  to_do_df.iterrows()) 
+        Parallel(n_jobs=num_cores)(delayed(align_2d_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, row,file_to_align=file_to_align,use_syn=use_syn) for i, row in  to_do_df.iterrows()) 
         
     if to_do_resample_df.shape[0] > 0 :
         Parallel(n_jobs=num_cores)(delayed(apply_transforms_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, row) for i, row in  to_do_resample_df.iterrows()) 
