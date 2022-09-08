@@ -423,10 +423,17 @@ def create_pseudo_classifications(df):
 
     Parallel(n_jobs=14)(delayed(pseudo_classify_autoradiograph)(crop_fn, seg_fn, pseudo_cls_fn, slab_order,slab,resolution) for  crop_fn, seg_fn, pseudo_cls_fn, slab_order, slab in to_do) 
 
+<<<<<<< HEAD
 def histogram_gm_segmentation_parallel(seg_fn, crop_fn):
     print('\t\tReading', crop_fn)
     img = nib.load(crop_fn)
     ar = img.get_fdata()
+=======
+    if os_info[1] == 'imenb079':
+        num_cores = 4 
+    else :
+        num_cores = min(14, multiprocessing.cpu_count() )
+>>>>>>> master
 
     ar[ ar < threshold_otsu(gaussian_filter(ar,3) ) ] = 0
     ar[ ar>0 ] = 1

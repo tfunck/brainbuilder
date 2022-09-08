@@ -360,7 +360,7 @@ def setup_section_normalization(ligand, slab_df, array_src):
     group_mean=0
     group_std=0
     slab_df = slab_df.sort_values(['slab_order'])
-    if ligand in [] :# [ 'cellbody' , 'myelin' ] : 
+    if ligand in [ 'cellbody' , 'myelin' ] : 
         print('Normalizing', ligand)
 
         normalize_sections=True  
@@ -469,6 +469,7 @@ def thicken_sections(interp_dir, slab_dict, df_ligand, n_depths, resolution, tis
             nib.Nifti1Image(rec_vol, array_img.affine).to_filename(thickened_fn)
 
         rec_thickened_dict[i] = thickened_fn
+    
     return rec_thickened_dict
 
 
