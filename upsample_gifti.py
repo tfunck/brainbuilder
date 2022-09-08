@@ -3,7 +3,6 @@ import os
 import time
 import sys
 import nibabel as nb
-#import utils.ants_nibabel as nib
 import matplotlib.pyplot as plt
 import h5py as h5
 import tempfile
@@ -22,11 +21,10 @@ from matplotlib.patches import Circle, Wedge, Polygon
 from matplotlib.collections import PatchCollection
 from utils.mesh_io import save_mesh, load_mesh, load_mesh_geometry, save_obj, read_obj
 from re import sub
-from utils.utils import shell,splitext, get_edges_from_faces, apply_ants_transform_to_gii
+from utils.utils import shell,splitext, get_edges_from_faces
 from glob import glob
 from sys import getsizeof
 from time import time
-
 
 global ram_counter
 global ram_fn
@@ -128,7 +126,7 @@ def add_entry(d,a,lst, nngh):
         #d[a].resize((nngh*2,))
         #new_d = np.zeros([d.shape[0],d.shape[1]+2))
         d = np.concatenate([d,np.zeros([d.shape[0],2])],axis=1)
-        print('\t\t\tResizing ngh',d.shape)
+        #print('\t\t\tResizing ngh',d.shape)
     d[a][nngh-n:nngh] = lst 
 
     return d, nngh
@@ -140,8 +138,6 @@ def get_ngh_h5(faces_h5_fn, ngh_h5_fn, nngh_npz_fn):
     triangles = triangles_h5_file['data'][:].astype(np.uint32)
     triangles_h5_file.close()
     max_idx=np.max(triangles)+1
-    print('\tWriting', ngh_h5_fn)
-    #d=h5.File(ngh_h5_fn,'w')
     nngh=np.zeros([max_idx]).astype(np.uint32)
 
     #for a in range(max_idx):
@@ -150,8 +146,8 @@ def get_ngh_h5(faces_h5_fn, ngh_h5_fn, nngh_npz_fn):
     d=np.zeros([max_idx,20])
 
     for count, (i,j,k) in enumerate(triangles):
-        if count % 1000 == 0: 
-            print('\t\t%3.1f'%(count/triangles.shape[0]*100),end='\r')
+        #if count % 1000 == 0: 
+        #    print('\t\t%3.1f'%(count/triangles.shape[0]*100),end='\r')
         d, nngh[i] = add_entry(d,int(i),[int(j),int(k)], nngh[i])
         d, nngh[j] = add_entry(d,int(j),[int(i),int(k)], nngh[j])
         d, nngh[k] = add_entry(d,int(k),[int(j),int(i)], nngh[k])
@@ -196,7 +192,7 @@ def obj_to_gii(in_fn, gii_ref_fn, gii_out_fn):
 
     save_gii(coords, faces, gii_ref_fn, gii_out_fn)
 
-def calc_dist (x,y) : return np.sum(np.abs(x - y), axis=1)
+def calc_dist (x,y) : return np.sqrt(np.sum(np.power((x - y),2), axis=1))
 
 def find_opposing_polygons(faces):
     opposing_faces=np.zeros(faces.shape[0]).astype(int)
@@ -230,7 +226,7 @@ def calculate_new_coords(coords, f_i, f_j, idx):
 import pandas as pd
 
 
-def calc_new_coords(faces_h5_fn, coords_h5_fn, resolution, n_new_edges, edge_mask=None):
+def calc_new_coords(faces_h5_fn, coords_h5_fn, resolution, n_new_edges, new_edges_npz_fn, df_ligand, surf_slab_space_dict=None):
     # Open h5py file
     faces_h5 = h5py.File(faces_h5_fn, 'r')
     coords_h5 = h5py.File(coords_h5_fn, 'a')
@@ -240,11 +236,11 @@ def calc_new_coords(faces_h5_fn, coords_h5_fn, resolution, n_new_edges, edge_mas
 
     #get the index number of all the edges in the mesh
     edges = get_edges_from_faces(faces_h5['data']) 
-
-    #DEBUG I think this is where to apply edge_mask
-    if edge_mask != None :
+    if type(surf_slab_space_dict) == dict :
+        edge_mask = identify_target_edges(edges, df_ligand, surf_slab_space_dict, new_edges_npz_fn, resolution)
         #remove edges that are not in the mask, i.e., edges which do not intersect a histological section
         edges = edges[edge_mask]
+        print('edge mask:', np.sum(edge_mask))
 
     e_0, e_1 = edges[:,0], edges[:,1]
 
@@ -256,41 +252,32 @@ def calc_new_coords(faces_h5_fn, coords_h5_fn, resolution, n_new_edges, edge_mas
     #calculate the euclidean distance between all points on an edge
     d_ij = calc_dist(c_0, c_1)
 
-    long_edges = d_ij >= resolution
-    
-    '''
-    for e0, e1 in edges[long_edges] :
-        check=False
-        if e0 in [179,85,91] and e1 in [179,85,91] :
-            for a,b,c in faces_h5['data'][:] :
-                if e0 in [a,b,c] and e1 in [a,b,c] :
-                    check=True
-                    break
-            if not check :
-                print('uh ok, found a bad edge', e0, e1, 'is not in', a,b,c)
-                exit(0)
+    max_edge_length = np.max(d_ij)
+    mean_edge_length = np.mean(d_ij)
+    perc95 = np.percentile(d_ij,[95])[0]
+    mesh_stats={'max':max_edge_length, 'mean':mean_edge_length, 'perc95':perc95}
 
-            print('problematic edge', e0,e1, check, a,b,c)
-    '''        
+    long_edges = d_ij >= resolution
+   
     n_valid=np.sum(~long_edges)
     n_long=np.sum(long_edges).astype(int)
 
     n_total_coords = coord_offset + n_long
 
     coords_h5['data'].resize((n_total_coords,3))
-    coords_h5['data'][coord_offset:] = ( coords_h5['data'][:][e_0][long_edges] + coords_h5['data'][:][e_1][long_edges] )/2.
+    coords_h5['data'][coord_offset:] = ( c_0[long_edges] + c_1[long_edges] )/2.
+    
     coords_h5.close()
     faces_h5.close()
     
     n_total_new_edges = n_new_edges+ n_long
 
-    print('\t edges:',n_new_edges,n_total_new_edges, n_total_coords) 
     del e_0
     del e_1
     del d_ij
     del c_0
     del c_1
-    return edges, n_total_new_edges, long_edges, n_long, coord_offset, faces_offset, n_edges
+    return edges, n_total_new_edges, long_edges, n_long, coord_offset, faces_offset, n_edges, mesh_stats
 
 
 def get_opposite_poly(edges, edge_counter, ngh, nngh, faces_dict, debug=False ): 
@@ -421,24 +408,21 @@ def update_faces(ngh, nngh, faces_h5, faces_dict, face_idx, faces_offset, index,
 def list_intersect( x, y) : return list(set([ii for ii in x+y if ii in x and ii in y]))
 
 def assign_new_edges(new_edges_npz_fn, edges,  n_new_edges, n_total_new_edges, long_edges):
+    # new_edges are the edgges that define the upsampled mesh
+
     long_edges=np.arange(long_edges.shape[0])[long_edges].astype(np.uint32)
     
-    #temp_fn = sub('h5','_temp.h5',new_edges_npz_fn)
     temp_fn=new_edges_npz_fn+'_temp.h5'
     edges_temp = h5.File(temp_fn,'w')
-    RAM('edges_temp.create_dataset'); 
 
     edges_temp.create_dataset('data',edges.shape,dtype=np.uint32)
-    RAM('assign edges'); 
 
     edges_temp['data'][:] = edges
-    print(edges_temp.keys())
     edges_temp.close()
 
     temp_edges = np.vstack([edges[long_edges,0],edges[long_edges,1]])
     del edges
     
-    RAM('create new edges'); 
     temp_edges = temp_edges.T
     
     if n_new_edges == 0 :
@@ -448,19 +432,6 @@ def assign_new_edges(new_edges_npz_fn, edges,  n_new_edges, n_total_new_edges, l
         new_edges = np.concatenate([new_edges, temp_edges], axis=0)
 
     np.savez(new_edges_npz_fn, data=new_edges)
-    RAM('resize new edges'); 
-    #new_edges_h5['data'].resize((n_total_new_edges,2))
-    #new_edges_h5.close()
-    
-    #new_edges_h5 = h5py.File(new_edges_npz_fn, 'r+')
-    
-    #print(new_edges_h5.keys())
-    #new_edges_h5['data'][n_new_edges:n_total_new_edges]=new_edges
-    #print(new_edges_h5)
-    #print(new_edges_h5.keys())
-    #new_edges_h5['data'][:]=new_edges
-    #del new_edges
-    #new_edges_h5.close()
 
     return temp_fn
 
@@ -479,54 +450,32 @@ def subdivide_triangle(coord_offset, coord_idx, edges, edge_counter, ngh, nngh, 
     del c 
     del d
 
-def upsample_edges(output_dir, coords_h5_fn, faces_h5_fn, faces_dict, new_edges_npz_fn,  resolution, edge_mask=None, temp_alt_coords=None, debug=False, n_new_edges=0, coord_normals = []) :
+def upsample_edges(output_dir, coords_h5_fn, faces_h5_fn, faces_dict, new_edges_npz_fn,  resolution, df_ligand, surf_slab_space_dict=None, temp_alt_coords=None, debug=False, n_new_edges=0, coord_normals = []) :
 
-    RAM('calc_new_coords');
-    edges, n_total_new_edges, long_edges, n_long, coord_offset, faces_offset, n_edges = calc_new_coords(faces_h5_fn, coords_h5_fn, resolution, n_new_edges, edge_mask=edge_mask)
-
-    if edge_mask != None : 
-        if n_edges > edge_mask.shape[0]:
-            edge_mask = np.concatenate([edge_mask, np.ones(n_total_new_edges).astype(np.bool) ])
+    edges, n_total_new_edges, long_edges, n_long, coord_offset, faces_offset, n_edges, mesh_stats = calc_new_coords(faces_h5_fn, coords_h5_fn, resolution, n_new_edges, new_edges_npz_fn, df_ligand, surf_slab_space_dict=surf_slab_space_dict)
+    n_coords = coord_offset +  n_long
 
     temp_fn = assign_new_edges(new_edges_npz_fn, edges, n_new_edges, n_total_new_edges, long_edges)
     edges=h5.File(temp_fn, 'r')
     
-    RAM('get ngh from h5'); 
     ngh_h5_fn = f'{output_dir}/ngh_{resolution}_rsl_{n_total_new_edges}'
     nngh_npz_fn = f'{output_dir}/nngh_{resolution}_rsl_{n_total_new_edges}'
     if not os.path.exists(ngh_h5_fn) or not os.path.exists(nngh_npz_fn+'.npz') :
         get_ngh_h5(faces_h5_fn, ngh_h5_fn, nngh_npz_fn)
      
-    RAM('after get_ngh_from_h5') 
-    #ngh = h5.File(ngh_h5_fn, 'r+')
     ngh = np.load(ngh_h5_fn+'.npz')['data'].astype(np.uint32)
     nngh = np.load(nngh_npz_fn+'.npz')['data'].astype(np.uint32)
-    RAM('loading ngh nngh') 
     #extend nngh for the total number of new coordinates
     nngh = np.concatenate([nngh,-1*np.ones(n_long)],axis=0).astype(np.uint32) 
     ngh = np.concatenate([ngh,np.ones([n_total_new_edges,ngh.shape[1]])],axis=0).astype(np.uint32) 
     
-    #faces_h5 = h5py.File(faces_h5_fn, 'a')
-    #n_new_faces = faces_h5['data'].shape[0]+n_long*2
-    #RAM('expand faces'); 
-    #faces_h5['data'].resize( (n_new_faces, 3) )
-    #faces_h5['data'][faces_offset:,:] = -1
-
     faces_h5_file = h5py.File(faces_h5_fn, 'r')
     faces_h5 = faces_h5_file['data'][:]
     faces_h5_file.close()
     n_new_faces = faces_h5.shape[0]+n_long*2
-    RAM('expand faces'); 
 
     faces_h5 = np.concatenate([faces_h5,-1*np.ones([n_long*2,3])],axis=0).astype(np.uint32) 
-
-    #print("\n---------------------------------------------------------")
-    #[print(stat) for stat in snapshot.statistics("lineno")]
-    #print("---------------------------------------------------------\n")
-    #for stat_i, stat in enumerate(snapshot.statistics("lineno")): 
-    #    print(stat_i, stat)
-    #    if stat_i > 100 : break
-    RAM('edges and faces dtype')
+    
     #
     #           d
     #          /|\
@@ -545,9 +494,15 @@ def upsample_edges(output_dir, coords_h5_fn, faces_h5_fn, faces_dict, new_edges_
     edges_range = enumerate(np.arange(n_edges).astype(np.uint32)[long_edges])
     del long_edges
 
+    #coords_h5 = h5.File(coords_h5_fn)
+    #coords = coords_h5['data']
 
     #iterate over long edges (i.e., greater than desired resolution)
     for coord_idx, edge_counter in edges_range:
+
+        #if coord_idx < 20 :
+        #    print(coord_idx, edges['data'][edge_counter])
+
         if coord_idx % 50000 ==0 : print('\t\t{}'.format(np.round(100*coord_idx/n_long,2))) #,end='\r')
 
         #NOTE: faces_dict is a dictionary that maps the index of a face on the surface mesh
@@ -559,7 +514,6 @@ def upsample_edges(output_dir, coords_h5_fn, faces_h5_fn, faces_dict, new_edges_
 
     del edges
     del ngh
-    #ngh.close()
 
     faces_h5_file = h5py.File(faces_h5_fn, 'w')
     faces_h5_file.create_dataset('data', faces_h5.shape, dtype=np.uint32)
@@ -567,13 +521,12 @@ def upsample_edges(output_dir, coords_h5_fn, faces_h5_fn, faces_dict, new_edges_
     faces_h5_file.close()
     del faces_h5
     
-    #faces_h5.close() 
     os.remove(temp_fn)
 
-    max_len, avg_len, perc95, n_coords, n_faces = get_mesh_stats(faces_h5_fn, coords_h5_fn)
-    print('\tmax edge',max_len,'\tavg', avg_len,'\tperc95', perc95, '\tcoords=', n_coords, '\tfaces=', n_faces )
+    #max_len, avg_len, perc95, n_coords, n_faces = get_mesh_stats(faces_h5_fn, coords_h5_fn, edge_mask=edge_mask)
+    print(f'\tmax edge {mesh_stats["max"]:.3f}\tavg: {mesh_stats["mean"]:.3f}\tperc95: {mesh_stats["perc95"]:.3f}\tcoords= {n_coords}' )
     new_coord_normals = [] 
-    return  max_len, new_coord_normals, faces_dict, n_total_new_edges
+    return  mesh_stats['max'], new_coord_normals, faces_dict, n_total_new_edges
 
 
 
@@ -626,36 +579,19 @@ def write_gifti_from_h5(upsample_fn, coords_fn, faces_fn, input_fn ) :
     #        write_mesh(np.load(fn+'.npy'), faces, input_fn, alt_upsample_fn )
 
 
-def setup_h5_arrays(input_fn, upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_npz_fn, clobber=False):
+def setup_h5_arrays(input_fn, upsample_fn, faces_h5_fn, coords_h5_fn,  clobber=False):
     ext = os.path.splitext(input_fn)[1]
-    print(input_fn)
+    
     coords_npy, faces_npy, volume_info = load_mesh(input_fn,correct_offset=False)
     
-    '''
-    if ext == '.gii' :
-        mesh = nb.load(input_fn)
-        faces_npy = mesh.agg_data('NIFTI_INTENT_TRIANGLE')
-        coords_npy = mesh.agg_data('NIFTI_INTENT_POINTSET')
-    elif ext == '.obj' :
-        mesh_dict = load_mesh_geometry(input_fn)
-        coords_npy = mesh_dict['coords']
-        faces_npy = mesh_dict['faces']
-    else :
-        print('Error: could not recognize filetype from extension,',ext)
-        exit(1)
-    '''
     faces_h5 = h5py.File(faces_h5_fn,'w')
     faces_h5.create_dataset('data', data=faces_npy, maxshape=(None, 3), dtype=np.int32)
     del faces_npy
 
-    print(coords_h5_fn);
     coords_h5 = h5py.File(coords_h5_fn,'w')
     coords_h5.create_dataset('data', data=coords_npy, maxshape=(None, 3), dtype=np.float16)
     del coords_npy
 
-    #new_edges_h5 = h5py.File(new_edges_npz_fn,'w')
-    #new_edges_h5.create_dataset('data', (1,2), maxshape=(None, 2), chunks=True, dtype=np.uint32)
-    #new_edges_h5.close()
 
     faces_h5['data'][:] = np.sort(faces_h5['data'][:], axis=1).astype(np.int32)
     faces_dict={}
@@ -668,15 +604,17 @@ def setup_h5_arrays(input_fn, upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_
     return faces_dict
 
 
-def get_mesh_stats(faces_h5_fn, coords_h5_fn):
+def get_mesh_stats(faces_h5_fn, coords_h5_fn, edge_mask=None):
     faces_h5 = h5py.File(faces_h5_fn,'r')
     coords_h5 = h5py.File(coords_h5_fn,'r')
 
-    #calculate edge lengths
-    d = [   calc_dist(coords_h5['data'][:][ faces_h5['data'][:,0] ], coords_h5['data'][:][ faces_h5['data'][:,1] ]),
-            calc_dist(coords_h5['data'][:][ faces_h5['data'][:,1] ], coords_h5['data'][:][ faces_h5['data'][:,2] ]),
-            calc_dist(coords_h5['data'][:][ faces_h5['data'][:,2] ], coords_h5['data'][:][ faces_h5['data'][:,0] ])]
+    edges = get_edges_from_faces(faces_h5['data'][:])
 
+    e0=edges[:,0]
+    e1=edges[:,1]
+
+    #calculate edge lengths
+    d = calc_dist(coords_h5['data'][:][ e0 ], coords_h5['data'][:][e1])
 
     max_len = np.max(d)
     avg_len = np.round(np.mean(d),3)
@@ -692,14 +630,10 @@ def get_mesh_stats(faces_h5_fn, coords_h5_fn):
     return max_len, avg_len, perc95, n_coords, n_faces
 
 
-def upsample_with_h5(input_fn,upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_npz_fn, resolution, edge_mask=None, test=False, clobber=False, debug=False):
-        RAM('start')
+def upsample_with_h5(input_fn,upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_npz_fn, resolution, df_ligand, surf_slab_space_dict=None, test=False, clobber=False, debug=False):
         output_dir = os.path.dirname(upsample_fn)
-
-        faces_dict = setup_h5_arrays(input_fn, upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_npz_fn, clobber=clobber)
-        RAM('after setup h5 arrays') 
-        max_len, avg_len,  perc95, n_coords, n_faces = get_mesh_stats(faces_h5_fn, coords_h5_fn)
-        RAM('get mesh stats')
+        print('setup h5 arrays')
+        faces_dict = setup_h5_arrays(input_fn, upsample_fn, faces_h5_fn, coords_h5_fn, clobber=clobber)
         #calculate surface normals
         coord_normals=[]
         #if resolution > 1 :
@@ -710,20 +644,20 @@ def upsample_with_h5(input_fn,upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_
         #    del faces_h5
         #    del coords_h5
 
+        print('get mesh stats')
+        max_len, avg_len, perc95, n_coords, n_faces = get_mesh_stats(faces_h5_fn, coords_h5_fn)
         print('\tmax edge',max_len,'\tavg', avg_len,'\tcoords=', n_coords , '\tfaces=',n_faces )
 
         counter=0
         n_new_edges = 0
         metric = max_len
 
-        print('target reslution:', resolution)
+        #print('target reslution:', resolution)
         while metric > resolution :
-            print(metric, resolution, metric > resolution)
-            metric, coord_normals, faces_dict, n_new_edges = upsample_edges(output_dir, coords_h6_fn, faces_h5_fn, faces_dict, new_edges_npz_fn, resolution, edge_mask=edge_mask, debug=debug,  n_new_edges=n_new_edges, coord_normals=coord_normals)
+            old_metric = metric
+            print('Number of too long vertices', metric)
+            metric, coord_normals, faces_dict, n_new_edges = upsample_edges(output_dir, coords_h5_fn, faces_h5_fn, faces_dict, new_edges_npz_fn, resolution, df_ligand, surf_slab_space_dict=surf_slab_space_dict, debug=debug,  n_new_edges=n_new_edges, coord_normals=coord_normals)
             counter+=1
-            print_size(faces_dict)
-
-
         if coord_normals != [] :
             faces=fix_normals(faces,coords_h5['data'][:],coord_normals)
 
@@ -731,46 +665,49 @@ def upsample_with_h5(input_fn,upsample_fn, faces_h5_fn, coords_h5_fn, new_edges_
 
         return n_new_edges
 
-def identify_target_edges_within_slab(edge_mask, ligand_vol_fn, surf_fn, ext='.nii.gz'):
-    img = nib.load(ligand_vol_fn)
+def identify_target_edges_within_slab(edge_mask, section_numbers, ligand_vol_fn, coords, edges, resolution, ext='.nii.gz'):
+    img = nb.load(ligand_vol_fn)
     ligand_vol = img.get_fdata()
     step = img.affine[1,1]
     start = img.affine[1,3]
-
-    coords, faces, surf_info = load_mesh(surf_fn)
-
-    edges = get_edges_from_faces(faces)
-    
+    ydir = np.sign(step)
+    resolution_step = resolution * ydir
+        
     e0 = edges[:,0]
     e1 = edges[:,1]
     c0 = coords[e0,1]
     c1 = coords[e1,1]
-    
+   
+    edge_range = np.arange(0, edges.shape[0]).astype(int)
+    edge_range = edge_range[edge_mask == False]
+
     edge_y_coords = np.vstack([c0,c1]).T
 
     idx_1 = np.argsort(edge_y_coords,axis=1)
     edges = np.take_along_axis(edge_y_coords, idx_1, 1)
     sorted_edge_y_coords = np.take_along_axis(edge_y_coords, idx_1, 1)
     
-
     idx_0 = np.argsort(edges,axis=0)
     sorted_edge_y_coords = np.take_along_axis( sorted_edge_y_coords, idx_0, 0)
     edges = np.take_along_axis( edges, idx_0, 0)
 
-    ligand_y_profile = np.sum(ligand_vol,axis=(0,2))
-    section_numbers = np.where(ligand_y_profile > 0)[0]
+    #ligand_y_profile = np.sum(ligand_vol,axis=(0,2))
+    #section_numbers = np.where(ligand_y_profile > 0)[0]
     
     section_counter=0
     current_section_vox = section_numbers[section_counter]
     current_section_world = current_section_vox * step + start
 
-    for i in np.arange(edges.shape[0]).astype(int) :
+    for i in edge_range :
         y0,y1 = sorted_edge_y_coords[i,:]
         e0,e1 = edges[i]
-        crossing_edge = (y0 < current_section_world) & (y1 > current_section_world + step)
-        start_in_edge = (y0 >= current_section_world) & (y1 > current_section_world + step)
-        end_in_edge = (y0 < current_section_world) & (y1 <= current_section_world + step)
 
+        crossing_edge = (y0 < current_section_world) & (y1 > current_section_world + resolution_step)
+
+        start_in_edge = ((y0 >= current_section_world) & (y0 < current_section_world+resolution_step)) & (y1 > current_section_world + resolution_step)
+
+        end_in_edge = (y0 < current_section_world) & ((y1>current_section_world) & (y1 <= current_section_world + resolution_step))
+       
         if crossing_edge + start_in_edge + end_in_edge > 0 :
             edge_mask[i]=True
 
@@ -780,23 +717,44 @@ def identify_target_edges_within_slab(edge_mask, ligand_vol_fn, surf_fn, ext='.n
                 break
             current_section_vox = section_numbers[section_counter]
             current_section_world = current_section_vox * step + start
-    print('Percent of Edges that need to be split:', 100.0*np.sum(edge_mask)/edge_mask.shape[0])
+    
     return edge_mask 
 
-def identify_target_edges(file_dict, out_dir, surf_fn, ext='.surf.gii'):
-    edges = get_edges_from_faces(load_mesh(surf_fn)[1])
+
+def identify_target_edges(edges, df_ligand, slab_dict, new_edges_npz_fn, resolution, ext='.surf.gii'):
+    
     edge_mask = np.zeros(edges.shape[0]).astype(np.bool)
 
-    for slab, curr_dict in file_dict.items() :
-        ligand_vol_fn = curr_dict['nl_2d_vol_fn']
-        nl_3d_tfm_fn = curr_dict['nl_3d_tfm_inv_fn']
-        surf_slab_space_fn = f'{out_dir}/slab-{slab}_{os.path.basename(surf_fn)}' 
-        apply_ants_transform_to_gii(surf_fn, [nl_3d_tfm_fn], surf_slab_space_fn, 0, surf_fn, surf_fn, ext)
-        #NOTE should actually recalculate this at every iteration because as the edges get smaller
-        # there are less of them that will cross acquire sections617gg
-        edge_mask = identify_target_edges_within_slab(edge_mask, ligand_vol_fn, surf_slab_space_fn)
+    slab_list = list(slab_dict.keys())
+    slab_list.sort()
 
+    if os.path.exists(new_edges_npz_fn+'.npz'):
+        # load new edges for resampling of slab space mesh
+        new_edges = np.load(new_edges_npz_fn+'.npz')['data'][:]
+
+    for slab in slab_list :
+        cdict = slab_dict[slab]
+        coords, _, _ = load_mesh(cdict['surf'])
+        n_coords = coords.shape[0]
+        section_numbers = df_ligand['slab_order'].loc[df_ligand['slab'].astype(int) == int(slab)].values
+        section_numbers = np.sort(section_numbers)
+        
+        if os.path.exists(new_edges_npz_fn+'.npz'): 
+            #if this is not hte first iteration of the upsampling, then we need to 
+            #add new upsampled points based on the new edges
+            coords = np.concatenate([coords,np.zeros([new_edges.shape[0]+1,3])],axis=0)
+            coords = generate_upsampled_coordinates(new_edges, coords, n_coords)
+        edge_mask = identify_target_edges_within_slab(edge_mask,section_numbers, cdict['vol'], coords, edges, resolution)
+        
+        print(f'\tSlab {slab}: % of edges to be split:', 100.0*np.sum(edge_mask)/edge_mask.shape[0])
     return edge_mask
+
+def generate_upsampled_coordinates(new_edges, rsl_coords, n_coords):
+    n_edges=new_edges.shape[0]
+    for ii in range(n_edges) :
+        e0, e1 = new_edges[ii,:]
+        rsl_coords[ n_coords + ii, : ] = (rsl_coords[int(e0),:] + rsl_coords[int(e1),:])/2.
+    return rsl_coords
 
 def resample_gifti_to_h5(new_edges_npz_fn, reference_coords_h5_fn, input_list, output_list) :
 
@@ -804,18 +762,12 @@ def resample_gifti_to_h5(new_edges_npz_fn, reference_coords_h5_fn, input_list, o
     reference_coords_h5 = h5py.File(reference_coords_h5_fn, 'r')
     n = reference_coords_h5['data'].shape[0]
     n_edges = new_edges_h5.shape[0]
-    #if n_edges == 1 and np.sum(new_edges_h5['data'][:]) == 0 : n_edges=0
 
-    #n_new_edges = h5.File(new_edges_npz_fn,'r')['data'].shape[0]
     for i, (in_fn, out_fn) in enumerate(zip(input_list,output_list)):
-        print(in_fn)
         if not os.path.exists(out_fn) :
-            #coords = nb.load(in_fn).agg_data('NIFTI_INTENT_POINTSET')
             coords = load_mesh(in_fn, correct_offset=False)[0] 
             n_coords = coords.shape[0]
-            print(n, n_coords + n_edges)
             assert n == n_coords + n_edges, f'Error: number of resampled coordinates ({n}) does not equal the number of original coordiantes ({n_coords}) + number of new coordinates ({n_edges}).'
-            print('n coords',n_coords)
             rsl_coords_h5 = h5py.File(out_fn, 'w')
             rsl_coords_h5.create_dataset('data', (n,3) )
             rsl_coords_h5['data'][ 0 : n_coords] = coords
@@ -823,30 +775,23 @@ def resample_gifti_to_h5(new_edges_npz_fn, reference_coords_h5_fn, input_list, o
 
             new_edges = new_edges_h5[:].astype(int)
             if n_edges > 0 :
-                print('Interpolating extra coordinates')
-                for ii in range(n_edges) :
-                    #c0, c1 = new_edges_h5['data'][ii,:]
-                    #rsl_coords_h5['data'][ ii, : ] = (rsl_coords_h5['data'][int(c0),:] + rsl_coords_h5['data'][int(c1),:])/2.
-                    c0, c1 = new_edges[ii,:]
-                    rsl_coords[ n_coords + ii, : ] = (rsl_coords[int(c0),:] + rsl_coords[int(c1),:])/2.
-                    if np.sum(np.abs(rsl_coords[ n_coords + ii, : ])) == 0  : print('resampled_coord=',rsl_coords[ n_coords + ii, : ])
-                    if ii % 100000 == 0 : 
-                        print(100.*(n_coords+ii)/n, n, c0, c1, rsl_coords[ii,:])
+                rsl_coords = generate_upsampled_coordinates(new_edges, rsl_coords, n_coords)
             else : 
                 print('No extra coordinates to interpolate')
-
 
             if np.sum(np.sum( np.abs(rsl_coords), axis=1) == 0) > 1 : 
                 print("Error: got multiple 0,0,0 vertices after resampling")
                 os.remove(out_fn)
                 exit(1)
+
             rsl_coords_h5['data'][:] = rsl_coords
             rsl_coords_h5.close()
             print('Closing', out_fn)
 
 
-def upsample_gifti(input_fn,upsample_0_fn, upsample_1_fn, resolution, input_list=[], output_list=[], edge_mask=None, test=False, clobber=False, debug=False):
+def upsample_gifti(input_fn,upsample_0_fn, upsample_1_fn, resolution, df_ligand, input_list=[], output_list=[], surf_slab_space_dict=None, test=False, clobber=False, debug=False):
     tracemalloc.start()
+
     if '.surf.gii' in upsample_0_fn : ext = '.surf.gii'
     elif '.white' in upsample_0_fn : ext = '.white'
     elif '.pial' in upsample_0_fn : ext = '.pial'
@@ -856,28 +801,23 @@ def upsample_gifti(input_fn,upsample_0_fn, upsample_1_fn, resolution, input_list
         exit(1)
 
     assert os.path.exists(input_fn) , 'Error, missing '+ input_fn
-
-    faces_h5_fn =  sub(ext,'_new_faces.h5',upsample_0_fn)
-    coords_h5_fn =   sub(ext,'_new_coords.h5',upsample_0_fn)
-    new_edges_npz_fn =   sub(ext,'_new_edges',upsample_0_fn)
-
+    ligand = np.unique(df_ligand['ligand'])[0]
+    faces_h5_fn =  sub(ext, f'_{ligand}_new_faces.h5',upsample_0_fn)
+    coords_h5_fn =   sub(ext, f'_{ligand}_new_coords.h5',upsample_0_fn)
+    new_edges_npz_fn =   sub(ext, f'_{ligand}_new_edges',upsample_0_fn)
 
     if not os.path.exists(coords_h5_fn) or not os.path.exists(new_edges_npz_fn+'.npz') :
-        n_new_edges = upsample_with_h5(input_fn, upsample_0_fn,  faces_h5_fn, coords_h5_fn, new_edges_npz_fn, resolution, edge_mask=edge_mask)
+        n_new_edges = upsample_with_h5(input_fn, upsample_0_fn,  faces_h5_fn, coords_h5_fn, new_edges_npz_fn, resolution, df_ligand, surf_slab_space_dict=surf_slab_space_dict)
 
     #if not os.path.exists(upsample_0_fn) :
-        print(os.path.exists(upsample_0_fn), upsample_0_fn)
         write_gifti_from_h5(upsample_0_fn, coords_h5_fn, faces_h5_fn, input_fn ) 
     
     if input_list != []  and output_list != [] :
-        print('new edges h5',new_edges_npz_fn)
-        print('coords h5',coords_h5_fn)
-        print('upsample 0', upsample_0_fn)
         resample_gifti_to_h5(new_edges_npz_fn, coords_h5_fn, input_list, output_list)
 
     if not os.path.exists(upsample_1_fn) :
         write_gifti_from_h5(upsample_1_fn, output_list[-2], faces_h5_fn, input_fn ) 
-
+    
     return faces_h5_fn, coords_h5_fn
 
 if __name__ == "__main__" :
@@ -895,8 +835,6 @@ if __name__ == "__main__" :
     if not args.test:
         basename, ext = splitext(args.input_fn)
         upsample_fn = f'{basename}_rsl{ext}' 
-        print('Upsample fn', upsample_fn)
-
     if not os.path.exists(upsample_fn) or args.clobber or args.test  or True:
         upsample_gifti( args.input_fn, upsample_fn, float(args.resolution), input_list=args.input_list,  clobber=args.clobber, test=args.test, debug=args.debug)
 

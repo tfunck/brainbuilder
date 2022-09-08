@@ -3,9 +3,6 @@ from nibabel import freesurfer
 import numpy as np
 
 def save_gii(coords, triangles, reference_fn, out_fn):
-    print('ref fb', reference_fn)
-    print(coords[0:5])
-    print(triangles[0:5])
     assert len(coords) > 0, f'Empty coords when trying to create {out_fn} '
     assert len(triangles) > 0, f'Empty triangles when trying to create {out_fn} '
     #coords, faces, volume_info = load_mesh(reference_fn) 

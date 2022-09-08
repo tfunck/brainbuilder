@@ -11,7 +11,6 @@ import time
 import shutil
 import tempfile
 import multiprocessing
-from nibabel.processing import resample_to_output
 from joblib import Parallel, delayed
 from section_2d import section_2d
 from sys import argv
@@ -23,35 +22,40 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, file_to_
     #Set strings for alignment parameters
     f_list = [ '1', '2', '3', '4', '6', '8', '10', '12', '14', '16', '18', '24']
     s_list = [ '0', '1', '1.5', '2', '3', '4', '5', '6', '7', '8', '9', '16']
-    max_itr = min(resolution_itr, len(f_list))
     f_list = f_list[0:(max_itr+1)]
     s_list = s_list[0:(max_itr+1)]
     s_list.reverse()
     f_list.reverse()
+    
+    max_itr = resolution_itr # min(resolution_itr, len(f_list))
+    #f_list, f_str, s_str = get_alignment_parameters(resolution_itr, resolution_list)
 
-    base_lin_itr= 1000
-    base_nl_itr = 200
+    base_lin_itr= 100
+    base_nl_itr = 20
     max_lin_itr = base_lin_itr * (resolution_itr+1)
     max_nl_itr  = base_nl_itr * (resolution_itr+1)
     lin_step = -base_lin_itr 
     nl_step  = -base_nl_itr 
-
-    lin_itr_str='x'.join([str(base_lin_itr *(max_itr+1) + i * lin_step) for i in range(max_itr+1)])
-    nl_itr_str='x'.join( [str(base_nl_itr *(max_itr+1) + i * nl_step) for i in range(max_itr+1)])
+    print(max_itr)
+    lin_itr_str='x'.join([str(base_lin_itr * ((max_itr+1) - i)) for i in range(max_itr+1)])
+    nl_itr_str='x'.join( [str(base_nl_itr * ((max_itr+1) - i)) for i in range(max_itr+1)])
+    print(lin_itr_str)
+    print(nl_itr_str)
     nl_itr_str='[ '+ nl_itr_str +',1e-7,20 ]'
-    f_str='x'.join( [ f_list[i] for i in range(max_itr+1)])
-    s_str='x'.join( [ s_list[i] for i in range(max_itr+1)]) + 'vox'
 
-    f_cc = f_list[-1]
-    s_cc = s_list[-1]
+    f_cc = f_str.split('x')[-1]
+    s_cc = s_str.split('x')[-1]
 
     s_str_final = s_str.split(',')[-1]
     f_str_final = f_str.split(',')[-1]
+    print(f_str)
+    print(s_str)
     
     n0 = len(lin_itr_str.split('x'))
-    n1 = len(f_str.split('x'))
+    n1 = len(f_str.split('x')) 
     n2 = len(s_str.split('x'))-1
     n3 = len(nl_itr_str.split('x'))
+    print(n0,n1,n2,n3)
     assert n0==n1==n2==n3 , "Error: Incorrect lengths for ANTs parameters"
 
     y=int(row['slab_order'])
@@ -60,8 +64,6 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, file_to_
     fx_fn = gen_2d_fn(prefix,'_fx')
 
     mv_fn = get_seg_fn(mv_dir, int(y), resolution, row[file_to_align], suffix='_rsl')
-
-    print('mv fn', mv_fn)
 
     init_tfm = row['init_tfm']
     init_str = f'[{fx_fn},{mv_fn},1]'
@@ -169,7 +171,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
         Parallel(n_jobs=num_cores)(delayed(align_2d_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, row,file_to_align=file_to_align,use_syn=use_syn) for i, row in  to_do_df.iterrows()) 
         
     if to_do_resample_df.shape[0] > 0 :
-        Parallel(n_jobs=num_cores)(delayed(apply_transforms_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, row) for i, row in  to_do_resample_df.iterrows()) 
+        Parallel(n_jobs=num_cores)(delayed(apply_transforms_parallel)(tfm_dir, mv_dir,  resolution_itr, resolution, row) for i, row in  to_do_resample_df.iterrows()) 
     
     for i, row in df.iterrows() :
         y = int(row['slab_order'])
