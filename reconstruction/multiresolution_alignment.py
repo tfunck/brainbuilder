@@ -19,7 +19,6 @@ from reconstruction.align_slab_to_mri import align_slab_to_mri
 from reconstruction.receptor_segment import classifyReceptorSlices, resample_transform_segmented_images
 from reconstruction.nonlinear_2d_alignment import receptor_2d_alignment, concatenate_sections_to_volume
 from reconstruction.init_alignment import receptorRegister, apply_transforms_to_landmarks
-from reconstruction.surface_interpolation import surface_interpolation
 from reconstruction.crop import crop, process_landmark_images
 from validation.validate_alignment import validate_alignment
 

@@ -12,13 +12,14 @@ import re
 import multiprocessing
 import h5py as h5
 from nibabel import freesurfer
-from utils.utils import  transform_surface_to_slabs
+from utils.mesh_utils import  transform_surface_to_slabs, get_edges_from_faces, identify_target_edges_within_slab, upsample_over_faces, link_points, get_faces_from_neighbours, mesh_to_volume, load_mesh_ext, get_triangle_vectors, unique_points
+
 from scipy.ndimage import label
 from re import sub
 from glob import glob
 from utils.mesh_io import  load_mesh, load_mesh_geometry, save_mesh, save_mesh_data, save_obj, read_obj
 from utils.utils import shell, w2v, v2w
-from upsample_gifti import save_gii, upsample_gifti, identify_target_edges, obj_to_gii
+from upsample_gifti import save_gii, upsample_gifti,  obj_to_gii
 
 global surf_base_str
 surf_base_str = '{}/{}_{}_surface_{}_{}{}.{}'
@@ -77,38 +78,43 @@ def prepare_surfaces(slab_dict, thickened_dict, depth_list, interp_dir, resoluti
     if ext.gm == '.pial' : origin= load_mesh(surf_gm_fn)[2]['cras']
     
     sphere_obj_fn = surf_base_str.format(input_surf_dir, brain, 'mid', hemi, n_vertices,'_sphere',ext.gm)
-    
+    print('\tSurf GM filename:', surf_gm_fn) 
     #upsample transformed surfaces to given resolution
     surf_depth_mni_dict={}
+
     print("\tGenerating surfaces across cortical depth.") 
     surf_depth_mni_dict = generate_cortical_depth_surfaces(surf_depth_mni_dict, depth_list, resolution, surf_wm_fn, surf_gm_fn, surf_rsl_dir, ligand, ext)
 
     print("\tInflating surfaces.") 
-    surf_depth_mni_dict = inflate_surfaces(surf_depth_mni_dict, surf_rsl_dir, ext, resolution,  depth_list,  ligand, clobber=clobber)
+    surf_depth_mni_dict = inflate_surfaces(surf_depth_mni_dict, surf_rsl_dir, ext, resolution,  depth_list,  clobber=clobber)
 
     print("\tUpsampling surfaces.") 
-    surf_depth_mni_dict = upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_rsl_dir, surf_gm_fn, ext, resolution, upsample_resolution,  depth_list, slab_dict, ligand, df_ligand, clobber=clobber)
+    surf_depth_mni_dict = upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_rsl_dir, surf_gm_fn, ext, resolution, upsample_resolution,  depth_list, slab_dict, ligand, df_ligand, mni_fn, clobber=clobber)
 
     #For each slab, transform the mesh surface to the receptor space
     print("\tTransforming surfaces to slab space.")
+
+    surf_depth_slab_dict = transfrom_depth_surf_to_slab_space(slab_dict, surf_depth_mni_dict, thickened_dict, surf_rsl_dir)
+    return surf_depth_mni_dict, surf_depth_slab_dict, origin
+
+
+
+def transfrom_depth_surf_to_slab_space(slab_dict, surf_depth_mni_dict, thickened_dict, surf_rsl_dir):
     surf_depth_slab_dict={}
     for slab in slab_dict.keys(): surf_depth_slab_dict[slab]={}
     
     for depth, depth_dict in surf_depth_mni_dict.items():
-        surf_fn = depth_dict['upsample_fn']
-        
-        faces_fn = depth_dict['faces_fn']
+        faces_fn=None
+
         ref_gii_fn=depth_dict['depth_surf_fn']
 
-        print(surf_fn)
-        temp_dict={}
-        temp_dict = transform_surface_to_slabs(temp_dict, slab_dict, thickened_dict,  surf_rsl_dir, surf_fn, faces_fn=faces_fn, ref_gii_fn=ref_gii_fn, ext='.surf.gii')
+        surf_fn = depth_dict['depth_rsl_fn']
+        temp_rsl_dict = transform_surface_to_slabs( slab_dict, thickened_dict,  surf_rsl_dir, surf_fn, faces_fn=faces_fn, ref_gii_fn=ref_gii_fn, ext='.surf.gii')
 
         for slab in slab_dict.keys() :
-            surf_depth_slab_dict[slab][depth] = temp_dict[slab]
-    
-    return surf_depth_mni_dict, surf_depth_slab_dict, origin
+            surf_depth_slab_dict[slab][depth]=  temp_rsl_dict[slab]
 
+    return surf_depth_slab_dict
 
 def generate_cortical_depth_surfaces(surf_depth_mni_dict, depth_list, resolution, wm_surf_fn, surf_gm_fn, surf_dir, ligand, ext):
 
@@ -122,7 +128,7 @@ def generate_cortical_depth_surfaces(surf_depth_mni_dict, depth_list, resolution
     del wm_coords
 
     for depth in depth_list :
-        depth_surf_fn = "{}/surf_{}_{}mm_{}{}".format(surf_dir,ligand,resolution,depth, ext.gm)
+        depth_surf_fn = "{}/surf_{}mm_{}{}".format(surf_dir,resolution,depth, ext.gm)
         surf_depth_mni_dict[depth]={'depth_surf_fn':depth_surf_fn}
         
         coords = gm_coords + depth * d_coords
@@ -134,7 +140,7 @@ def generate_cortical_depth_surfaces(surf_depth_mni_dict, depth_list, resolution
 
     return surf_depth_mni_dict
 
-def inflate_surfaces(surf_depth_mni_dict, surf_dir, ext, resolution,  depth_list, ligand,  clobber=False ):
+def inflate_surfaces(surf_depth_mni_dict, surf_dir, ext, resolution,  depth_list,  clobber=False ):
     # Upsampling of meshes at various depths across cortex produces meshes with different n vertices.
     # To create a set of meshes across the surfaces across the cortex that have the same number of 
     # vertices, we first upsample and inflate the wm mesh.
@@ -152,8 +158,8 @@ def inflate_surfaces(surf_depth_mni_dict, surf_dir, ext, resolution,  depth_list
         print("\tDepth", depth)
         print(surf_depth_mni_dict[float(depth)])
         depth_surf_fn = surf_depth_mni_dict[float(depth)]['depth_surf_fn']
-        sphere_fn = "{}/surf_{}_{}mm_{}_inflate{}".format(surf_dir,ligand,resolution,depth, ext.gm_sphere)
-        sphere_rsl_fn = "{}/surf_{}_{}mm_{}_inflate_rsl.h5".format(surf_dir,ligand,resolution,depth)
+        sphere_fn = "{}/surf_{}mm_{}_inflate{}".format(surf_dir,resolution,depth, ext.gm_sphere)
+        sphere_rsl_fn = "{}/surf_{}mm_{}_inflate_rsl.npz".format(surf_dir,resolution,depth)
         surf_depth_mni_dict[depth]['sphere_rsl_fn']=sphere_rsl_fn
         surf_depth_mni_dict[depth]['sphere_fn']=sphere_fn
         
@@ -164,44 +170,171 @@ def inflate_surfaces(surf_depth_mni_dict, surf_dir, ext, resolution,  depth_list
 
     return surf_depth_mni_dict
 
-def upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_dir, surf_gm_fn, ext, resolution, upsample_resolution,  depth_list, slab_dict, ligand, df_ligand, clobber=False):
+def generate_face_and_coord_mask(edge_mask_idx, faces, coords):
+    mask_idx_unique = np.unique(edge_mask_idx)
+    n = max(faces.shape[0], coords.shape[0])
 
-    gm_obj_fn="{}/surf_{}_{}mm_{}_rsl.obj".format(surf_dir,ligand, resolution,0)
-    upsample_0_fn = "{}/surf_{}_{}mm_{}_rsl{}".format(surf_dir, ligand, resolution,depth_list[0], ext.gm)
-    upsample_1_fn = "{}/surf_{}_{}mm_{}_rsl{}".format(surf_dir, ligand, resolution,depth_list[-1], ext.gm)
+    face_mask=np.zeros(faces.shape[0]).astype(np.bool)
+    coord_mask=np.zeros(coords.shape[0]).astype(np.bool)
+
+    for i in range(n) :
+        if i < faces.shape[0] :
+            f0,f1,f2 = faces[i]
+            if f0 in mask_idx_unique : face_mask[i]=True
+            if f1 in mask_idx_unique : face_mask[i]=True
+            if f2 in mask_idx_unique : face_mask[i]=True
+        if i < coords.shape[0]:
+            if i in mask_idx_unique :
+                coord_mask[i]=True
+    return face_mask, coord_mask
+
+
+def identify_target_edges(edges, df_ligand, slab_dict,  resolution,  ext='.surf.gii'):
+    
+    edge_mask = np.zeros(edges.shape[0]).astype(np.bool)
+
+    slab_list = list(slab_dict.keys())
+    slab_list.sort()
+
+    for slab in slab_list :
+        cdict = slab_dict[slab]
+        coords, _, _ = load_mesh(cdict['surf'])
+        n_coords = coords.shape[0]
+        section_numbers = df_ligand['slab_order'].loc[df_ligand['slab'].astype(int) == int(slab)].values
+        section_numbers = np.sort(section_numbers)
+        
+        edge_mask = identify_target_edges_within_slab(edge_mask,section_numbers, cdict['vol'], coords, edges, resolution)
+
+    edge_mask_idx = edges[edge_mask]
+    return edge_mask, edge_mask_idx
+
+def resample_points(surf_fn, new_points_gen):
+    points, faces, _ = load_mesh(surf_fn)
+    n = len(new_points_gen)
+
+    new_points = np.zeros([n,3])
+
+    for i, gen in enumerate(new_points_gen) :
+        new_points[i] = gen.generate_point(points)
+
+    #new_points, unique_index, unique_reverse = unique_points(new_points)
+    new_points += np.random.normal(0,0.0001, new_points.shape )
+    return new_points, points
+
+def upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_dir, surf_gm_fn, ext, resolution, upsample_resolution,  depth_list, slab_dict, ligand, df_ligand, mni_fn, clobber=False):
+
+    gm_obj_fn="{}/surf_{}mm_{}_rsl.obj".format(surf_dir, resolution,0)
+    upsample_0_fn = "{}/surf_{}mm_{}_rsl{}".format(surf_dir, resolution,depth_list[0], ext.gm)
+    upsample_1_fn = "{}/surf_{}mm_{}_rsl{}".format(surf_dir, resolution,depth_list[-1], ext.gm)
     input_list = []
     output_list = []
 
     surf_slab_space_dict={}
     for depth in depth_list :
 
-        upsample_gii_fn = "{}/surf_{}_{}mm_{}_rsl{}".format(surf_dir,ligand, resolution,depth, ext.gm)
-        upsample_fn = "{}/surf_{}_{}mm_{}_rsl.h5".format(surf_dir,ligand, resolution,depth)
+        depth_rsl_gii = "{}/surf_{}mm_{}_rsl{}".format(surf_dir, resolution,depth, ext.gm)
+        depth_rsl_fn = "{}/surf_{}mm_{}_rsl.npz".format(surf_dir, resolution,depth)
 
-        surf_depth_mni_dict[depth]['upsample_fn']=upsample_fn
-        surf_depth_mni_dict[depth]['upsample_gii_fn']=upsample_gii_fn
+        surf_depth_mni_dict[depth]['depth_rsl_fn']=depth_rsl_fn
+        surf_depth_mni_dict[depth]['depth_rsl_gii']=depth_rsl_gii
         
         depth_surf_fn = surf_depth_mni_dict[depth]['depth_surf_fn']
         sphere_fn = surf_depth_mni_dict[depth]['sphere_fn']
         sphere_rsl_fn = surf_depth_mni_dict[depth]['sphere_rsl_fn']
 
         input_list += [depth_surf_fn, sphere_fn]
-        output_list+= [upsample_fn, sphere_rsl_fn]
+        output_list+= [depth_rsl_fn, sphere_rsl_fn]
 
-        surf_slab_space_dict = transform_surface_to_slabs(surf_slab_space_dict, slab_dict, thickened_dict, surf_dir, surf_gm_fn, ext='.surf.gii')
+        #if depth == 0:
+        #    surf_slab_space_dict = transform_surface_to_slabs( slab_dict, thickened_dict, surf_dir, surf_gm_fn, ext='.surf.gii')
+        
 
-    surf_depth_mni_dict[depth_list[0]]['upsample_gii_fn'] = upsample_0_fn
-    surf_depth_mni_dict[depth_list[-1]]['upsample_gii_fn'] = upsample_1_fn
-     
-    faces_fn, coords_fn = upsample_gifti(surf_gm_fn, upsample_0_fn, upsample_1_fn, float(upsample_resolution), df_ligand, input_list=input_list, output_list=output_list, surf_slab_space_dict=surf_slab_space_dict, clobber=clobber)
-   
-    for depth in surf_depth_mni_dict.keys():
-        surf_depth_mni_dict[depth]['faces_fn'] = faces_fn
+    surf_depth_mni_dict[depth_list[0]]['depth_rsl_gii'] = upsample_0_fn
+    surf_depth_mni_dict[depth_list[-1]]['depth_rsl_gii'] = upsample_1_fn
     
-    rsl_faces = h5.File(faces_fn,'r')['data'][:]
-    rsl_coords = h5.File(coords_fn, 'r')['data'][:]
-    if not os.path.exists(gm_obj_fn) :
-        save_obj(gm_obj_fn, rsl_coords,rsl_faces)
+    #DEBUG put the next few lines incase want to try face upsampling instead of full surf upsampling
+    ref_gii_fn = surf_depth_mni_dict[0]['depth_surf_fn']
+    ref_rsl_gii_fn = surf_depth_mni_dict[0]['depth_rsl_gii']
+    ref_rsl_npy_fn = sub('.surf.gii', '', surf_depth_mni_dict[0]['depth_rsl_gii'])
+    ngh_npz_fn = sub('.nii.gz', '_ngh', surf_depth_mni_dict[0]['depth_rsl_gii'])
+    coords, faces, _ = load_mesh(ref_gii_fn)
+
+    print(ref_rsl_npy_fn) 
+    if False in [ os.path.exists(fn) for fn in output_list+[ref_rsl_npy_fn+'.npz']]:
+        points, _, new_points_gen  = upsample_over_faces(ref_gii_fn, resolution, ref_rsl_npy_fn)
+
+        
+        print('Upsampled points', points.shape, len(new_points_gen)) 
+        img = nb_surf.load(mni_fn)
+        #img = nib.load(mni_fn)
+        steps=img.affine[[0,1,2],[0,1,2]]
+        starts=img.affine[[0,1,2],3]
+        dimensions=img.shape
+        interp_vol, _  = mesh_to_volume(points, np.ones(points.shape[0]), dimensions, starts, steps)
+        nib.Nifti1Image(interp_vol, nib.load(mni_fn).affine,direction_order='lpi').to_filename(f'{surf_dir}/surf_{resolution}mm_{depth}_rsl.nii.gz')
+        print(f'{surf_dir}/surf_{resolution}mm_{depth}_rsl.nii.gz')
+        #DEBUG
+        #test_points, old_points = resample_points(ref_gii_fn, new_points_gen)
+        #assert test_points.shape[0] == points.shape[0], 'Error, mismatch when testing resampling'
+
+        ref_points = np.load(ref_rsl_npy_fn+'.npz')['points']
+        n_points = ref_points.shape[0]
+        
+        '''
+        full=np.arange(test_points.shape[0]).astype(int)
+
+        b = np.bincount(r)
+
+        repeat_indices = np.where( b > 1 )[0]
+
+        print(repeat_indices) 
+
+        for i in repeat_indices :
+            target_indices = full[r==i]
+
+            for j in target_indices :
+                gen = new_points_gen[j]
+
+                v0, v1 = get_triangle_vectors(old_points[gen.face])
+                x = gen.x
+                y = gen.y
+                p0 = test_points[gen.face][0,:]
+                print(j, gen.idx)
+                print(points[j])
+                print(test_points[j,:])
+                print(x, y, p0)
+                print( x*v0 + y*v1 + p0 )
+            print()
+        '''
+
+        for in_fn, out_fn in zip(input_list, output_list):
+            points, old_points = resample_points(in_fn, new_points_gen)
+            #full = np.arange(points.shape[0]).astype(int)
+
+            assert n_points == points.shape[0], f'Error: mismatch in number of points in mesh between {n_points} and {points.shape[0]}'
+            interp_vol, _  = mesh_to_volume(points, np.ones(points.shape[0]), dimensions, starts, steps)
+            nib.Nifti1Image(interp_vol, nib.load(mni_fn).affine,direction_order='lpi').to_filename(f'{surf_dir}/surf_{resolution}mm_{depth}_rsl.nii.gz')
+            assert points.shape[1], 'Error: shape of points is incorrect ' + points.shape 
+            np.savez(out_fn, points=points)
+    #np.savez(ngh_npz_fn, ngh=ngh)
+    #ngh = np.load(ngh_npz_fn+'.npz')['ngh']
+    
+    #extra_points = coords[ ~ coord_mask,:]
+    #points = np.concatenate([extra_points, points],axis=0)
+    #print('\t\tUsing:', ngh_npz_fn+'.npz')
+    #if not os.path.exists(ngh_npz_fn+'.npz') or True:
+    #    ngh = link_points(points, ngh, resolution)
+    #faces = get_faces_from_neighbours(ngh)
+    #save_mesh(out_fn, points, faces, surf_fn)
+    #faces_fn, coords_fn = upsample_gifti(surf_gm_fn, upsample_0_fn, upsample_1_fn, float(upsample_resolution), df_ligand, input_list=input_list, output_list=output_list, surf_slab_space_dict=surf_slab_space_dict, clobber=clobber)
+   
+    #for depth in surf_depth_mni_dict.keys():
+    #    surf_depth_mni_dict[depth]['faces_fn'] = faces_fn
+    
+    #rsl_faces = h5.File(faces_fn,'r')['data'][:]
+    #rsl_coords = h5.File(coords_fn, 'r')['data'][:]
+    #if not os.path.exists(gm_obj_fn) :
+    #    save_obj(gm_obj_fn, rsl_coords,rsl_faces)
 
     return surf_depth_mni_dict
 

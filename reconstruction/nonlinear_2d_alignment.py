@@ -19,6 +19,8 @@ from utils.utils import *
 
 
 def align_2d_parallel(tfm_dir, mv_dir, resolution_list, resolution_itr, resolution, row, use_syn=True):
+    
+    max_itr = resolution_itr # min(resolution_itr, len(f_list))
     #Set strings for alignment parameters
     f_list = [ '1', '2', '3', '4', '6', '8', '10', '12', '14', '16', '18', '24']
     s_list = [ '0', '1', '1.5', '2', '3', '4', '5', '6', '7', '8', '9', '16']
@@ -27,7 +29,6 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_list, resolution_itr, resoluti
     s_list.reverse()
     f_list.reverse()
     
-    max_itr = resolution_itr # min(resolution_itr, len(f_list))
     #f_list, f_str, s_str = get_alignment_parameters(resolution_itr, resolution_list)
 
     base_lin_itr= 100
@@ -42,6 +43,9 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_list, resolution_itr, resoluti
     print(lin_itr_str)
     print(nl_itr_str)
     nl_itr_str='[ '+ nl_itr_str +',1e-7,20 ]'
+
+    f_str='x'.join( [ f_list[i] for i in range(max_itr+1)])
+    s_str='x'.join( [ s_list[i] for i in range(max_itr+1)]) + 'vox'
 
     f_cc = f_str.split('x')[-1]
     s_cc = s_str.split('x')[-1]
@@ -90,6 +94,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_list, resolution_itr, resoluti
 
     if use_syn :
         with open(prefix+'_command.txt','w') as f : f.write(syn_command_str)
+        print(syn_command_str) ; exit(0)
         shell(syn_command_str)
     else :
         shutil.copy( f'{prefix}_affine_cls_rsl.nii.gz' , f'{prefix}_cls_rsl.nii.gz' )

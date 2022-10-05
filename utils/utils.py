@@ -6,6 +6,7 @@ import os
 import pandas as pd
 import imageio
 import utils.ants_nibabel as nib
+import nibabel as nb
 import PIL
 import matplotlib
 import time
@@ -15,9 +16,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tempfile
 import h5py as h5
+import multiprocessing
+import nibabel
 from glob import glob
 from re import sub
-import nibabel
+from joblib import Parallel, delayed
 from utils.mesh_io import save_mesh, load_mesh, save_obj, read_obj
 from utils.fit_transform_to_paired_points import fit_transform_to_paired_points
 from ants import get_center_of_mass
@@ -29,7 +32,40 @@ from sklearn.cluster import KMeans
 from scipy.ndimage import zoom
 from skimage.transform import resize
 from scipy.ndimage import label, center_of_mass
+from time import time
 
+os_info = os.uname()
+global num_cores
+if os_info[1] == 'imenb079':
+    num_cores = 1 
+else :
+    num_cores = min(14, multiprocessing.cpu_count() )
+
+  
+  
+def timer_func(func):
+    # This function shows the execution time of 
+    # the function object passed
+    def wrap_func(*args, **kwargs):
+        t1 = time()
+        result = func(*args, **kwargs)
+        t2 = time()
+        print(f'Function {func.__name__!r} executed in {(t2-t1):.4f}s')
+        return result
+    return wrap_func
+
+def get_surf_from_dict(d):
+    keys = d.keys()
+    if 'upsample_h5' in keys : 
+        surf_fn = d['upsample_h5']
+    elif 'upsample_fn' in keys :
+        surf_fn = d['upsample_fn']
+    elif 'surf' in keys :
+        surf_fn = d['surf']
+    else : 
+        print('Error: could not find surface in keys,', keys)
+        exit(1)
+    return surf_fn
 
 def get_edges_from_faces(faces):
     #for convenience create vector for each set of faces 
@@ -73,8 +109,351 @@ def get_edges_from_faces(faces):
     #edge_range = np.arange(edges_all.shape[0]).astype(int) % faces.shape[0]
     return edges
 
-def transform_surface_to_slabs(surf_slab_space_dict, slab_dict, thickened_dict,  out_dir, surf_fn, ref_gii_fn=None, faces_fn=None, ext='.surf.gii'):
+def add_entry(d,i, lst):
+    try :
+        d[i] += lst
+    except KeyError:
+        d[i]=list(lst)
+    return d[i]
+
+def get_ngh_from_faces(faces):
+
+    ngh={} 
+
+    for count, (i,j,k) in enumerate(faces):
+        ngh[i] = add_entry(ngh, int(i), [int(j),int(k)] )
+        ngh[j] = add_entry(ngh, int(j), [int(i),int(k)] )
+        ngh[k] = add_entry(ngh, int(k), [int(j),int(i)] )
+
+    for key in range(len(ngh.keys())):
+        ngh[int(key)] = list(np.unique(ngh[key]))
+
+    return ngh
+
+def upsample_over_faces(surf_fn, resolution, out_fn,  face_mask, coord_mask=None, profiles_vtr=None, slab_start=None, slab_end=None, new_points_only=False) :
+    print(surf_fn)
+    coords, faces, _ = load_mesh(surf_fn)
+
+    write_surface=False 
+    if '.surf.gii' in out_fn: write_surface=True
+
+    #Choice 1: truncate vertices by volume boundaries OR by valid y sections where histological
+    #sections have been acquired
+    if type(face_mask) == None :
+        if slab_start == None : slab_start = min(coords[:,1])
+        if slab_end == None : slab_end = max(coords[:,1])
+        #find the vertices that are inside of the slab
+        valid_idx = np.where( (coords[:,1] >= slab_start) & (coords[:,1] <= slab_end) )[0]
+        #create a temporary array for the coords where the exluded vertices are equal NaN
+        # this is necessary because we only want to upsample a subset of the entire mesh
+        new_coords = np.zeros_like(coords)
+        new_coords[:] = np.NaN
+        new_coords[valid_idx,:] = coords[valid_idx]
+        face_coords = face_coords[valid_faces_idx ,:]
+        face_mask = np.where( ~ np.isnan(np.sum(face_coords,axis=(1,2))) )[0]
+    else : 
+        target_faces = faces[face_mask]
+        face_coords = coords[faces]
     
+    # Choice 2 : if values are provided, interpolate these over the face, otherwise create 0-array
+    if profiles_vtr != None :
+        face_vertex_values = profiles_vtr[faces] 
+        face_vertex_values = face_vertex_values[face_mask,:]
+    else :
+        face_vertex_values = np.zeros([face_coords.shape[0],3])
+
+    ngh = get_ngh_from_faces(faces)
+
+    points, values, new_points_gen = calculate_upsampled_points(faces, face_coords, face_vertex_values, resolution, new_points_only=new_points_only)
+
+    np.savez(out_fn, points=points, values=values)
+    print('\t\tSaved', out_fn)
+
+    return points, values, new_points_gen
+
+def find_neighbours(ngh, p, i, points, resolution, eps=0.001, target_nngh=6):
+    counter = 1 
+    #radius = resolution * counter + eps
+    #idx0 = (points[:,0] <= p[0] + radius) & (points[:,0] >= p[0] - radius)
+    #idx1 = (points[:,1] <= p[1] + radius) & (points[:,1] >= p[1] - radius)
+    #idx2 = (points[:,2] <= p[2] + radius) & (points[:,2] >= p[2] - radius)
+
+    #idx = idx0 & idx1 & idx2
+    
+    #if len(idx) > 6 :
+    d=np.sqrt(np.sum(np.power(points - p,2),axis=1)) 
+    d_idx = np.argsort(d).astype(int)[0:target_nngh]
+    print(d_idx)
+    print(ngh)
+    ngh = ngh[d_idx]
+
+    return (i, ngh)
+
+def create_point_blocks(points, resolution, scale=10):
+    blocks = ((points - np.min(points, axis=0)) / (resolution*scale)).astype(np.uint16)
+    n_blocks = np.max(blocks,axis=0).astype(int) +1
+    return blocks, n_blocks
+
+
+
+def find_neighbours_within_radius(ngh, nngh, points, blocks, n_blocks, resolution) :
+    
+    indices = np.arange(points.shape[0]).astype(int)
+    n_total = np.product(n_blocks)
+    counter=0
+
+    for bx in range(n_blocks[0]):
+        bx0=max(0,bx-1)
+        bx1=min(n_blocks[0]-1,bx+1)
+        
+        bx_idx = bx==blocks[:,0]
+        ngh_idx_0 = (blocks[:,0]>=bx0) & (blocks[:,0]<=bx1)
+        
+
+        for by in range(n_blocks[1]) :
+            by0=max(0,by-1)
+            by1=min(n_blocks[1]-1,by+1)
+
+            by_idx = by==blocks[:,1]
+            
+            ngh_idx_1 = (blocks[:,1]>=by0) & (blocks[:,1]<=by1)
+
+            for  bz in range(n_blocks[2]):
+                if counter % 10 == 0 : print(np.round(100*counter/n_total,3), end='\r')
+
+                bz0=max(0,bz-1)
+                bz1=min(n_blocks[2]-1,bz+1)
+                
+                ngh_idx_2 = (blocks[:,2]>=bz0) & (blocks[:,2]<=bz1)
+
+                ngh_idx = ngh_idx_0 * ngh_idx_1 * ngh_idx_2
+
+                cur_idx = bx_idx & by_idx & (bz==blocks[:,2])
+                
+                cur_indices = indices[cur_idx ]
+                cur_points = points[ cur_idx, : ]
+                ngh_points = points[ ngh_idx, : ]
+                block_ngh_list = Parallel(n_jobs=num_cores)(delayed(find_neighbours)(p, i,  ngh_points, indices[ngh_idx], resolution) for i, p in zip(cur_indices, cur_points) ) 
+                 
+                for key, item in block_ngh_list:
+                    ngh[key]=item
+                    nngh[key]=len(item)
+                
+                counter+=1
+
+    return ngh, nngh
+
+def link_points(points, ngh, resolution):
+    print('\t\tLinking points to create a mesh.') 
+    
+    
+    nngh=np.zeros(points.shape[0]).astype(np.uint8)
+
+    block_ngh_list = Parallel(n_jobs=num_cores)(delayed(find_neighbours)(cur_ngh, points[i], i, points[cur_ngh], resolution) for i, cur_ngh in ngh.items() ) 
+    
+    for key, item in block_ngh_list:
+        ngh[key]=list(np.unique(item))
+    
+
+    #print('Number of vertices with insufficient ngh', np.sum(nngh != 6))
+    return ngh
+
+def get_faces_from_neighbours(ngh):
+    face_dict={}
+    print('\tCreate Faces')
+    for i in range(len(ngh.keys())):
+        if i % 1000 : print(f'2. {100*i/ngh.shape[0]} %', end='\r')
+        for ngh0 in ngh[i] :
+            for ngh1 in ngh[ngh0] :
+                print(i, ngh0, ngh1)
+                if ngh1 in ngh[i] :
+                    face = [i,ngh0,ngh1]
+                    face.sort()
+                    face_str = sorted_str(face)
+                    try :
+                        face_dict[face_str]
+                    except KeyError:
+                        face_dict[face_str] = face
+
+    n_faces = len(face_dict.keys())
+
+    faces = np.zeros(n_faces,3)
+    for i, f in enumerate(faces.values()) : faces[i] = f
+
+    return faces 
+
+def get_triangle_vectors(points):
+
+    v0 = points[1,:] - points[0,:]
+    v1 = points[2,:] - points[0,:]
+    return v0, v1
+
+def mult_vector(v0,v1,x,y,p):
+    mult = lambda a,b : np.multiply(np.repeat(a.reshape(a.shape[0],1),b.shape,axis=1), b).T
+    w0=mult(v0,x)
+    w1=mult(v1,y)
+    # add the two vector components to create points within triangle
+    p0 = p + w0 + w1 
+    return p0
+
+def interpolate_face(points, values, resolution, output=None, new_points_only=False):
+    # calculate vector on triangle face
+    v0, v1 = get_triangle_vectors(points)
+
+    #calculate the magnitude of the vector and divide by the resolution to get number of 
+    #points along edge
+    calc_n = lambda v : np.ceil( np.sqrt(np.sum(np.power(v,2)))/resolution).astype(int)
+    mag_0 = calc_n(v0)
+    mag_1 = calc_n(v1)
+
+    n0 = max(2,mag_0) #want at least the start and end points of the edge between two vertices
+    n1 = max(2,mag_1)
+
+    #calculate the spacing from 0 to 100% of the edge
+    l0 = np.linspace(0,1,n0)
+    l1 = np.linspace(0,1,n1)
+
+    #create a percentage grid for the edges
+    xx, yy = np.meshgrid(l1,l0)
+    
+    #create flattened grids for x, y , and z coordinates
+    x = xx.ravel()
+    y = yy.ravel()
+    z = 1- np.add(x,y)
+
+    valid_idx = x+y<=1.0 #eliminate points that are outside the triangle
+    x = x[valid_idx] 
+    y = y[valid_idx]
+    z = z[valid_idx]
+
+    # multiply edge by the percentage grid so that we scale the vector
+    p0 = mult_vector(v0,v1,x,y,points[0,:])
+    
+    interp_values = values[0]*x + values[1]*y + values[2]*z
+    '''
+    if new_points_only : 
+        filter_arr = np.ones(p0.shape[0]).astype(bool)
+        dif = lambda x,y : np.abs(x-y)<0.0001
+        ex0= np.where( (dif(p0,points[0])).all(axis=1) )[0][0]
+        ex1= np.where( (dif(p0,points[1])).all(axis=1) )[0][0]
+        ex2 = np.where((dif(p0,points[2])).all(axis=1) )[0][0]
+        filter_arr[ ex0 ] = filter_arr[ex1] = filter_arr[ex2] = False
+
+        p0 = p0[filter_arr]
+        interp_values = interp_values[filter_arr]
+    '''
+    return p0, interp_values, x, y 
+
+class NewPointGenerator():
+    def __init__(self, idx, face, x, y):
+        self.idx = idx
+        self.face = face
+        self.x = x
+        self.y = y
+    
+    def generate_point(self, points) :
+        cur_points = points[self.face]
+        v0, v1 = get_triangle_vectors(cur_points)
+        new_point = v0*self.x+ v1*self.y + points[0,:] 
+        return new_point
+        
+
+def calculate_upsampled_points(faces,  face_coords, face_vertex_values, resolution, new_points_only=False):
+    points=np.zeros([face_coords.shape[0]*5,3])
+    values=np.zeros([face_coords.shape[0]*5])
+    n_points=0
+    new_points_gen = {}
+
+    for f in range(face_coords.shape[0]):
+        #if f % 1000 == 0 : print(f'\t\tUpsampling Faces: {100.*f/face_coords.shape[0]:.3}',end='\r')
+        #check if it's worth upsampling the face
+        coords_voxel_loc = np.unique(np.rint(face_coords[f]/resolution).astype(int), axis=0)
+        
+        #assert np.sum(face_vertex_values[f] == 0) == 0, f'Error: found 0 in vertex values for face {f}'
+
+        if coords_voxel_loc.shape[0] > 1 :
+            p0, v0, x, y = interpolate_face(face_coords[f], face_vertex_values[f], resolution, new_points_only=new_points_only)
+        else : 
+            p0 = face_coords[f]
+            v0 = face_vertex_values[f]
+        
+        if n_points + p0.shape[0] >= points.shape[0]:
+            points = np.concatenate([points,np.zeros([face_coords.shape[0],3])], axis=0)
+            values = np.concatenate([values,np.zeros(face_coords.shape[0])], axis=0)
+       
+
+        new_indices = n_points + np.arange(p0.shape[0]).astype(int)
+        cur_faces = faces[f]
+        for i, idx in enumerate(new_indices) : 
+            new_points_gen[idx] = NewPointGenerator(idx,cur_faces,x[i],y[i])
+
+        points[n_points:(n_points+p0.shape[0])] = p0
+        values[n_points:(n_points+v0.shape[0])] = v0
+        n_points += p0.shape[0]
+   
+    points=points[0:n_points]
+    values=values[0:n_points]
+
+
+    return points, values, new_points_gen
+
+def identify_target_edges_within_slab(edge_mask, section_numbers, ligand_vol_fn, coords, edges, resolution, ext='.nii.gz'):
+    img = nb.load(ligand_vol_fn)
+    ligand_vol = img.get_fdata()
+    step = img.affine[1,1]
+    start = img.affine[1,3]
+    ydir = np.sign(step)
+    resolution_step = resolution * ydir
+        
+    e0 = edges[:,0]
+    e1 = edges[:,1]
+    c0 = coords[e0,1]
+    c1 = coords[e1,1]
+   
+    edge_range = np.arange(0, edges.shape[0]).astype(int)
+    edge_range = edge_range[edge_mask == False]
+
+    edge_y_coords = np.vstack([c0,c1]).T
+
+    idx_1 = np.argsort(edge_y_coords,axis=1)
+    edges = np.take_along_axis(edge_y_coords, idx_1, 1)
+    sorted_edge_y_coords = np.take_along_axis(edge_y_coords, idx_1, 1)
+    
+    idx_0 = np.argsort(edges,axis=0)
+    sorted_edge_y_coords = np.take_along_axis( sorted_edge_y_coords, idx_0, 0)
+    edges = np.take_along_axis( edges, idx_0, 0)
+
+    #ligand_y_profile = np.sum(ligand_vol,axis=(0,2))
+    #section_numbers = np.where(ligand_y_profile > 0)[0]
+    
+    section_counter=0
+    current_section_vox = section_numbers[section_counter]
+    current_section_world = current_section_vox * step + start
+
+    for i in edge_range :
+        y0,y1 = sorted_edge_y_coords[i,:]
+        e0,e1 = edges[i]
+
+        crossing_edge = (y0 < current_section_world) & (y1 > current_section_world + resolution_step)
+
+        start_in_edge = ((y0 >= current_section_world) & (y0 < current_section_world+resolution_step)) & (y1 > current_section_world + resolution_step)
+
+        end_in_edge = (y0 < current_section_world) & ((y1>current_section_world) & (y1 <= current_section_world + resolution_step))
+       
+        if crossing_edge + start_in_edge + end_in_edge > 0 :
+            edge_mask[i]=True
+
+        if y0 > current_section_world :
+            section_counter += 1
+            if section_counter >= section_numbers.shape[0] :
+                break
+            current_section_vox = section_numbers[section_counter]
+            current_section_world = current_section_vox * step + start
+    
+    return edge_mask 
+
+def transform_surface_to_slabs( slab_dict, thickened_dict,  out_dir, surf_fn, ref_gii_fn=None, faces_fn=None, ext='.surf.gii'):
+    surf_slab_space_dict={}
 
     for slab, curr_dict in slab_dict.items() :
         thickened_fn = thickened_dict[str(slab)]
@@ -102,8 +481,12 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, ref_gi
         origin = volume_info['cras'] 
     else : volume_info = ref_gii_fn
 
-    if os.path.splitext(in_gii_fn)[1] in ['.pial', '.white', '.gii'] : 
+    ext = os.path.splitext(in_gii_fn)[1]
+    if ext in ['.pial', '.white', '.gii'] : 
         coords, faces, _ = load_mesh(in_gii_fn)
+    elif  ext == '.npz' :
+        coords = np.load(in_gii_fn)['points']
+        faces=None
     else :
         coords = h5.File(in_gii_fn)['data'][:]
         if os.path.splitext(faces_fn)[1] == '.h5' :
@@ -150,18 +533,20 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, ref_gi
 
     new_coords = df[['x','y','z']].values
     print(os.path.splitext(out_gii_fn))
-    if os.path.splitext(out_gii_fn)[1] == '.h5':
+    out_basename, out_ext = os.path.splitext(out_gii_fn)
+    if out_ext == '.h5':
         f_h5 = h5.File(out_gii_fn, 'w')
         f_h5.create_dataset('data', data=new_coords) 
         f_h5.close()
         save_mesh(out_path+'.surf.gii', new_coords, faces, volume_info=volume_info)
+    elif out_ext =='.npz' :
+        np.savez(out_basename, points=coords)
     else :
         print('\tWriting Transformed Surface:',out_gii_fn, faces.shape )
         save_mesh(out_gii_fn, new_coords, faces, volume_info=volume_info)
 
-    obj_fn = out_path +  '.obj'
-
-    save_obj(obj_fn,coords, faces)
+    #obj_fn = out_path +  '.obj'
+    #save_obj(obj_fn,coords, faces)
 
 def get_section_intervals(vol):
     section_sums = np.sum(vol, axis=(0,2))
@@ -174,16 +559,14 @@ def get_section_intervals(vol):
     return intervals
     
 def resample_to_output(vol, aff, resolution_list, order=1):
+    print('resample_to_output')
     dim_range=range(len(vol.shape))
     calc_new_dim = lambda length, step, resolution : np.ceil( (length*abs(step))/resolution).astype(int)
     dim = [ calc_new_dim(vol.shape[i], aff[i,i], resolution_list[i]) for i in dim_range ]
     assert len(np.where(np.array(dim)<=0)[0]) == 0 , f'Error: dimensions <= 0 in {dim}'
-    print('1.',vol.shape[1], aff[1,1], resolution_list[1])
     vol = resize(vol, dim, order=order )
-    print('2.',vol.shape[1])
 
     aff[dim_range,dim_range] = resolution_list
-    print('New Dim', dim)
     return nib.Nifti1Image(vol, aff )
 
 
