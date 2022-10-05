@@ -347,6 +347,7 @@ def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_
     ###
     final_ligand_dict={}
     for ligand, df_ligand in hemi_df.groupby(['ligand']):
+        print('\t\tLigand:', ligand)
         final_ligand_fn = surface_interpolation(df_ligand, slab_dict, interp_dir, brain, hemi, highest_resolution, args.srv_cortex_fn, args.slabs, files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
         final_ligand_dict[ligand] = final_ligand_fn
 
@@ -388,7 +389,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
     validate_alignment(f'{args.out_dir}/6_quality_control/validate_alignment/', files[brain][hemi])
     
     if args.no_surf : exit(0)
-    
+    print('\tSurface-based reconstruction') 
     final_ligand_dict = surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_dict, interp_dir, brain, hemi, scale_factors)
     
 
@@ -425,9 +426,9 @@ def reconstruct_slab(hemi_df, brain, hemi, slab, slab_index, args, files, resolu
     slab_tfm_csv =f'{init_align_dir}/{brain}_{hemi}_{slab}_slab_tfm.csv'
 
     ###  Step 1: Initial Alignment
-    print('\tInitial rigid inter-autoradiograph alignment')
 
     if (not os.path.exists( init_align_fn) or not os.path.exists(init_tfm_csv) or args.clobber) :
+        print('\tInitial rigid inter-autoradiograph alignment')
         receptorRegister(brain, hemi, slab, init_align_fn, init_tfm_csv, init_align_dir, args.manual_2d_dir, slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
 
     if not os.path.exists(slab_tfm_csv): 
@@ -444,8 +445,10 @@ def reconstruct_slab(hemi_df, brain, hemi, slab, slab_index, args, files, resolu
         
     #multiresolution_outputs+=[cfiles[str(resolution_list[-1])]['slab_info_fn']]
     if run_stage([init_align_fn], multiresolution_outputs) or args.clobber : 
+        print('\tMultiresolution Alignment')
         multiresolution_alignment( slab_df, hemi_df, brain, hemi, slab, slab_index, args, files, resolution_list, resolution_list_3d, init_align_fn, max_resolution_3d)
 
+    print('\tCreate SRV volumes for next slab')
     create_srv_volumes_for_next_slab(args,files, args.slabs, resolution_list, resolution_list_3d, brain, hemi, slab, slab_index)
 
     ###
@@ -490,6 +493,7 @@ if __name__ == '__main__':
     df = df.loc[ (df['hemisphere'] == 'R') & (df['mri'] == 'MR1' ) ] #FIXME, will need to be removed
 
     flip_axes_dict = {'caudal_to_rostral':(1,)}
+    print('\tCropping')
     crop( args.crop_dir, args.mask_dir, df, args.scale_factors_fn, float(args.resolution_list[-1]), flip_axes_dict=flip_axes_dict,  pytorch_model=pytorch_model )
     print('\tFinished cropping') 
     #args.landmark_df = process_landmark_images(df, args.landmark_src_dir, args.landmark_dir, args.scale_factors_fn)

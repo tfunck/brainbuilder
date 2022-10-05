@@ -95,7 +95,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, file_to_
     syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m Mattes[{fx_fn},{mv_fn},1,16,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}' #  -t SyN[0.5] -m Mattes[{fx_fn},{mv_fn},1,3,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}' 
     if use_syn :
         with open(prefix+'_command.txt','w') as f : f.write(syn_command_str)
-        print(syn_command_str)
+        print(syn_command_str) ; exit(0)
         shell(syn_command_str)
     else :
         shutil.copy( f'{prefix}_affine_cls_rsl.nii.gz' , f'{prefix}_cls_rsl.nii.gz' )
