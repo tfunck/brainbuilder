@@ -798,6 +798,7 @@ def create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, p
                 nib.Nifti1Image(interp_vol, out_affine ).to_filename(multi_mesh_interp_fn)
                 interp_vol = fill_in_missing_voxels(interp_vol, mask_vol, y0, y1, imageParamHi.starts[1], imageParamHi.steps[1] )
                 nib.Nifti1Image(interp_vol, out_affine ).to_filename(multi_mesh_filled_fn)
+                exit(0)
             else : 
                 interp_vol = nib.load(multi_mesh_interp_fn).get_fdata()
 

@@ -432,7 +432,6 @@ def downsample(df, downsample_dir, resolution_2d):
         if not os.path.exists(crop_rsl_fn) :
             prefilter_and_downsample(crop_fn, [resolution_2d]*2, crop_rsl_fn)
 
-        print('Downsampled:', i, crop_rsl_fn)
         df['crop'].iloc[i] = crop_rsl_fn
         #print(df['crop'].iloc[i])
     return df
@@ -455,7 +454,7 @@ def _get_section_intervals(vol, interp_dir):
 
 
     
-def align_3d(rec_fn, template_fn, out_dir, subject_id, res, f_str='5x4x3x2', s_str='2.5x2x1.5x1', lin_itr_str='1000x500x250x125', syn_only=False, init_tfm=''):
+def align_3d(rec_fn, template_fn, out_dir, subject_id, res, f_str='5x4x3x2', s_str='2.5x2x1.5x1', lin_itr_str='1000x500x250x125', syn_only=False, init_tfm='', metric='GC'):
     current_template_fn = f'{out_dir}/'+os.path.basename(re.sub('.nii',f'_{res}mm.nii', template_fn))
     rec_interp_fn = f'{out_dir}/'+os.path.basename(re.sub('.nii',f'_{res}mm.nii', rec_fn))
    
@@ -490,12 +489,12 @@ def align_3d(rec_fn, template_fn, out_dir, subject_id, res, f_str='5x4x3x2', s_s
         init_str=f'--initial-moving-transform {init_tfm}'
     else :
         init_str=f'--initial-moving-transform [{current_template_fn},{rec_interp_fn},1]' 
-
+    
     if not syn_only :
         ants_str = f'antsRegistration -v 1 -a 1 -d 3  {init_str}' 
-        rigid_str = f'-t Rigid[.1] -c {lin_itr_str}  -m GC[{current_template_fn},{rec_interp_fn},1,30,Regular,1] -s {s_str} -f {f_str}' 
-        similarity_str = f'-t Similarity[.1]  -m GC[{current_template_fn},{rec_interp_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}'  
-        affine_str = f'-t Affine[.1] -m GC[{current_template_fn},{rec_interp_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}'
+        rigid_str = f'-t Rigid[.1] -c {lin_itr_str}  -m {metric}[{current_template_fn},{rec_interp_fn},1,30,Regular,1] -s {s_str} -f {f_str}' 
+        similarity_str = f'-t Similarity[.1]  -m {metric}[{current_template_fn},{rec_interp_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}'  
+        affine_str = f'-t Affine[.1] -m {metric}[{current_template_fn},{rec_interp_fn},1,20,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}'
         out_str = f'-o [{prefix},{out_fn},{out_inv_fn}] '
         cmd_str = f'{ants_str} {rigid_str} {similarity_str} {affine_str} {out_str}'
     else :
@@ -510,7 +509,7 @@ def align_3d(rec_fn, template_fn, out_dir, subject_id, res, f_str='5x4x3x2', s_s
 
     return tfm_fn, inv_fn
 
-def multires_align_3d(subject_id, out_dir, volume_interp_fn, template_fn, resolution_list, curr_res, init_affine_fn=''):
+def multires_align_3d(subject_id, out_dir, volume_interp_fn, template_fn, resolution_list, curr_res, init_affine_fn='', metric='GC'):
     out_tfm_fn=f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN_Composite.h5' 
     out_tfm_inv_fn=f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN_InverseComposite.h5' 
     out_inv_fn=f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN_inverse.nii.gz' 
@@ -518,18 +517,19 @@ def multires_align_3d(subject_id, out_dir, volume_interp_fn, template_fn, resolu
 
     resolution_itr = resolution_list.index( curr_res)
 
+
     max_downsample_level = get_max_downsample_level(resolution_list, resolution_itr)
 
     f_str, s_str, lin_itr_str, nl_itr_str = get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr, base_nl_itr=100)
-    run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, template_fn, template_fn, volume_interp_fn, s_str, f_str, lin_itr_str, nl_itr_str, curr_res, manual_affine_fn=init_affine_fn )
+    
+    run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, template_fn, template_fn, volume_interp_fn, s_str, f_str, lin_itr_str, nl_itr_str, curr_res, manual_affine_fn=init_affine_fn, metric=metric )
 
     return out_tfm_fn, out_tfm_inv_fn
 
-def align_2d(df, output_dir, rec_fn, template_rsl_fn, mv_dir, resolution, resolution_itr, use_syn=False):
+def align_2d(df, output_dir, rec_fn, template_rsl_fn, mv_dir, resolution, resolution_itr, file_to_align='seg_fn', use_syn=False):
     df['slab_order'] = df['order']
 
-    df = receptor_2d_alignment( df, rec_fn, template_rsl_fn, mv_dir, output_dir, resolution, resolution_itr,use_syn=use_syn) 
-
+    df = receptor_2d_alignment( df, rec_fn, template_rsl_fn, mv_dir, output_dir, resolution, resolution_itr, file_to_align=file_to_align, use_syn=use_syn) 
     return df
 
 def get_template_y_scale(template_fn):
@@ -729,7 +729,7 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     # .1 , .2, .4, .8, 1.6, 
     affine_fn, init_3d_inv_fn = align_3d(volume_init_fn, template_fn, init_3d_dir,
                                         subject_id, lowres*np.power(2,4), 
-                                        f_str='5x4x3', s_str='2.5x2x1.5', lin_itr_str='2000x1000x1000') #, init_tfm=affine_fn)
+                                        f_str='5x4x3', s_str='2.5x2x1.5', lin_itr_str='2000x1000x1000', metric='Mattes') #, init_tfm=affine_fn)
     #[8,6,4,3,2,1]
     for itr, curr_res in enumerate(resolution_list):
         # Define some variables
@@ -764,17 +764,15 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
         if not os.path.exists(current_template_fn):
             prefilter_and_downsample(template_fn, [resolution_3d]*3, current_template_fn)
 
-        tfm_3d_fn, tfm_3d_inv_fn = multires_align_3d(subject_id, align_3d_dir, volume_seg_fn, current_template_fn, resolution_list, curr_res, affine_fn)
+        tfm_3d_fn, tfm_3d_inv_fn = multires_align_3d(subject_id, align_3d_dir, volume_seg_fn, current_template_fn, resolution_list, curr_res, affine_fn, metric='Mattes')
         
         ### 7. 2d alignement
         if not os.path.exists(template_rec_space_fn) : 
             resample_to_autoradiograph_sections(subject_id, '', '', float(curr_res), current_template_fn, volume_seg_fn, tfm_3d_inv_fn, template_iso_rec_space_fn, template_rec_space_fn)
-       
         create_2d_sections(aligned_df, template_rec_space_fn, float(curr_res), align_2d_dir )
         aligned_df = align_2d(aligned_df, align_2d_dir, volume_init_fn, template_rec_space_fn, seg_2d_dir, resolution_2d, itr, use_syn=True)
-        
+         
         aligned_df = concatenate_sections_to_volume( aligned_df, template_rec_space_fn, align_2d_dir, volume_align_2d_fn)
-
 
     ### 8. Perform a final alignment to the template
     final_3d_dir = f'{subject_dir}/final_3d_dir/'

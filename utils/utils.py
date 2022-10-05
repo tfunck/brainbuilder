@@ -170,13 +170,11 @@ def get_section_intervals(vol):
     if nlabels < 2:
         print('Error: there must be a gap between thickened sections. Use higher resolution volumes.')
 
-<<<<<<< HEAD
-    intervals = [ (np.where(labeled_sections==i)[0][0], np.where(labeled_sections==i)[0][-1]) for i in range(1, nlabels+1) ]
-    if len(intervals) == 0 : print( 'Warning: no valid intervals found for volume.'  )
-=======
+    #intervals = [ (np.where(labeled_sections==i)[0][0], np.where(labeled_sections==i)[0][-1]) for i in range(1, nlabels+1) ]
+    #if len(intervals) == 0 : print( 'Warning: no valid intervals found for volume.'  )
+    
     intervals = [ (np.where(labeled_sections==i)[0][0], np.where(labeled_sections==i)[0][-1]+1) for i in range(1, nlabels+1) ]
     assert len(intervals) > 0 , 'Error: no valid intervals found for volume.'  
->>>>>>> 24b07573e1f61d42dd1c3486c2cb046069f8dd05
     return intervals
     
 def resample_to_output(vol, aff, resolution_list, order=1):
@@ -198,18 +196,16 @@ def get_alignment_parameters(resolution_itr, resolution_list):
     calc_factor  = lambda cur_res, image_res: np.rint(1+np.log2(float(cur_res)/float(image_res))).astype(int).astype(str)
 
     f_list = [ calc_factor(resolution_list[i], resolution_list[resolution_itr]) for i in range(resolution_itr+1)  ]
-
-    
     assert len(f_list) != 0, 'Error: no smoothing factors' 
 
     f_str='x'.join([ str(f) for f in f_list ])
     #DEBUG the followig line is probably wrong because sigma should be calcaulted
     # as a function of downsample factor in f_list
-    s_list = [ np.round(float(resolution_list[i])/np.pi,2) for i in range(resolution_itr+1) ] 
+    s_list = [ np.round(float(resolution_list[i]/resolution_list[resolution_itr])/np.pi,2) for i in range(resolution_itr+1) ] 
     # DEBUG the following is probably correct
     #s_list = [ np.round((float(f)**(f-1))/np.pi,2) for f in f_list ] 
     s_str='x'.join( [str(i) for i in s_list] ) + 'vox'
-
+    
     return f_list, f_str, s_str
 
 
@@ -232,7 +228,7 @@ def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, 
     Outpus:
         None
     '''
-    shell(f'antsApplyTransforms -n HammingWindowedSinc -v 0 -d 3 -i {input_fn} -r {ref_fn} -t {tfm_inv_fn} -o /tmp/tmp.nii.gz',True)
+    shell(f'antsApplyTransforms -n HammingWindowedSinc -v 1 -d 3 -i {input_fn} -r {ref_fn} -t {tfm_inv_fn} -o /tmp/tmp.nii.gz',True)
     print('ref fn',ref_fn)
     img = nib.load('/tmp/tmp.nii.gz')
     vol = img.get_fdata()
@@ -367,7 +363,7 @@ def newer_than(input_list, output_list) :
                 print('\t',t1, time.ctime(os.path.getctime(input_filename)))
                 print('\tOutput file:')
                 print('\t',t0, time.ctime(os.path.getctime(output_filename)))
-                exit(0)
+                exit(1)
                 return True
     
     return False
@@ -664,7 +660,6 @@ def recenter(vol, affine, direction=np.array([1,1,-1])):
 def prefilter_and_downsample(input_filename, new_resolution, output_filename, 
                             reference_image_fn='',
                             new_starts=[None, None, None], recenter_image=False ):
-
     img = nib.load(input_filename)
     direction = ants.image_read(input_filename).direction
     vol = img.get_fdata()
@@ -700,9 +695,8 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
     else :
         print(f'Error: number of dimensions ({ndim}) does not equal 2 or 3 for {input_filename}')
         exit(1)
-    
     sd = (  np.array(new_resolution) / steps  ) / np.pi
-
+    print('\tFilter standard deviation', sd)
     vol = gaussian_filter(vol, sd)
 
 

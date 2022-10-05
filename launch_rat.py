@@ -21,4 +21,4 @@ if __name__ == '__main__' :
     create_data_frame(default_csv_fn, auto_dir, crop_dir, csv_fn)
     brain='L6'
     hemi = 'B' 
-    reconstruct(subject_id, auto_dir, template_fn, scale_factors_json, out_dir, csv_fn, brain=brain, hemi=hemi, resolution_list=[1,0.5,0.25,0.1], lowres=0.1)
+    reconstruct(subject_id, auto_dir, template_fn, scale_factors_json, out_dir, csv_fn, brain=brain, hemi=hemi, resolution_list=[0.5,0.4,0.3,0.2,0.1], lowres=0.1)

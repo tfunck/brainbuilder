@@ -18,7 +18,6 @@ from reconstruction.nonlinear_2d_alignment import create_2d_sections, receptor_2
 from reconstruction.crop import crop
 from reconstruction.receptor_segment import classifyReceptorSlices, interpolate_missing_sections, resample_transform_segmented_images
 from skimage.transform import resize
-from scipy.ndimage.filters import gaussian_filter
 from utils.ANTs import ANTs
 from joblib import Parallel, delayed
 from scipy.ndimage import binary_dilation
@@ -27,7 +26,7 @@ from preprocessing.preprocessing import fill_regions
 from utils.utils import safe_imread, points2tfm 
 from skimage.filters import threshold_otsu, threshold_li , threshold_sauvola, threshold_yen
 from scipy.ndimage import label, center_of_mass
-from macaque.process import align, get_section_scale_factor, downsample, concat_section_to_volume
+from macaque.process import align, get_section_scale_factor, downsample, concat_section_to_volume, multires_align_3d, align_2d
 
 
 def load_warp(fn):
@@ -220,14 +219,18 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     ### 4. Align
     print('3. Init Alignment')
     concat_section_to_volume(df, affine, volume_fn, file_var='crop' )
-
+    
+    print('1')
     #TODO: ligand_contrast_order = get_ligand_contrast_order()
     ligand_contrast_order=['oxot'] #DEBUG just for rat!
     
+    print('2')
     aligned_df = align(df, init_dir, ligand_contrast_order, metric='GC' )
 
+    print('3')
     concat_section_to_volume(aligned_df, affine, volume_init_fn, file_var='init' )
 
+    print('4')
     file_to_align='init'
     for itr, curr_res in enumerate(resolution_list):
         # Define some variables
@@ -254,33 +257,41 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
         template_iso_rec_space_fn = f'{align_2d_dir}/'+os.path.basename(re.sub('.nii',f'_{curr_res}mm_space-nat.nii', template_fn))
 
         ### 5. Segment
-        resample_transform_segmented_images(aligned_df, itr, resolution_2d, resolution_3d, seg_2d_dir, file_to_align=file_to_align)
-        classifyReceptorSlices(aligned_df, volume_init_fn, seg_2d_dir, seg_dir, volume_seg_fn, resolution=resolution_3d, interpolation='linear', file_to_align=file_to_align, flip_axes=())
+        print('\t5. Segment')
+        resample_transform_segmented_images(aligned_df, itr, resolution_2d, resolution_3d, seg_2d_dir, file_to_align='crop')
+        classifyReceptorSlices(aligned_df, volume_init_fn, seg_2d_dir, seg_dir, volume_seg_fn, resolution=resolution_3d, interpolation='linear', file_to_align='crop', flip_axes=())
 
         ### 6. 3D alignment
         if not os.path.exists(current_template_fn):
             prefilter_and_downsample(template_fn, [resolution_3d]*3, current_template_fn)
 
-        tfm_3d_fn, tfm_3d_inv_fn = multires_align_3d(subject_id, align_3d_dir, volume_seg_fn, current_template_fn, resolution_list, curr_res, affine_fn)
+        print('\tAlign 3D')
+        tfm_3d_fn, tfm_3d_inv_fn = multires_align_3d(subject_id, align_3d_dir, volume_seg_fn, current_template_fn, resolution_list, curr_res, affine_fn, metric='Mattes')
         
+        print(file_to_align); 
         ### 7. 2d alignement
         if not os.path.exists(template_rec_space_fn) : 
             resample_to_autoradiograph_sections(subject_id, '', '', float(curr_res), current_template_fn, volume_seg_fn, tfm_3d_inv_fn, template_iso_rec_space_fn, template_rec_space_fn)
        
         create_2d_sections(aligned_df, template_rec_space_fn, float(curr_res), align_2d_dir )
-        aligned_df = align_2d(aligned_df, align_2d_dir, volume_init_fn, template_rec_space_fn, seg_2d_dir, resolution_2d, itr, use_syn=True)
+        aligned_df = align_2d(aligned_df, align_2d_dir, volume_init_fn, template_rec_space_fn, seg_2d_dir, resolution_2d, itr, file_to_align='crop', use_syn=False)
         
         aligned_df = concatenate_sections_to_volume( aligned_df, template_rec_space_fn, align_2d_dir, volume_align_2d_fn)
 
   
     for ligand, ligand_df in aligned_df.groupby(['ligand']):
-        ligand_df, nl_vol_fn = align_nl(ligand_df, nl_dir)
+        #ligand_df, nl_vol_fn = align_nl(ligand_df, nl_dir)
         
         interp_fn=f'{interp_dir}/{subject_id}_{ligand}_vol_interp.nii.gz'
-        img = nib.load(nl_vol_fn)
+        interp_stx_fn=f'{interp_dir}/{subject_id}_{ligand}_vol_interp_space-stx.nii.gz'
+        img = nib.load(volume_align_2d_fn)
         vol = img.get_fdata()
         vol = interpolate_missing_sections(vol, dilate_volume=False)
         nib.Nifti1Image(vol, img.affine).to_filename(interp_fn)
+
+        shell(f'antsApplyTransforms -v 1 -d 3 -i {interp_fn} -r {current_template_fn} -t {tfm_3d_fn} -o {interp_stx_fn}')
+
+
     
     
 

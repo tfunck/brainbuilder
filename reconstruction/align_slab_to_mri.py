@@ -155,10 +155,10 @@ def pad_seg_vol(seg_rsl_fn,max_downsample_level):
 def get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr,base_nl_itr = 250 ):
     #cur_res/res = 2^(f-1) --> f = 1+ log2(cur_res/res)
 
-
     f_list, f_str, s_str = get_alignment_parameters(resolution_itr, resolution_list)
+    print('f_list', f_list, f_str) 
 
-    use_old_alignment_parameters=True
+    use_old_alignment_parameters=False
 
     if use_old_alignment_parameters:
         f_list=[ str(f) for f in range(max_downsample_level, 0, -1)]# if smallest_dimension / 2**(f-1) > 29 ]
@@ -182,6 +182,9 @@ def get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr
 
     lin_itr_str='x'.join([str(max_lin_itr - i*lin_step) for i in range(len(f_list))])
     nl_itr_str='x'.join([str(max_nl_itr - i*nl_step) for i in range(len(f_list))  ])
+    #print(resolution_itr)
+    #print(range(len(f_list)))
+    #print(lin_itr_str)
 
     lin_itr_str ='['+ lin_itr_str +',1e-7,20 ]' 
     nl_itr_str='['+ nl_itr_str +',1e-7,20 ]'
@@ -235,8 +238,9 @@ def gen_mask(fn, clobber=False) :
     
     return out_fn
 
-def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn, clobber=False ):
+def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn, metric='GC', clobber=False ):
     prefix=re.sub('_SyN_Composite.h5','',out_tfm_fn)
+    prefix_init = prefix+'_init_'
     prefix_rigid = prefix+'_Rigid_'
     prefix_similarity = prefix+'_Similarity_'
     prefix_affine = prefix+'_Affine_'
@@ -255,44 +259,55 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     #srv_mask_fn = gen_mask(srv_rsl_fn,clobber=True)
 
     srv_tgt_fn=srv_slab_fn
-
+    nbins=32
+    step=0.1
     #calculate SyN
     if float(resolution) >= 1.0 :
         nl_metric = f'CC[{srv_rsl_fn},{seg_rsl_fn},1,3,Regular,1]'
         syn_rate='0.5'
     else :
-        nl_metric=f'Mattes[{srv_tgt_fn},{seg_rsl_fn},1,16,Regular,1]'
+        nl_metric=f'Mattes[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Regular,1]'
         syn_rate='0.1'
     #DEBUG FIXME USING ONLY MATTES TO TEST alignment with WM
-
+    
     # set initial transform
     # calculate rigid registration
     skip_manual=True
     if not os.path.exists( manual_affine_fn ) or skip_manual :
+        ### Create init tfm to adjust for brains of very differnt sizes
+        if not os.path.exists(f'{prefix_rigid}Composite.h5'):
+            s_str_0 = re.sub('vox','',s_str).split('x')[0] +'x'
+            f_str_0 = f_str.split('x')[0] 
+            print(s_str_0)
+            shell(f'antsRegistration -v 1 -a 1 -d 3   --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]   -t Similarity[{step}]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,0.71]  -s {s_str_0} -f {f_str_0}  -c 1000   -t Affine[{step}]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,0.71]  -s {s_str_0} -f {f_str_0}  -c 1000  -o [{prefix_init},{prefix_init}volume.nii.gz,{prefix_init}volume_inverse.nii.gz]  ', verbose=True)
+
+
         # calculate rigid registration
         if not os.path.exists(f'{prefix_rigid}Composite.h5'):
-            shell(f'antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]  -t Rigid[.5]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,16,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] ', verbose=True)
+            shell(f'antsRegistration -v 1 -a 1 -d 3   --initial-moving-transform {prefix_init}Composite.h5  -t Rigid[{step}]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] ', verbose=True)
         # calculate similarity registration
         if not os.path.exists(f'{prefix_similarity}Composite.h5'):
-            shell(f'antsRegistration -v 0 -a 1 -d 3   --initial-moving-transform  {prefix_rigid}Composite.h5 -t Similarity[.5]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,16,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] ', verbose=True)
+            shell(f'antsRegistration -v 1 -a 1 -d 3   --initial-moving-transform  {prefix_rigid}Composite.h5 -t Similarity[{step}]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] ', verbose=True)
         affine_init = f'--initial-moving-transform {prefix_similarity}Composite.h5'
     else :
         print('\tApply manual transformation')
-        shell(f'antsApplyTransforms -v 0 -i {seg_rsl_fn} -r {srv_tgt_fn} -t [{manual_affine_fn},0] -o {manual_out_fn}', verbose=True)
+        shell(f'antsApplyTransforms -v 1 -i {seg_rsl_fn} -r {srv_tgt_fn} -t [{manual_affine_fn},0] -o {manual_out_fn}', verbose=True)
         affine_init = f'--initial-moving-transform [{manual_affine_fn},0]'
     
     #calculate affine registration
     if not os.path.exists(f'{prefix_affine}Composite.h5'):
-        shell(f'antsRegistration -v 0 -a 1 -d 3 {affine_init} -t Affine[.5] -m Mattes[{srv_tgt_fn},{seg_rsl_fn},1,16,Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] ', verbose=True)
+        shell(f'antsRegistration -v 1 -a 1 -d 3 {affine_init} -t Affine[{step}] -m Mattes[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] ', verbose=True)
      
     if not os.path.exists(f'{prefix_syn}Composite.h5'):
         # --masks [{srv_mask_fn},{seg_mask_fn}]
-        shell(f'antsRegistration -v 0 -a 1 -d 3  --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[{syn_rate}] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{syn_out_fn},{syn_inv_fn}] ', verbose=True)
+        shell(f'antsRegistration -v 1 -a 1 -d 3  --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[{syn_rate}] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{syn_out_fn},{syn_inv_fn}] ', verbose=True)
 
+
+    
     if not os.path.exists(out_fn):
-        shell(f'antsApplyTransforms -v 0 -i {seg_rsl_fn} -r {srv_rsl_fn} -t {prefix_syn}Composite.h5  -o {out_fn}')
+        shell(f'antsApplyTransforms -v 1 -i {seg_rsl_fn} -r {srv_rsl_fn} -t {prefix_syn}Composite.h5  -o {out_fn}')
     if not os.path.exists(out_inv_fn) :
-        shell(f'antsApplyTransforms -v 0 -i {srv_rsl_fn} -r {seg_rsl_fn} -t {prefix_syn}InverseComposite.h5  -o {out_inv_fn}')
+        shell(f'antsApplyTransforms -v 1 -i {srv_rsl_fn} -r {seg_rsl_fn} -t {prefix_syn}InverseComposite.h5  -o {out_inv_fn}')
 
     
 def get_max_downsample_level(resolution_list, resolution_itr):

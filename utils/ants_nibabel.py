@@ -42,6 +42,7 @@ class Nifti1Image():
 
 def safe_image_read(fn) :
 
+    img = ants.image_read(fn)
     try :
         img = ants.image_read(fn)
     except RuntimeError :

@@ -18,8 +18,10 @@ from glob import glob
 from utils.utils import *
 
 
-def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, file_to_align='seg_fn', use_syn=True):
+def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, file_to_align='seg_fn', use_syn=True, step=0.5, bins=32):
+
     #Set strings for alignment parameters
+    max_itr = resolution_itr # min(resolution_itr, len(f_list))
     f_list = [ '1', '2', '3', '4', '6', '8', '10', '12', '14', '16', '18', '24']
     s_list = [ '0', '1', '1.5', '2', '3', '4', '5', '6', '7', '8', '9', '16']
     f_list = f_list[0:(max_itr+1)]
@@ -27,42 +29,43 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, file_to_
     s_list.reverse()
     f_list.reverse()
     
-    max_itr = resolution_itr # min(resolution_itr, len(f_list))
     #f_list, f_str, s_str = get_alignment_parameters(resolution_itr, resolution_list)
 
     base_lin_itr= 100
     base_nl_itr = 20
+
+    base_lin_itr= 1000 #DEBUG OLD ITERATIONS
+    base_nl_itr = 200 #DEBUG OLD ITERATIONS
+
     max_lin_itr = base_lin_itr * (resolution_itr+1)
     max_nl_itr  = base_nl_itr * (resolution_itr+1)
     lin_step = -base_lin_itr 
     nl_step  = -base_nl_itr 
-    print(max_itr)
     lin_itr_str='x'.join([str(base_lin_itr * ((max_itr+1) - i)) for i in range(max_itr+1)])
     nl_itr_str='x'.join( [str(base_nl_itr * ((max_itr+1) - i)) for i in range(max_itr+1)])
-    print(lin_itr_str)
-    print(nl_itr_str)
     nl_itr_str='[ '+ nl_itr_str +',1e-7,20 ]'
 
-    f_cc = f_str.split('x')[-1]
-    s_cc = s_str.split('x')[-1]
+    f_str='x'.join( [ f_list[i] for i in range(max_itr+1)]) 
+    s_str='x'.join( [ s_list[i] for i in range(max_itr+1)]) + 'vox'                                                                                                                                       
+
+
+    #f_cc = f_str.split('x')[-1]
+    #s_cc = s_str.split('x')[-1]
 
     s_str_final = s_str.split(',')[-1]
     f_str_final = f_str.split(',')[-1]
-    print(f_str)
-    print(s_str)
+
     
     n0 = len(lin_itr_str.split('x'))
     n1 = len(f_str.split('x')) 
     n2 = len(s_str.split('x'))-1
     n3 = len(nl_itr_str.split('x'))
-    print(n0,n1,n2,n3)
     assert n0==n1==n2==n3 , "Error: Incorrect lengths for ANTs parameters"
 
     y=int(row['slab_order'])
 
     prefix = f'{tfm_dir}/y-{y}' 
     fx_fn = gen_2d_fn(prefix,'_fx')
-
     mv_fn = get_seg_fn(mv_dir, int(y), resolution, row[file_to_align], suffix='_rsl')
 
     init_tfm = row['init_tfm']
@@ -80,16 +83,19 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, file_to_
 
     #fix_affine(fx_fn)
     #fix_affine(mv_fn)
+    interpolation='NearestNeighbor'
+    interpolation='HammingWindowedSinc'
 
-    affine_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2 --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[.5] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_fn},1,12,Regular,1] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m Mattes[{fx_fn},{mv_fn},1,12,Regular,1] -s {s_str} -f {f_str} -t Affine[.5] -c {lin_itr_str} -m Mattes[{fx_fn},{mv_fn},1,12,Regular,1] -s {s_str} -f {f_str} '
+    affine_command_str = f'antsRegistration -n {interpolation} -v 0 -d 2 --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[{step}] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_fn},1,{bins},Regular,1] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m Mattes[{fx_fn},{mv_fn},1,{bins},Regular,1] -s {s_str} -f {f_str} -t Affine[{step}] -c {lin_itr_str} -m Mattes[{fx_fn},{mv_fn},1,{bins},Regular,1] -s {s_str} -f {f_str} '
+    print(affine_command_str)
 
     with open(prefix+'_command.txt','w') as f : f.write(affine_command_str)
     shell(affine_command_str)
     
     syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m Mattes[{fx_fn},{mv_fn},1,16,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}' #  -t SyN[0.5] -m Mattes[{fx_fn},{mv_fn},1,3,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}' 
-
     if use_syn :
         with open(prefix+'_command.txt','w') as f : f.write(syn_command_str)
+        print(syn_command_str)
         shell(syn_command_str)
     else :
         shutil.copy( f'{prefix}_affine_cls_rsl.nii.gz' , f'{prefix}_cls_rsl.nii.gz' )
@@ -106,7 +112,8 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     fx_fn = gen_2d_fn(prefix,'_fx')
 
     crop_fn = row['crop_raw_fn']
-    
+   
+    print('crop fn', crop_fn)
     img = nib.load(crop_fn)
     img_res = np.array([img.affine[0,0], img.affine[1,1] ])
     vol = img.get_fdata()
@@ -116,7 +123,7 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     
     #fix_affine(crop_rsl_fn)
     #fix_affine(fx_fn)
-    shell(f'antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {crop_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
+    shell(f'antsApplyTransforms -v 1 -d 2 -n NearestNeighbor -i {crop_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
     
     #Commented out masking because GM receptor mask not good enough at the moment.
     #rsl_img = nib.load(out_fn)
@@ -193,7 +200,6 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='r
     target_name = 'nl_2d_'+target_str
 
     df[target_name] = [''] * df.shape[0]
-    
 
     for idx, (i, row) in enumerate(df.iterrows()):
         y = int(row['slab_order'])
@@ -206,7 +212,7 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='r
         for idx, (i, row) in enumerate(df.iterrows()):
             fn = df[target_name].loc[i]
             y = int(row['slab_order'])
-
+            print(fn)
             try : 
                 out_vol[:,int(y),:] = nib.load(fn).get_fdata()
             except EOFError :

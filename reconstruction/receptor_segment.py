@@ -80,11 +80,9 @@ def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution
     seg_rsl_tfm_fn = get_seg_fn(output_dir, int(row['slab_order']), resolution_3d, seg_fn, '_rsl_tfm')
 
     new_starts = [ None, -126. + 0.02 * row['global_order'], None ]
-
     
     if not os.path.exists(seg_rsl_fn) :
         prefilter_and_downsample(seg_fn, [resolution_2d]*2, seg_rsl_fn, new_starts=new_starts  )
-
 
     if resolution_itr != 0: 
 
@@ -112,9 +110,6 @@ def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution
         tfm_fn = row['tfm']  
         
         if type(tfm_fn) == str :
-            #print('\n-->',tfm_fn, os.path.exists(tfm_fn),'\n')
-            #print('\n-->',tfm_input_fn, os.path.exists(tfm_input_fn),'\n')
-            #print('\n-->',seg_rsl_fn, os.path.exists(seg_rsl_fn), '\n')
 
             cmdline = f'antsApplyTransforms -n NearestNeighbor -v 0 -d 2 -i {tfm_input_fn} -r {tfm_ref_fn} -t {tfm_fn} -o {seg_rsl_tfm_fn}'
             shell(cmdline)
@@ -134,7 +129,7 @@ def resample_transform_segmented_images(df,resolution_itr,resolution_2d,resoluti
     else :
         num_cores = min(14, multiprocessing.cpu_count() )
     
-    Parallel(n_jobs=num_cores)(delayed(resample_and_transform)(output_dir, resolution_itr, resolution_2d, resolution_3d, row) for i, row in df.iterrows()) 
+    Parallel(n_jobs=num_cores)(delayed(resample_and_transform)(output_dir, resolution_itr, resolution_2d, resolution_3d, row, file_to_align=file_to_align) for i, row in df.iterrows()) 
 
 def interpolate_missing_sections(vol, dilate_volume=False) :
     if dilate_volume :
@@ -143,24 +138,28 @@ def interpolate_missing_sections(vol, dilate_volume=False) :
         vol_dil = vol
     intervals = get_section_intervals(vol_dil)
     
-    print(intervals)
+    out_vol=vol.copy() #np.zeros(vol.shape)
     for i in range(len(intervals)-1) :
         j=i+1
         x0,x1 = intervals[i]
         y0,y1 = intervals[j]
-        x = np.mean(vol[:,x0:(x1+1),:], axis=1)
-        y = np.mean(vol[:,y0:(y1+1),:], axis=1)
+        x = np.mean(vol[:,x0:x1,:], axis=1)
+        y = np.mean(vol[:,y0:y1,:], axis=1)
         vol[:,x0:x1,:]  = np.repeat(x.reshape(x.shape[0],1,x.shape[1]), x1-x0, axis=1)
-        print(x0,x1,y0,y1)   
-        for ii in range(x1+1,y0) :
+        for ii in range(x1,y0) :
             den = (y0-x1-1)
             assert den != 0, 'Error: 0 denominator when interpolating missing sections'
             d = (ii - x1)/den
             #d = np.rint(d)
             z = x * (1-d) + d * y
-            vol[:,ii,:] = z
-    
-    return vol
+
+            out_vol[:,ii,:] = z
+    #for i in range(out_vol.shape[1]):
+    #    if out_vol[:,i,:].max() == 0:
+    #        print(i)
+    #    else: print('ok')
+
+    return out_vol
 
 
 
@@ -192,7 +191,6 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
             for i, row in df.iterrows() :
                 s0 = int(row['slab_order'])
                 fn = get_seg_fn(in_dir, int(row['slab_order']), resolution, row[file_to_align], '_rsl_tfm')
-                print(fn)
                 img_2d = nib.load(fn).get_fdata()
                 #FIXME : Skipping frames that have been rotated
                 data[:,s0,:] = img_2d 
@@ -217,7 +215,6 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
             # Fill in missing slices using nearest neighbour interpolation
             #
             valid_slices = np.array(valid_slices) 
-            print("num of invalid slices:", len(valid_slices))
             for i in invalid_slices :
                 dif = np.argsort( np.absolute(valid_slices - i) )
 
@@ -256,7 +253,7 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         
         aff[[0,1,2],[0,1,2]]=resolution
         
-        print("Writing output to", out_fn)
+        print("\tWriting output to", out_fn)
         
         img_out = nib.Nifti1Image(data, aff, direction=[[1.,0.,0.],[0.,1.,0.],[0.,0.,-1.]])
         img_out.to_filename(out_fn)
