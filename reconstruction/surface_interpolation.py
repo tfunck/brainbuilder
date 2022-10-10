@@ -197,7 +197,7 @@ def thicken_sections(interp_dir, slab_dict, df_ligand, n_depths, resolution, tis
 
                 rep = np.repeat(section.reshape(dim), y1-y0, axis=1)
 
-                #rep[rep > 0] = 1000 # y0 #DEBUG 
+                #rep[rep > 0] = y #DEBUG 
 
                 rec_vol[:, y0:y1, :] = rep 
                 #rec_vol[:, y, :] = section
@@ -350,8 +350,10 @@ def project_volume_to_depth(surf_fn_list, slab_dict, surf_values_csv_list, surf_
                     assert np.sum(np.isnan(values)) == 0 , f'Error: nan found in values from {vol_fn}'
                     all_values[valid_coords_idx] = values 
             np.savetxt(interp_csv, all_values)
+            print('\tWriting surface values to', interp_csv)
 
         assert np.sum(all_values>0) > 0, 'Error, empty array all_values in project_volumes_to_surfaces'
+
 
 
 def project_volume_to_surfaces(profiles_fn, interp_dir, input_surf_dir, depth_list, surf_values_csv_list, thickened_dict, slab_dict, df_ligand, surf_depth_mni_dict, surf_depth_slab_dict, n_depths, resolution, output_prefix, tissue_type='', origin=np.array([0,0,0]), clobber=False):
@@ -466,42 +468,6 @@ def get_surface_filename(surf_obj_fn, surf_gii_fn, surf_fs_fn):
         print('Error: could not find input GM surface (obj, fs, gii) for ', surf_gii_fn)
         exit(1)
     return surf_fn, ext
-
-def prepare_surfaces(slab_dict, depth_list, interp_dir, resolution, upsample_resolution, mni_fn, surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, brain='mri1', hemi='R', clobber=0):
-    '''
-
-    '''
-    surf_rsl_dir = interp_dir +'/surfaces/' 
-    os.makedirs(surf_rsl_dir, exist_ok=True)
-    
-    #Interpolate at coordinate locations
-    ref_surf_fn = surf_base_str.format( surf_dir, brain,'gray', hemi, n_vertices,'','surf.gii')
-    ref_surf_obj_fn = surf_base_str.format( surf_dir, brain,'gray', hemi, n_vertices,'','obj')
-
-    #if not os.path.exists(ref_surf_fn) :
-    #    shell('ConvertSurface -i_obj {ref_surf_obj_fn}  -o_gii {ref_surf_fn}')
-
-
-    surf_gm_obj_fn = surf_base_str.format(surf_dir, brain, 'gray', hemi, n_vertices,'','obj')
-    surf_wm_obj_fn = surf_base_str.format(surf_dir, brain, 'white', hemi, n_vertices,'','obj')
-    
-    surf_gm_gii_fn = surf_base_str.format(surf_dir, brain, 'gray', hemi, n_vertices,'','surf.gii')
-    surf_wm_gii_fn = surf_base_str.format(surf_dir, brain, 'white', hemi, n_vertices,'','surf.gii')
-   
-    surf_gm_fs_fn = surf_base_str.format(surf_dir, brain, 'gray', hemi, n_vertices,'','pial')
-    surf_wm_fs_fn = surf_base_str.format(surf_dir, brain, 'white', hemi, n_vertices,'','white')
-    
-    surf_gm_fn, ext = get_surface_filename(surf_gm_obj_fn, surf_gm_gii_fn, surf_gm_fs_fn)
-    surf_wm_fn, _ = get_surface_filename(surf_wm_obj_fn, surf_wm_gii_fn, surf_wm_fs_fn)
-
-    origin=[0,0,0]
-    if ext.gm == '.pial' : origin= load_mesh(surf_gm_fn)[2]['cras']
-    
-    sphere_obj_fn = surf_base_str.format(surf_dir, brain, 'mid', hemi, n_vertices,'_sphere',ext.gm)
-    
-    #upsample transformed surfaces to given resolution
-    print("\tUpsampling and inflating surfaces.") 
-    depth_fn_mni_space = upsample_and_inflate_surfaces(surf_rsl_dir, surf_wm_fn, surf_gm_fn, ext, resolution, upsample_resolution, depth_list,slab_dict)
 
 class ImageParameters():
     def __init__(self, starts, steps, dimensions):
@@ -619,6 +585,7 @@ def create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, p
                 y1=df_ligand['slab_order'].max()*imageParamHi.steps[1] + imageParamHi.starts[1]
                 slab_start = min(y0,y1)
                 slab_end = max(y0,y1)
+                print(df_ligand['slab_order'].min(), df_ligand['slab_order'].max())
                 if not os.path.exists(multi_mesh_interp_fn) :
                     interp_vol = multi_mesh_to_volume(profiles, surf_depth_slab_dict[slab],  depth_list, imageParamLo.dimensions, imageParamLo.starts, imageParamLo.steps, resolution, y0, y1, origin=origin, ref_fn=ref_fn)
                     print("\t\tWriting", multi_mesh_interp_fn)
@@ -626,24 +593,12 @@ def create_reconstructed_volume(interp_fn_list, interp_dir, thickened_fn_dict, p
                 else :
                     interp_vol = nib.load(multi_mesh_interp_fn).get_fdata()
 
-                interp_vol = fill_in_missing_voxels(interp_vol, mask_vol, slab_start, slab_end, imageParamHi.starts[1], imageParamHi.steps[1] )
+                interp_vol = fill_in_missing_voxels(interp_vol, mask_vol, slab_start, slab_end, imageParamLo.starts[1], imageParamLo.steps[1] )
                 print("\t\tWriting", multi_mesh_filled_fn)
                 nib.Nifti1Image(interp_vol, out_affine ).to_filename(multi_mesh_filled_fn)
-                exit(0)
             else : 
                 interp_vol = nib.load(multi_mesh_interp_fn).get_fdata()
 
-            #if sectioning_direction  == 'rostral_to_caudal' :
-            #    limit = df_ligand_slab['slab_order'].max()
-            #    interp_vol[ :, int(limit):, : ] = 0
-            #else :
-            #    limit = df_ligand_slab['slab_order'].min()
-            #    print('LIMIT', limit, sectioning_direction)
-            #    print('INTERP VOL SUM', np.sum(interp_vol))
-            #    
-            #    interp_vol[ :, 0:int(limit), : ] = 0
-            #    print('INTERP VOL SUM', np.sum(interp_vol))
-           
             ystep_interp = imageParamHi.steps[1]
             ystart_interp = imageParamHi.starts[1]
 
@@ -671,7 +626,6 @@ def fill_in_missing_voxels(interp_vol, mask_vol, slab_start, slab_end, start,ste
     xv, yv, zv = np.meshgrid(np.arange(mask_vol.shape[0]), 
                                 np.arange(mask_vol.shape[1]), 
                                 np.arange(mask_vol.shape[2]))
-
     xv = xv.reshape(-1,1)
     yv = yv.reshape(-1,1)
     zv = zv.reshape(-1,1)
@@ -680,7 +634,8 @@ def fill_in_missing_voxels(interp_vol, mask_vol, slab_start, slab_end, start,ste
 
     voxels_within_slab = (yw >= slab_start) & (yw <= slab_end)
     missing_voxels = (mask_vol[xv,yv,zv] > 0.5) & (interp_vol[xv,yv,zv] == 0) & voxels_within_slab
-    
+    print(start, step) 
+    print( np.sum(yv> (121-start)/step) )
     counter=0
     last_missing_voxels = np.sum(missing_voxels) + 1
     
@@ -693,6 +648,7 @@ def fill_in_missing_voxels(interp_vol, mask_vol, slab_start, slab_end, start,ste
         xvv = xv[missing_voxels]
         yvv = yv[missing_voxels]
         zvv = zv[missing_voxels]
+
         
         xvp = xvv + 1
         xvm = xvv - 1
@@ -707,8 +663,6 @@ def fill_in_missing_voxels(interp_vol, mask_vol, slab_start, slab_end, start,ste
         y1 = np.vstack([xvv, yvm, zvv]).T
         z0 = np.vstack([xvv, yvv, zvm]).T
         z1 = np.vstack([xvv, yvv, zvp]).T
-       
-
 
         interp_values = np.vstack( [interp_vol[ x0[:,0],x0[:,1],x0[:,2]],
                                     interp_vol[ x1[:,0],x1[:,1],x1[:,2]], 

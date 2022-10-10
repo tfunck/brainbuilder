@@ -380,7 +380,7 @@ def convert_2d_array_to_nifti(f: str, output_filename: str, res=[20,20], spacing
                 #sitk.WriteImage(itk_img, output_filename_truncated + ".nii.gz")
         print('Wrote:',output_filename)
 
-def convert_from_nnunet(fn, crop_fn, seg_fn, crop_dir, scale):
+def convert_from_nnunet(fn, crop_fn, seg_fn, crop_dir):
     crop_img = nib.load(crop_fn)
     ar = nib.load(fn).get_fdata()
    
@@ -410,7 +410,7 @@ def convert_from_nnunet(fn, crop_fn, seg_fn, crop_dir, scale):
     print('\tWriting Seg fn', seg_fn)
     nib.Nifti1Image(ar, crop_img.affine).to_filename(seg_fn)
 
-def create_pseudo_classifications(df):
+def create_pseudo_classifications(df,crop_str, resolution):
     to_do=[]
     for i, row in df.iterrows():
 
@@ -421,12 +421,14 @@ def create_pseudo_classifications(df):
         slab = int(row['slab'])
         if not os.path.exists(pseudo_cls_fn) : to_do.append([crop_fn, seg_fn,pseudo_cls_fn,slab_order,slab])
 
-    Parallel(n_jobs=14)(delayed(pseudo_classify_autoradiograph)(crop_fn, seg_fn, pseudo_cls_fn, slab_order,slab,resolution) for  crop_fn, seg_fn, pseudo_cls_fn, slab_order, slab in to_do) 
-
+    os_info = os.uname()
     if os_info[1] == 'imenb079':
         num_cores = 4 
     else :
         num_cores = min(14, multiprocessing.cpu_count() )
+
+    Parallel(n_jobs=num_cores)(delayed(pseudo_classify_autoradiograph)(crop_fn, seg_fn, pseudo_cls_fn, slab_order,slab,resolution) for  crop_fn, seg_fn, pseudo_cls_fn, slab_order, slab in to_do) 
+
 
     ar[ ar < threshold_otsu(gaussian_filter(ar,3) ) ] = 0
     ar[ ar>0 ] = 1
@@ -471,7 +473,7 @@ def nnunet_gm_segmentation(crop_dir, df, res, crop_str, num_cores):
                 to_do.append((fn,crop_fn,seg_fn))
 
         print('\tConvert Files from nnUNet nifti files')
-        Parallel(n_jobs=14)(delayed(convert_from_nnunet)(fn, crop_fn, seg_fn, crop_dir,scale) for fn, crop_fn, seg_fn in to_do) 
+        Parallel(n_jobs=14)(delayed(convert_from_nnunet)(fn, crop_fn, seg_fn, crop_dir) for fn, crop_fn, seg_fn in to_do) 
 
 
 def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='', remote=False, pad=1000, clobber=False, brain_str='mri', crop_str='crop_fn', lin_str='lin_fn', res=[20,20], flip_axes_dict={}, create_pseudo_cls=True):
@@ -519,7 +521,7 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
 
         
     if create_pseudo_cls :
-        create_pseudo_classifications(df)
+        create_pseudo_classifications(df, crop_str, resolution)
 
         
     return 0

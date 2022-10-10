@@ -147,7 +147,8 @@ def interpolate_missing_sections(vol, dilate_volume=False) :
         y = np.mean(vol[:,y0:y1,:], axis=1)
         vol[:,x0:x1,:]  = np.repeat(x.reshape(x.shape[0],1,x.shape[1]), x1-x0, axis=1)
         for ii in range(x1,y0) :
-            den = (y0-x1-1)
+            den = (y0-x1)
+            print('den',den)
             assert den != 0, 'Error: 0 denominator when interpolating missing sections'
             d = (ii - x1)/den
             #d = np.rint(d)

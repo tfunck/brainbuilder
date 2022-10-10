@@ -95,6 +95,7 @@ def prepare_surfaces(slab_dict, thickened_dict, depth_list, interp_dir, resoluti
     print("\tTransforming surfaces to slab space.")
 
     surf_depth_slab_dict = transfrom_depth_surf_to_slab_space(slab_dict, surf_depth_mni_dict, thickened_dict, surf_rsl_dir)
+
     return surf_depth_mni_dict, surf_depth_slab_dict, origin
 
 
@@ -259,7 +260,6 @@ def upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_dir, surf_gm_fn,
     ngh_npz_fn = sub('.nii.gz', '_ngh', surf_depth_mni_dict[0]['depth_rsl_gii'])
     coords, faces, _ = load_mesh(ref_gii_fn)
 
-    print(ref_rsl_npy_fn) 
     if False in [ os.path.exists(fn) for fn in output_list+[ref_rsl_npy_fn+'.npz']]:
         points, _, new_points_gen  = upsample_over_faces(ref_gii_fn, resolution, ref_rsl_npy_fn)
 
@@ -280,33 +280,6 @@ def upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_dir, surf_gm_fn,
         ref_points = np.load(ref_rsl_npy_fn+'.npz')['points']
         n_points = ref_points.shape[0]
         
-        '''
-        full=np.arange(test_points.shape[0]).astype(int)
-
-        b = np.bincount(r)
-
-        repeat_indices = np.where( b > 1 )[0]
-
-        print(repeat_indices) 
-
-        for i in repeat_indices :
-            target_indices = full[r==i]
-
-            for j in target_indices :
-                gen = new_points_gen[j]
-
-                v0, v1 = get_triangle_vectors(old_points[gen.face])
-                x = gen.x
-                y = gen.y
-                p0 = test_points[gen.face][0,:]
-                print(j, gen.idx)
-                print(points[j])
-                print(test_points[j,:])
-                print(x, y, p0)
-                print( x*v0 + y*v1 + p0 )
-            print()
-        '''
-
         for in_fn, out_fn in zip(input_list, output_list):
             points, old_points = resample_points(in_fn, new_points_gen)
             #full = np.arange(points.shape[0]).astype(int)
@@ -316,6 +289,7 @@ def upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_dir, surf_gm_fn,
             nib.Nifti1Image(interp_vol, nib.load(mni_fn).affine,direction_order='lpi').to_filename(f'{surf_dir}/surf_{resolution}mm_{depth}_rsl.nii.gz')
             assert points.shape[1], 'Error: shape of points is incorrect ' + points.shape 
             np.savez(out_fn, points=points)
+            print('\tWriting', out_fn)
     #np.savez(ngh_npz_fn, ngh=ngh)
     #ngh = np.load(ngh_npz_fn+'.npz')['ngh']
     
@@ -335,6 +309,5 @@ def upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_dir, surf_gm_fn,
     #rsl_coords = h5.File(coords_fn, 'r')['data'][:]
     #if not os.path.exists(gm_obj_fn) :
     #    save_obj(gm_obj_fn, rsl_coords,rsl_faces)
-
     return surf_depth_mni_dict
 

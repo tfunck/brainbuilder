@@ -555,10 +555,11 @@ def get_section_intervals(vol):
     if nlabels < 2:
         print('Error: there must be a gap between thickened sections. Use higher resolution volumes.')
 
-    #intervals = [ (np.where(labeled_sections==i)[0][0], np.where(labeled_sections==i)[0][-1]) for i in range(1, nlabels+1) ]
-    #if len(intervals) == 0 : print( 'Warning: no valid intervals found for volume.'  )
+    
+    ##intervals = [ (np.where(labeled_sections==i)[0][0], np.where(labeled_sections==i)[0][-1]) for i in range(1, nlabels+1) ]
     
     intervals = [ (np.where(labeled_sections==i)[0][0], np.where(labeled_sections==i)[0][-1]+1) for i in range(1, nlabels+1) ]
+    
     assert len(intervals) > 0 , 'Error: no valid intervals found for volume.'  
     return intervals
     
@@ -577,18 +578,19 @@ def resample_to_output(vol, aff, resolution_list, order=1):
 def get_alignment_parameters(resolution_itr, resolution_list):
 
     calc_factor  = lambda cur_res, image_res: np.rint(1+np.log2(float(cur_res)/float(image_res))).astype(int).astype(str)
-
     f_list = [ calc_factor(resolution_list[i], resolution_list[resolution_itr]) for i in range(resolution_itr+1)  ]
     assert len(f_list) != 0, 'Error: no smoothing factors' 
 
     f_str='x'.join([ str(f) for f in f_list ])
     #DEBUG the followig line is probably wrong because sigma should be calcaulted
     # as a function of downsample factor in f_list
-    s_list = [ np.round(float(resolution_list[i]/resolution_list[resolution_itr])/np.pi,2) for i in range(resolution_itr+1) ] 
+    s_list = [ np.round(float(float(resolution_list[i])/float(resolution_list[resolution_itr]))/np.pi,2) for i in range(resolution_itr+1) ] 
     # DEBUG the following is probably correct
     #s_list = [ np.round((float(f)**(f-1))/np.pi,2) for f in f_list ] 
     s_str='x'.join( [str(i) for i in s_list] ) + 'vox'
     
+    print(f_str)
+    print(s_str)
     return f_list, f_str, s_str
 
 

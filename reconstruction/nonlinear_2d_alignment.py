@@ -11,6 +11,7 @@ import time
 import shutil
 import tempfile
 import multiprocessing
+from utils.utils import get_alignment_parameters
 from joblib import Parallel, delayed
 from section_2d import section_2d
 from sys import argv
@@ -18,18 +19,18 @@ from glob import glob
 from utils.utils import *
 
 
-def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, file_to_align='seg_fn', use_syn=True, step=0.5, bins=32):
+def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_list, row, file_to_align='seg_fn', use_syn=True, step=0.5, bins=32):
 
     #Set strings for alignment parameters
     max_itr = resolution_itr # min(resolution_itr, len(f_list))
-    f_list = [ '1', '2', '3', '4', '6', '8', '10', '12', '14', '16', '18', '24']
-    s_list = [ '0', '1', '1.5', '2', '3', '4', '5', '6', '7', '8', '9', '16']
-    f_list = f_list[0:(max_itr+1)]
-    s_list = s_list[0:(max_itr+1)]
-    s_list.reverse()
-    f_list.reverse()
+    #f_list = [ '1', '2', '3', '4', '6', '8', '10', '12', '14', '16', '18', '24']
+    #s_list = [ '0', '1', '1.5', '2', '3', '4', '5', '6', '7', '8', '9', '16']
+    #f_list = f_list[0:(max_itr+1)]
+    #s_list = s_list[0:(max_itr+1)]
+    #s_list.reverse()
+    #f_list.reverse()
     
-    #f_list, f_str, s_str = get_alignment_parameters(resolution_itr, resolution_list)
+    f_list, f_str, s_str = get_alignment_parameters(resolution_itr, resolution_list)
 
     base_lin_itr= 100
     base_nl_itr = 20
@@ -45,8 +46,8 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, file_to_
     nl_itr_str='x'.join( [str(base_nl_itr * ((max_itr+1) - i)) for i in range(max_itr+1)])
     nl_itr_str='[ '+ nl_itr_str +',1e-7,20 ]'
 
-    f_str='x'.join( [ f_list[i] for i in range(max_itr+1)]) 
-    s_str='x'.join( [ s_list[i] for i in range(max_itr+1)]) + 'vox'                                                                                                                                       
+    #f_str='x'.join( [ f_list[i] for i in range(max_itr+1)]) 
+    #s_str='x'.join( [ s_list[i] for i in range(max_itr+1)]) + 'vox'                                                                                                                                       
 
 
     #f_cc = f_str.split('x')[-1]
@@ -74,28 +75,27 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row, file_to_
     #    init_str = init_tfm
 
     #if float(resolution) >= 0.5 :
-    #nl_metric = f'CC[{fx_fn},{mv_fn},1,3,Regular,1]'
+    #nl_metric = f'CC[{fx_fn},{mv_fn},1,3,Random,0.9]'
     #else :
-    #    nl_metric=f'Mattes[{fx_fn},{mv_fn},1,16,Regular,1]'
+    #    nl_metric=f'Mattes[{fx_fn},{mv_fn},1,16,Random,0.9]'
 
     #DEBUG FIXME USING ONLY MATTES TO TEST alignment with WM
-    #nl_metric=f'Mattes[{fx_fn},{mv_fn},1,12,Regular,1]'
+    #nl_metric=f'Mattes[{fx_fn},{mv_fn},1,12,Random,0.9]'
 
     #fix_affine(fx_fn)
     #fix_affine(mv_fn)
     interpolation='NearestNeighbor'
     interpolation='HammingWindowedSinc'
 
-    affine_command_str = f'antsRegistration -n {interpolation} -v 0 -d 2 --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[{step}] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_fn},1,{bins},Regular,1] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m Mattes[{fx_fn},{mv_fn},1,{bins},Regular,1] -s {s_str} -f {f_str} -t Affine[{step}] -c {lin_itr_str} -m Mattes[{fx_fn},{mv_fn},1,{bins},Regular,1] -s {s_str} -f {f_str} '
+    affine_command_str = f'antsRegistration -n {interpolation} -v 0 -d 2 --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[{step}] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_fn},1,{bins},Random,0.9] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m Mattes[{fx_fn},{mv_fn},1,{bins},Random,0.9] -s {s_str} -f {f_str} -t Affine[{step}] -c {lin_itr_str} -m Mattes[{fx_fn},{mv_fn},1,{bins},Random,0.9] -s {s_str} -f {f_str} '
     print(affine_command_str)
 
     with open(prefix+'_command.txt','w') as f : f.write(affine_command_str)
     shell(affine_command_str)
     
-    syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m Mattes[{fx_fn},{mv_fn},1,16,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}' #  -t SyN[0.5] -m Mattes[{fx_fn},{mv_fn},1,3,Regular,1] -c {nl_itr_str} -s {s_str} -f {f_str}' 
+    syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m Mattes[{fx_fn},{mv_fn},1,{bins},Random,0.9] -c {nl_itr_str} -s {s_str} -f {f_str}' #  -t SyN[0.5] -m Mattes[{fx_fn},{mv_fn},1,3,Random,0.9] -c {nl_itr_str} -s {s_str} -f {f_str}' 
     if use_syn :
         with open(prefix+'_command.txt','w') as f : f.write(syn_command_str)
-        print(syn_command_str) ; exit(0)
         shell(syn_command_str)
     else :
         shutil.copy( f'{prefix}_affine_cls_rsl.nii.gz' , f'{prefix}_cls_rsl.nii.gz' )
@@ -139,7 +139,7 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     assert os.path.exists(f'{out_fn}'), 'Error apply nl 2d tfm to cropped autoradiograph'
     return 0
 
-def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, resolution_itr, file_to_align='seg_fn', use_syn=True, batch_processing=False, clobber=False): 
+def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, resolution_itr, resolution_list, file_to_align='seg_fn', use_syn=True, batch_processing=False, clobber=False): 
     df.reset_index(drop=True,inplace=True)
     df.reset_index(drop=True,inplace=True)
 
@@ -175,7 +175,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
             to_do_resample_df = to_do_resample_df.append(row)
 
     if to_do_df.shape[0] > 0 :
-        Parallel(n_jobs=num_cores)(delayed(align_2d_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, row,file_to_align=file_to_align,use_syn=use_syn) for i, row in  to_do_df.iterrows()) 
+        Parallel(n_jobs=num_cores)(delayed(align_2d_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, resolution_list, row, file_to_align=file_to_align,use_syn=use_syn) for i, row in  to_do_df.iterrows()) 
         
     if to_do_resample_df.shape[0] > 0 :
         Parallel(n_jobs=num_cores)(delayed(apply_transforms_parallel)(tfm_dir, mv_dir,  resolution_itr, resolution, row) for i, row in  to_do_resample_df.iterrows()) 
