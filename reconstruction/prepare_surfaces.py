@@ -170,7 +170,7 @@ def inflate_surfaces(surf_depth_mni_dict, surf_dir, ext, resolution,  depth_list
         depth_surf_fn = surf_depth_mni_dict[float(depth)]['depth_surf_fn']
         inflate_fn = "{}/surf_{}mm_{}.inflate".format(surf_dir,resolution,depth)
         sphere_fn = "{}/surf_{}mm_{}.sphere".format(surf_dir,resolution,depth)
-        sphere_rsl_fn = "{}/surf_{}mm_{}_inflate_rsl.npz".format(surf_dir,resolution,depth)
+        sphere_rsl_fn = "{}/surf_{}mm_{}_sphere_rsl.npz".format(surf_dir,resolution,depth)
         surf_depth_mni_dict[depth]['sphere_rsl_fn']=sphere_rsl_fn
         surf_depth_mni_dict[depth]['sphere_fn']=sphere_fn
         surf_depth_mni_dict[depth]['inflate_fn']=inflate_fn
@@ -311,7 +311,6 @@ def upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_dir, surf_gm_fn,
             assert points.shape[1], 'Error: shape of points is incorrect ' + points.shape 
             np.savez(out_fn, points=points)
             print('\tWriting (npz)', out_fn)
-    exit(0)
     #np.savez(ngh_npz_fn, ngh=ngh)
     #ngh = np.load(ngh_npz_fn+'.npz')['ngh']
     
