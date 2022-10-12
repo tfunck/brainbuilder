@@ -841,7 +841,7 @@ def surface_interpolation(df_ligand, slab_dict, interp_dir, brain, hemi, resolut
 
         #set depths
         dt = 1.0/ n_depths
-        depth_list = np.arange(0, 1+dt/10, dt)
+        depth_list = np.round(np.arange(0, 1+dt/10, dt),3)
         depth_list = np.insert(depth_list,0, 0)
         #FIXME brain as defined in surface files might be different (lowercase vs caps) than in dataframe
 

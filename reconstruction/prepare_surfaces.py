@@ -168,16 +168,25 @@ def inflate_surfaces(surf_depth_mni_dict, surf_dir, ext, resolution,  depth_list
         print("\tDepth", depth)
         print(surf_depth_mni_dict[float(depth)])
         depth_surf_fn = surf_depth_mni_dict[float(depth)]['depth_surf_fn']
-        sphere_fn = "{}/surf_{}mm_{}_inflate{}".format(surf_dir,resolution,depth, ext.gm_sphere)
+        inflate_fn = "{}/surf_{}mm_{}.inflate".format(surf_dir,resolution,depth)
+        sphere_fn = "{}/surf_{}mm_{}.sphere".format(surf_dir,resolution,depth)
         sphere_rsl_fn = "{}/surf_{}mm_{}_inflate_rsl.npz".format(surf_dir,resolution,depth)
         surf_depth_mni_dict[depth]['sphere_rsl_fn']=sphere_rsl_fn
         surf_depth_mni_dict[depth]['sphere_fn']=sphere_fn
+        surf_depth_mni_dict[depth]['inflate_fn']=inflate_fn
         
         if not os.path.exists(sphere_fn) or  clobber :
             print('\tInflate to sphere')
-            #shell('~/freesurfer/bin/mris_inflate -n 500  {} {}'.format(depth_surf_fn, sphere_fn))
-            shell('~/freesurfer/bin/mris_inflate -n 10000 -no-save-sulc -dist 0.75  {} {}'.format(depth_surf_fn, sphere_fn))
-            exit(0)
+            shell(f'~/freesurfer/bin/mris_inflate -n 100  {depth_surf_fn} {inflate_fn}')
+            print(f'\t\t{inflate_fn}')
+            shell(f'~/freesurfer/bin/mris_sphere -q  {inflate_fn} {sphere_fn}')
+            print(f'\t\t{sphere_fn}')
+            #for n in [500, 1000] :
+            #    for d in [2, 3, 4]:
+            #        sphere_fn=f'./test_{n}_{d}.pial'
+            #        if not os.path.exists(sphere_fn):
+            #            shell(f'~/freesurfer/bin/mris_inflate -n {n} -scale 1 -no-save-sulc -dist {d}  {depth_surf_fn} {sphere_fn}')
+            #            print('Saving to', sphere_fn)
 
     return surf_depth_mni_dict
 
