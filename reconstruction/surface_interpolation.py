@@ -283,6 +283,7 @@ def project_volume_to_depth(surf_fn_list, slab_dict, surf_values_csv_list, surf_
             print('\t', surf_fn)
 
             coords += origin
+            print('\t\tOrigin:', origin)
            
             #These offsets were used for the macaque brain, but in theory they should
             # be accounted for when transforming the coordinates to slab space and shouldn't
@@ -351,7 +352,7 @@ def project_volume_to_depth(surf_fn_list, slab_dict, surf_values_csv_list, surf_
                     all_values[valid_coords_idx] = values 
             np.savetxt(interp_csv, all_values)
             print('\tWriting surface values to', interp_csv)
-
+        exit(0)
         assert np.sum(all_values>0) > 0, 'Error, empty array all_values in project_volumes_to_surfaces'
 
 
@@ -813,7 +814,7 @@ def surface_interpolation(df_ligand, slab_dict, interp_dir, brain, hemi, resolut
         tfm_fn = slab_dict[slab]['nl_3d_tfm_inv_fn'] 
         ref_fn = slab_dict[slab]['srv_iso_space_rec_fn']
         if not os.path.exists(slab_fn) :
-            shell(f'antsApplyTransforms -v 0 -i {mni_fn} -r {ref_fn} -t [{tfm_fn},0] -o {slab_fn}', verbose=True)
+            shell(f'antsApplyTransforms -v 1 -i {mni_fn} -r {ref_fn} -t [{tfm_fn},0] -o {slab_fn}', verbose=True)
         slab_dict[slab]['cortex_fn'] = slab_fn
 
     ligand = df_ligand['ligand'].values[0]

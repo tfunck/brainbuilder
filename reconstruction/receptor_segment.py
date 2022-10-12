@@ -148,7 +148,6 @@ def interpolate_missing_sections(vol, dilate_volume=False) :
         vol[:,x0:x1,:]  = np.repeat(x.reshape(x.shape[0],1,x.shape[1]), x1-x0, axis=1)
         for ii in range(x1,y0) :
             den = (y0-x1)
-            print('den',den)
             assert den != 0, 'Error: 0 denominator when interpolating missing sections'
             d = (ii - x1)/den
             #d = np.rint(d)
@@ -184,6 +183,7 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         vol1 = nib.load(in_fn)
         example_2d_list = glob(in_dir +'/*rsl_tfm.nii.gz') # os.path.basename(df[file_to_align].iloc[0])
         assert len(example_2d_list) > 0 , 'Error: no files found in {}'.format(in_dir)
+        print('Example', example_2d_list[0]) ; 
         example_2d_img = nib.load(example_2d_list[0])
         data = np.zeros([example_2d_img.shape[0], vol1.shape[1], example_2d_img.shape[1]],dtype=np.float32)
 
@@ -192,6 +192,7 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
             for i, row in df.iterrows() :
                 s0 = int(row['slab_order'])
                 fn = get_seg_fn(in_dir, int(row['slab_order']), resolution, row[file_to_align], '_rsl_tfm')
+                print(fn)
                 img_2d = nib.load(fn).get_fdata()
                 #FIXME : Skipping frames that have been rotated
                 data[:,s0,:] = img_2d 

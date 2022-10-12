@@ -240,6 +240,7 @@ def upsample_over_faces(surf_fn, resolution, out_fn,  face_mask=None, coord_mask
     print(surf_fn)
     coords, faces = load_mesh_ext(surf_fn)
 
+
     if type(faces) == type(None):
         if type(ref_faces) != type(None) :
             del faces
@@ -628,9 +629,10 @@ def transform_surface_to_slabs( slab_dict, thickened_dict,  out_dir, surf_fn, re
 def load_mesh_ext(in_fn, faces_fn=''):
     ext = os.path.splitext(in_fn)[1]
     faces=None
+    volume_info = None
 
-    if ext in ['.pial', '.white', '.gii'] : 
-        coords, faces, _ = load_mesh(in_fn)
+    if ext in ['.pial', '.white', '.gii', '.sphere', '.inflated'] : 
+        coords, faces, volume_info = load_mesh(in_fn,correct_offset=True)
     elif  ext == '.npz' :
         coords = np.load(in_fn)['points']
     else :
@@ -638,6 +640,8 @@ def load_mesh_ext(in_fn, faces_fn=''):
         if os.path.splitext(faces_fn)[1] == '.h5' :
             faces_h5=h5.File(faces_fn,'r')
             faces = faces_h5['data'][:]
+
+
 
     return coords, faces
 

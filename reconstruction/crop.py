@@ -108,10 +108,9 @@ def gen_affine(row, scale, dims, global_order_min, xstep_from_size=False, brain_
     brain = row[brain_str]
     hemi = row['hemisphere']
     slab = row['slab']
+    direction = scale[str(brain)][hemi][str(slab)]["direction"]
 
-    direction = scale[brain][hemi][str(slab)]["direction"]
-
-    z_mm = scale[brain][hemi][str(slab)]["size"]
+    z_mm = scale[str(brain)][hemi][str(slab)]["size"]
 
     zstep = z_mm / dims[1] #4164. # pixel size in z-axis is variable depending on microscope magnification
 
@@ -150,7 +149,7 @@ def process_image(img, row, scale, pad, affine,brain_str='mri', mask_fn='', flip
     slab = row['slab']
 
     p = int(pad/2)
-    direction = scale[brain][hemi][str(slab)]["direction"]
+    direction = scale[str(brain)][hemi][str(slab)]["direction"]
 
     print(img.shape)
     img = img.reshape(img.shape[0], img.shape[1])
@@ -160,7 +159,7 @@ def process_image(img, row, scale, pad, affine,brain_str='mri', mask_fn='', flip
             print(direction, dict_direction, flip_axes)
             #plt.subplot(1,2,1); plt.imshow(img)
             #plt.title(f'{row["order"]}, {row["slab"]}')
-            print('Applying flip in axis,',flip)
+            print('Applying flip in axis,',flip_axes)
             img = np.flip(img, axis=flip_axes)
             #plt.subplot(1,2,2); plt.imshow(img)
             #temp_fn = f'/tmp/{row["repeat"]}.png'
@@ -225,8 +224,6 @@ def crop_parallel(row, mask_dir, scale, global_order_min, brain_str='mri', crop_
         # load mask image 
         img = imageio.imread(fn)
         if len(img.shape) > 2 : img = img[:,:,0] #np.max(img,axis=2)
-        print(img.shape)
-        print( len(np.unique(img)))
         affine = gen_affine(row, scale, img.shape, global_order_min, xstep_from_size=True, brain_str=brain_str)
         
         img = process_image(img, row, scale, pad, affine, brain_str=brain_str, mask_fn=mask_fn, flip_axes_dict=flip_axes_dict)
@@ -499,10 +496,10 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
     else :
         cls_check= np.zeros_like(crop_check)
 
-    if pytorch_model != '':
-        missing_files = crop_check + cls_check
-    else :
-        missing_files = crop_check + seg_check + cls_check
+    #if pytorch_model != '':
+    #    missing_files = crop_check + cls_check
+    #else :
+    missing_files = crop_check + seg_check + cls_check
     
     if np.sum( missing_files ) > 0 : 
         pass
@@ -514,12 +511,12 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
     Parallel(n_jobs=num_cores)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min, pytorch_model=pytorch_model, pad=pad, brain_str=brain_str, crop_str=crop_str, lin_str=lin_str, flip_axes_dict=flip_axes_dict) for i, row in  df_to_process.iterrows()) 
     print('pytorch', pytorch_model)
     #create binary cortical segmentations
+
     if pytorch_model != '' :
         nnunet_gm_segmentation(crop_dir, df, res, crop_str, num_cores)
     else : 
         histogram_gm_segmentation(df,crop_str,num_cores)
 
-        
     if create_pseudo_cls :
         create_pseudo_classifications(df, crop_str, resolution)
 

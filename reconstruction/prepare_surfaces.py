@@ -122,6 +122,15 @@ def generate_cortical_depth_surfaces(surf_depth_mni_dict, depth_list, resolution
     gm_coords, gm_faces, gm_info = load_mesh(surf_gm_fn)
     wm_coords, wm_faces, wm_info = load_mesh(wm_surf_fn)
 
+    #if gm_info != None:
+    #    print('Volume info (origin):', gm_info['cras'])
+    #    gm_coords += gm_info['cras']
+
+    #if wm_info != None:
+    #    print('Volume info (origin):', wm_info['cras'])
+    #    wm_coords += wm_info['cras']
+
+
     if ext.wm == '.white' : volume_info=gm_info
     else : volume_info = surf_gm_fn
 
@@ -167,7 +176,8 @@ def inflate_surfaces(surf_depth_mni_dict, surf_dir, ext, resolution,  depth_list
         if not os.path.exists(sphere_fn) or  clobber :
             print('\tInflate to sphere')
             #shell('~/freesurfer/bin/mris_inflate -n 500  {} {}'.format(depth_surf_fn, sphere_fn))
-            shell('~/freesurfer/bin/mris_inflate -n 25  {} {}'.format(depth_surf_fn, sphere_fn))
+            shell('~/freesurfer/bin/mris_inflate -n 10000 -no-save-sulc -dist 0.75  {} {}'.format(depth_surf_fn, sphere_fn))
+            exit(0)
 
     return surf_depth_mni_dict
 
@@ -210,7 +220,7 @@ def identify_target_edges(edges, df_ligand, slab_dict,  resolution,  ext='.surf.
     return edge_mask, edge_mask_idx
 
 def resample_points(surf_fn, new_points_gen):
-    points, faces, _ = load_mesh(surf_fn)
+    points, faces = load_mesh_ext(surf_fn)
     n = len(new_points_gen)
 
     new_points = np.zeros([n,3])
@@ -258,11 +268,11 @@ def upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_dir, surf_gm_fn,
     ref_rsl_gii_fn = surf_depth_mni_dict[0]['depth_rsl_gii']
     ref_rsl_npy_fn = sub('.surf.gii', '', surf_depth_mni_dict[0]['depth_rsl_gii'])
     ngh_npz_fn = sub('.nii.gz', '_ngh', surf_depth_mni_dict[0]['depth_rsl_gii'])
-    coords, faces, _ = load_mesh(ref_gii_fn)
+    coords, faces, volume_info = load_mesh(ref_gii_fn)
+
 
     if False in [ os.path.exists(fn) for fn in output_list+[ref_rsl_npy_fn+'.npz']]:
         points, _, new_points_gen  = upsample_over_faces(ref_gii_fn, resolution, ref_rsl_npy_fn)
-
         
         print('Upsampled points', points.shape, len(new_points_gen)) 
         img = nb_surf.load(mni_fn)
@@ -286,10 +296,13 @@ def upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_dir, surf_gm_fn,
 
             assert n_points == points.shape[0], f'Error: mismatch in number of points in mesh between {n_points} and {points.shape[0]}'
             interp_vol, _  = mesh_to_volume(points, np.ones(points.shape[0]), dimensions, starts, steps)
-            nib.Nifti1Image(interp_vol, nib.load(mni_fn).affine,direction_order='lpi').to_filename(f'{surf_dir}/surf_{resolution}mm_{depth}_rsl.nii.gz')
+            nii_fn = os.path.splitext(out_fn)[0]+'.nii.gz'
+            nib.Nifti1Image(interp_vol, nib.load(mni_fn).affine,direction_order='lpi').to_filename(nii_fn)
+            print('\tWriting (nifti):', nii_fn)
             assert points.shape[1], 'Error: shape of points is incorrect ' + points.shape 
             np.savez(out_fn, points=points)
-            print('\tWriting', out_fn)
+            print('\tWriting (npz)', out_fn)
+    exit(0)
     #np.savez(ngh_npz_fn, ngh=ngh)
     #ngh = np.load(ngh_npz_fn+'.npz')['ngh']
     
