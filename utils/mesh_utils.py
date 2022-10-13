@@ -655,7 +655,7 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, ref_gi
 
     if os.path.splitext(ref_gii_fn)[1] in ['.pial', '.white'] : 
         _, _, volume_info = load_mesh(ref_gii_fn)
-        origin = volume_info['cras'] 
+        #origin = volume_info['cras'] 
     else : volume_info = ref_gii_fn
 
     coords, faces = load_mesh_ext(in_gii_fn)

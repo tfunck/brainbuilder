@@ -30,7 +30,6 @@ def compile_frames(dim, rec_vol, mri_vol) :
     fig, ax = plt.subplots(figsize=(8,8))
     vmin ,vmax = np.percentile(rec_vol[rec_vol>0], [0.2,99.] )
     for i in range(rec_vol.shape[dim]) :
-        print('i=',i/rec_vol.shape[dim])
         if dim == 0 :
             rec_frame = rec_vol[i,:,:]
             mri_frame = mri_vol[i,:,:]
@@ -46,17 +45,20 @@ def compile_frames(dim, rec_vol, mri_vol) :
         if np.sum(rec_frame) > 100  :
             im=ax.imshow(mri_frame, cmap='gist_gray', animated=True)
             im2=ax.imshow(rec_frame,vmin=vmin, vmax=vmax, cmap='nipy_spectral',alpha=0.3, animated=True)
+            #if len(images) == 0  : 
+            #    print('Adding colorbar')
+            #    fig.colorbar(im2, cax=ax, orientation='vertical')
             #im2=ax.imshow(rec_frame,vmin=vmin, vmax=vmax, cmap='nipy_spectral',alpha=1) #, animated=True)
             #plt.savefig(f'gif/{dim}_{i}.png')
             images.append([im, im2])
             #images.append([im2])
             #plt.clf()
             #plt.cla()
-    return images
+    return fig, images
 
 def create_gif(dim,rec_vol,mri_vol,out_fn):
     
-    images = compile_frames(dim, rec_vol, mri_vol) :
+    fig, images = compile_frames(dim, rec_vol, mri_vol)
     anim = animation.ArtistAnimation(fig, images,  blit=True, interval=150, repeat_delay=1000 )
     print('Saving', out_fn)
     anim.save(out_fn,savefig_kwargs={'facecolor':'black'} ) 
@@ -68,7 +70,7 @@ def create_gif(dim,rec_vol,mri_vol,out_fn):
 if __name__ == '__main__' :
     rec_file = argv[1] #'MR1_R_flum_1.0mm_space-mni.nii.gz' 
     mri_file = argv[2] #'mri1_t1_tal.nii'
-    mask_file = argv[3] #'mri1_brain_mask.mnc'
+    #mask_file = argv[3] #'mri1_brain_mask.mnc'
     #cls_file='mri1_pve_classify.mnc'
 
     rec_img = nib.load(rec_file)
