@@ -352,7 +352,7 @@ def project_volume_to_depth(surf_fn_list, slab_dict, surf_values_csv_list, surf_
                     all_values[valid_coords_idx] = values 
             np.savetxt(interp_csv, all_values)
             print('\tWriting surface values to', interp_csv)
-        exit(0)
+        
         assert np.sum(all_values>0) > 0, 'Error, empty array all_values in project_volumes_to_surfaces'
 
 
@@ -802,6 +802,9 @@ def create_final_reconstructed_volume(final_mni_fn, mni_fn, resolution,  surf_de
 
 
 def surface_interpolation(df_ligand, slab_dict, interp_dir, brain, hemi, resolution, orig_mni_fn, slabs, files, scale_factors_json, n_depths=3, upsample_resolution=0, tissue_type='', input_surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, gm_label=2, clobber=0):
+    
+    os.makedirs(interp_dir, exist_ok=True)
+    
     if upsample_resolution == 0 : upsample_resolution=resolution
 
     mni_fn=f'{interp_dir}/{brain}_{hemi}_cortex_{resolution}mm.nii.gz'
@@ -837,7 +840,6 @@ def surface_interpolation(df_ligand, slab_dict, interp_dir, brain, hemi, resolut
         #make sure resolution is interpreted as float
         resolution=float(resolution) 
         
-        os.makedirs(interp_dir, exist_ok=True)
 
         #set depths
         dt = 1.0/ n_depths
