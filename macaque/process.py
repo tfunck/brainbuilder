@@ -174,6 +174,58 @@ def get_section_numbering(df,short_repeat_dict,long_repeat_dict, short_repeat, l
 def get_index_numbers(element, ll):
     return [index for index, value in enumerate(ll) if value == element]
 
+
+def get_cmax(fn) :
+    fn_list = glob(f'trans_tabs/*/{fn}*')
+
+    try :
+        fn = fn_list[0]
+    except IndexError :
+        print('Warning: could not find .grt ','trans_tabs/*/{}'.format(fn) )
+        return -1
+    
+    with open(fn,'r') as F :
+        for cbe in F.readlines() :
+            if 'cmax' in cbe.lower() :
+                return float(cbe.rstrip().split(' ')[-1])
+            
+    print('Error Cmax not found in ', fn)
+    exit(1)
+
+def add_conversion_factor(df):
+    sakdl_fn_list=glob('section_numbers/*sakdl.txt')
+    sakdl_df = pd.concat([pd.read_csv(fn) for fn in sakdl_fn_list ])
+    sakdl_df['image'] = sakdl_df['image'].apply(lambda f: str(f).lower())
+    
+    df['conversion_factor']=[1]*df.shape[0]
+    df.reset_index(inplace=True)
+
+    for i, row in df.iterrows():
+        raw = row['raw']
+        base_filename = os.path.splitext(os.path.basename(raw))[0][0:-2]
+        base_filename = base_filename.lower()
+         
+        info_row = sakdl_df.loc[sakdl_df['image'] == base_filename]
+        if info_row.shape[0] == 0 :
+            print('Warning: skipping', base_filename, 'could not find entry in sakdl file')
+            continue 
+
+        Sa = float(info_row['sa'].values[0])
+        Kd = float(info_row['kd'].values[0])
+        L = float(info_row['l'].values[0])
+        cmax_fn = info_row['film'].values[0]
+        Cmax = get_cmax(cmax_fn) 
+        if Cmax == - 1 : 
+            print('Warning: skipping', base_filename, '. Could not find grt file')
+            continue #Cmax == -1 means that the .grt file containing cmax was not found
+
+        conversion_factor = Cmax / (255 * Sa) * (Kd + L) / L
+        df['conversion_factor'].iloc[i] = conversion_factor
+
+    return df
+
+
+
 def create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn ):
     
     # Define the order of ligands in "short" repeats
@@ -296,10 +348,14 @@ def create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn ):
             seg_fn = f'{crop_dir}/{os.path.basename(fn)}'
             df['seg_fn'].iloc[i]=seg_fn
 
+        df = add_conversion_factor(df)
+
         df.to_csv(csv_fn)
         print(csv_fn)
     else : 
         df = pd.read_csv(csv_fn)
+
+
 
     return df
 
@@ -662,9 +718,6 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     affine=np.array([[lowres,0,0,-90],[0,0.02,0,0.0],[0,0,lowres,-70],[0,0,0,1]])
     
     df = pd.read_csv(csv_fn) 
-    print(csv_fn)
-    print(df['order'].min(), df['order'].max())
-    print(df['global_order'].min(), df['global_order'].max())
 
     # Output files
     affine_fn = f'{init_3d_dir}/{subject_id}_affine.mat'
@@ -789,7 +842,6 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     args.slabs=['1']
     df_ligand=aligned_df
     df_ligand['slab']=['1'] * df_ligand.shape[0]
-    df_ligand['conversion_factor']=[1] * df_ligand.shape[0]
     to_reconstruct=np.unique(aligned_df['ligand'])#['cellbody','flum','myelin']
     df_ligand = df_ligand[ df_ligand['ligand'].apply(lambda x: x in to_reconstruct ) ]
     files={ brain:{hemi:{'1':{}} }}

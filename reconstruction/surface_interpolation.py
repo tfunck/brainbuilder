@@ -282,7 +282,7 @@ def project_volume_to_depth(surf_fn_list, slab_dict, surf_values_csv_list, surf_
             print('Onto:')
             print('\t', surf_fn)
 
-            coords += origin
+            #coords += origin
             print('\t\tOrigin:', origin)
            
             #These offsets were used for the macaque brain, but in theory they should
@@ -352,7 +352,6 @@ def project_volume_to_depth(surf_fn_list, slab_dict, surf_values_csv_list, surf_
                     all_values[valid_coords_idx] = values 
             np.savetxt(interp_csv, all_values)
             print('\tWriting surface values to', interp_csv)
-        exit(0)
         assert np.sum(all_values>0) > 0, 'Error, empty array all_values in project_volumes_to_surfaces'
 
 
