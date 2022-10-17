@@ -32,17 +32,21 @@ def load_mesh(surf_mesh,correct_offset=False):
                 surf_mesh.endswith('white') or surf_mesh.endswith('sphere') or
                 surf_mesh.endswith('inflated')):
             coords, faces, volume_info = nb.freesurfer.io.read_geometry(surf_mesh, read_metadata=True)
-            if correct_offset :
-                origin=volume_info['cras'] 
-                xdir=max(volume_info['xras'])
-                ydir=max(volume_info['yras'])
-                zdir=max(volume_info['xras'])
-                #coords[:,0] -= origin[0] 
-                #coords[:,1] -= 30.56
-                #coords[:,2] += 24.94
-                coords[:,0] = coords[:,0] + origin[0]
-                coords[:,1] = coords[:,1] + origin[1]
-                coords[:,2] = coords[:,2] + origin[2]
+            if correct_offset and volume_info != None :
+                try :
+                    origin=volume_info['cras'] 
+                    xdir=max(volume_info['xras'])
+                    ydir=max(volume_info['yras'])
+                    zdir=max(volume_info['xras'])
+                    #coords[:,0] -= origin[0] 
+                    #coords[:,1] -= 30.56
+                    #coords[:,2] += 24.94
+                    coords[:,0] = coords[:,0] + origin[0]
+                    coords[:,1] = coords[:,1] + origin[1]
+                    coords[:,2] = coords[:,2] + origin[2]
+                except KeyError :
+                    pass
+
         elif surf_mesh.endswith('gii'):
             coords, faces = nb.gifti.read(surf_mesh).getArraysFromIntent(nb.nifti1.intent_codes['NIFTI_INTENT_POINTSET'])[0].data, \
                             nb.gifti.read(surf_mesh).getArraysFromIntent(nb.nifti1.intent_codes['NIFTI_INTENT_TRIANGLE'])[0].data
