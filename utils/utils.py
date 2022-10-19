@@ -584,16 +584,13 @@ def get_alignment_parameters(resolution_itr, resolution_list):
     f_str='x'.join([ str(f) for f in f_list ])
     #DEBUG the followig line is probably wrong because sigma should be calcaulted
     # as a function of downsample factor in f_list
-    s_list = [ np.round(float(float(resolution_list[i])/float(resolution_list[resolution_itr]))/np.pi,2) if i == resolution_itr else 0 for i in range(resolution_itr+1)  ] 
-
+    s_list = [ np.round(float(float(resolution_list[i])/float(resolution_list[resolution_itr]))/np.pi,2) if i != resolution_itr else 0 for i in range(resolution_itr+1)  ] 
     
 
     # DEBUG the following is probably correct
     #s_list = [ np.round((float(f)**(f-1))/np.pi,2) for f in f_list ] 
     s_str='x'.join( [str(i) for i in s_list] ) + 'vox'
     
-    print(f_str)
-    print(s_str)
     return f_list, f_str, s_str
 
 
