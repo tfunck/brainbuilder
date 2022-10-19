@@ -47,15 +47,12 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     nl_itr_str='[ '+ nl_itr_str +',1e-7,20 ]'
 
     #f_str='x'.join( [ f_list[i] for i in range(max_itr+1)]) 
-    #s_str='x'.join( [ s_list[i] for i in range(max_itr+1)]) + 'vox'                                                                                                                                       
-
-
+    #s_str='x'.join( [ s_list[i] for i in range(max_itr+1)]) + 'vox' 
     #f_cc = f_str.split('x')[-1]
     #s_cc = s_str.split('x')[-1]
 
     s_str_final = s_str.split(',')[-1]
     f_str_final = f_str.split(',')[-1]
-
     
     n0 = len(lin_itr_str.split('x'))
     n1 = len(f_str.split('x')) 

@@ -187,7 +187,7 @@ def get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr
     #print(lin_itr_str)
 
     lin_itr_str ='['+ lin_itr_str +',1e-7,20 ]' 
-    nl_itr_str='['+ nl_itr_str +',1e-7,20 ]'
+    nl_itr_str='['+ nl_itr_str +',1e-7,2 ]'
     
     return f_str, s_str, lin_itr_str, nl_itr_str
 
@@ -253,7 +253,7 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     affine_inv_fn = f'{prefix_affine}volume_inverse.nii.gz'
     manual_out_fn = f'{prefix_manual}Composite.nii.gz'
     syn_out_fn = f'{prefix_syn}volume.nii.gz'
-    syn_inv_fn = f'{prefix_syn}volume.nii.gz'
+    syn_inv_fn = f'{prefix_syn}volume_inverse.nii.gz'
 
     #seg_mask_fn = gen_mask(seg_rsl_fn,clobber=True)
     #srv_mask_fn = gen_mask(srv_rsl_fn,clobber=True)
@@ -263,12 +263,11 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     step=0.1
     #calculate SyN
     if float(resolution) >= 1.0 :
-        nl_metric = f'CC[{srv_rsl_fn},{seg_rsl_fn},1,3,Regular,1]'
+        nl_metric = f'CC[{srv_rsl_fn},{seg_rsl_fn},1,3,Regular,0.70]'
         syn_rate='0.5'
     else :
-        nl_metric=f'Mattes[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Regular,1]'
+        nl_metric=f'Mattes[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Random,0.70]'
         syn_rate='0.1'
-    #DEBUG FIXME USING ONLY MATTES TO TEST alignment with WM
     
     # set initial transform
     # calculate rigid registration
@@ -280,7 +279,6 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
             f_str_0 = f_str.split('x')[0] 
             print(s_str_0)
             shell(f'antsRegistration -v 1 -a 1 -d 3   --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]   -t Similarity[{step}]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,0.71]  -s {s_str_0} -f {f_str_0}  -c 1000   -t Affine[{step}]  -m Mattes[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,0.71]  -s {s_str_0} -f {f_str_0}  -c 1000  -o [{prefix_init},{prefix_init}volume.nii.gz,{prefix_init}volume_inverse.nii.gz]  ', verbose=True)
-
 
         # calculate rigid registration
         if not os.path.exists(f'{prefix_rigid}Composite.h5'):
@@ -298,17 +296,25 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     if not os.path.exists(f'{prefix_affine}Composite.h5'):
         shell(f'antsRegistration -v 1 -a 1 -d 3 {affine_init} -t Affine[{step}] -m Mattes[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Regular,1]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] ', verbose=True)
      
-    if not os.path.exists(f'{prefix_syn}Composite.h5'):
+    if not os.path.exists(f'{prefix_syn}Composite.h5'): # and float(resolution) > 4 :
         # --masks [{srv_mask_fn},{seg_mask_fn}]
-        shell(f'antsRegistration -v 1 -a 1 -d 3  --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[{syn_rate}] -m {nl_metric}  -s {s_str} -f {f_str}  -c {nl_itr_str}   -o [{prefix_syn},{syn_out_fn},{syn_inv_fn}] ', verbose=True)
-
-
+        shell(f'antsRegistration -v 1 -a 1 -d 3 --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[{syn_rate}] -m {nl_metric} -s {s_str} -f {f_str} -c {nl_itr_str} -o [{prefix_syn},{syn_out_fn},{syn_inv_fn}] ', verbose=True)
+    #else :
+    #    shutil.copy(f'{prefix_affine}Composite.h5',f'{prefix_syn}Composite.h5')
+    #    shutil.copy(f'{prefix_affine}InverseComposite.h5',f'{prefix_syn}InverseComposite.h5')
+    #    shutil.copy(affine_out_fn,syn_out_fn)
+    #    shutil.copy(affine_inv_fn,syn_inv_fn)
     
     if not os.path.exists(out_fn):
-        shell(f'antsApplyTransforms -v 1 -i {seg_rsl_fn} -r {srv_rsl_fn} -t {prefix_syn}Composite.h5  -o {out_fn}')
+        str0 = f'antsApplyTransforms -v 1 -i {seg_rsl_fn} -r {srv_rsl_fn} -t {prefix_syn}Composite.h5  -o {out_fn}'
+        print(str0)
+        print()
+        shell(str0)
     if not os.path.exists(out_inv_fn) :
-        shell(f'antsApplyTransforms -v 1 -i {srv_rsl_fn} -r {seg_rsl_fn} -t {prefix_syn}InverseComposite.h5  -o {out_inv_fn}')
-
+        str1 = f'antsApplyTransforms -v 1 -i {srv_rsl_fn} -r {seg_rsl_fn} -t {prefix_syn}InverseComposite.h5  -o {out_inv_fn}'
+        print(str1)
+        print()
+        shell(str1)
     
 def get_max_downsample_level(resolution_list, resolution_itr):
     cur_resolution = float(resolution_list[resolution_itr])

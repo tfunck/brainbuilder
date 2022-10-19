@@ -139,8 +139,6 @@ def multiresolution_alignment( slab_df,  hemi_df, brain, hemi, slab, slab_index,
                                 resolution_3d, resolution_itr_3d, 
                                 resolution_list, slab_direction, cfiles['manual_alignment_points'], cfiles['manual_alignment_affine'] )
         
-
-        
         ###
         ### Stage 4 : 2D alignment of receptor to resample MRI GM vol
         ###
