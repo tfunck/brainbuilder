@@ -584,7 +584,10 @@ def get_alignment_parameters(resolution_itr, resolution_list):
     f_str='x'.join([ str(f) for f in f_list ])
     #DEBUG the followig line is probably wrong because sigma should be calcaulted
     # as a function of downsample factor in f_list
-    s_list = [ np.round(float(float(resolution_list[i])/float(resolution_list[resolution_itr]))/np.pi,2) for i in range(resolution_itr+1) ] 
+    s_list = [ np.round(float(float(resolution_list[i])/float(resolution_list[resolution_itr]))/np.pi,2) if i == resolution_itr else 0 for i in range(resolution_itr+1)  ] 
+
+    
+
     # DEBUG the following is probably correct
     #s_list = [ np.round((float(f)**(f-1))/np.pi,2) for f in f_list ] 
     s_str='x'.join( [str(i) for i in s_list] ) + 'vox'
@@ -1045,12 +1048,18 @@ def recenter(vol, affine, direction=np.array([1,1,-1])):
 def prefilter_and_downsample(input_filename, new_resolution, output_filename, 
                             reference_image_fn='',
                             new_starts=[None, None, None], recenter_image=False ):
-    img = nib.load(input_filename)
-    direction = ants.image_read(input_filename).direction
-    vol = img.get_fdata()
-    affine = img.affine
-    
+    #img = nib.load(input_filename)
+    img = ants.image_read(input_filename)
+    direction = img.direction
+
+    vol = img.numpy()
     ndim = len(vol.shape)
+
+    affine = np.eye(4,4) #img.affine
+    dim_range=range(ndim)
+    affine[dim_range,dim_range]=img.spacing
+    affine[dim_range,3]=img.origin
+
 
 
     if recenter_image : 

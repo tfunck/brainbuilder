@@ -17,7 +17,6 @@ from utils.utils import shell, create_2d_sections, run_stage, prefilter_and_down
 from utils.ANTs import ANTs
 from nibabel.processing import smooth_image
 from utils.mesh_io import load_mesh_geometry, save_mesh_data, save_obj, read_obj
-from reconstruction.align_slab_to_mri import align_slab_to_mri
 from reconstruction.init_alignment import receptorRegister, apply_transforms_to_landmarks
 from reconstruction.surface_interpolation import surface_interpolation
 from reconstruction.crop import crop, process_landmark_images
@@ -240,8 +239,8 @@ def setup_files_json(args ):
                     manual_tfm_dir = cdict['align_to_mri_dir']
                     cdict['manual_alignment_points'] = f'{manual_dir}/3d/{brain}_{hemi}_{slab}_points.txt'
                     cdict['manual_alignment_affine'] = f'{manual_dir}/3d/{brain}_{hemi}_{slab}_manual_affine.mat'
-                    cdict['nl_3d_tfm_fn'] = '{}/rec_to_mri_SyN_Composite.h5'.format(cdict['align_to_mri_dir'])
-                    cdict['nl_3d_tfm_inv_fn'] = '{}/rec_to_mri_SyN_InverseComposite.h5'.format(cdict['align_to_mri_dir'])
+                    cdict['nl_3d_tfm_fn'] = f'{cdict["align_to_mri_dir"]}/{brain}_{hemi}_{slab}_rec_to_mri_SyN_Composite.h5'
+                    cdict['nl_3d_tfm_inv_fn'] = f'{cdict["align_to_mri_dir"]}/{brain}_{hemi}_{slab}_rec_to_mri_SyN_InverseComposite.h5'
 
                     cdict['nl_2d_vol_fn'] = "{}/{}_{}_{}_nl_2d_{}mm.nii.gz".format(cdict['nl_2d_dir'] ,brain,hemi,slab,resolution) 
                     cdict['nl_2d_vol_cls_fn'] = "{}/{}_{}_{}_nl_2d_cls_{}mm.nii.gz".format(cdict['nl_2d_dir'],brain,hemi,slab,resolution) 
