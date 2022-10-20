@@ -239,8 +239,8 @@ def setup_files_json(args ):
                     manual_tfm_dir = cdict['align_to_mri_dir']
                     cdict['manual_alignment_points'] = f'{manual_dir}/3d/{brain}_{hemi}_{slab}_points.txt'
                     cdict['manual_alignment_affine'] = f'{manual_dir}/3d/{brain}_{hemi}_{slab}_manual_affine.mat'
-                    cdict['nl_3d_tfm_fn'] = f'{cdict["align_to_mri_dir"]}/{brain}_{hemi}_{slab}_rec_to_mri_SyN_Composite.h5'
-                    cdict['nl_3d_tfm_inv_fn'] = f'{cdict["align_to_mri_dir"]}/{brain}_{hemi}_{slab}_rec_to_mri_SyN_InverseComposite.h5'
+                    cdict['nl_3d_tfm_fn'] = f'{cdict["align_to_mri_dir"]}/{brain}_{hemi}_{slab}_rec_to_mri_{resolution}mm_SyN_Composite.h5'
+                    cdict['nl_3d_tfm_inv_fn'] = f'{cdict["align_to_mri_dir"]}/{brain}_{hemi}_{slab}_rec_to_mri_{resolution}mm_SyN_InverseComposite.h5'
 
                     cdict['nl_2d_vol_fn'] = "{}/{}_{}_{}_nl_2d_{}mm.nii.gz".format(cdict['nl_2d_dir'] ,brain,hemi,slab,resolution) 
                     cdict['nl_2d_vol_cls_fn'] = "{}/{}_{}_{}_nl_2d_cls_{}mm.nii.gz".format(cdict['nl_2d_dir'],brain,hemi,slab,resolution) 
