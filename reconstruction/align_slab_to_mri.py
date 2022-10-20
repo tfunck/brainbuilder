@@ -239,7 +239,7 @@ def gen_mask(fn, clobber=False) :
     return out_fn
 
 def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn, metric='GC', clobber=False ):
-    prefix=re.sub('_SyN_Composite.h5','',out_tfm_fn)
+    prefix=re.sub('_SyN_Composite.h5',f'_{resolution}mm',out_tfm_fn)
     prefix_init = prefix+'_init_'
     prefix_rigid = prefix+'_Rigid_'
     prefix_similarity = prefix+'_Similarity_'
@@ -262,12 +262,12 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     nbins=32
     step=0.1
     #calculate SyN
-    if float(resolution) >= 1.0 :
-        nl_metric = f'CC[{srv_rsl_fn},{seg_rsl_fn},1,3,Regular,0.70]'
-        syn_rate='0.5'
-    else :
-        nl_metric=f'Mattes[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Random,0.70]'
-        syn_rate='0.1'
+    #if float(resolution) >= 1.0 :
+    #    nl_metric = f'CC[{srv_rsl_fn},{seg_rsl_fn},1,3,Random,0.70]'
+    #    syn_rate='0.5'
+    #else :
+    nl_metric=f'Mattes[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Random,0.70]'
+    syn_rate='0.1'
     
     # set initial transform
     # calculate rigid registration
