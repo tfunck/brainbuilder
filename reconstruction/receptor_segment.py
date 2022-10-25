@@ -53,7 +53,7 @@ def downsample_2d(in_fn, resolution, out_fn, y=0):
         vol = gaussian_filter(vol, (float(resolution)/0.02)/np.pi)
         
         #create a new Nifti1Image so that we can resample it with nibabel
-        img = nib.Nifti1Image(vol,img.affine)
+        img = nib.Nifti1Image(vol,img.affine, dtype=np.uint8)
         
         resize(img.get_fdata())
 
@@ -64,7 +64,7 @@ def downsample_2d(in_fn, resolution, out_fn, y=0):
         vol = vol.reshape(vol.shape[0], vol.shape[1])
 
         #create a new Nifti1Image that we can save
-        img = nib.Nifti1Image(vol,img.affine)
+        img = nib.Nifti1Image(vol, img.affine , dtype=np.uint8)
 
         assert len(img.shape) == 2, 'Images should be 2D but have more than 2 dimensions {}'.format(img.shape)
 
@@ -82,7 +82,7 @@ def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution
     new_starts = [ None, -126. + 0.02 * row['global_order'], None ]
     
     if not os.path.exists(seg_rsl_fn) :
-        prefilter_and_downsample(seg_fn, [resolution_2d]*2, seg_rsl_fn, new_starts=new_starts  )
+        prefilter_and_downsample(seg_fn, [resolution_2d]*2, seg_rsl_fn, new_starts=new_starts, dtype=np.uint8  )
 
     if resolution_itr != 0: 
 
@@ -97,14 +97,14 @@ def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution
                               [0, 0,  0, 1],
                               [0, 0, 0, 1]]).astype(float)
             #nib.Nifti1Image(nib.load(seg_rsl_fn).get_fdata(), affine).to_filename(tfm_ref_fn)
-            nib.Nifti1Image(nib.load(seg_rsl_fn).dataobj, affine).to_filename(tfm_ref_fn)
+            nib.Nifti1Image(nib.load(seg_rsl_fn).dataobj, affine, dtype=np.uint8).to_filename(tfm_ref_fn)
     else :
         tfm_ref_fn=seg_rsl_fn
 
     if resolution_2d != resolution_3d :
         tfm_input_fn = get_seg_fn(output_dir, int(row['slab_order']), resolution_3d, seg_fn, '_rsl')
         if not os.path.exists(tfm_input_fn):
-            prefilter_and_downsample(seg_fn, [resolution_3d]*2, tfm_input_fn, new_starts = new_starts )
+            prefilter_and_downsample(seg_fn, [resolution_3d]*2, tfm_input_fn, new_starts = new_starts, dtype=np.uint8 )
     if not os.path.exists(seg_rsl_tfm_fn) : 
         # get initial rigid transform
         tfm_fn = row['tfm']  
@@ -257,7 +257,7 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, morph_iterations=
         
         print("\tWriting output to", out_fn)
         
-        img_out = nib.Nifti1Image(data, aff, direction=[[1.,0.,0.],[0.,1.,0.],[0.,0.,-1.]])
+        img_out = nib.Nifti1Image(data, aff, direction=[[1.,0.,0.],[0.,1.,0.],[0.,0.,-1.]], dtype=np.uint8)
         img_out.to_filename(out_fn)
         
         return 0

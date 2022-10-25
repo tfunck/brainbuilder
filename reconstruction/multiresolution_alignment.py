@@ -145,7 +145,7 @@ def multiresolution_alignment( slab_df,  hemi_df, brain, hemi, slab, slab_index,
         if run_stage([srv_rsl_fn], [srv_iso_space_rec_fn, srv_space_rec_fn]) or args.clobber :
             resample_to_autoradiograph_sections(brain, hemi, slab, float(resolution), srv_rsl_fn, seg_rsl_fn, nl_3d_tfm_inv_fn, srv_iso_space_rec_fn, srv_space_rec_fn)
         
-        create_2d_sections( slab_df, srv_space_rec_fn, float(resolution), nl_2d_dir )
+        create_2d_sections( slab_df, srv_space_rec_fn, float(resolution), nl_2d_dir, dtype=np.uint8 )
             
         print('\t\tStep 4: 2d nl alignment')
         stage_4_outputs=[nl_2d_vol_fn, nl_2d_cls_fn]

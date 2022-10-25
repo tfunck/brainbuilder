@@ -37,6 +37,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
 
     base_lin_itr= 1000 #DEBUG OLD ITERATIONS
     base_nl_itr = 200 #DEBUG OLD ITERATIONS
+    base_cc_itr = 10 #DEBUG OLD ITERATIONS
 
     max_lin_itr = base_lin_itr * (resolution_itr+1)
     max_nl_itr  = base_nl_itr * (resolution_itr+1)
@@ -44,7 +45,9 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     nl_step  = -base_nl_itr 
     lin_itr_str='x'.join([str(base_lin_itr * ((max_itr+1) - i)) for i in range(max_itr+1)])
     nl_itr_str='x'.join( [str(base_nl_itr * ((max_itr+1) - i)) for i in range(max_itr+1)])
+    cc_itr_str='x'.join( [str(base_cc_itr * ((max_itr+1) - i)) for i in range(max_itr+1)])
     nl_itr_str='[ '+ nl_itr_str +',1e-7,20 ]'
+    cc_itr_str='[ '+ cc_itr_str +',1e-7,20 ]'
 
     #f_str='x'.join( [ f_list[i] for i in range(max_itr+1)]) 
     #s_str='x'.join( [ s_list[i] for i in range(max_itr+1)]) + 'vox' 
@@ -78,19 +81,21 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
 
     #DEBUG FIXME USING ONLY MATTES TO TEST alignment with WM
     #nl_metric=f'Mattes[{fx_fn},{mv_fn},1,12,Random,0.9]'
+    metric='GC'
+    bins=10
 
     #fix_affine(fx_fn)
     #fix_affine(mv_fn)
     interpolation='NearestNeighbor'
     interpolation='HammingWindowedSinc'
 
-    affine_command_str = f'antsRegistration -n {interpolation} -v 0 -d 2 --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[{step}] -c {lin_itr_str}  -m Mattes[{fx_fn},{mv_fn},1,{bins},Random,0.9] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m Mattes[{fx_fn},{mv_fn},1,{bins},Random,0.9] -s {s_str} -f {f_str} -t Affine[{step}] -c {lin_itr_str} -m Mattes[{fx_fn},{mv_fn},1,{bins},Random,0.9] -s {s_str} -f {f_str} '
-    print(affine_command_str)
+    affine_command_str = f'antsRegistration -n {interpolation} -v 0 -d 2 --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[{step}] -c {lin_itr_str}  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.9] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.9] -s {s_str} -f {f_str} -t Affine[{step}] -c {lin_itr_str} -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.9] -s {s_str} -f {f_str} '
+    #print(affine_command_str)
 
     with open(prefix+'_command.txt','w') as f : f.write(affine_command_str)
     shell(affine_command_str)
     
-    syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m Mattes[{fx_fn},{mv_fn},1,{bins},Random,0.9] -c {nl_itr_str} -s {s_str} -f {f_str}' #  -t SyN[0.5] -m Mattes[{fx_fn},{mv_fn},1,3,Random,0.9] -c {nl_itr_str} -s {s_str} -f {f_str}' 
+    syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.9] -c {nl_itr_str} -s {s_str} -f {f_str}'#  -t SyN[0.1] -m CC[{fx_fn},{mv_fn},1,3,Random,0.9] -c {cc_itr_str} -s {s_str} -f {f_str}' 
     if use_syn :
         with open(prefix+'_command.txt','w') as f : f.write(syn_command_str)
         shell(syn_command_str)
@@ -98,6 +103,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
         shutil.copy( f'{prefix}_affine_cls_rsl.nii.gz' , f'{prefix}_cls_rsl.nii.gz' )
         shutil.copy( f'{prefix}_Affine_Composite.h5' , f'{prefix}_Composite.h5' )
     assert os.path.exists(f'{prefix}_cls_rsl.nii.gz') , f'Error: output does not exist {prefix}_cls_rsl.nii.gz'
+    #exit(0)
     return 0
     
 def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
@@ -116,7 +122,7 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     vol = img.get_fdata()
     sd = np.array( (float(resolution)/img_res) / np.pi )
     vol = gaussian_filter(vol, sd )
-    nib.Nifti1Image(vol, img.affine).to_filename(crop_rsl_fn)
+    nib.Nifti1Image(vol, img.affine, dtype=np.uint8).to_filename(crop_rsl_fn)
     
     #fix_affine(crop_rsl_fn)
     #fix_affine(fx_fn)
@@ -219,5 +225,5 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='r
 
             if exit_flag : exit(1)
         print('\t\tWriting 3D non-linear:', out_fn)
-        nib.Nifti1Image(out_vol, hires_img.affine).to_filename(out_fn)
+        nib.Nifti1Image(out_vol, hires_img.affine, dtype=np.uint8).to_filename(out_fn)
     return df 

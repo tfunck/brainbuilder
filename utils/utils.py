@@ -131,7 +131,6 @@ def get_ngh_from_faces(faces):
     return ngh
 
 def upsample_over_faces(surf_fn, resolution, out_fn,  face_mask, coord_mask=None, profiles_vtr=None, slab_start=None, slab_end=None, new_points_only=False) :
-    print(surf_fn)
     coords, faces, _ = load_mesh(surf_fn)
 
     write_surface=False 
@@ -563,7 +562,7 @@ def get_section_intervals(vol):
     assert len(intervals) > 0 , 'Error: no valid intervals found for volume.'  
     return intervals
     
-def resample_to_output(vol, aff, resolution_list, order=1):
+def resample_to_output(vol, aff, resolution_list, order=1, dtype=None):
     print('resample_to_output')
     dim_range=range(len(vol.shape))
     calc_new_dim = lambda length, step, resolution : np.ceil( (length*abs(step))/resolution).astype(int)
@@ -572,7 +571,7 @@ def resample_to_output(vol, aff, resolution_list, order=1):
     vol = resize(vol, dim, order=order )
 
     aff[dim_range,dim_range] = resolution_list
-    return nib.Nifti1Image(vol, aff )
+    return nib.Nifti1Image(vol, aff, dtype=dtype )
 
 
 def get_alignment_parameters(resolution_itr, resolution_list):
@@ -593,6 +592,17 @@ def get_alignment_parameters(resolution_itr, resolution_list):
     
     return f_list, f_str, s_str
 
+def check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn):
+    assert os.path.exists(out_fn), f'Error: transformed file does not exist {out_fn}'
+    assert np.sum(np.abs(nib.load(out_fn).dataobj)) > 0 , f'Error in applying transformation: \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n'
+
+def simple_ants_apply_tfm(in_fn, ref_fn, tfm_fn, out_fn,ndim=3):
+    if not os.path.exists(out_fn):
+        str0 = f'antsApplyTransforms -v 1 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}'
+        print(str0)
+        print()
+        shell(str0, verbose=True)
+        check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn)
 
 
 def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, ref_fn, tfm_inv_fn, iso_output_fn, output_fn):
@@ -613,22 +623,23 @@ def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, 
     Outpus:
         None
     '''
-    shell(f'antsApplyTransforms -n HammingWindowedSinc -v 1 -d 3 -i {input_fn} -r {ref_fn} -t {tfm_inv_fn} -o /tmp/tmp.nii.gz',True)
-    print('ref fn',ref_fn)
+    #shell(f'antsApplyTransforms -n HammingWindowedSinc -v 1 -d 3 -i {input_fn} -r {ref_fn} -t {tfm_inv_fn} -o /tmp/tmp.nii.gz',True)
+    simple_ants_apply_tfm(input_fn, ref_fn, tfm_inv_fn, '/tmp/tmp.nii.gz',ndim=3)
+    
     img = nib.load('/tmp/tmp.nii.gz')
     vol = img.get_fdata()
     assert np.sum(vol) > 0, f'Error: empty volume {iso_output_fn}'
     
     aff = img.affine.copy()
     print('aff', aff) ; print(resolution);
-    img_iso = resample_to_output(vol, aff, [float(resolution)]*3, order=0)
+    img_iso = resample_to_output(vol, aff, [float(resolution)]*3, order=0, dtype=np.uint8)
     print(iso_output_fn)
     img_iso.to_filename(iso_output_fn)
     
     aff = img.affine
     print('aff 2', aff)
 
-    img3 = resample_to_output(vol, aff, [float(resolution),0.02, float(resolution)], order=0)
+    img3 = resample_to_output(vol, aff, [float(resolution),0.02, float(resolution)], order=0, dtype=np.uint8)
     print(output_fn)
     img3.to_filename(output_fn)
 
@@ -778,7 +789,7 @@ def get_seg_fn(dirname, y, resolution, filename, suffix=''):
 def gen_2d_fn(prefix,suffix,ext='.nii.gz'):
     return f'{prefix}{suffix}{ext}'
 
-def save_sections(file_list, vol, aff) :
+def save_sections(file_list, vol, aff, dtype=None) :
     xstep = aff[0,0]
     ystep = aff[1,1]
     zstep = aff[2,2]
@@ -799,7 +810,7 @@ def save_sections(file_list, vol, aff) :
             while np.sum(vol[:,int(y-i),:]) == 0 :
                 i += (ystep/np.abs(ystep)) * 1
         sec = vol[ :, int(y-i), : ]
-        nib.Nifti1Image(sec , affine).to_filename(fn)
+        nib.Nifti1Image(sec , affine, dtype=dtype).to_filename(fn)
 
 def get_to_do_list(df,out_dir,str_var,ext='.nii.gz'):
     to_do_list=[]
@@ -811,7 +822,7 @@ def get_to_do_list(df,out_dir,str_var,ext='.nii.gz'):
         if not os.path.exists(fn) : to_do_list.append( [fn, y])
     return to_do_list
 
-def create_2d_sections( df,  srv_fn, resolution, output_dir,clobber=False) :
+def create_2d_sections( df,  srv_fn, resolution, output_dir, dtype=None, clobber=False) :
     fx_to_do=[]
     
     tfm_dir = output_dir + os.sep + 'tfm'
@@ -824,7 +835,7 @@ def create_2d_sections( df,  srv_fn, resolution, output_dir,clobber=False) :
         srv_img = nib.load(srv_fn)
         affine = srv_img.affine
         srv = srv_img.get_fdata()
-        save_sections(fx_to_do, srv, affine)
+        save_sections(fx_to_do, srv, affine, dtype=dtype)
         
 
 def w2v(i, step, start):
@@ -1001,7 +1012,6 @@ def downsample_and_crop(source_lin_dir, lin_dwn_dir,crop_dir, affine, step=0.2, 
             img = img * bounding_box 
             resample_to_output(img, affine, [step]*len(img.shape), order=5).to_filename(dwn_fn)
             print("downsampled filename", dwn_fn)
-            #nib.Nifti1Image(img, affine).to_filename(dwn_fn)
 
 def world_center_of_mass(vol, affine):
     affine = np.array(affine)
@@ -1018,7 +1028,6 @@ from scipy.ndimage import shift
 def recenter(vol, affine, direction=np.array([1,1,-1])):
     affine = np.array(affine)
     
-    #nib.Nifti1Image(vol, affine).to_filename('test_not-shifted.nii.gz')
     vol_sum_1=np.sum(vol)
     #wcom1 = world_center_of_mass(vol,affine) 
 
@@ -1044,9 +1053,13 @@ def recenter(vol, affine, direction=np.array([1,1,-1])):
 
 def prefilter_and_downsample(input_filename, new_resolution, output_filename, 
                             reference_image_fn='',
-                            new_starts=[None, None, None], recenter_image=False ):
+                            new_starts=[None, None, None], recenter_image=False, dtype=None ):
+
     #img = nib.load(input_filename)
     img = ants.image_read(input_filename)
+    
+    if type(dtype) == type(None) : dtype=img.dtype
+    
     direction = img.direction
 
     vol = img.numpy()
@@ -1056,8 +1069,6 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
     dim_range=range(ndim)
     affine[dim_range,dim_range]=img.spacing
     affine[dim_range,3]=img.origin
-
-
 
     if recenter_image : 
         vol, affine = recenter(vol,affine)
@@ -1086,9 +1097,9 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
     else :
         print(f'Error: number of dimensions ({ndim}) does not equal 2 or 3 for {input_filename}')
         exit(1)
-    sd = (  np.array(new_resolution) / steps  ) / np.pi
-    print('\tFilter standard deviation', sd)
-    vol = gaussian_filter(vol, sd)
+    #sd = (  np.array(new_resolution) / steps  ) / np.pi
+    #print('\tFilter standard deviation', sd)
+    #vol = gaussian_filter(vol, sd)
 
 
     if reference_image_fn == '' :
@@ -1101,12 +1112,10 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
         #           nibabel's resampling function will change the dimensions from, say, (x,y) to (x,y,1)
         #           This throws things off for ants so the volume has to be reshaped back to original dimensions.
         vol = vol.reshape(*new_dims) 
-        nib.Nifti1Image(vol, new_affine,  direction=direction).to_filename(output_filename)
-        #write_nifti(vol, new_affine, output_filename)
+        nib.Nifti1Image(vol, new_affine,  direction=direction, dtype=dtype).to_filename(output_filename)
     else :
         vol = resample_from_to(img, nib.load(reference_image_fn), order=5).get_fdata()
-        nib.Nifti1Image(vol, nib.load(reference_image_fn).affine ).to_filename(output_filename, direction=direction)
-        #write_nifti(vol, read_affine(reference_image_fn), output_filename)
+        nib.Nifti1Image(vol, nib.load(reference_image_fn).affine, dtype=dtype ).to_filename(output_filename, direction=direction)
 
 
 def rgb2gray(rgb): return np.mean(rgb, axis=2)
@@ -1251,8 +1260,6 @@ def set_slice_name(source_files, cols, include_str, exclude_str):
         if n_ar  > n_cols :
             k = n_ar - n_cols + 1
             ar_short = ar[(n_cols-k):(n_ar-1)]
-            #print( (n_cols-k), (n_ar-1))
-            #print(ar_short)
             
             processing_string = '-'.join(ar_short)
 

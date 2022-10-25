@@ -175,14 +175,18 @@ def combine_sections_to_vol(df,z_mm,direction,out_fn,target_tier=1):
     slab_ymax=int(order_max+1) #-order_min + 1
 
     vol = np.zeros( [xmax,slab_ymax,zmax])
+    print(np.unique(df['slab_order']).shape[0], df.shape[0])
+    df = df.sort_values('slab_order')
     for i, row in df.iterrows():
         if row['tier'] == target_tier :
             y = row['slab_order']
             ar = nib.load(row['crop_fn']).get_fdata()
-            ar=ar.reshape(ar.shape[0],ar.shape[1])
-            ar=resize(ar,[xmax,zmax])
-
-            vol[:,int(y),:]= ar
+            ar = ar.reshape(ar.shape[0],ar.shape[1])
+            ar = resize(ar,[xmax,zmax])
+            print(y, row['crop_fn']) 
+            vol[:,int(y),:] = ar
+            #vol[:,int(y),:] += int(y) 
+            del ar
         
     print("\n\tWriting Volume",out_fn,"\n")
     slab_ymin=-126+df["global_order"].min()*0.02 
@@ -203,9 +207,9 @@ def alignment_stage(brain,hemi,slab, df, vol_fn_str, output_dir, scale, transfor
     '''
     # Set parameters for rigid transform
     tfm_type = 'Rigid'
-    shrink_factor = '12x10x8' #x4x2x1'
-    smooth_sigma = '6x5x4' #x2x1x0' 
-    iterations = '100x50x25' #x100x50x20'
+    shrink_factor = '12' #'12x10x8' #x4x2x1'
+    smooth_sigma =  str((2**11)/np.pi) # '6x5x4' #x2x1x0' 
+    iterations = '100' # '100x50x25' #x100x50x20'
 
     csv_fn = vol_fn_str.format(output_dir,*desc,target_ligand,ligand_n,tfm_type+'-'+str(0),'.csv')
 
