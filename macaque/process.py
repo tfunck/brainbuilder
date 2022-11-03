@@ -8,6 +8,7 @@ import re
 import pandas as pd
 import nibabel 
 import utils.ants_nibabel as nib
+from reconstruction.volumetric_interpolation import volumetric_interpolation
 from nibabel.processing import resample_to_output
 from reconstruction.surface_interpolation import surface_interpolation
 from utils.utils import prefilter_and_downsample, resample_to_autoradiograph_sections
@@ -496,19 +497,6 @@ def downsample(df, downsample_dir, resolution_2d):
 
 
 from scipy.ndimage.morphology import binary_dilation, binary_erosion, binary_closing
-def _get_section_intervals(vol, interp_dir):
-
-    section_sums = np.sum(vol, axis=(0,2))
-    valid_sections = section_sums > np.min(section_sums)
-    plt.subplot(2,1,1); plt.plot(section_sums)
-    plt.subplot(2,1,2); plt.plot(valid_sections); 
-    plt.savefig(f'{interp_dir}/val_sections_{np.sum(valid_sections)}.png'); plt.clf(); plt.cla()
-    labeled_sections, nlabels = label(valid_sections)
-    assert nlabels >= 2, 'Error: there must be a gap between thickened sections. Use higher resolution volumes.'
-
-    intervals = [ (np.where(labeled_sections==i)[0][0], np.where(labeled_sections==i)[0][-1]) for i in range(1, nlabels) ]
-    assert len(intervals) > 0 , 'Error: no valid intervals found for volume.'  
-    return intervals
 
 
     
@@ -857,11 +845,14 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     
     slab_dict={'1':files[brain][hemi]['1'][highest_resolution]}
 
+    subcortex_mask_fn='templates/MEBRAINS_T1_WM_L.nii.gz'
     for ligand, cur_df_ligand in df_ligand.groupby(["ligand"]):
-        #surface_interpolation(df_ligand, slab_dict, interp_dir, brain, hemi, resolution, orig_mni_fn, slabs, files, scale_factors_json, n_depths=3, upsample_resolution=0, tissue_type='', input_surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, gm_label=2, clobber=0):
-        
+
+
         surface_interpolation(cur_df_ligand, slab_dict, ligand_dir, brain, hemi, highest_resolution,  template_fn, args.slabs, files[brain][hemi], scale_factors_json, input_surf_dir=surf_dir, n_vertices=n_vertices, upsample_resolution=20, n_depths=n_depths, gm_label=gm_label)
 
+        volumetric_interpolation(brain, hemi, highest_resolution, slab_dict, to_reconstruct, subcortex_mask_fn, ligand_dir,n_depths)
+        exit(0) 
     print('Done')
 
 if __name__ == '__main__':

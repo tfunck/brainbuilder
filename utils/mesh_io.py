@@ -25,7 +25,7 @@ def save_mesh(out_fn, coords, faces, volume_info=None):
     else :
         print('Error: filetype not recognized for file', out_fn)
 
-def load_mesh(surf_mesh,correct_offset=False):
+def load_mesh(surf_mesh,correct_offset=True):
     volume_info=None
     if isinstance(surf_mesh, str):
         if (surf_mesh.endswith('orig') or surf_mesh.endswith('pial') or

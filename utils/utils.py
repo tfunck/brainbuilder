@@ -1108,6 +1108,8 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
         nib.Nifti1Image(vol, nib.load(reference_image_fn).affine ).to_filename(output_filename, direction=direction)
         #write_nifti(vol, read_affine(reference_image_fn), output_filename)
 
+    return vol
+
 
 def rgb2gray(rgb): return np.mean(rgb, axis=2)
 
