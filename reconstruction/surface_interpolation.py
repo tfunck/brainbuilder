@@ -170,7 +170,6 @@ def thicken_sections(interp_dir, slab_dict, df_ligand, n_depths, resolution, tis
             
             assert np.sum(array_src) != 0, 'Error: source volume for thickening sections is empty\n'+ source_image_fn
 
-
             array_src, normalize_sections = setup_section_normalization(ligand, slab_df, array_src)
             width = np.round(1*(1+resolution/(0.02*2))).astype(int)
             #print('\t\tThickening sections to ', 0.02*width*2)
@@ -187,22 +186,23 @@ def thicken_sections(interp_dir, slab_dict, df_ligand, n_depths, resolution, tis
                 
                 if row['conversion_factor'] > 0 and tissue_type != '_cls' :
                      section *= row['conversion_factor']
+                     print('Conversion Factor', row['conversion_factor'])
                 elif row['conversion_factor'] == 0 : 
                     continue
 
 
                 y0 = int(y)-width if int(y)-width > 0 else 0
-                y1 = 1+int(y)+width if int(y)+width <= array_src.shape[1] else array_src.shape[1]
+                y1 = 1+int(y)+width if int(y)+width < array_src.shape[1] else array_src.shape[1]
                 #put ligand sections into rec_vol
 
-                rep = np.repeat(section.reshape(dim), y1-y0, axis=1)
+                yrange = list(range(y0,y1))
+                rep = np.repeat(section.reshape(dim), len(yrange), axis=1)
 
                 #rep[rep > 0] = y #DEBUG 
 
-                rec_vol[:, y0:y1, :] = rep 
-                #rec_vol[:, y, :] = section
+                #rec_vol[:, yrange, :] = rep 
+                rec_vol[:, y, :] = section
                 
-            
             #if not normalize_sections : 
             #    assert np.sum(rec_vol) != 0, 'Error: receptor volume for single ligand is empty\n'
             print('\tthickened_fn', thickened_fn)

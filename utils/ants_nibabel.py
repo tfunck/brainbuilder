@@ -15,7 +15,11 @@ ras = np.array([[1.,0.,0.],[0.,1.,0.],[0.,0.,-1.]])
 lpi=np.array([[-1.,0.,0.],[0.,-1.,0.],[0.,0.,1.]])
 
 class Nifti1Image():
-    def __init__(self, dataobj, affine, direction=[], direction_order='ras'):
+    def __init__(self, dataobj, affine, direction=[], direction_order='ras',dtype=None):
+
+        if type(dtype) != type(None) :
+            if dtype == np.uint8 :
+                dataobj = ( 255*(dataobj-dataobj.min())/(dataobj.max()-dataobj.min()) ).astype(np.uint8)
         self.affine = affine
         self.dataobj= dataobj
         self.shape = dataobj.shape
@@ -27,10 +31,11 @@ class Nifti1Image():
         elif len(direction) != 0 :
             pass
         else :
-            print('Error: <direction_order> not supported, specify <direction> directly')
+            pirint('Error: <direction_order> not supported, specify <direction> directly')
             exit(0)
 
         self.direction=list(np.array(direction)[ 0:ndim, 0:ndim ])
+
     def to_filename(self, filename):
         write_nifti(self.dataobj, self.affine, filename, direction=self.direction)
 
@@ -83,6 +88,7 @@ def load(fn) :
     img = ants.image_read(fn)
     vol = img.numpy()
     direction = img.direction
+    #direction_order = img.direction_order
     nii_obj = Nifti1Image(vol,affine, direction=direction)
 
     return nii_obj
