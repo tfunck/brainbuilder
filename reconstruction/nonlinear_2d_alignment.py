@@ -11,6 +11,7 @@ import time
 import shutil
 import tempfile
 import multiprocessing
+from reconstruction.align_slab_to_mri import gen_mask
 from utils.utils import get_alignment_parameters
 from joblib import Parallel, delayed
 from section_2d import section_2d
@@ -36,16 +37,25 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     base_nl_itr = 20
 
     base_lin_itr= 1000 #DEBUG OLD ITERATIONS
-    base_nl_itr = 200 #DEBUG OLD ITERATIONS
+    base_nl_itr = 100 #DEBUG OLD ITERATIONS
     base_cc_itr = 10 #DEBUG OLD ITERATIONS
 
     max_lin_itr = base_lin_itr * (resolution_itr+1)
     max_nl_itr  = base_nl_itr * (resolution_itr+1)
     lin_step = -base_lin_itr 
     nl_step  = -base_nl_itr 
-    lin_itr_str='x'.join([str(base_lin_itr * ((max_itr+1) - i)) for i in range(max_itr+1)])
-    nl_itr_str='x'.join( [str(base_nl_itr * ((max_itr+1) - i)) for i in range(max_itr+1)])
-    cc_itr_str='x'.join( [str(base_cc_itr * ((max_itr+1) - i)) for i in range(max_itr+1)])
+
+    #lin_itr =np.linspace(2000,200,resolution_itr+1).astype(int).astype(str)
+    #nl_itr = np.linspace( 500, 100, resolution_itr+1).astype(int).astype(str)
+    #cc_itr = np.linspace( 100, 10, resolution_itr+1).astype(int).astype(str)
+    
+    lin_itr =np.linspace(1000,100,resolution_itr+1).astype(int).astype(str)
+    nl_itr = np.linspace( 100, 20, resolution_itr+1).astype(int).astype(str)
+    cc_itr = np.linspace( 50, 5, resolution_itr+1).astype(int).astype(str)
+
+    lin_itr_str='x'.join(lin_itr) 
+    nl_itr_str='x'.join(nl_itr)
+    cc_itr_str='x'.join( cc_itr)
     nl_itr_str='[ '+ nl_itr_str +',1e-7,20 ]'
     cc_itr_str='[ '+ cc_itr_str +',1e-7,20 ]'
 
@@ -83,19 +93,28 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     #nl_metric=f'Mattes[{fx_fn},{mv_fn},1,12,Random,0.9]'
     metric='GC'
     bins=10
+    if float(resolution) < 0.15 :
+        metric='Mattes'
+        bins='16'
 
     #fix_affine(fx_fn)
     #fix_affine(mv_fn)
     interpolation='NearestNeighbor'
     interpolation='HammingWindowedSinc'
 
-    affine_command_str = f'antsRegistration -n {interpolation} -v 0 -d 2 --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[{step}] -c {lin_itr_str}  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.9] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.9] -s {s_str} -f {f_str} -t Affine[{step}] -c {lin_itr_str} -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.9] -s {s_str} -f {f_str} '
-    #print(affine_command_str)
+
+    fx_mask_fn = gen_mask(fx_fn, clobber=False)
+    mv_mask_fn = gen_mask(mv_fn, clobber=False)
+    #--masks [{fx_mask_fn},{mv_mask_fn}] 
+    affine_command_str = f'antsRegistration -n {interpolation} -v 0 -d 2  --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[{step}] -c {lin_itr_str}  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.95] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.95] -s {s_str} -f {f_str} -t Affine[{step}] -c {lin_itr_str} -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.95] -s {s_str} -f {f_str} '
+    print(affine_command_str)
 
     with open(prefix+'_command.txt','w') as f : f.write(affine_command_str)
     shell(affine_command_str)
+    #--masks [{fx_mask_fn},{mv_mask_fn}] 
+    syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -c {nl_itr_str} -s {s_str} -f {f_str}  -t SyN[0.1] -m CC[{fx_fn},{mv_fn},1,3,Random,0.99] -c {cc_itr_str} -s {s_str} -f {f_str}' 
     
-    syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.9] -c {nl_itr_str} -s {s_str} -f {f_str}'#  -t SyN[0.1] -m CC[{fx_fn},{mv_fn},1,3,Random,0.9] -c {cc_itr_str} -s {s_str} -f {f_str}' 
+    print(syn_command_str)
     if use_syn :
         with open(prefix+'_command.txt','w') as f : f.write(syn_command_str)
         shell(syn_command_str)
@@ -103,7 +122,6 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
         shutil.copy( f'{prefix}_affine_cls_rsl.nii.gz' , f'{prefix}_cls_rsl.nii.gz' )
         shutil.copy( f'{prefix}_Affine_Composite.h5' , f'{prefix}_Composite.h5' )
     assert os.path.exists(f'{prefix}_cls_rsl.nii.gz') , f'Error: output does not exist {prefix}_cls_rsl.nii.gz'
-    #exit(0)
     return 0
     
 def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
@@ -122,7 +140,7 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     vol = img.get_fdata()
     sd = np.array( (float(resolution)/img_res) / np.pi )
     vol = gaussian_filter(vol, sd )
-    nib.Nifti1Image(vol, img.affine, dtype=np.uint8).to_filename(crop_rsl_fn)
+    nib.Nifti1Image(vol, img.affine).to_filename(crop_rsl_fn)
     
     #fix_affine(crop_rsl_fn)
     #fix_affine(fx_fn)
@@ -154,7 +172,12 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
     if os_info[1] == 'imenb079':
         num_cores = 4 
     else :
-        num_cores = min(14, multiprocessing.cpu_count() )
+        if float(resolution) >= 0.2 :
+            max_cores=14
+        else :
+            max_cores=4
+            
+        num_cores = min(max_cores, multiprocessing.cpu_count() )
 
     to_do_df = pd.DataFrame([])
     to_do_resample_df = pd.DataFrame([])
@@ -224,6 +247,13 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='r
                 exit_flag=True
 
             if exit_flag : exit(1)
+
         print('\t\tWriting 3D non-linear:', out_fn)
-        nib.Nifti1Image(out_vol, hires_img.affine, dtype=np.uint8).to_filename(out_fn)
+
+        dtype=np.float32
+        if target_str=='cls_rsl':
+            dtype=np.uint8
+        print(f'Writing: {out_fn} dtype: {dtype}')
+        nib.Nifti1Image(out_vol, hires_img.affine, dtype=np.float32).to_filename(out_fn)
+
     return df 

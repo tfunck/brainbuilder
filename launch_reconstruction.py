@@ -385,11 +385,13 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
 
     slab_dict = create_file_dict_output_resolution(files, brain, hemi, resolution_list)
     
-    validate_alignment(f'{args.out_dir}/6_quality_control/validate_alignment/', files[brain][hemi])
     
-    if args.no_surf : exit(0)
-    print('\tSurface-based reconstruction') 
-    final_ligand_dict = surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_dict, interp_dir, brain, hemi, scale_factors)
+    if not args.no_surf : 
+        print('\tSurface-based reconstruction') 
+        final_ligand_dict = surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_dict, interp_dir, brain, hemi, scale_factors)
+    exit(0)
+    
+    validate_alignment(f'{args.out_dir}/6_quality_control/validate_alignment/', files[brain][hemi])
     
 
     ###

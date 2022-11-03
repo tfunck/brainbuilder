@@ -123,7 +123,7 @@ def multiresolution_alignment( slab_df,  hemi_df, brain, hemi, slab, slab_index,
             resample_transform_segmented_images(slab_df, resolution_itr, resolution, resolution_3d, seg_dir+'/2d/' )
             #write 2d segmented sections at current resolution. apply initial transform
             print('\t\t\tInterpolating between segemented sections')
-            classifyReceptorSlices(slab_df, init_align_fn, seg_dir+'/2d/', seg_dir, seg_rsl_fn, resolution=resolution_3d )
+            classifyReceptorSlices(slab_df, init_align_fn, seg_dir+'/2d/', seg_dir, seg_rsl_fn, resolution_3d, resolution )
 
         ###
         ### Stage 3 : Align slabs to MRI
@@ -137,7 +137,7 @@ def multiresolution_alignment( slab_df,  hemi_df, brain, hemi, slab, slab_index,
             align_slab_to_mri(  brain, hemi, slab, seg_rsl_fn, crop_srv_rsl_fn, align_to_mri_dir, 
                                 hemi_df, args.slabs, nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_rsl_fn, srv_3d_rsl_fn, 
                                 resolution_3d, resolution_itr_3d, 
-                                resolution_list, slab_direction, cfiles['manual_alignment_points'], cfiles['manual_alignment_affine'] )
+                                resolution_list, slab_direction, cfiles['manual_alignment_points'], cfiles['manual_alignment_affine'], use_masks=False )
         
         ###
         ### Stage 4 : 2D alignment of receptor to resample MRI GM vol

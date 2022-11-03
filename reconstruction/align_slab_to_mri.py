@@ -227,7 +227,7 @@ def gen_mask(fn, clobber=False) :
     
     return out_fn
 
-def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn, metric='GC',nbins=10, use_init_tfm=False, use_masks=True, clobber=False ):
+def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn, metric='GC',nbins=10, use_init_tfm=False, use_masks=True, sampling=0.9, clobber=False ):
     prefix=re.sub('_SyN_Composite.h5','',out_tfm_fn)
     prefix_init = prefix+'_init_'
     prefix_rigid = prefix+'_Rigid_'
@@ -259,7 +259,7 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     use_cc = True
     if float(resolution) >= 1.0 : use_cc = True
     
-    nl_metric=f' -m {metric}[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Random,0.70]'
+    nl_metric=f' -m {metric}[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]'
 
     syn_rate='0.5'
    
@@ -276,18 +276,18 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
             s_str_0 = re.sub('vox','',s_str).split('x')[0] +'x'
             f_str_0 = f_str.split('x')[0] 
             print(s_str_0)
-            shell(f'{base}  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]   -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,0.70]  -s {s_str_0} -f {f_str_0}  -c 1000   -t Affine[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,0.70]  -s {s_str_0} -f {f_str_0}  -c 1000  -o [{prefix_init},{prefix_init}volume.nii.gz,{prefix_init}volume_inverse.nii.gz]  ', verbose=True)
+            shell(f'{base}  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]   -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000   -t Affine[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000  -o [{prefix_init},{prefix_init}volume.nii.gz,{prefix_init}volume_inverse.nii.gz]  ', verbose=True)
             init_str = f' --initial-moving-transform {prefix_init}Composite.h5 '
         else :
             init_str = f' --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1] '
 
         # calculate rigid registration
         if not os.path.exists(f'{prefix_rigid}Composite.h5'):
-            shell(f'{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,0.70]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] ', verbose=True)
+            shell(f'{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] ', verbose=True)
         # calculate similarity registration
 
         if not os.path.exists(f'{prefix_similarity}Composite.h5'):
-            shell(f'{base}  --initial-moving-transform  {prefix_rigid}Composite.h5 -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,0.70]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] ', verbose=True)
+            shell(f'{base}  --initial-moving-transform  {prefix_rigid}Composite.h5 -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] ', verbose=True)
         affine_init = f'--initial-moving-transform {prefix_similarity}Composite.h5'
     else :
         print('\tApply manual transformation')
@@ -296,7 +296,7 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     
     #calculate affine registration
     if not os.path.exists(f'{prefix_affine}Composite.h5'):
-        shell(f'{base}  {affine_init} -t Affine[{step}] -m {metric}[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Random,0.70]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] ', verbose=True)
+        shell(f'{base}  {affine_init} -t Affine[{step}] -m {metric}[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] ', verbose=True)
      
     if not os.path.exists(f'{prefix_syn}Composite.h5'): 
         # --masks [{srv_mask_fn},{seg_mask_fn}]
@@ -304,7 +304,7 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
         syn_base=f'{base} --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[{syn_rate}]  {nl_metric} -s {s_str} -f {f_str} -c {nl_itr_str} '
 
         if use_cc :
-            syn_base += f' -t SyN[{syn_rate}] -m CC[{srv_tgt_fn},{seg_rsl_fn},1,3,Random,0.70]  -s {s_str} -f {f_str} -c {nl_itr_str} '
+            syn_base += f' -t SyN[{syn_rate}] -m CC[{srv_tgt_fn},{seg_rsl_fn},1,3,Random,{sampling}]  -s {s_str} -f {f_str} -c {nl_itr_str} '
         
         syn_base += f' -o [{prefix_syn},{syn_out_fn},{syn_inv_fn}] '
 
@@ -334,7 +334,7 @@ def get_manual_tfm(resolution_itr,manual_alignment_points, seg_rsl_fn, srv_rsl_f
 
     return manual_tfm_fn
 
-def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, slabs, out_tfm_fn, out_tfm_inv_fn, out_fn, out_inv_fn,  resolution, resolution_itr, resolution_list, slab_direction, manual_points_fn, manual_affine_fn=None, clobber=False, verbose=True ) :
+def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, slabs, out_tfm_fn, out_tfm_inv_fn, out_fn, out_inv_fn,  resolution, resolution_itr, resolution_list, slab_direction, manual_points_fn, manual_affine_fn=None, use_masks=False, clobber=False, verbose=True ) :
     print('\tRunning, resolution:', resolution )
     slab=int(slab)
 
@@ -365,7 +365,7 @@ def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, sl
     srv_slab_fn = write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0w, y0, y1, resolution, srv_ystep, srv_ystart, max_downsample_level)
 
     # run ants alignment between segmented volume (from autoradiographs) to slab extracte
-    run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_pad_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn) #, metric='Mattes', nbins=32 )
+    run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_pad_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn, use_masks=use_masks) #, metric='Mattes', nbins=32 )
     return 0
 
 '''

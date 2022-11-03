@@ -20,7 +20,7 @@ mkdir -p $out_dir
 
 #singularity exec -B "/data":"/data" ~/receptor-v.1.2.simg bash -c "python3.8 ~/projects/julich-receptor-atlas/launch_reconstruction.py -o $out_dir -b $brain --hemi $hemisphere --mri-gm /data/receptor/human/mri1_R_gm_bg_srv.nii.gz --cortex-gm /data/receptor/human/mri1_gm_srv.nii.gz --ndepths 25 --surf-dir /data/receptor/human/civet/mri1/surfaces/ -r 4.0 3.0 2.0 1.0 0.5 0.25" # --nvertices 655362"
 
-singularity exec -B "/data":"/data" ~/receptor-v.1.2.simg bash -c "python3.8 ~/projects/julich-receptor-atlas/launch_reconstruction.py -o /data/receptor/human/output_5/ -b $brain --hemi $hemisphere --mri-gm /data/receptor/human/mri1_R_gm_bg_srv.nii.gz --cortex-gm /data/receptor/human/mri1_gm_srv.nii.gz --ndepths 25 --surf-dir /data/receptor/human/civet/mri1/surfaces/ -r  4.0 3.0 2.0 1.0 0.5 0.25 0.125 --slab 1 2 3 4 5 6"
+singularity exec -B "/data":"/data" ~/receptor-v.1.2.simg bash -c "python3.8 ~/projects/julich-receptor-atlas/launch_reconstruction.py -o /data/receptor/human/output_5/ -b $brain --hemi $hemisphere --mri-gm /data/receptor/human/mri1_R_gm_bg_srv.nii.gz --cortex-gm /data/receptor/human/mri1_gm_srv.nii.gz --ndepths 25 --surf-dir /data/receptor/human/civet/mri1/surfaces/ -r  4.0 3.0 2.0 1.0 0.5 0.25  --slab 1 2 3 4 5 6"
 
 #singularity exec -B "/data":"/data" ~/receptor-v.1.2.simg bash -c "python3.8 ~/projects/julich-receptor-atlas/launch_reconstruction.py -o /data/receptor/human/output_test_itr_2/ -b $brain --hemi $hemisphere --mri-gm /data/receptor/human/mri1_R_gm_bg_srv.nii.gz --cortex-gm /data/receptor/human/mri1_gm_srv.nii.gz --ndepths 10 --surf-dir /data/receptor/human/civet/mri1/surfaces/ -r 4.0 3.75 3.5 3.25 3.0 2.75 2.5 2.25 2.0 1.75 1.5 1.25 1.0 0.75 0.5 0.25  --no-surf"
 #
