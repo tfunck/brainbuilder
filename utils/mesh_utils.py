@@ -62,10 +62,6 @@ def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[0,0
         interp_vol = np.zeros(dimensions)
         n_vol = np.zeros_like(interp_vol)
     
-    #coords[:,0] -= 0.04
-    #coords[:,1] -= -30.56
-    #coords[:,2] += 24.94
-    
     x = np.rint( (coords[:,0] - starts[0]) / steps[0] ).astype(int)
     y = np.rint( (coords[:,1] - starts[1]) / steps[1] ).astype(int)
     z = np.rint( (coords[:,2] - starts[2]) / steps[2] ).astype(int)
@@ -85,27 +81,6 @@ def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[0,0
 
     return interp_vol, n_vol
 
-
-def concatenate_points(to_do_list, all_points_npy):
-
-    all_points = np.array([])
-    all_values = np.array([])
-    for _, out_fn in to_do_list:
-        np_file = np.load(out_fn+'.npz')
-        points = np_file['points']
-        values = np_file['values']
-        assert points.shape[0] == values.shape[0], f'Error: points ({points.shape}) and values ({values.shape}) dont match'
-        if all_points.shape == (0,) :
-            all_points=points
-            all_values=values
-        else :
-            all_points = np.concatenate([all_points,points],axis=0)
-            all_values = np.concatenate([all_values,values],axis=0)
-        
-        print('shape', points.shape, values.shape)
-
-    np.savez(all_points_npy, points=all_points, values=all_values)
-    return all_points, all_values
 
 
 def multi_mesh_to_volume(profiles, surf_depth_slab_dict, depth_list, dimensions, starts, steps, resolution, y0, y1, origin=[0,0,0], ref_fn=None):
@@ -135,18 +110,9 @@ def multi_mesh_to_volume(profiles, surf_depth_slab_dict, depth_list, dimensions,
         #to_do_ist.append((surf_fn,surf_fn))
         points = np.load(surf_fn)['points']
         assert points.shape[0] == profiles.shape[0], 'Error mismatch in number of points between {surf_fn} and vertex values file'
+
         interp_vol, n_vol = mesh_to_volume(points, profiles[:,ii], dimensions, starts, steps, interp_vol=interp_vol, n_vol=n_vol)
-
-    #Parallel(n_jobs=num_cores)(delayed(upsample_over_faces)(surf_fn, resolution, out_fn, profiles_vtr=profiles[:,ii], slab_start=slab_start, slab_end=slab_end, ref_faces=ref_faces) for ii, (surf_fn, out_fn) in enumerate(to_do_list) ) 
-
-    #all_points_npy = re.sub('.surf.gii', f'upsampled-face-all', surf_fn)
-    #all_points, all_values = concatenate_points(to_do_list, all_points_npy)
-
-    #print(f'\tDepths completed: {100*ii/profiles.shape[1]:.3}',end='\r')
-        
-    #np_file = np.load(out_fn+'.npz')
-    #points = np_file['points']
-    #values = np_file['values']
+    
     interp_vol[ n_vol>0 ] = interp_vol[n_vol>0] / n_vol[n_vol>0]
     
     assert np.sum(interp_vol) != 0 , 'Error: interpolated volume is empty'
@@ -166,47 +132,6 @@ def get_surf_from_dict(d):
         assert False, f'Error: could not find surface in keys, {keys}'
     return surf_fn
 
-def get_edges_from_faces(faces):
-    #for convenience create vector for each set of faces 
-    f_i = faces[:,0]
-    f_j = faces[:,1]
-    f_k = faces[:,2]
-    
-    #combine node pairs together to form edges
-    f_ij = np.column_stack([f_i,f_j])
-    f_jk = np.column_stack([f_j,f_k])
-    f_ki = np.column_stack([f_k,f_i])
-
-    #concatenate the edges into one big array
-    edges_all = np.concatenate([f_ij,f_jk, f_ki],axis=0).astype(np.uint32)
-
-    #there are a lot of redundant edges that we can remove
-    #first sort the edges within rows because the ordering of the nodes doesn't matter
-    edges_all_sorted_0 = np.sort(edges_all,axis=1)
-    #create a vector to keep track of vertex number
-    edges_all_range= np.arange(edges_all.shape[0]).astype(int)
-    #
-    edges_all_sorted = np.column_stack([edges_all_sorted_0, edges_all_range ])
-    
-    #sort the rows so that duplicate edges are adjacent to one another 
-    edges_range_sorted = pd.DataFrame( edges_all_sorted  ).sort_values([0,1]).values
-    edges_sorted = edges_range_sorted[:,0:2]
-
-    #convert sorted indices to indices that correspond to face numbers
-    #DEBUG commented out following line because it isnt' used:
-    #sorted_indices = edges_range_sorted[:,2] % faces.shape[0]
-
-    # the edges are reshuffled once by sorting them by row and then by extracting unique edges
-    # we need to keep track of these transformations so that we can relate the shuffled edges to the 
-    # faces they belong to.
-    edges, edges_idx, counts = np.unique(edges_sorted , axis=0, return_index=True, return_counts=True)
-    edges = edges.astype(np.uint32)
-
-    #print('2.', np.sum( np.sum(edges_all==(26, 22251),axis=1)==2 ) ) 
-    
-    assert np.sum(counts!=2) == 0,'Error: more than two faces per edge {}'.format( edges_sorted[edges_idx[counts!=2]])     
-    #edge_range = np.arange(edges_all.shape[0]).astype(int) % faces.shape[0]
-    return edges
 
 def add_entry(d,i, lst):
     try :
@@ -215,21 +140,6 @@ def add_entry(d,i, lst):
         d[i]=list(lst)
     return d[i]
 
-def get_ngh_from_faces(faces):
-
-    ngh={} 
-
-    for count, (i,j,k) in enumerate(faces):
-        ngh[i] = add_entry(ngh, int(i), [int(j),int(k)] )
-        ngh[j] = add_entry(ngh, int(j), [int(i),int(k)] )
-        ngh[k] = add_entry(ngh, int(k), [int(j),int(i)] )
-
-    for key in range(len(ngh.keys())):
-        ngh[int(key)] = list(np.unique(ngh[key]))
-
-    return ngh
-
-
 def unique_points(points, scale=1000000000):
     #rpoints = np.rint(points * scale).astype(np.int64)
     upoints, unique_index, unique_inverse = np.unique(points.astype(np.float128).round(decimals=3),axis=0,return_index=True, return_inverse=True)
@@ -237,9 +147,8 @@ def unique_points(points, scale=1000000000):
     return points[unique_index,:], unique_index, unique_inverse
 
 def upsample_over_faces(surf_fn, resolution, out_fn,  face_mask=None, coord_mask=None, profiles_vtr=None, slab_start=None, slab_end=None, ref_faces=None) :
-    print(surf_fn)
+    
     coords, faces = load_mesh_ext(surf_fn)
-
 
     if type(faces) == type(None):
         if type(ref_faces) != type(None) :
@@ -271,7 +180,6 @@ def upsample_over_faces(surf_fn, resolution, out_fn,  face_mask=None, coord_mask
     else : 
         target_faces = faces[face_mask]
         face_coords = coords[faces]
-   
     #del coords
 
     # Choice 2 : if values are provided, interpolate these over the face, otherwise create 0-array
@@ -281,7 +189,6 @@ def upsample_over_faces(surf_fn, resolution, out_fn,  face_mask=None, coord_mask
     else :
         face_vertex_values = np.zeros([face_coords.shape[0],3])
 
-    #ngh = get_ngh_from_faces(faces)
     points, values, new_points_gen = calculate_upsampled_points(faces, face_coords, face_vertex_values, resolution)
 
     assert points.shape[1]==3, 'Error: shape of points is incorrect ' + points.shape 
@@ -306,92 +213,6 @@ def upsample_over_faces(surf_fn, resolution, out_fn,  face_mask=None, coord_mask
 
     return points, values, new_points_gen
 
-def find_neighbours(ngh, p, i, points, resolution, eps=0.001, target_nngh=6):
-    counter = 1 
-    #radius = resolution * counter + eps
-    #idx0 = (points[:,0] <= p[0] + radius) & (points[:,0] >= p[0] - radius)
-    #idx1 = (points[:,1] <= p[1] + radius) & (points[:,1] >= p[1] - radius)
-    #idx2 = (points[:,2] <= p[2] + radius) & (points[:,2] >= p[2] - radius)
-
-    #idx = idx0 & idx1 & idx2
-    
-    #if len(idx) > 6 :
-    d=np.sqrt(np.sum(np.power(points - p,2),axis=1)) 
-    d_idx = np.argsort(d).astype(int)[0:target_nngh]
-    print(d_idx)
-    print(ngh)
-    ngh = ngh[d_idx]
-
-    return (i, ngh)
-
-def create_point_blocks(points, resolution, scale=10):
-    blocks = ((points - np.min(points, axis=0)) / (resolution*scale)).astype(np.uint16)
-    n_blocks = np.max(blocks,axis=0).astype(int) +1
-    return blocks, n_blocks
-
-
-
-def find_neighbours_within_radius(ngh, nngh, points, blocks, n_blocks, resolution) :
-    
-    indices = np.arange(points.shape[0]).astype(int)
-    n_total = np.product(n_blocks)
-    counter=0
-
-    for bx in range(n_blocks[0]):
-        bx0=max(0,bx-1)
-        bx1=min(n_blocks[0]-1,bx+1)
-        
-        bx_idx = bx==blocks[:,0]
-        ngh_idx_0 = (blocks[:,0]>=bx0) & (blocks[:,0]<=bx1)
-        
-
-        for by in range(n_blocks[1]) :
-            by0=max(0,by-1)
-            by1=min(n_blocks[1]-1,by+1)
-
-            by_idx = by==blocks[:,1]
-            
-            ngh_idx_1 = (blocks[:,1]>=by0) & (blocks[:,1]<=by1)
-
-            for  bz in range(n_blocks[2]):
-                if counter % 10 == 0 : print(np.round(100*counter/n_total,3), end='\r')
-
-                bz0=max(0,bz-1)
-                bz1=min(n_blocks[2]-1,bz+1)
-                
-                ngh_idx_2 = (blocks[:,2]>=bz0) & (blocks[:,2]<=bz1)
-
-                ngh_idx = ngh_idx_0 * ngh_idx_1 * ngh_idx_2
-
-                cur_idx = bx_idx & by_idx & (bz==blocks[:,2])
-                
-                cur_indices = indices[cur_idx ]
-                cur_points = points[ cur_idx, : ]
-                ngh_points = points[ ngh_idx, : ]
-                block_ngh_list = Parallel(n_jobs=num_cores)(delayed(find_neighbours)(p, i,  ngh_points, indices[ngh_idx], resolution) for i, p in zip(cur_indices, cur_points) ) 
-                 
-                for key, item in block_ngh_list:
-                    ngh[key]=item
-                    nngh[key]=len(item)
-                
-                counter+=1
-
-    return ngh, nngh
-
-def link_points(points, ngh, resolution):
-    print('\t\tLinking points to create a mesh.') 
-    
-    
-    nngh=np.zeros(points.shape[0]).astype(np.uint8)
-
-    block_ngh_list = Parallel(n_jobs=num_cores)(delayed(find_neighbours)(cur_ngh, points[i], i, points[cur_ngh], resolution) for i, cur_ngh in ngh.items() ) 
-    
-    for key, item in block_ngh_list:
-        ngh[key]=list(np.unique(item))
-    
-
-    #print('Number of vertices with insufficient ngh', np.sum(nngh != 6))
-    return ngh
 
 def get_faces_from_neighbours(ngh):
     face_dict={}
@@ -422,6 +243,34 @@ def get_triangle_vectors(points):
     v0 = points[1,:] - points[0,:]
     v1 = points[2,:] - points[0,:]
     return v0, v1
+
+
+def volume_to_surface(coords, volume_fn, values_fn=''):
+    print(volume_fn)
+    img = nibabel.load(volume_fn)
+    vol = img.get_fdata()
+    
+    starts = img.affine[[0,1,2],3]
+    step = np.abs(img.affine[[0,1,2],[0,1,2]]) 
+
+    coords_idx = np.rint((coords - starts) / step).astype(int)
+    values = vol[coords_idx[:,0],coords_idx[:,1],coords_idx[:,2]]
+
+    if values_fn != '' :
+        pd.DataFrame(values).to_filename(values_fn, index=False, header=False)
+
+    return values
+
+def display_surface(surf_fn, out_fn, values_fn='', values=None):
+    from matplotlib_surface_plotting import plot_surf
+   
+    assert not ( values_fn == '' and type(values) == type(None) ), 'Either numpy array or filename of text file with values must be passed to volume_to_surface'
+
+    if values_fn != '' : 
+        values = pd.read_csv(values_fn, header=False).values
+    
+
+
 
 def mult_vector(v0,v1,x,y,p):
     v0 = v0.astype(np.float128)
@@ -514,16 +363,8 @@ def calculate_upsampled_points(faces,  face_coords, face_vertex_values, resoluti
 
     for f in range(face_coords.shape[0]):
         if f % 1000 == 0 : print(f'\t\tUpsampling Faces: {100.*f/face_coords.shape[0]:.3}',end='\r')
-        #check if it's worth upsampling the face
-        #coords_voxel_loc = np.unique(np.rint(face_coords[f]/resolution).astype(int), axis=0)
         
-        #assert np.sum(face_vertex_values[f] == 0) == 0, f'Error: found 0 in vertex values for face {f}'
-        
-        #if coords_voxel_loc.shape[0] > 1 :
         p0, v0, x, y = interpolate_face(face_coords[f], face_vertex_values[f], resolution*0.9, new_points_only=new_points_only)
-        #else : 
-        #   p0 = face_coords[f]
-        #    v0 = face_vertex_values[f]
         
         if n_points + p0.shape[0] >= points.shape[0]:
             points = np.concatenate([points,np.zeros([face_coords.shape[0],3]).astype(np.float128)], axis=0)
@@ -532,11 +373,6 @@ def calculate_upsampled_points(faces,  face_coords, face_vertex_values, resoluti
         new_indices = n_points + np.arange(p0.shape[0]).astype(int)
         cur_faces = faces[f]
 
-        #Check if x and y pairs are unique
-        #xy = np.column_stack([x,y])
-        #if xy.shape[0] != np.unique(xy,axis=0).shape[0]:
-        #    print(xy)
-        #    exit(0)
 
         for i, idx in enumerate(new_indices) : 
             new_points_gen[idx] = NewPointGenerator(idx,cur_faces,x[i],y[i])
@@ -551,60 +387,6 @@ def calculate_upsampled_points(faces,  face_coords, face_vertex_values, resoluti
 
     return points, values, new_points_gen
 
-def identify_target_edges_within_slab(edge_mask, section_numbers, ligand_vol_fn, coords, edges, resolution, ext='.nii.gz'):
-    img = nb.load(ligand_vol_fn)
-    ligand_vol = img.get_fdata()
-    step = img.affine[1,1]
-    start = img.affine[1,3]
-    ydir = np.sign(step)
-    resolution_step = resolution * ydir
-        
-    e0 = edges[:,0]
-    e1 = edges[:,1]
-    c0 = coords[e0,1]
-    c1 = coords[e1,1]
-   
-    edge_range = np.arange(0, edges.shape[0]).astype(int)
-    edge_range = edge_range[edge_mask == False]
-
-    edge_y_coords = np.vstack([c0,c1]).T
-
-    idx_1 = np.argsort(edge_y_coords,axis=1)
-    edges = np.take_along_axis(edge_y_coords, idx_1, 1)
-    sorted_edge_y_coords = np.take_along_axis(edge_y_coords, idx_1, 1)
-    
-    idx_0 = np.argsort(edges,axis=0)
-    sorted_edge_y_coords = np.take_along_axis( sorted_edge_y_coords, idx_0, 0)
-    edges = np.take_along_axis( edges, idx_0, 0)
-
-    #ligand_y_profile = np.sum(ligand_vol,axis=(0,2))
-    #section_numbers = np.where(ligand_y_profile > 0)[0]
-    
-    section_counter=0
-    current_section_vox = section_numbers[section_counter]
-    current_section_world = current_section_vox * step + start
-
-    for i in edge_range :
-        y0,y1 = sorted_edge_y_coords[i,:]
-        e0,e1 = edges[i]
-
-        crossing_edge = (y0 < current_section_world) & (y1 > current_section_world + resolution_step)
-
-        start_in_edge = ((y0 >= current_section_world) & (y0 < current_section_world+resolution_step)) & (y1 > current_section_world + resolution_step)
-
-        end_in_edge = (y0 < current_section_world) & ((y1>current_section_world) & (y1 <= current_section_world + resolution_step))
-       
-        if crossing_edge + start_in_edge + end_in_edge > 0 :
-            edge_mask[i]=True
-
-        if y0 > current_section_world :
-            section_counter += 1
-            if section_counter >= section_numbers.shape[0] :
-                break
-            current_section_vox = section_numbers[section_counter]
-            current_section_world = current_section_vox * step + start
-    
-    return edge_mask 
 
 def transform_surface_to_slabs( slab_dict, thickened_dict,  out_dir, surf_fn, ref_gii_fn=None, faces_fn=None, ext='.surf.gii'):
     surf_slab_space_dict={}
@@ -627,6 +409,7 @@ def transform_surface_to_slabs( slab_dict, thickened_dict,  out_dir, surf_fn, re
 
 
 def load_mesh_ext(in_fn, faces_fn=''):
+    #TODO: move to mesh_io.py
     ext = os.path.splitext(in_fn)[1]
     faces=None
     volume_info = None
@@ -640,9 +423,6 @@ def load_mesh_ext(in_fn, faces_fn=''):
         if os.path.splitext(faces_fn)[1] == '.h5' :
             faces_h5=h5.File(faces_fn,'r')
             faces = faces_h5['data'][:]
-
-
-
     return coords, faces
 
 def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, ref_gii_fn=None, faces_fn=None, ref_vol_fn=None):

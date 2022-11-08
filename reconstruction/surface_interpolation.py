@@ -200,8 +200,8 @@ def thicken_sections(interp_dir, slab_dict, df_ligand, n_depths, resolution, tis
 
                 #rep[rep > 0] = y #DEBUG 
 
-                #rec_vol[:, yrange, :] = rep 
-                rec_vol[:, y, :] = section
+                rec_vol[:, yrange, :] = rep 
+                #rec_vol[:, y, :] = section
                 
             #if not normalize_sections : 
             #    assert np.sum(rec_vol) != 0, 'Error: receptor volume for single ligand is empty\n'
