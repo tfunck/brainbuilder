@@ -71,6 +71,9 @@ def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[0,0
     z = np.rint( (coords[:,2] - starts[2]) / steps[2] ).astype(int)
 
     idx = (x >= 0) & (y >= 0) & (z >= 0) & (x < dimensions[0]) & ( y < dimensions[1]) & ( z < dimensions[2] )
+
+    #perc_mesh_in_volume = np.sum(~idx)/idx.shape[0]
+    #assert perc_mesh_in_volume < 0.1, f'Error: significant portion ({perc_mesh_in_volume}) of mesh outside of volume '
     
     assert np.sum(idx) > 0, 'Assert: no voxels found inside mesh_to_volume'
     x = x[idx]
@@ -117,13 +120,6 @@ def multi_mesh_to_volume(profiles, surf_depth_slab_dict, depth_list, dimensions,
     slab_start = min(y0,y1)
     slab_end = max(y0,y1)
 
-    #if type(ref_fn) != None :
-    #    print('Reference faces:', ref_fn)
-    #    _, ref_faces = load_mesh_ext(ref_fn)
-    #else : 
-    #    ref_faces = None
-
-    #to_do_list=[]
     for ii in range(profiles.shape[1]) :
         surf_fn = get_surf_from_dict(surf_depth_slab_dict[depth_list[ii]]) 
         print('\tSURF', surf_fn)
@@ -236,10 +232,9 @@ def unique_points(points, scale=1000000000):
 
     return points[unique_index,:], unique_index, unique_inverse
 
-def upsample_over_faces(surf_fn, resolution, out_fn,  face_mask=None, coord_mask=None, profiles_vtr=None, slab_start=None, slab_end=None, ref_faces=None) :
+def upsample_over_faces(surf_fn, resolution, out_fn,  face_mask=None, profiles_vtr=None, slab_start=None, slab_end=None, ref_faces=None) :
     print(surf_fn)
     coords, faces = load_mesh_ext(surf_fn)
-
 
     if type(faces) == type(None):
         if type(ref_faces) != type(None) :
@@ -286,10 +281,6 @@ def upsample_over_faces(surf_fn, resolution, out_fn,  face_mask=None, coord_mask
 
     assert points.shape[1]==3, 'Error: shape of points is incorrect ' + points.shape 
     points, unique_index, unique_reverse = unique_points(points)
-    #a=3114460
-    #b=3114447
-    #print(points[a], points[b])
-    #print(np.linalg.norm(points[a]- points[b]) )
 
     np.savez(out_fn, points=points, values=values)
      
@@ -657,7 +648,7 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, ref_gi
         _, _, volume_info = load_mesh(ref_gii_fn)
         #origin = volume_info['cras'] 
     else : volume_info = ref_gii_fn
-
+    
     coords, faces = load_mesh_ext(in_gii_fn)
     
     tfm = ants.read_transform(tfm_list[0])

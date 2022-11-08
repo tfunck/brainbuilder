@@ -20,7 +20,7 @@ from glob import glob
 from utils.utils import *
 
 
-def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_list, row, file_to_align='seg_fn', use_syn=True, step=0.5, bins=32):
+def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_list, row, file_to_align='seg_fn', use_syn=True, step=0.5, bins=32, verbose=False):
 
     #Set strings for alignment parameters
     max_itr = resolution_itr # min(resolution_itr, len(f_list))
@@ -106,15 +106,17 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     fx_mask_fn = gen_mask(fx_fn, clobber=False)
     mv_mask_fn = gen_mask(mv_fn, clobber=False)
     #--masks [{fx_mask_fn},{mv_mask_fn}] 
-    affine_command_str = f'antsRegistration -n {interpolation} -v 0 -d 2  --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[{step}] -c {lin_itr_str}  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.95] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.95] -s {s_str} -f {f_str} -t Affine[{step}] -c {lin_itr_str} -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.95] -s {s_str} -f {f_str} '
-    print(affine_command_str)
+    affine_command_str = f'antsRegistration -n {interpolation} -v {int(verbose)} -d 2  --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[{step}] -c {lin_itr_str}  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.95] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.95] -s {s_str} -f {f_str} -t Affine[{step}] -c {lin_itr_str} -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.95] -s {s_str} -f {f_str} '
+
+    if verbose: print(affine_command_str)
 
     with open(prefix+'_command.txt','w') as f : f.write(affine_command_str)
     shell(affine_command_str)
     #--masks [{fx_mask_fn},{mv_mask_fn}] 
-    syn_command_str = f'antsRegistration -n NearestNeighbor -v 0 -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -c {nl_itr_str} -s {s_str} -f {f_str}  -t SyN[0.1] -m CC[{fx_fn},{mv_fn},1,3,Random,0.99] -c {cc_itr_str} -s {s_str} -f {f_str}' 
+    syn_command_str = f'antsRegistration -n NearestNeighbor -v {int(verbose)} -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -c {nl_itr_str} -s {s_str} -f {f_str}  -t SyN[0.1] -m CC[{fx_fn},{mv_fn},1,3,Random,0.99] -c {cc_itr_str} -s {s_str} -f {f_str}' 
     
-    print(syn_command_str)
+    if verbose : print(syn_command_str)
+
     if use_syn :
         with open(prefix+'_command.txt','w') as f : f.write(syn_command_str)
         shell(syn_command_str)
@@ -160,7 +162,7 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     assert os.path.exists(f'{out_fn}'), 'Error apply nl 2d tfm to cropped autoradiograph'
     return 0
 
-def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, resolution_itr, resolution_list, file_to_align='seg_fn', use_syn=True, batch_processing=False, clobber=False): 
+def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, resolution_itr, resolution_list, file_to_align='seg_fn', use_syn=True, batch_processing=False, verbose=False, clobber=False): 
     df.reset_index(drop=True,inplace=True)
     df.reset_index(drop=True,inplace=True)
 
@@ -201,7 +203,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
             to_do_resample_df = to_do_resample_df.append(row)
 
     if to_do_df.shape[0] > 0 :
-        Parallel(n_jobs=num_cores)(delayed(align_2d_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, resolution_list, row, file_to_align=file_to_align,use_syn=use_syn) for i, row in  to_do_df.iterrows()) 
+        Parallel(n_jobs=num_cores)(delayed(align_2d_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, resolution_list, row, file_to_align=file_to_align,use_syn=use_syn, verbose=verbose) for i, row in  to_do_df.iterrows()) 
         
     if to_do_resample_df.shape[0] > 0 :
         Parallel(n_jobs=num_cores)(delayed(apply_transforms_parallel)(tfm_dir, mv_dir,  resolution_itr, resolution, row) for i, row in  to_do_resample_df.iterrows()) 
@@ -238,7 +240,6 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='r
         for idx, (i, row) in enumerate(df.iterrows()):
             fn = df[target_name].loc[i]
             y = int(row['slab_order'])
-            print(fn)
             try : 
                 out_vol[:,int(y),:] = nib.load(fn).get_fdata()
             except EOFError :

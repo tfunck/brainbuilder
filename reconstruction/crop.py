@@ -380,9 +380,8 @@ def convert_2d_array_to_nifti(f: str, output_filename: str, res=[20,20], spacing
 def convert_from_nnunet(fn, crop_fn, seg_fn, crop_dir):
     crop_img = nib.load(crop_fn)
     ar = nib.load(fn).get_fdata()
-   
     
-    if np.sum(ar==1) == 0 :
+    if (np.sum(ar==1) / np.product(ar.shape)) < 0.02 :
         print('\nWarning: Found a section that nnUNet failed to segment!\n')
         print(crop_fn)
         ar = threshold(nib.load(crop_fn).dataobj)
@@ -432,6 +431,13 @@ def create_pseudo_classifications(df,crop_str, resolution):
     
     print('\t\tWriting',seg_fn)
     nib.Nifti1Image(ar, img.affine ).to_filename(seg_fn)
+
+def histogram_gm_segmentation_parallel(seg_fn,crop_fn):
+    img = nib.load(crop_fn)
+    vol = img.dataobj
+    vol = threshold(vol)
+    nib.Nifti1Image(vol, img.affine).to_filename(seg_fn)
+
 
 def histogram_gm_segmentation(df, crop_str, num_cores, clobber=False):
     to_do=[]
@@ -514,8 +520,8 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
 
     if pytorch_model != '' :
         nnunet_gm_segmentation(crop_dir, df, res, crop_str, num_cores)
-    else : 
-        histogram_gm_segmentation(df,crop_str,num_cores)
+     
+    histogram_gm_segmentation(df,crop_str,num_cores)
 
     if create_pseudo_cls :
         create_pseudo_classifications(df, crop_str, resolution)

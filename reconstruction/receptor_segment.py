@@ -122,7 +122,6 @@ def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution
         tfm_fn = row['tfm']  
         
         if type(tfm_fn) == str :
-
             simple_ants_apply_tfm(tfm_input_fn, tfm_ref_fn, tfm_fn, seg_rsl_tfm_fn, ndim=2, n='NearestNeighbour')
         else :
             print('\tNo transform for', seg_rsl_fn)
@@ -164,10 +163,6 @@ def interpolate_missing_sections(vol, dilate_volume=False) :
             z = x * (1-d) + d * y
 
             out_vol[:,ii,:] = z
-    #for i in range(out_vol.shape[1]):
-    #    if out_vol[:,i,:].max() == 0:
-    #        print(i)
-    #    else: print('ok')
 
     return out_vol
 
@@ -204,7 +199,6 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, resolution_3d, re
             for i, row in df.iterrows() :
                 s0 = int(row['slab_order'])
                 fn = get_seg_fn(in_dir, int(row['slab_order']), resolution_3d, row[file_to_align], '_rsl_tfm')
-                print(fn)
                 img_2d = nib.load(fn).get_fdata()
                 #FIXME : Skipping frames that have been rotated
                 data[:,s0,:] = img_2d 

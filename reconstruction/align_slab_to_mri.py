@@ -106,7 +106,6 @@ def pad_volume(vol, max_factor, affine, min_voxel_size=29, direction=[1,1,1]):
     y_pad = padded_dim(ydim, max_factor, min_voxel_size)
     z_pad = padded_dim(zdim, max_factor, min_voxel_size)
     
-    #print('y_pad:', y_pad , abs(affine[1,1]) , direction[1] )
     vol_padded = np.pad(vol, ((x_pad, x_pad), (y_pad, y_pad),(z_pad, z_pad))) 
     affine[0,3] -= x_pad * abs(affine[0,0]) * direction[0]
     affine[1,3] -= y_pad * abs(affine[1,1]) * direction[1]
@@ -147,8 +146,6 @@ def pad_seg_vol(seg_rsl_fn,max_downsample_level):
 
     com_error = np.sqrt(np.sum(np.power(np.array(com0)-np.array(com1),2)))
     
-    print('CoM Error', com_error)
-    
     assert com_error < 0.1, f'Error: change in ceter of mass after padding {com0}, {com1}'
     return seg_rsl_pad_fn
 
@@ -156,7 +153,6 @@ def get_alignment_schedule(resolution_list, resolution_itr,base_nl_itr = 250 ):
     #cur_res/res = 2^(f-1) --> f = 1+ log2(cur_res/res)
 
     f_list, f_str, s_str = get_alignment_parameters(resolution_itr, resolution_list)
-    print('f_list', f_list, f_str) 
 
 
     min_nl_itr = len( [ resolution_list[i] for i in range(resolution_itr) if  float(resolution_list[i]) <= .1 ] )
@@ -171,9 +167,6 @@ def get_alignment_schedule(resolution_list, resolution_itr,base_nl_itr = 250 ):
 
     lin_itr_str='x'.join([str(max_lin_itr - i*lin_step) for i in range(len(f_list))])
     nl_itr_str='x'.join([str(max_nl_itr - i*nl_step) for i in range(len(f_list))  ])
-    #print(resolution_itr)
-    #print(range(len(f_list)))
-    #print(lin_itr_str)
 
     lin_itr_str ='['+ lin_itr_str +',1e-7,20 ]' 
     nl_itr_str='['+ nl_itr_str +',1e-7,20 ]'
@@ -275,7 +268,6 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
         if use_init_tfm and not os.path.exists(f'{prefix_init}Composite.h5'):
             s_str_0 = re.sub('vox','',s_str).split('x')[0] +'x'
             f_str_0 = f_str.split('x')[0] 
-            print(s_str_0)
             shell(f'{base}  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]   -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000   -t Affine[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000  -o [{prefix_init},{prefix_init}volume.nii.gz,{prefix_init}volume_inverse.nii.gz]  ', verbose=True)
             init_str = f' --initial-moving-transform {prefix_init}Composite.h5 '
         else :
@@ -300,7 +292,6 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
      
     if not os.path.exists(f'{prefix_syn}Composite.h5'): 
         # --masks [{srv_mask_fn},{seg_mask_fn}]
-        print('\n\n--masks', srv_mask_fn, seg_mask_fn,'\n\n' )
         syn_base=f'{base} --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[{syn_rate}]  {nl_metric} -s {s_str} -f {f_str} -c {nl_itr_str} '
 
         if use_cc :

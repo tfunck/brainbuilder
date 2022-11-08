@@ -20,7 +20,7 @@ def volumetric_interpolation(brain, hemi, resolution, slab_dict, ligand_list, su
         tfm_fn = slab_dict[slab]['nl_3d_tfm_inv_fn'] 
         ref_fn = slab_dict[slab]['srv_iso_space_rec_fn']
         atlas_slab_fn=f'{vol_dir}/{brain}_{hemi}_{slab}_{resolution}mm_space-slab_subcortex_mask.nii.gz'
-        shell(f'antsApplyTransforms -i {subcortex_mask_fn} -r {ref_fn} -t {tfm_fn} -o {atlas_slab_fn}')
+        shell(f'antsApplyTransforms -n NearestNeighbor -i {subcortex_mask_fn} -r {ref_fn} -t {tfm_fn} -o {atlas_slab_fn}')
 
         # 2. use non-linear 2d alignment between sections
         #from rat.process import align_nl

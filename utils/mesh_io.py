@@ -35,15 +35,23 @@ def load_mesh(surf_mesh,correct_offset=True):
             if correct_offset and volume_info != None :
                 try :
                     origin=volume_info['cras'] 
-                    xdir=max(volume_info['xras'])
-                    ydir=max(volume_info['yras'])
-                    zdir=max(volume_info['xras'])
+                    
+                    xras = np.array(volume_info['xras'])
+                    yras = np.array(volume_info['yras'])
+                    zras = np.array(volume_info['zras'])
+                    
+                    get_sign = lambda ar : np.sign(ar[np.argmax(np.abs(ar))])
+
+                    xdir = get_sign(xras)
+                    ydir = get_sign(yras)
+                    zdir = get_sign(zras)
+
                     #coords[:,0] -= origin[0] 
                     #coords[:,1] -= 30.56
                     #coords[:,2] += 24.94
-                    coords[:,0] = coords[:,0] + origin[0]
-                    coords[:,1] = coords[:,1] + origin[1]
-                    coords[:,2] = coords[:,2] + origin[2]
+                    #coords[:,0] = coords[:,0] + xdir * origin[0]
+                    #coords[:,1] = coords[:,1] + ydir * origin[1]
+                    #coords[:,2] = coords[:,2] + zdir * origin[2]
                 except KeyError :
                     pass
 

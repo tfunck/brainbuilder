@@ -8,11 +8,11 @@ import re
 import pandas as pd
 import nibabel 
 import utils.ants_nibabel as nib
+import json
 from reconstruction.volumetric_interpolation import volumetric_interpolation
-from nibabel.processing import resample_to_output
 from reconstruction.surface_interpolation import surface_interpolation
-from utils.utils import prefilter_and_downsample, resample_to_autoradiograph_sections
-from reconstruction.align_slab_to_mri import *
+from utils.utils import prefilter_and_downsample, resample_to_autoradiograph_sections, shell
+from reconstruction.align_slab_to_mri import get_alignment_schedule, run_alignment
 from utils.utils import get_section_intervals
 from reconstruction.nonlinear_2d_alignment import create_2d_sections, receptor_2d_alignment, concatenate_sections_to_volume
 from reconstruction.crop import crop
@@ -356,7 +356,7 @@ def create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn ):
     else : 
         df = pd.read_csv(csv_fn)
 
-
+    
 
     return df
 
@@ -563,10 +563,10 @@ def multires_align_3d(subject_id, out_dir, volume_interp_fn, template_fn, resolu
 
     resolution_itr = resolution_list.index( curr_res)
 
+    #max_downsample_level = get_max_downsample_level(resolution_list, resolution_itr)
+    #= get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr, base_nl_itr=100)
 
-    max_downsample_level = get_max_downsample_level(resolution_list, resolution_itr)
-
-    f_str, s_str, lin_itr_str, nl_itr_str = get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr, base_nl_itr=100)
+    max_downsample_level, f_str, s_str, lin_itr_str, nl_itr_str = get_alignment_schedule(resolution_list, resolution_itr,base_nl_itr = 100 )
     
     run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, template_fn, template_fn, volume_interp_fn, s_str, f_str, lin_itr_str, nl_itr_str, curr_res, manual_affine_fn=init_affine_fn, metric=metric )
 
@@ -575,7 +575,7 @@ def multires_align_3d(subject_id, out_dir, volume_interp_fn, template_fn, resolu
 def align_2d(df, output_dir, rec_fn, template_rsl_fn, mv_dir, resolution, resolution_itr, resolution_list, file_to_align='seg_fn', use_syn=False):
     df['slab_order'] = df['order']
 
-    df = receptor_2d_alignment( df, rec_fn, template_rsl_fn, mv_dir, output_dir, resolution, resolution_itr, resolution_list, file_to_align=file_to_align, use_syn=use_syn) 
+    df = receptor_2d_alignment( df, rec_fn, template_rsl_fn, mv_dir, output_dir, resolution, resolution_itr, resolution_list, file_to_align=file_to_align, use_syn=use_syn, verbose=False) 
     return df
 
 def get_template_y_scale(template_fn):
@@ -794,7 +794,7 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
         ### 5. Segment
         resample_transform_segmented_images(aligned_df, itr, resolution_2d, resolution_3d, seg_2d_dir)
         print(volume_init_fn)
-        classifyReceptorSlices(aligned_df, volume_init_fn, seg_2d_dir, seg_dir, volume_seg_fn, resolution=resolution_3d, interpolation='linear', flip_axes=())
+        classifyReceptorSlices(aligned_df, volume_init_fn, seg_2d_dir, seg_dir, volume_seg_fn, resolution_2d, resolution_3d, interpolation='linear', flip_axes=())
 
         ### 6. 3D alignment
         if not os.path.exists(current_template_fn):
@@ -805,6 +805,7 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
         ### 7. 2d alignement
         if not os.path.exists(template_rec_space_fn) : 
             resample_to_autoradiograph_sections(subject_id, '', '', float(curr_res), current_template_fn, volume_seg_fn, tfm_3d_inv_fn, template_iso_rec_space_fn, template_rec_space_fn)
+
         create_2d_sections(aligned_df, template_rec_space_fn, float(curr_res), align_2d_dir )
         aligned_df = align_2d(aligned_df, align_2d_dir, volume_init_fn, template_rec_space_fn, seg_2d_dir, resolution_2d, itr, resolution_list, use_syn=True)
          
@@ -852,7 +853,6 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
         surface_interpolation(cur_df_ligand, slab_dict, ligand_dir, brain, hemi, highest_resolution,  template_fn, args.slabs, files[brain][hemi], scale_factors_json, input_surf_dir=surf_dir, n_vertices=n_vertices, upsample_resolution=20, n_depths=n_depths, gm_label=gm_label)
 
         volumetric_interpolation(brain, hemi, highest_resolution, slab_dict, to_reconstruct, subcortex_mask_fn, ligand_dir,n_depths)
-        exit(0) 
     print('Done')
 
 if __name__ == '__main__':

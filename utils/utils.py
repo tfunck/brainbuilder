@@ -103,8 +103,6 @@ def get_edges_from_faces(faces):
     edges, edges_idx, counts = np.unique(edges_sorted , axis=0, return_index=True, return_counts=True)
     edges = edges.astype(np.uint32)
 
-    #print('2.', np.sum( np.sum(edges_all==(26, 22251),axis=1)==2 ) ) 
-    
     assert np.sum(counts!=2) == 0,'Error: more than two faces per edge {}'.format( edges_sorted[edges_idx[counts!=2]])     
     #edge_range = np.arange(edges_all.shape[0]).astype(int) % faces.shape[0]
     return edges
@@ -182,8 +180,6 @@ def find_neighbours(ngh, p, i, points, resolution, eps=0.001, target_nngh=6):
     #if len(idx) > 6 :
     d=np.sqrt(np.sum(np.power(points - p,2),axis=1)) 
     d_idx = np.argsort(d).astype(int)[0:target_nngh]
-    print(d_idx)
-    print(ngh)
     ngh = ngh[d_idx]
 
     return (i, ngh)
@@ -264,7 +260,6 @@ def get_faces_from_neighbours(ngh):
         if i % 1000 : print(f'2. {100*i/ngh.shape[0]} %', end='\r')
         for ngh0 in ngh[i] :
             for ngh1 in ngh[ngh0] :
-                print(i, ngh0, ngh1)
                 if ngh1 in ngh[i] :
                     face = [i,ngh0,ngh1]
                     face.sort()
@@ -531,7 +526,6 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, ref_gi
     #os.remove(temp_out_fn) DEBUG
 
     new_coords = df[['x','y','z']].values
-    print(os.path.splitext(out_gii_fn))
     out_basename, out_ext = os.path.splitext(out_gii_fn)
     if out_ext == '.h5':
         f_h5 = h5.File(out_gii_fn, 'w')
@@ -618,7 +612,7 @@ def check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn):
 
 def simple_ants_apply_tfm(in_fn, ref_fn, tfm_fn, out_fn,ndim=3,n='Linear'):
     if not os.path.exists(out_fn):
-        str0 = f'antsApplyTransforms -v 1 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}'
+        str0 = f'antsApplyTransforms -v 0 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}'
         shell(str0, verbose=True)
         check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn)
 
@@ -641,7 +635,6 @@ def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, 
     Outpus:
         None
     '''
-    #shell(f'antsApplyTransforms -n HammingWindowedSinc -v 1 -d 3 -i {input_fn} -r {ref_fn} -t {tfm_inv_fn} -o /tmp/tmp.nii.gz',True)
     simple_ants_apply_tfm(input_fn, ref_fn, tfm_inv_fn, '/tmp/tmp.nii.gz',ndim=3)
     
     img = nib.load('/tmp/tmp.nii.gz')
@@ -657,7 +650,7 @@ def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, 
     
     aff = img.affine.copy()
 
-    img3 = resample_to_output(vol, aff, [float(resolution),0.02, float(resolution)], order=0, dtype=np.uint8)
+    img3 = resample_to_output(vol, aff, [float(resolution),0.02, float(resolution)], order=1, dtype=np.uint8)
     
     img3.to_filename(output_fn)
 

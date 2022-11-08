@@ -278,20 +278,23 @@ def upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_dir, surf_gm_fn,
     ref_rsl_npy_fn = sub('.surf.gii', '', surf_depth_mni_dict[0]['depth_rsl_gii'])
     ngh_npz_fn = sub('.nii.gz', '_ngh', surf_depth_mni_dict[0]['depth_rsl_gii'])
     coords, faces, volume_info = load_mesh(ref_gii_fn)
-
+    
 
     if False in [ os.path.exists(fn) for fn in output_list+[ref_rsl_npy_fn+'.npz']]:
         points, _, new_points_gen  = upsample_over_faces(ref_gii_fn, resolution, ref_rsl_npy_fn)
-        
-        print('Upsampled points', points.shape, len(new_points_gen)) 
+    
         img = nb_surf.load(mni_fn)
         #img = nib.load(mni_fn)
         steps=img.affine[[0,1,2],[0,1,2]]
         starts=img.affine[[0,1,2],3]
         dimensions=img.shape
+        #points, _ = load_mesh_ext(ref_gii_fn)
         interp_vol, _  = mesh_to_volume(points, np.ones(points.shape[0]), dimensions, starts, steps)
         nib.Nifti1Image(interp_vol, nib.load(mni_fn).affine,direction_order='lpi').to_filename(f'{surf_dir}/surf_{resolution}mm_{depth}_rsl.nii.gz')
+        print('hello')
         print(f'{surf_dir}/surf_{resolution}mm_{depth}_rsl.nii.gz')
+        
+        print('Upsampled points', points.shape, len(new_points_gen)) 
         #DEBUG
         #test_points, old_points = resample_points(ref_gii_fn, new_points_gen)
         #assert test_points.shape[0] == points.shape[0], 'Error, mismatch when testing resampling'
