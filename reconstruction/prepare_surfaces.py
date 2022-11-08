@@ -12,7 +12,7 @@ import re
 import multiprocessing
 import h5py as h5
 from nibabel import freesurfer
-from utils.mesh_utils import  transform_surface_to_slabs, get_edges_from_faces, identify_target_edges_within_slab, upsample_over_faces, link_points, get_faces_from_neighbours, mesh_to_volume, load_mesh_ext, get_triangle_vectors, unique_points
+from utils.mesh_utils import  transform_surface_to_slabs, identify_target_edges_within_slab, upsample_over_faces,   mesh_to_volume, load_mesh_ext, get_triangle_vectors, unique_points
 
 from scipy.ndimage import label
 from re import sub
@@ -209,24 +209,6 @@ def generate_face_and_coord_mask(edge_mask_idx, faces, coords):
     return face_mask, coord_mask
 
 
-def identify_target_edges(edges, df_ligand, slab_dict,  resolution,  ext='.surf.gii'):
-    
-    edge_mask = np.zeros(edges.shape[0]).astype(np.bool)
-
-    slab_list = list(slab_dict.keys())
-    slab_list.sort()
-
-    for slab in slab_list :
-        cdict = slab_dict[slab]
-        coords, _, _ = load_mesh(cdict['surf'])
-        n_coords = coords.shape[0]
-        section_numbers = df_ligand['slab_order'].loc[df_ligand['slab'].astype(int) == int(slab)].values
-        section_numbers = np.sort(section_numbers)
-        
-        edge_mask = identify_target_edges_within_slab(edge_mask,section_numbers, cdict['vol'], coords, edges, resolution)
-
-    edge_mask_idx = edges[edge_mask]
-    return edge_mask, edge_mask_idx
 
 def resample_points(surf_fn, new_points_gen):
     points, faces = load_mesh_ext(surf_fn)
