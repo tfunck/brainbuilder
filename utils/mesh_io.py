@@ -25,7 +25,7 @@ def save_mesh(out_fn, coords, faces, volume_info=None):
     else :
         print('Error: filetype not recognized for file', out_fn)
 
-def load_mesh(surf_mesh,correct_offset=True):
+def load_mesh(surf_mesh,correct_offset=False):
     volume_info=None
     if isinstance(surf_mesh, str):
         if (surf_mesh.endswith('orig') or surf_mesh.endswith('pial') or
@@ -45,13 +45,10 @@ def load_mesh(surf_mesh,correct_offset=True):
                     xdir = get_sign(xras)
                     ydir = get_sign(yras)
                     zdir = get_sign(zras)
-
-                    #coords[:,0] -= origin[0] 
-                    #coords[:,1] -= 30.56
-                    #coords[:,2] += 24.94
-                    #coords[:,0] = coords[:,0] + xdir * origin[0]
-                    #coords[:,1] = coords[:,1] + ydir * origin[1]
-                    #coords[:,2] = coords[:,2] + zdir * origin[2]
+                    print(xdir, ydir, zdir)
+                    coords[:,0] = coords[:,0] + origin[0]
+                    coords[:,1] = coords[:,1] + origin[1]
+                    coords[:,2] = coords[:,2] + origin[2]
                 except KeyError :
                     pass
 

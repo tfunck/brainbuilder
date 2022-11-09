@@ -244,24 +244,32 @@ def volume_to_surface(coords, volume_fn, values_fn=''):
     
     starts = img.affine[[0,1,2],3]
     step = np.abs(img.affine[[0,1,2],[0,1,2]]) 
+    dimensions = vol.shape
+    
+    interp_vol, _  = mesh_to_volume(coords, np.ones(coords.shape[0]), dimensions, starts, img.affine[[0,1,2],[0,1,2]])
+    nib.Nifti1Image(interp_vol.astype(np.float32),nib.load(volume_fn).affine).to_filename('tmp.nii.gz')
+    nib.load('tmp.nii.gz')
 
     coords_idx = np.rint((coords - starts) / step).astype(int)
+    
+    idx0 = (coords_idx[:,0] >= 0) & (coords_idx[:,0] < dimensions[0])
+    idx1 = (coords_idx[:,1] >= 0) & (coords_idx[:,1] < dimensions[1]) 
+    idx2 = (coords_idx[:,2] >= 0) & (coords_idx[:,2] < dimensions[2])
+    idx_range = np.arange(coords_idx.shape[0]).astype(int)
+
+    idx = idx_range[idx0 & idx1 & idx2]
+
+    coords_idx = coords_idx[ idx0 & idx1 & idx2 ]
+
+    print(np.max(coords_idx[:,0]), np.max(coords_idx[:,1]), np.max(coords_idx[:,2]))
+    print(dimensions)
+
     values = vol[coords_idx[:,0],coords_idx[:,1],coords_idx[:,2]]
 
     if values_fn != '' :
         pd.DataFrame(values).to_filename(values_fn, index=False, header=False)
 
-    return values
-
-def display_surface(surf_fn, out_fn, values_fn='', values=None):
-    from matplotlib_surface_plotting import plot_surf
-   
-    assert not ( values_fn == '' and type(values) == type(None) ), 'Either numpy array or filename of text file with values must be passed to volume_to_surface'
-
-    if values_fn != '' : 
-        values = pd.read_csv(values_fn, header=False).values
-    
-
+    return values, idx
 
 
 def mult_vector(v0,v1,x,y,p):
@@ -400,14 +408,14 @@ def transform_surface_to_slabs( slab_dict, thickened_dict,  out_dir, surf_fn, re
     return surf_slab_space_dict
 
 
-def load_mesh_ext(in_fn, faces_fn=''):
+def load_mesh_ext(in_fn, faces_fn='', correct_offset=False):
     #TODO: move to mesh_io.py
     ext = os.path.splitext(in_fn)[1]
     faces=None
     volume_info = None
 
     if ext in ['.pial', '.white', '.gii', '.sphere', '.inflated'] : 
-        coords, faces, volume_info = load_mesh(in_fn,correct_offset=True)
+        coords, faces, volume_info = load_mesh(in_fn,correct_offset=correct_offset)
     elif  ext == '.npz' :
         coords = np.load(in_fn)['points']
     else :
