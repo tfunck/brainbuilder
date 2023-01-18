@@ -12,7 +12,7 @@ import re
 import multiprocessing
 import h5py as h5
 from nibabel import freesurfer
-from utils.mesh_utils import  transform_surface_to_slabs, identify_target_edges_within_slab, upsample_over_faces,   mesh_to_volume, load_mesh_ext, get_triangle_vectors, unique_points
+from utils.mesh_utils import  transform_surface_to_slabs,  upsample_over_faces,   mesh_to_volume, load_mesh_ext, get_triangle_vectors, unique_points
 
 from scipy.ndimage import label
 from re import sub

@@ -71,27 +71,6 @@ def downsample_2d(in_fn, resolution, out_fn, y=0):
         img.to_filename(out_fn)
 
 
-def get_reference_file(resolution_itr, seg_rsl_fn, output_dir, row, resolution_3d, tfm_input_fn):
-    if resolution_itr != 0: 
-        tfm_ref_fn = output_dir+'/2d_reference_image.nii.gz'
-
-        # if 2d files with recentered coordinates have already been created (i.e.,
-        # if this is not the first iteration in the multiresolution hierarchy)
-        # then use the new x and z start coordiantes
-        if not os.path.exists(tfm_ref_fn) : 
-            ref_img = nib.load(row['nl_2d_rsl'])
-            xstart, zstart = ref_img.affine[[0,1],3]
-            affine = np.array([ [resolution_3d, 0, 0, xstart],
-                              [0,  resolution_3d, 0,zstart],
-                              [0, 0,  0, 1],
-                              [0, 0, 0, 1]]).astype(float)
-            resample_to_output( ref_img.dataobj, ref_img.affine, [resolution_3d]*2, order=0, dtype=np.uint8).to_filename(tfm_ref_fn)
-            #nib.Nifti1Image(nib.load(seg_rsl_fn).dataobj, affine, dtype=np.uint8).to_filename(tfm_ref_fn)
-    else :
-        tfm_ref_fn=tfm_input_fn
-
-    return tfm_ref_fn
-
 def get_input_file(seg_fn, seg_rsl_fn, row, output_dir, new_starts, resolution_2d, resolution_3d):
     tfm_input_fn = seg_rsl_fn
     if not os.path.exists(seg_rsl_fn) :
@@ -104,7 +83,7 @@ def get_input_file(seg_fn, seg_rsl_fn, row, output_dir, new_starts, resolution_2
     return tfm_input_fn
 
 
-def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution_3d, row, recenter_image=False, file_to_align='seg_fn'):
+def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution_3d, row, tfm_ref_fn, recenter_image=False, file_to_align='seg_fn'):
     seg_fn = row[file_to_align]
     
     seg_rsl_fn = get_seg_fn(output_dir, int(row['slab_order']), resolution_2d, seg_fn, '_rsl')
@@ -114,15 +93,14 @@ def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution
 
     tfm_input_fn = get_input_file(seg_fn, seg_rsl_fn, row, output_dir, new_starts, resolution_2d, resolution_3d)
 
-    tfm_ref_fn = get_reference_file(resolution_itr, seg_rsl_fn, output_dir, row, resolution_3d, tfm_input_fn)
-
+    if resolution_itr == 0 : tfm_ref_fn = tfm_input_fn
 
     if not os.path.exists(seg_rsl_tfm_fn) : 
         # get initial rigid transform
         tfm_fn = row['tfm']  
         
         if type(tfm_fn) == str :
-            simple_ants_apply_tfm(tfm_input_fn, tfm_ref_fn, tfm_fn, seg_rsl_tfm_fn, ndim=2, n='NearestNeighbour')
+            simple_ants_apply_tfm(tfm_input_fn, tfm_ref_fn, tfm_fn, seg_rsl_tfm_fn, ndim=2, n='NearestNeighbour',empty_ok=True)
         else :
             print('\tNo transform for', seg_rsl_fn)
             shutil.copy(tfm_input_fn, seg_rsl_tfm_fn)
@@ -137,8 +115,18 @@ def resample_transform_segmented_images(df,resolution_itr,resolution_2d,resoluti
         num_cores = 5 
     else :
         num_cores = min(14, multiprocessing.cpu_count() )
-    
-    Parallel(n_jobs=num_cores)(delayed(resample_and_transform)(output_dir, resolution_itr, resolution_2d, resolution_3d, row, file_to_align=file_to_align) for i, row in df.iterrows()) 
+   
+    tfm_ref_fn = output_dir+'/2d_reference_image.nii.gz'
+    if not os.path.exists(tfm_ref_fn) and resolution_itr != 0 : 
+        ref_img = nib.load(df['nl_2d_rsl'].values[0])
+        xstart, zstart = ref_img.affine[[0,1],3]
+        affine = np.array([ [resolution_3d, 0, 0, xstart],
+                          [0,  resolution_3d, 0,zstart],
+                          [0, 0,  0, 1],
+                          [0, 0, 0, 1]]).astype(float)
+        resample_to_output( ref_img.dataobj, ref_img.affine, [resolution_3d]*2, order=0, dtype=np.uint8).to_filename(tfm_ref_fn)
+
+    Parallel(n_jobs=num_cores)(delayed(resample_and_transform)(output_dir, resolution_itr, resolution_2d, resolution_3d, row, tfm_ref_fn, file_to_align=file_to_align) for i, row in df.iterrows()) 
 
 def interpolate_missing_sections(vol, dilate_volume=False) :
     if dilate_volume :
@@ -165,9 +153,6 @@ def interpolate_missing_sections(vol, dilate_volume=False) :
             out_vol[:,ii,:] = z
 
     return out_vol
-
-
-
 
 def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, resolution_3d, resolution_2d, morph_iterations=5, flip_axes=(), clobber=False, interpolation='nearest', file_to_align='seg_fn') :
     if not os.path.exists(out_fn)  or clobber :
