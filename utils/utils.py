@@ -41,6 +41,12 @@ if os_info[1] == 'imenb079':
 else :
     num_cores = min(14, multiprocessing.cpu_count() )
 
+global python_version
+python_version = 'python3.8'
+
+def kill_python_threads():
+    pass
+    #shell(f'kill `pidof {python_version} `')
   
   
 def timer_func(func):
@@ -606,15 +612,15 @@ def get_alignment_parameters(resolution_itr, resolution_list):
     
     return f_list, f_str, s_str
 
-def check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn):
+def check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn, empty_ok=False):
     assert os.path.exists(out_fn), f'Error: transformed file does not exist {out_fn}'
-    assert np.sum(np.abs(nib.load(out_fn).dataobj)) > 0 , f'Error in applying transformation: \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n'
+    assert np.sum(np.abs(nib.load(out_fn).dataobj)) > 0 or empty_ok, f'Error in applying transformation: \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n'
 
-def simple_ants_apply_tfm(in_fn, ref_fn, tfm_fn, out_fn,ndim=3,n='Linear'):
+def simple_ants_apply_tfm(in_fn, ref_fn, tfm_fn, out_fn,ndim=3,n='Linear',empty_ok=False):
     if not os.path.exists(out_fn):
         str0 = f'antsApplyTransforms -v 0 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}'
         shell(str0, verbose=True)
-        check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn)
+        check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn,empty_ok=empty_ok)
 
 
 def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, ref_fn, tfm_inv_fn, iso_output_fn, output_fn):

@@ -51,7 +51,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     
     lin_itr =np.linspace(1000,100,resolution_itr+1).astype(int).astype(str)
     nl_itr = np.linspace( 100, 20, resolution_itr+1).astype(int).astype(str)
-    cc_itr = np.linspace( 50, 5, resolution_itr+1).astype(int).astype(str)
+    cc_itr = np.linspace( 20, 2, resolution_itr+1).astype(int).astype(str)
 
     lin_itr_str='x'.join(lin_itr) 
     nl_itr_str='x'.join(nl_itr)
@@ -106,14 +106,21 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     fx_mask_fn = gen_mask(fx_fn, clobber=False)
     mv_mask_fn = gen_mask(mv_fn, clobber=False)
     #--masks [{fx_mask_fn},{mv_mask_fn}] 
-    affine_command_str = f'antsRegistration -n {interpolation} -v {int(verbose)} -d 2  --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[{step}] -c {lin_itr_str}  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.95] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.95] -s {s_str} -f {f_str} -t Affine[{step}] -c {lin_itr_str} -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.95] -s {s_str} -f {f_str} '
+
+    affine_command_str = f'antsRegistration -n {interpolation} -v {int(verbose)} -d 2  --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[{step}] -c {lin_itr_str}  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -s {s_str} -f {f_str} -t Affine[{step}] -c {lin_itr_str} -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.95] -s {s_str} -f {f_str} '
 
     if verbose: print(affine_command_str)
 
     with open(prefix+'_command.txt','w') as f : f.write(affine_command_str)
+    
     shell(affine_command_str)
+    #assert np.sum(nib.load(prefix+'_affine_cls_rsl.nii.gz').dataobj) > 0, 'Error: 2d affine transfromation failed'
+
     #--masks [{fx_mask_fn},{mv_mask_fn}] 
-    syn_command_str = f'antsRegistration -n NearestNeighbor -v {int(verbose)} -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -c {nl_itr_str} -s {s_str} -f {f_str}  -t SyN[0.1] -m CC[{fx_fn},{mv_fn},1,3,Random,0.99] -c {cc_itr_str} -s {s_str} -f {f_str}' 
+    syn_command_str = f'antsRegistration -n NearestNeighbor -v {int(verbose)} -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -c {nl_itr_str} -s {s_str} -f {f_str}' 
+
+    if float(resolution) <= 0.5 : #CC does not work well at lower resolution 
+        syn_command_str= syn_command_str + f' -t SyN[0.1] -m CC[{fx_fn},{mv_fn},1,3,Random,0.99] -c {cc_itr_str} -s {s_str} -f {f_str}' 
     
     if verbose : print(syn_command_str)
 
@@ -123,6 +130,9 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     else :
         shutil.copy( f'{prefix}_affine_cls_rsl.nii.gz' , f'{prefix}_cls_rsl.nii.gz' )
         shutil.copy( f'{prefix}_Affine_Composite.h5' , f'{prefix}_Composite.h5' )
+
+    #assert np.sum(nib.load(prefix+'_cls_rsl.nii.gz').dataobj) > 0, 'Error: 2d affine transfromation failed'
+
     assert os.path.exists(f'{prefix}_cls_rsl.nii.gz') , f'Error: output does not exist {prefix}_cls_rsl.nii.gz'
     return 0
     
@@ -133,8 +143,11 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     cls_rsl_fn = prefix+'_cls_rsl.nii.gz'
     out_fn=prefix+'_rsl.nii.gz'
     fx_fn = gen_2d_fn(prefix,'_fx')
-
-    crop_fn = row['crop_raw_fn']
+    
+    try :
+        crop_fn = row['batch_corrected_fn'] # crop_raw_fn
+    except IndexError: 
+        crop_fn = row['crop_fn'] # crop_raw_fn
    
     print('crop fn', crop_fn)
     img = nib.load(crop_fn)

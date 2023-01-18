@@ -7,22 +7,24 @@ import pandas as pd
 import numpy as np
 import nibabel
 import utils.ants_nibabel as nib
+from scipy.interpolate import interp1d
+from joblib import Parallel, delayed
 from validation.validate_alignment import validate_alignment
 from reconstruction.multiresolution_alignment import multiresolution_alignment
 from glob import glob
 from scipy.ndimage import label
 from scipy.ndimage import binary_dilation, binary_closing, binary_fill_holes
 from scipy.ndimage.filters import gaussian_filter
-from utils.utils import shell, create_2d_sections, run_stage, prefilter_and_downsample, resample_to_autoradiograph_sections
+from utils.utils import shell, create_2d_sections, run_stage, prefilter_and_downsample, resample_to_autoradiograph_sections, num_cores
 from utils.ANTs import ANTs
-from nibabel.processing import smooth_image
 from utils.mesh_io import load_mesh_geometry, save_mesh_data, save_obj, read_obj
 from reconstruction.init_alignment import receptorRegister, apply_transforms_to_landmarks
-from reconstruction.surface_interpolation import surface_interpolation
+from reconstruction.surface_interpolation import surface_interpolation, create_thickened_volumes
 from reconstruction.crop import crop, process_landmark_images
 from validation.validate_interpolation import validate_interpolation
 from validation.validate_reconstructed_sections import validate_reconstructed_sections
 from preprocessing.preprocessing import fill_regions_3d
+from reconstruction.batch_correction import correct_batch_effects 
 
 global file_dir
 base_file_dir, fn =os.path.split( os.path.abspath(__file__) )
@@ -122,10 +124,6 @@ def remove_slab_from_srv(slab_to_remove_fn, srv_rsl_fn, new_srv_rsl_fn):
     print('\t\t\tWriting', new_srv_rsl_fn)
     #vol = np.flip(vol, axis=1)
     nib.Nifti1Image(vol,img.affine,direction_order='lpi').to_filename(new_srv_rsl_fn)
-
-    
-
-        
 
 def calculate_section_order(autoradiograph_info_fn,  out_dir, in_df_fn='section_order/autoradiograph_info.csv') :
     '''
@@ -267,7 +265,7 @@ def setup_parameters(args) :
     ###
     ### Parameters
     ###
-    args.slabs = ['1', '6', '2','5', '3', '4'] #FIXME shouldnt be hard coded
+    args.slabs =['1', '6', '2','5', '3', '4'] #FIXME shouldnt be hard coded
 
     if args.scale_factors_fn == None :
         args.scale_factors_fn=base_file_dir+'/scale_factors.json'
@@ -276,8 +274,6 @@ def setup_parameters(args) :
 
     if args.autoradiograph_info_fn == None :
         args.autoradiograph_info_fn=args.out_dir+'/autoradiograph_info_volume_order.csv'
-
-
 
     args.crop_dir = f'{args.out_dir}/0_crop'
     os.makedirs(args.crop_dir,exist_ok=True)
@@ -338,16 +334,22 @@ def create_srv_volumes_for_next_slab(args,files, slab_list, resolution_list, res
 
             crop_srv_rsl_fn = files[brain][hemi][str(int(slab))][str(resolution)]['srv_crop_rsl_fn']
             create_new_srv_volumes(rec_3d_rsl_fn, crop_srv_rsl_fn, stage_3_5_outputs, resolution_list_3d)
-    
 
-def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_dict, interp_dir, brain, hemi, scale_factors) :
+
+
+def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=None) :
     ###
     ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
     ###
     final_ligand_dict={}
+
+
+    thickened_dict = create_thickened_volumes(interp_dir, slab_dict, hemi_df, args.n_depths, highest_resolution, norm_df_csv=norm_df_csv)
+    
     for ligand, df_ligand in hemi_df.groupby(['ligand']):
+        #if ligand != 'flum' : continue
         print('\t\tLigand:', ligand)
-        final_ligand_fn = surface_interpolation(df_ligand, slab_dict, interp_dir, brain, hemi, highest_resolution, args.srv_cortex_fn, args.slabs, files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+        final_ligand_fn = surface_interpolation(thickened_dict[ligand], df_ligand, slab_dict, interp_dir, brain, hemi, highest_resolution, args.srv_cortex_fn, args.slabs, files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
         final_ligand_dict[ligand] = final_ligand_fn
 
     return final_ligand_dict
@@ -387,24 +389,29 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
     
     if not args.no_surf : 
         print('\tSurface-based reconstruction') 
-        final_ligand_dict = surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_dict, interp_dir, brain, hemi, scale_factors)
+        final_ligand_dict = surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=args.norm_df_csv)
     
     validate_alignment(f'{args.out_dir}/6_quality_control/validate_alignment/', files[brain][hemi])
     
-
     ###
     ### 6. Quality Control
     ###
+    exit(0)
     for ligand, df_ligand in hemi_df.groupby(['ligand']):
         final_ligand_fn=final_ligand_dict[ligand]
         max_resolution = resolution_list[-1]
-        depth = '0.5'
+        
+        depth_list = np.round(np.arange(0, 1+(1./args.n_depths)/10, dt),3)
+        depth_list = np.insert(depth_list,0, 0)
+
+        depth = depth_list[int(len(depth_list/2)) ]
         print('\tValidate reconstructed sections:', ligand)
-        validate_reconstructed_sections(final_ligand_fn, max_resolution, args.n_depths, df_ligand, args.srv_cortex_fn, base_out_dir='/data/receptor/human/output_4_caps4real/',  clobber=False)
+        validate_reconstructed_sections(final_ligand_fn, max_resolution, args.n_depths, df_ligand, args.srv_cortex_fn, base_out_dir=args.out_dir,  clobber=False)
         
         #FIXME filename should be passed from surface_interpolation
         print(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')
         ligand_csv_list = glob(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')
+
         if len(ligand_csv_list) > 0 : 
             sphere_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_inflate_rsl.h5')[0]
             cortex_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_rsl.h5')[0]
@@ -429,11 +436,12 @@ def reconstruct_slab(hemi_df, brain, hemi, slab, slab_index, args, files, resolu
     if (not os.path.exists( init_align_fn) or not os.path.exists(init_tfm_csv) or args.clobber) :
         print('\tInitial rigid inter-autoradiograph alignment')
         receptorRegister(brain, hemi, slab, init_align_fn, init_tfm_csv, init_align_dir, args.manual_2d_dir, slab_df, scale_factors_json=args.scale_factors_fn, clobber=args.clobber)
-
+    
     if not os.path.exists(slab_tfm_csv): 
         slab_df = add_tfm_column(slab_df, init_tfm_csv,slab_tfm_csv)
     else : slab_df = pd.read_csv(slab_tfm_csv)
-   
+  
+    #print(hemi_df['batch_corrected_fn'].values); exit(0)
     #apply_transforms_to_landmarks(args.landmark_df, slab_df, args.landmark_dir, init_align_fn)
 
     ### Steps 2-4 : Multiresolution alignment
@@ -460,6 +468,8 @@ def reconstruct_slab(hemi_df, brain, hemi, slab, slab_index, args, files, resolu
 
     slab_idx = hemi_df['slab'].astype(int) == int(slab)
     #hemi_df.iloc[slab_idx] = slab_df
+    print(hemi_df['nl_2d_rsl'].loc[ slab_idx ])
+    assert np.sum(slab_idx) == slab_df.shape[0] , f'Error: no slab {slab} in {hemi_df["slab"].values}'
     hemi_df['nl_2d_rsl'].loc[ slab_idx ] = slab_df['nl_2d_rsl'].values
     hemi_df['nl_2d_cls_rsl'].loc[ slab_idx ] = slab_df['nl_2d_cls_rsl'].values
 
@@ -494,9 +504,13 @@ if __name__ == '__main__':
     flip_axes_dict = {'caudal_to_rostral':(1,)}
     print('\tCropping')
     crop( args.crop_dir, args.mask_dir, df, args.scale_factors_fn, float(args.resolution_list[-1]), flip_axes_dict=flip_axes_dict,  pytorch_model=pytorch_model )
+    
     print('\tFinished cropping') 
     #args.landmark_df = process_landmark_images(df, args.landmark_src_dir, args.landmark_dir, args.scale_factors_fn)
 
+    #df, args.norm_df_csv = correct_batch_effects(df, args)
+    args.norm_df_csv = None
+    
     for brain in args.brain :
         for hemi in args.hemi :                     
             print('Brain:',brain,'Hemisphere:', hemi)

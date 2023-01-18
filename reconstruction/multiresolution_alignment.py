@@ -6,12 +6,12 @@ import argparse
 import pandas as pd
 import numpy as np
 import nibabel
-import utils.ants_nibabel as nib
+import utils.ants_nibabel as ants_nibabel
 from glob import glob
 from scipy.ndimage import label
 from scipy.ndimage import binary_dilation, binary_closing, binary_fill_holes
 from scipy.ndimage.filters import gaussian_filter
-from utils.utils import shell, create_2d_sections, run_stage, prefilter_and_downsample, resample_to_autoradiograph_sections
+from utils.utils import shell, create_2d_sections, run_stage, prefilter_and_downsample, resample_to_autoradiograph_sections, kill_python_threads
 from utils.ANTs import ANTs
 from nibabel.processing import smooth_image
 from utils.mesh_io import load_mesh_geometry, save_mesh_data, save_obj, read_obj
@@ -151,11 +151,14 @@ def multiresolution_alignment( slab_df,  hemi_df, brain, hemi, slab, slab_index,
         stage_4_outputs=[nl_2d_vol_fn, nl_2d_cls_fn]
         #if run_stage(stage_3_outputs, stage_4_outputs)  or args.clobber:
         slab_df = receptor_2d_alignment( slab_df, init_align_fn, srv_space_rec_fn,seg_dir+'/2d/', nl_2d_dir,  resolution, resolution_itr, resolution_list)
+        kill_python_threads()
+        
         # Concatenate 2D nonlinear aligned sections into output volume
         slab_df = concatenate_sections_to_volume( slab_df, srv_space_rec_fn, nl_2d_dir, nl_2d_vol_fn)
+
         # Concatenate 2D nonlinear aligned cls sections into an output volume
         slab_df = concatenate_sections_to_volume( slab_df, srv_space_rec_fn, nl_2d_dir, nl_2d_cls_fn, target_str='cls_rsl')
-
+        kill_python_threads()
 
         slab_df.to_csv(slab_info_fn)
         print('\t\tWriting', slab_info_fn)

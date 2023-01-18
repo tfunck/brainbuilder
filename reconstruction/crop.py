@@ -73,11 +73,9 @@ def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn, y, slab, 
         index = np.core.defchararray.add(str(slab)+str(y), str(l)).astype(int)
         out_rsl[ out_rsl==l ] = index
         
-    print(np.max(out_rsl))
         #out[ out > 0 ] = index
 
     if np.sum(out_rsl) == 0 :
-        print('\tSum Out == 0')
         out_rsl = mask_vol_rsl
 
     out = resize(out_rsl.astype(float), original_shape, order=0) 
@@ -88,7 +86,6 @@ def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn, y, slab, 
     plt.imshow(out)
     plt.savefig('/tmp/test.png')
     
-    print(np.max(out))
     if np.sum(out) == 0 : 
         print('Error empty pseudo cls'); exit(1)
     out = np.ceil(out).astype(np.uint32)
@@ -118,7 +115,6 @@ def gen_affine(row, scale, dims, global_order_min, xstep_from_size=False, brain_
         xstep = z_mm / dims[0] # pixel size in z-axis is variable depending on microscope magnification
     else :
         xstep = 0.02
-    print('\tDigitized step size:', xstep, zstep)
     #commented becaause this doesn't seem to make sense
     
     affine=np.array([[xstep, 0, 0, -90],
@@ -151,15 +147,12 @@ def process_image(img, row, scale, pad, affine,brain_str='mri', mask_fn='', flip
     p = int(pad/2)
     direction = scale[str(brain)][hemi][str(slab)]["direction"]
 
-    print(img.shape)
     img = img.reshape(img.shape[0], img.shape[1])
 
     for  dict_direction, flip_axes in flip_axes_dict.items() :
         if direction == dict_direction :
-            print(direction, dict_direction, flip_axes)
             #plt.subplot(1,2,1); plt.imshow(img)
             #plt.title(f'{row["order"]}, {row["slab"]}')
-            print('Applying flip in axis,',flip_axes)
             img = np.flip(img, axis=flip_axes)
             #plt.subplot(1,2,2); plt.imshow(img)
             #temp_fn = f'/tmp/{row["repeat"]}.png'
@@ -188,7 +181,6 @@ def process_image(img, row, scale, pad, affine,brain_str='mri', mask_fn='', flip
 
 def find_landmark_files(landmark_dir, brain, hemisphere, slab, volume_order) :
     fn=f'{landmark_dir}/{brain}_{hemisphere}_{slab}_src_*_{int(volume_order)}.png'
-    print(fn)
     landmark_files = glob(fn)
     if len(landmark_files) != 0 : print(landmark_files)
     return landmark_files 
@@ -205,8 +197,6 @@ def crop_parallel(row, mask_dir, scale, global_order_min, brain_str='mri', crop_
     volume_order = row['volume_order']
 
     if not os.path.exists(crop_fn) or clobber : 
-        print('\tinput_fn', fn)
-        print('\t crop_fn', crop_fn) 
         # identify mask image filename
         mask_fn=glob(f'{mask_dir}/{base}*.png')
         
@@ -219,7 +209,6 @@ def crop_parallel(row, mask_dir, scale, global_order_min, brain_str='mri', crop_
             #mask_fn = f'{mask_dir}/{base}.png'
             mask_fn=''
             
-        print('\t\tMask fn:', mask_fn)
         
         # load mask image 
         img = imageio.imread(fn)
@@ -227,15 +216,12 @@ def crop_parallel(row, mask_dir, scale, global_order_min, brain_str='mri', crop_
         affine = gen_affine(row, scale, img.shape, global_order_min, xstep_from_size=True, brain_str=brain_str)
         
         img = process_image(img, row, scale, pad, affine, brain_str=brain_str, mask_fn=mask_fn, flip_axes_dict=flip_axes_dict)
-        print( len(np.unique(img)))
 
-        #origin = list(affine[ [0,1],[3,3] ])
-        #spacing = list( affine[ [0,1],[0,1] ])
-        #ants_image = ants.from_numpy(img, origin=origin, spacing=spacing)
-        #ants.image_write(ants_image, crop_fn)
         if np.max(img) == np.min(img) :
             print('Failed to create\n\t',crop_fn)
             exit(1)
+        
+        print(fn,'\nimage mean:',np.mean(img[img>1]),'\n',crop_fn)
         nib.Nifti1Image(img, affine ).to_filename(crop_fn)
 
     '''
@@ -339,11 +325,9 @@ def convert_2d_array_to_nifti(f: str, output_filename: str, res=[20,20], spacing
     :return:
     """
     if not os.path.exists(output_filename ) :
-        print('\tFrom:',f)
         img=np.array(nib.load(f).get_fdata())
 
         img = resize(img, np.round(np.array(img.shape)*np.array(res)/200).astype(int),order=3)
-        print(img.shape)
 
         if transform is not None:
             img = transform(img)
@@ -425,13 +409,6 @@ def create_pseudo_classifications(df,crop_str, resolution):
 
     Parallel(n_jobs=num_cores)(delayed(pseudo_classify_autoradiograph)(crop_fn, seg_fn, pseudo_cls_fn, slab_order,slab,resolution) for  crop_fn, seg_fn, pseudo_cls_fn, slab_order, slab in to_do) 
 
-
-    ar[ ar < threshold_otsu(gaussian_filter(ar,3) ) ] = 0
-    ar[ ar>0 ] = 1
-    
-    print('\t\tWriting',seg_fn)
-    nib.Nifti1Image(ar, img.affine ).to_filename(seg_fn)
-
 def histogram_gm_segmentation_parallel(seg_fn,crop_fn):
     img = nib.load(crop_fn)
     vol = img.dataobj
@@ -447,7 +424,7 @@ def histogram_gm_segmentation(df, crop_str, num_cores, clobber=False):
         if not os.path.exists(seg_fn) or clobber :
             to_do.append((seg_fn,crop_fn))
 
-    Parallel(n_jobs=num_cores)(delayed(histogram_gm_segmentation_parallel)(seg_fn,crop_fn) for seg_fn, crop_fn in to_do) 
+    df_list = Parallel(n_jobs=num_cores)(delayed(histogram_gm_segmentation_parallel)(seg_fn,crop_fn) for seg_fn, crop_fn in to_do) 
 
 def nnunet_gm_segmentation(crop_dir, df, res, crop_str, num_cores):
         nnunet_in_dir=f'{crop_dir}/nnunet/'
@@ -470,7 +447,6 @@ def nnunet_gm_segmentation(crop_dir, df, res, crop_str, num_cores):
         for i, row in df.iterrows():
             crop_fn = row[crop_str] 
             seg_fn = row['seg_fn'] 
-            print(f'{nnunet_out_dir}/{os.path.basename(crop_fn)}')
             fn = glob(f'{nnunet_out_dir}/{os.path.basename(crop_fn)}')[0]
             if not os.path.exists(seg_fn) : 
                 to_do.append((fn,crop_fn,seg_fn))
