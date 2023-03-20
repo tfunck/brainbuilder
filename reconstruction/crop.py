@@ -140,6 +140,9 @@ def process_image(img, row, scale, pad, affine,brain_str='mri', mask_fn='', flip
         # apply mask to image
         img[ mask < np.max(mask)*0.5 ] = 0
 
+    assert img.max() < 256, 'Error: max value is {img.max()} for \n'+fn
+
+    #print('d image max:',np.max(img))
     brain = row[brain_str]
     hemi = row['hemisphere']
     slab = row['slab']
@@ -149,21 +152,13 @@ def process_image(img, row, scale, pad, affine,brain_str='mri', mask_fn='', flip
 
     img = img.reshape(img.shape[0], img.shape[1])
 
+    #print('e image max:',np.max(img))
+    assert img.max() < 256, 'Error: max value is {img.max()} for \n'+fn
+
     for  dict_direction, flip_axes in flip_axes_dict.items() :
         if direction == dict_direction :
-            #plt.subplot(1,2,1); plt.imshow(img)
-            #plt.title(f'{row["order"]}, {row["slab"]}')
             img = np.flip(img, axis=flip_axes)
-            #plt.subplot(1,2,2); plt.imshow(img)
-            #temp_fn = f'/tmp/{row["repeat"]}.png'
-            #plt.savefig(temp_fn)
-            #plt.clf()
-            #plt.cla()
-
-    # deleteme if flip_axes_dict works
-    #if direction == "caudal_to_rostral": 
-    #    img = np.flip( img, 1 )
-    #img = np.flip(img, 0)
+            #print('e2 image max:',np.max(img))
 
     ## pad image in case it needs to be rotated
     # all images are padded regardless of whether they are rotated because that way they all 
@@ -171,11 +166,16 @@ def process_image(img, row, scale, pad, affine,brain_str='mri', mask_fn='', flip
     img_pad = np.zeros([img.shape[0]+pad,img.shape[1]+pad])
 
     img_pad[p:p+img.shape[0],p:p+img.shape[1]] =img
+    #print('f image max:',np.max(img_pad))
+    
+    assert img_pad.max() < 256, 'Error: max value is {img.max()} for \n'+fn
     try :
         section_rotation =  row['rotate']
-        if section_rotation != 0 : img_pad = rotate(img_pad, section_rotation, reshape=False)
+        print(section_rotation)
+        if section_rotation != 0 : img_pad = rotate(img_pad, section_rotation, reshape=False, order=0)
     except KeyError : 
         pass
+    #print('g image max:',np.max(img_pad))
 
     return img_pad
 
@@ -212,6 +212,8 @@ def crop_parallel(row, mask_dir, scale, global_order_min, brain_str='mri', crop_
         
         # load mask image 
         img = imageio.imread(fn)
+        assert img.max() < 256, 'Error: prior to process_image max value is {img.max()} for \n'+fn
+
         if len(img.shape) > 2 : img = img[:,:,0] #np.max(img,axis=2)
         affine = gen_affine(row, scale, img.shape, global_order_min, xstep_from_size=True, brain_str=brain_str)
         
@@ -221,7 +223,8 @@ def crop_parallel(row, mask_dir, scale, global_order_min, brain_str='mri', crop_
             print('Failed to create\n\t',crop_fn)
             exit(1)
         
-        print(fn,'\nimage mean:',np.mean(img[img>1]),'\n',crop_fn)
+        #print('a image max:',np.max(img))
+        assert img.max() < 256, 'Error: max value is {img.max()} for \n'+fn
         nib.Nifti1Image(img, affine ).to_filename(crop_fn)
 
     '''

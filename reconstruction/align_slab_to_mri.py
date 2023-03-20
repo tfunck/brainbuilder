@@ -15,7 +15,7 @@ import h5py as h5
 from utils.utils import simple_ants_apply_tfm
 from glob import glob
 from utils.ANTs import ANTs
-from utils.utils import shell, splitext, points2tfm, read_points, get_alignment_parameters
+from utils.utils import shell, splitext, points2tfm, read_points, AntsParams
 from nibabel.processing import resample_from_to
 from scipy.ndimage.filters import gaussian_filter1d
 from scipy.io import loadmat
@@ -149,31 +149,38 @@ def pad_seg_vol(seg_rsl_fn,max_downsample_level):
     assert com_error < 0.1, f'Error: change in ceter of mass after padding {com0}, {com1}'
     return seg_rsl_pad_fn
 
-def get_alignment_schedule(resolution_list, resolution_itr,base_nl_itr = 250 ):
+
+
+        
+
+def get_alignment_schedule(resolution_list, resolution, resolution_cutoff_for_cc = 0.5, base_nl_itr = 100, base_lin_itr = 500):
     #cur_res/res = 2^(f-1) --> f = 1+ log2(cur_res/res)
-
-    f_list, f_str, s_str = get_alignment_parameters(resolution_itr, resolution_list)
-
-
-    min_nl_itr = len( [ resolution_list[i] for i in range(resolution_itr) if  float(resolution_list[i]) <= .1 ] )
-
-
-    base_lin_itr= 500
+    #min_nl_itr = len( [ resolution for resolution in resolution_list[0:resolution_itr] if  float(resolution) <= .1 ] ) # I gues this is to limit nl alignment above 0.1mm
+    base_cc_itr = np.rint(base_nl_itr/10)
     
-    max_lin_itr = base_lin_itr * (len(f_list)+1)
-    max_nl_itr  = base_nl_itr * (resolution_itr-min_nl_itr+1)
-    lin_step = base_lin_itr 
-    nl_step  = base_nl_itr 
+    cc_resolution_list = [ r for r in resolution_list if float(r) > resolution_cutoff_for_cc ]
+    print(cc_resolution_list)
 
-    lin_itr_str='x'.join([str(max_lin_itr - i*lin_step) for i in range(len(f_list))])
-    nl_itr_str='x'.join([str(max_nl_itr - i*nl_step) for i in range(len(f_list))  ])
+    linParams = AntsParams(resolution_list, resolution, base_lin_itr) 
+    nlParams = AntsParams(resolution_list, resolution, base_nl_itr)  
+    cc_resolution=max(min(cc_resolution_list), resolution)
+    ccParams = AntsParams(cc_resolution_list, cc_resolution, base_cc_itr)  
+    print('itr')
+    print(ccParams.itr_str)
+    print(linParams.itr_str)
+    
+    print('smoothing')
+    print(linParams.s_str)
+    print(nlParams.s_str)
+    print(ccParams.s_str)
+    print('factor')
+    print(linParams.f_str)
+    print(nlParams.f_str)
+    print(ccParams.f_str)
+    
+    max_downsample_level = linParams.max_downsample_factor
 
-    lin_itr_str ='['+ lin_itr_str +',1e-7,20 ]' 
-    nl_itr_str='['+ nl_itr_str +',1e-7,20 ]'
-   
-    max_downsample_level = int(f_list[0])
-
-    return max_downsample_level, f_str, s_str, lin_itr_str, nl_itr_str
+    return max_downsample_level, linParams, nlParams, ccParams 
 
 def write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0w, y0, y1, resolution, srv_ystep, srv_ystart, max_downsample_level, clobber=False):
 
@@ -196,7 +203,8 @@ def write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0w, y0, y1, resoluti
         pad_srv_slab, pad_aff = pad_volume(srv_slab, max_downsample_level, aff, direction=direction[[0,1,2],[0,1,2]] )
 
         #pad_aff[1,3] = direction[1,1] * pad_aff[1,3]
-        nib.Nifti1Image(pad_srv_slab, pad_aff, direction=direction, dtype=np.uint8).to_filename(srv_slab_fn)
+        #pad_srv_slab = (pad_srv_slab - np.min(pad_srv_slab)) / () 
+        nib.Nifti1Image(pad_srv_slab.astype(np.float16), pad_aff, direction=direction, dtype=np.uint8).to_filename(srv_slab_fn)
     
     return srv_slab_fn
 
@@ -220,22 +228,24 @@ def gen_mask(fn, clobber=False) :
     
     return out_fn
 
-def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn, metric='GC',nbins=10, use_init_tfm=False, use_masks=True, sampling=0.9, clobber=False ):
+def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, linParams, nlParams, ccParams, resolution, manual_affine_fn, metric='GC',nbins=10, use_init_tfm=False, use_masks=True, sampling=0.9, clobber=False ):
     prefix=re.sub('_SyN_Composite.h5','',out_tfm_fn)
     prefix_init = prefix+'_init_'
     prefix_rigid = prefix+'_Rigid_'
     prefix_similarity = prefix+'_Similarity_'
     prefix_affine = prefix+'_Affine_'
     prefix_manual = prefix+'_Manual_'
-    prefix_syn = prefix+'_SyN_'
     
+    prefix_syn = f'{prefix}_SyN_Mattes_'
+    syn_out_fn = f'{prefix_syn}volume.nii.gz'
+    syn_inv_fn = f'{prefix_syn}volume_inverse.nii.gz'
+
     temp_out_fn='/tmp/tmp.nii.gz'
     
     affine_out_fn = f'{prefix_affine}volume.nii.gz'
     affine_inv_fn = f'{prefix_affine}volume_inverse.nii.gz'
     manual_out_fn = f'{prefix_manual}Composite.nii.gz'
-    syn_out_fn = f'{prefix_syn}volume.nii.gz'
-    syn_inv_fn = f'{prefix_syn}volume_inverse.nii.gz'
+
 
     seg_mask_fn = gen_mask(seg_rsl_fn,clobber=True)
     srv_mask_fn = gen_mask(srv_slab_fn,clobber=True)
@@ -244,10 +254,10 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     step=0.1
     #calculate SyN
 
-    if float(resolution) <= 0.5 : 
-        metric = 'Mattes'
-        if int(nbins) < 16 : 
-            nbins=16
+    #if float(resolution) <= 0.5 : 
+    #    metric = 'Mattes'
+    #    if int(nbins) < 16 : 
+    #        nbins=16
 
     use_cc = True
     if float(resolution) >= 1.0 : use_cc = True
@@ -266,8 +276,8 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     if not os.path.exists( manual_affine_fn ) or skip_manual :
         ### Create init tfm to adjust for brains of very differnt sizes
         if use_init_tfm and not os.path.exists(f'{prefix_init}Composite.h5'):
-            s_str_0 = re.sub('vox','',s_str).split('x')[0] +'x'
-            f_str_0 = f_str.split('x')[0] 
+            s_str_0 = linParams.s_list[0] +'x'
+            f_str_0 = linParams.f_list[0] 
             shell(f'{base}  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]   -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000   -t Affine[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000  -o [{prefix_init},{prefix_init}volume.nii.gz,{prefix_init}volume_inverse.nii.gz]  ', verbose=True)
             init_str = f' --initial-moving-transform {prefix_init}Composite.h5 '
         else :
@@ -275,11 +285,11 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
 
         # calculate rigid registration
         if not os.path.exists(f'{prefix_rigid}Composite.h5'):
-            shell(f'{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] ', verbose=True)
+            shell(f'{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] ', verbose=True)
         # calculate similarity registration
 
         if not os.path.exists(f'{prefix_similarity}Composite.h5'):
-            shell(f'{base}  --initial-moving-transform  {prefix_rigid}Composite.h5 -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] ', verbose=True)
+            shell(f'{base}  --initial-moving-transform  {prefix_rigid}Composite.h5 -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] ', verbose=True)
         affine_init = f'--initial-moving-transform {prefix_similarity}Composite.h5'
     else :
         print('\tApply manual transformation')
@@ -288,19 +298,22 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     
     #calculate affine registration
     if not os.path.exists(f'{prefix_affine}Composite.h5'):
-        shell(f'{base}  {affine_init} -t Affine[{step}] -m {metric}[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str} -f {f_str}  -c {lin_itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] ', verbose=True)
+        shell(f'{base}  {affine_init} -t Affine[{step}] -m {metric}[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] ', verbose=True)
      
+    prefix_syn = f'{prefix}_SyN_'
+    syn_out_fn = f'{prefix_syn}volume.nii.gz'
+    syn_inv_fn = f'{prefix_syn}volume_inverse.nii.gz'
     if not os.path.exists(f'{prefix_syn}Composite.h5'): 
         # --masks [{srv_mask_fn},{seg_mask_fn}]
-        syn_base=f'{base} --initial-moving-transform {prefix_affine}Composite.h5 -t SyN[{syn_rate}]  {nl_metric} -s {s_str} -f {f_str} -c {nl_itr_str} '
-
-        if use_cc :
-            syn_base += f' -t SyN[{syn_rate}] -m CC[{srv_tgt_fn},{seg_rsl_fn},1,3,Random,{sampling}]  -s {s_str} -f {f_str} -c {nl_itr_str} '
+        syn_init = f'{prefix_affine}Composite.h5'
+            
+        nl_base=f'{base}  --initial-moving-transform {prefix_affine}Composite.h5 -o [{prefix_syn},{syn_out_fn},{syn_inv_fn}] '
         
-        syn_base += f' -o [{prefix_syn},{syn_out_fn},{syn_inv_fn}] '
+        nl_base += f' -t SyN[{syn_rate}] -m Mattes[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} ' 
 
-        shell(syn_base, verbose=True)
-  
+        nl_base += f' -t SyN[{syn_rate}] -m CC[{srv_tgt_fn},{seg_rsl_fn},1,3,Random,{sampling}]  -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str}'
+
+        shell(nl_base, verbose=True)
 
     simple_ants_apply_tfm(seg_rsl_fn, srv_rsl_fn, prefix_syn+'Composite.h5', out_fn)
     simple_ants_apply_tfm(srv_rsl_fn, seg_rsl_fn, prefix_syn+'InverseComposite.h5', out_inv_fn)
@@ -325,7 +338,7 @@ def get_manual_tfm(resolution_itr,manual_alignment_points, seg_rsl_fn, srv_rsl_f
 
     return manual_tfm_fn
 
-def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, slabs, out_tfm_fn, out_tfm_inv_fn, out_fn, out_inv_fn,  resolution, resolution_itr, resolution_list, slab_direction, manual_points_fn, manual_affine_fn=None, use_masks=False, clobber=False, verbose=True ) :
+def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, slabs, out_tfm_fn, out_tfm_inv_fn, out_fn, out_inv_fn,  resolution, resolution_list, slab_direction, manual_points_fn, manual_affine_fn=None, use_masks=False, clobber=False, verbose=True ) :
     print('\tRunning, resolution:', resolution )
     slab=int(slab)
 
@@ -335,7 +348,7 @@ def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, sl
     # get iteration schedules for the linear and non-linear portion of the ants alignment
     # get maximum number steps by which the srv image will be downsampled by 
     # with ants, each step means dividing the image size by 2^(level-1)
-    max_downsample_level, f_str, s_str, lin_itr_str, nl_itr_str = get_alignment_schedule(resolution_list, resolution_itr )
+    max_downsample_level, linParams, nlParams, ccParams = get_alignment_schedule(resolution_list, resolution )
 
     # pad the segmented volume so that it can be downsampled by the 
     # ammount of times specified by max_downsample_level
@@ -354,9 +367,9 @@ def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, sl
     
     # extract slab from srv and write it
     srv_slab_fn = write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0w, y0, y1, resolution, srv_ystep, srv_ystart, max_downsample_level)
-
+    
     # run ants alignment between segmented volume (from autoradiographs) to slab extracte
-    run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_pad_fn, s_str, f_str, lin_itr_str, nl_itr_str, resolution, manual_affine_fn, use_masks=use_masks) #, metric='Mattes', nbins=32 )
+    run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_pad_fn, linParams, nlParams, ccParams, resolution, manual_affine_fn, use_masks=use_masks ) #, metric='Mattes', nbins=32 )
     return 0
 
 '''

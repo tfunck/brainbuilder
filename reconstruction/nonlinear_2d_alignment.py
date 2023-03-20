@@ -12,7 +12,7 @@ import shutil
 import tempfile
 import multiprocessing
 from reconstruction.align_slab_to_mri import gen_mask
-from utils.utils import get_alignment_parameters
+from utils.utils import AntsParams
 from joblib import Parallel, delayed
 from section_2d import section_2d
 from sys import argv
@@ -31,7 +31,6 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     #s_list.reverse()
     #f_list.reverse()
     
-    f_list, f_str, s_str = get_alignment_parameters(resolution_itr, resolution_list)
 
     base_lin_itr= 100
     base_nl_itr = 20
@@ -40,38 +39,16 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     base_nl_itr = 100 #DEBUG OLD ITERATIONS
     base_cc_itr = 10 #DEBUG OLD ITERATIONS
 
-    max_lin_itr = base_lin_itr * (resolution_itr+1)
-    max_nl_itr  = base_nl_itr * (resolution_itr+1)
-    lin_step = -base_lin_itr 
-    nl_step  = -base_nl_itr 
+    cc_resolution_list = [ r for r in resolution_list if float(r) <= 1 ] #CC does not work well at lower resolution 
+    cc_resolution=max(min(cc_resolution_list), resolution)
 
-    #lin_itr =np.linspace(2000,200,resolution_itr+1).astype(int).astype(str)
-    #nl_itr = np.linspace( 500, 100, resolution_itr+1).astype(int).astype(str)
-    #cc_itr = np.linspace( 100, 10, resolution_itr+1).astype(int).astype(str)
-    
-    lin_itr =np.linspace(1000,100,resolution_itr+1).astype(int).astype(str)
-    nl_itr = np.linspace( 100, 20, resolution_itr+1).astype(int).astype(str)
-    cc_itr = np.linspace( 20, 2, resolution_itr+1).astype(int).astype(str)
+    linParams = AntsParams(resolution_list, resolution, base_lin_itr)
+    nlParams = AntsParams(resolution_list, resolution, base_nl_itr)
+    ccParams=None
+    if cc_resolution in cc_resolution_list :
+        ccParams = AntsParams(cc_resolution_list, cc_resolution, base_cc_itr)
 
-    lin_itr_str='x'.join(lin_itr) 
-    nl_itr_str='x'.join(nl_itr)
-    cc_itr_str='x'.join( cc_itr)
-    nl_itr_str='[ '+ nl_itr_str +',1e-7,20 ]'
-    cc_itr_str='[ '+ cc_itr_str +',1e-7,20 ]'
 
-    #f_str='x'.join( [ f_list[i] for i in range(max_itr+1)]) 
-    #s_str='x'.join( [ s_list[i] for i in range(max_itr+1)]) + 'vox' 
-    #f_cc = f_str.split('x')[-1]
-    #s_cc = s_str.split('x')[-1]
-
-    s_str_final = s_str.split(',')[-1]
-    f_str_final = f_str.split(',')[-1]
-    
-    n0 = len(lin_itr_str.split('x'))
-    n1 = len(f_str.split('x')) 
-    n2 = len(s_str.split('x'))-1
-    n3 = len(nl_itr_str.split('x'))
-    assert n0==n1==n2==n3 , "Error: Incorrect lengths for ANTs parameters"
 
     y=int(row['slab_order'])
 
@@ -107,7 +84,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     mv_mask_fn = gen_mask(mv_fn, clobber=False)
     #--masks [{fx_mask_fn},{mv_mask_fn}] 
 
-    affine_command_str = f'antsRegistration -n {interpolation} -v {int(verbose)} -d 2  --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[{step}] -c {lin_itr_str}  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -s {s_str} -f {f_str}  -c {lin_itr_str} -t Similarity[.1]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -s {s_str} -f {f_str} -t Affine[{step}] -c {lin_itr_str} -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.95] -s {s_str} -f {f_str} '
+    affine_command_str = f'antsRegistration -n {interpolation} -v {int(verbose)} -d 2  --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[{step}] -c {linParams.itr_str}  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str} -t Similarity[.1]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -s {linParams.s_str} -f {linParams.f_str} -t Affine[{step}] -c {linParams.itr_str} -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.95] -s {linParams.s_str} -f {linParams.f_str} '
 
     if verbose: print(affine_command_str)
 
@@ -117,10 +94,10 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     #assert np.sum(nib.load(prefix+'_affine_cls_rsl.nii.gz').dataobj) > 0, 'Error: 2d affine transfromation failed'
 
     #--masks [{fx_mask_fn},{mv_mask_fn}] 
-    syn_command_str = f'antsRegistration -n NearestNeighbor -v {int(verbose)} -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -c {nl_itr_str} -s {s_str} -f {f_str}' 
+    syn_command_str = f'antsRegistration -n NearestNeighbor -v {int(verbose)} -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -c {nlParams.itr_str} -s {nlParams.s_str} -f {nlParams.f_str}' 
 
-    if float(resolution) <= 0.5 : #CC does not work well at lower resolution 
-        syn_command_str= syn_command_str + f' -t SyN[0.1] -m CC[{fx_fn},{mv_fn},1,3,Random,0.99] -c {cc_itr_str} -s {s_str} -f {f_str}' 
+    if type(ccParams) != type(None) : 
+        syn_command_str= syn_command_str + f' -t SyN[0.1] -m CC[{fx_fn},{mv_fn},1,3,Random,0.99] -c {ccParams.itr_str} -s {ccParams.s_str} -f {ccParams.f_str}' 
     
     if verbose : print(syn_command_str)
 
@@ -144,15 +121,16 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     out_fn=prefix+'_rsl.nii.gz'
     fx_fn = gen_2d_fn(prefix,'_fx')
     
-    try :
-        crop_fn = row['batch_corrected_fn'] # crop_raw_fn
-    except IndexError: 
-        crop_fn = row['crop_fn'] # crop_raw_fn
+    #try :
+    #    crop_fn = row['batch_corrected_fn'] # crop_raw_fn
+    #except IndexError: 
+    crop_fn = row['crop_fn'] # crop_raw_fn
    
     print('crop fn', crop_fn)
     img = nib.load(crop_fn)
     img_res = np.array([img.affine[0,0], img.affine[1,1] ])
     vol = img.get_fdata()
+    assert np.max(vol) < 256 , 'Problem with file '+ crop_fn + f'\n Max Value = {np.max(vol)}'
     sd = np.array( (float(resolution)/img_res) / np.pi )
     vol = gaussian_filter(vol, sd )
     nib.Nifti1Image(vol, img.affine).to_filename(crop_rsl_fn)
@@ -188,7 +166,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
         num_cores = 4 
     else :
         if float(resolution) >= 0.2 :
-            max_cores=14
+            max_cores=28
         else :
             max_cores=4
             
@@ -254,7 +232,10 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='r
             fn = df[target_name].loc[i]
             y = int(row['slab_order'])
             try : 
-                out_vol[:,int(y),:] = nib.load(fn).get_fdata()
+                sec = nib.load(fn).get_fdata()
+
+                assert np.max(sec) < 256 , 'Problem with file '+ fn + f'\n Max Value = {np.max(sec)}'
+                out_vol[:,int(y),:] = sec 
             except EOFError :
                 print('Error:', fn)
                 os.remove(fn)

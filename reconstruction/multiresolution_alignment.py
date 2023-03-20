@@ -79,10 +79,7 @@ def multiresolution_alignment( slab_df,  hemi_df, brain, hemi, slab, slab_index,
         nl_2d_cls_fn = cfiles['nl_2d_vol_cls_fn']
 
         resolution_3d = max(float(resolution), max_resolution)
-        if resolution_3d == max_resolution :
-            resolution_itr_3d = [ i for i, res in enumerate(resolution_list) if float(res) >= max_resolution ][-1]
-        else :
-            resolution_itr_3d = resolution_itr
+        resolution_itr_3d = resolution_list_3d.index(resolution_3d)
 
         prev_resolution=resolution_list[resolution_itr-1]
 
@@ -134,10 +131,11 @@ def multiresolution_alignment( slab_df,  hemi_df, brain, hemi, slab, slab_index,
         if run_stage(stage_2_outputs, stage_3_outputs) or args.clobber  :
             scale_factors_json = json.load(open(args.scale_factors_fn,'r'))
             slab_direction = scale_factors_json[brain][hemi][slab]['direction']
+            print(resolution, resolution_itr); 
             align_slab_to_mri(  brain, hemi, slab, seg_rsl_fn, crop_srv_rsl_fn, align_to_mri_dir, 
                                 hemi_df, args.slabs, nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_rsl_fn, srv_3d_rsl_fn, 
-                                resolution_3d, resolution_itr_3d, 
-                                resolution_list, slab_direction, cfiles['manual_alignment_points'], cfiles['manual_alignment_affine'], use_masks=False )
+                                resolution_3d, resolution_list_3d, 
+                                slab_direction, cfiles['manual_alignment_points'], cfiles['manual_alignment_affine'], use_masks=False )
         
         ###
         ### Stage 4 : 2D alignment of receptor to resample MRI GM vol

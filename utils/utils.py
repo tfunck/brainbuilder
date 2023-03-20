@@ -563,6 +563,7 @@ def get_section_intervals(vol):
     return intervals
     
 def resample_to_output(vol, aff, resolution_list, order=1, dtype=None):
+    initial_vol_sum = np.sum(np.abs(vol))
     dim_range=range(len(vol.shape))
     calc_new_dim = lambda length, step, resolution : np.ceil( (length*abs(step))/resolution).astype(int)
     dim = [ calc_new_dim(vol.shape[i], aff[i,i], resolution_list[i]) for i in dim_range ]
@@ -589,28 +590,52 @@ def resample_to_output(vol, aff, resolution_list, order=1, dtype=None):
     else :
         out_vol = resize(vol, dim, order=order )
     
-    assert np.sum(np.abs(vol)) > 0 , 'Error: empty output volume after <resize> in <resample_to_output>'
+    assert np.sum(np.abs(vol)) > 0  or initial_vol_sum == 0, 'Error: empty output volume after <resize> in <resample_to_output>'
     aff[dim_range,dim_range] = resolution_list
     return nib.Nifti1Image(out_vol, aff, dtype=dtype )
 
 
-def get_alignment_parameters(resolution_itr, resolution_list):
+class AntsParams():
+    def __init__(self, resolution_list, resolution, base_itr):
+        self.resolution_list=resolution_list
+        self.max_n = len(resolution_list)
+        self.cur_n = resolution_list.index(resolution)
+        self.max_itr=int((self.max_n+1)*base_itr)
+        self.f_list = self.gen_downsample_factor_list(resolution_list)
+        self.max_downsample_factor = int(self.f_list[0] )
+        self.f_str = self.get_downsample_params(resolution_list)
+        self.s_list = self.gen_smoothing_factor_list(resolution_list)
+        self.s_str = self.get_smoothing_params(resolution_list)
+        self.itr_str =  self.gen_itr_str(self.max_itr, base_itr)
 
-    calc_factor  = lambda cur_res, image_res: np.rint(1+np.log2(float(cur_res)/float(image_res))).astype(int).astype(str)
-    f_list = [ calc_factor(resolution_list[i], resolution_list[resolution_itr]) for i in range(resolution_itr+1)  ]
-    assert len(f_list) != 0, 'Error: no smoothing factors' 
 
-    f_str='x'.join([ str(f) for f in f_list ])
-    #DEBUG the followig line is probably wrong because sigma should be calcaulted
-    # as a function of downsample factor in f_list
-    s_list = [ np.round(float(float(resolution_list[i])/float(resolution_list[resolution_itr]))/np.pi,2) if i != resolution_itr else 0 for i in range(resolution_itr+1)  ] 
-    
+        assert len(self.f_list) == len(self.s_list) == len(self.itr_str.split('x')), f'Error: incorrect number of elements in: \n{self.f_list}\n{self.s_list}\n{self.itr_str}\n{resolution_list}'
 
-    # DEBUG the following is probably correct
-    #s_list = [ np.round((float(f)**(f-1))/np.pi,2) for f in f_list ] 
-    s_str='x'.join( [str(i) for i in s_list] ) + 'vox'
-    
-    return f_list, f_str, s_str
+
+    def gen_itr_str(self,max_itr, step):
+        itr_str = 'x'.join([str(int(max_itr - i*step)) for i in range(self.cur_n+1)])
+        itr_str ='['+ itr_str +',1e-7,20 ]' 
+        return itr_str
+
+    def gen_smoothing_factor_string(self, lst):
+        return 'x'.join( [str(i) for i in lst] ) + 'vox'
+
+    def gen_smoothing_factor_list(self, resolution_list):
+        return [ np.round(float(float(resolution_list[i])/float(resolution_list[self.cur_n]))/np.pi,2) if i != self.cur_n-1 else 0 for i in range(self.cur_n+1)  ] 
+
+    def get_smoothing_params(self, resolution_list):
+        s_list = self.gen_smoothing_factor_list(resolution_list)
+        return self.gen_smoothing_factor_string(s_list)
+
+    def calc_downsample_factor(self, cur_res, image_res): 
+        return np.rint(1+np.log2(float(cur_res)/float(image_res))).astype(int).astype(str)
+
+    def gen_downsample_factor_list(self, resolution_list) :
+        return [ self.calc_downsample_factor(resolution_list[i], resolution_list[self.cur_n]) for i in range(self.cur_n+1)  ]
+
+    def get_downsample_params(self, resolution_list) :
+        return 'x'.join( self.gen_downsample_factor_list(resolution_list) )
+
 
 def check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn, empty_ok=False):
     assert os.path.exists(out_fn), f'Error: transformed file does not exist {out_fn}'

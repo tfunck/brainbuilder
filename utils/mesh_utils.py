@@ -18,6 +18,7 @@ import tempfile
 import h5py as h5
 import multiprocessing
 import nibabel
+import debug
 from glob import glob
 from re import sub
 from joblib import Parallel, delayed
@@ -34,6 +35,7 @@ from scipy.ndimage import zoom
 from skimage.transform import resize
 from scipy.ndimage import label, center_of_mass
 from time import time
+from utils.reconstruction_classes import SlabReconstructionData
 
 os_info = os.uname()
 global num_cores
@@ -41,6 +43,20 @@ if os_info[1] == 'imenb079':
     num_cores = 1 
 else :
     num_cores = min(14, multiprocessing.cpu_count() )
+
+def get_surf_from_dict(d):
+    keys = d.keys()
+    if 'upsample_h5' in keys : 
+        surf_fn = d['upsample_h5']
+    elif 'depth_rsl_fn' in keys :
+        surf_fn = d['depth_rsl_fn']
+    elif 'surf' in keys :
+        surf_fn = d['surf']
+    else : 
+        assert False, f'Error: could not find surface in keys, {keys}'
+    return surf_fn
+
+
 
 def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[0,0,0], interp_vol=None, n_vol=None ):
     '''
@@ -79,14 +95,19 @@ def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[0,0
     vertex_values = vertex_values[idx] 
 
     for i, (xc, yc, zc) in enumerate(zip(x,y,z)) :
-        interp_vol[xc,yc,zc] += vertex_values[i]
+
+        if debug.DEBUG == 4 :
+            interp_vol[xc,yc,zc] += yc
+        else :
+            interp_vol[xc,yc,zc] += vertex_values[i]
+    
         n_vol[xc,yc,zc] += 1
 
     return interp_vol, n_vol
 
 
 
-def multi_mesh_to_volume(profiles, surf_depth_slab_dict, depth_list, dimensions, starts, steps, resolution, y0, y1, origin=[0,0,0], ref_fn=None):
+def multi_mesh_to_volume(profiles, surfaces, depth_list, dimensions, starts, steps, resolution, y0, y1, origin=[0,0,0], ref_fn=None):
     all_points=[]
     all_values=[]
     interp_vol = np.zeros(dimensions)
@@ -96,7 +117,7 @@ def multi_mesh_to_volume(profiles, surf_depth_slab_dict, depth_list, dimensions,
     slab_end = max(y0,y1)
 
     for ii in range(profiles.shape[1]) :
-        surf_fn = get_surf_from_dict(surf_depth_slab_dict[depth_list[ii]]) 
+        surf_fn = surfaces[depth_list[ii]]['depth_rsl_fn']
         print('\tSURF', surf_fn)
 
         if 'npz' in os.path.splitext(surf_fn)[-1] : ext = '.npz'
@@ -106,27 +127,16 @@ def multi_mesh_to_volume(profiles, surf_depth_slab_dict, depth_list, dimensions,
         #to_do_ist.append((surf_fn,surf_fn))
         points = np.load(surf_fn)['points']
         assert points.shape[0] == profiles.shape[0], 'Error mismatch in number of points between {surf_fn} and vertex values file'
+        print(np.sum(np.abs(profiles[:,ii])))
 
         interp_vol, n_vol = mesh_to_volume(points, profiles[:,ii], dimensions, starts, steps, interp_vol=interp_vol, n_vol=n_vol)
     
     interp_vol[ n_vol>0 ] = interp_vol[n_vol>0] / n_vol[n_vol>0]
     
-    assert np.sum(interp_vol) != 0 , 'Error: interpolated volume is empty'
+    assert np.sum(np.abs(interp_vol)) != 0 , 'Error: interpolated volume is empty'
     return interp_vol
 
 
-
-def get_surf_from_dict(d):
-    keys = d.keys()
-    if 'upsample_h5' in keys : 
-        surf_fn = d['upsample_h5']
-    elif 'depth_rsl_fn' in keys :
-        surf_fn = d['depth_rsl_fn']
-    elif 'surf' in keys :
-        surf_fn = d['surf']
-    else : 
-        assert False, f'Error: could not find surface in keys, {keys}'
-    return surf_fn
 
 
 def add_entry(d,i, lst):
@@ -388,24 +398,23 @@ def calculate_upsampled_points(faces,  face_coords, face_vertex_values, resoluti
     return points, values, new_points_gen
 
 
-def transform_surface_to_slabs( slab_dict, thickened_dict,  out_dir, surf_fn, ref_gii_fn=None, faces_fn=None, ext='.surf.gii'):
-    surf_slab_space_dict={}
+def transform_surface_to_slabs( volume_dict, depth, slab_dict, out_dir, surf_fn, ref_gii_fn=None, faces_fn=None, ext='.surf.gii'):
 
     for slab, curr_dict in slab_dict.items() :
-        thickened_fn = thickened_dict[str(slab)]
-        nl_3d_tfm_fn = slab_dict[str(slab)]['nl_3d_tfm_fn']
+        thickened_fn = volume_dict[int(slab)]
+        nl_3d_tfm_fn = slab_dict[int(slab)]['nl_3d_tfm_fn']
         surf_slab_space_fn = f'{out_dir}/slab-{slab}_{os.path.basename(surf_fn)}' 
         
-        surf_slab_space_dict[slab] = {}
-        surf_slab_space_dict[slab]['surf'] = surf_slab_space_fn
-        surf_slab_space_dict[slab]['vol'] = thickened_fn
+        #slabData.surfaces[slab][depth] = surf_slab_space_fn
+        #slabData.volumes[slab][depth] = thickened_fn
+
         print('\tFROM:', surf_fn)
         print('\tTO:', surf_slab_space_fn)
         print('\tWITH:', nl_3d_tfm_fn)
+
         if not os.path.exists(surf_slab_space_fn) :
             apply_ants_transform_to_gii(surf_fn, [nl_3d_tfm_fn], surf_slab_space_fn, 0, faces_fn=faces_fn, ref_gii_fn=ref_gii_fn, ref_vol_fn=thickened_fn)
 
-    return surf_slab_space_dict
 
 
 def load_mesh_ext(in_fn, faces_fn='', correct_offset=False):
@@ -457,7 +466,6 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, ref_gi
     
     out_path, out_ext = os.path.splitext(out_gii_fn)
     coord_fn = out_path + f'_{flip_label}_ants_reformat.csv'
-    #temp_out_fn=tempfile.NamedTemporaryFile().name+'.csv' #DEBUG
     temp_out_fn = out_path + f'_{flip_label}_ants_reformat_warped.csv'
     coords = np.concatenate([coords, np.zeros([coords.shape[0],2])], axis=1 )
     #the for loops are here because it makes it easier to trouble shoot to check how the vertices need to be flipped to be correctly transformed by ants
@@ -476,7 +484,6 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, ref_gi
     df['x'] = flipx * (df['x'] - origin[0])
     df['y'] = flipy * (df['y'] - origin[1])
     df['z'] = flipz * (df['z'] - origin[2])
-    #os.remove(temp_out_fn) DEBUG
 
     new_coords = df[['x','y','z']].values
     out_basename, out_ext = os.path.splitext(out_gii_fn)

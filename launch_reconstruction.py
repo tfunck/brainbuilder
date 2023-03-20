@@ -7,6 +7,9 @@ import pandas as pd
 import numpy as np
 import nibabel
 import utils.ants_nibabel as nib
+import matplotlib.pyplot as plt
+import seaborn as sns
+import debug; 
 from scipy.interpolate import interp1d
 from joblib import Parallel, delayed
 from validation.validate_alignment import validate_alignment
@@ -18,18 +21,21 @@ from scipy.ndimage.filters import gaussian_filter
 from utils.utils import shell, create_2d_sections, run_stage, prefilter_and_downsample, resample_to_autoradiograph_sections, num_cores
 from utils.ANTs import ANTs
 from utils.mesh_io import load_mesh_geometry, save_mesh_data, save_obj, read_obj
+from utils.reconstruction_classes import SlabReconstructionData
 from reconstruction.init_alignment import receptorRegister, apply_transforms_to_landmarks
-from reconstruction.surface_interpolation import surface_interpolation, create_thickened_volumes
+from reconstruction.surface_interpolation import  surface_interpolation, create_thickened_volumes
 from reconstruction.crop import crop, process_landmark_images
-from validation.validate_interpolation import validate_interpolation
+from validation.validate_interpolation import validate_interpolation, plot_r2
 from validation.validate_reconstructed_sections import validate_reconstructed_sections
 from preprocessing.preprocessing import fill_regions_3d
-from reconstruction.batch_correction import correct_batch_effects 
+#from reconstruction.batch_correction import correct_batch_effects 
 
 global file_dir
 base_file_dir, fn =os.path.split( os.path.abspath(__file__) )
 file_dir = base_file_dir +os.sep +'section_numbers' +os.sep
 manual_dir = base_file_dir +os.sep +'manual_points' +os.sep
+
+if debug.DEBUG > 0: print('\n\nRUNNING WITH DEBUG',debug.DEBUG,'\n\n')
 
 def create_new_srv_volumes(rec_3d_rsl_fn, srv_rsl_fn, cropped_output_list, resolution_list ):
     '''
@@ -171,8 +177,10 @@ def setup_argparse():
     parser.add_argument('--hemispheres', '--hemi', dest='hemi',default=['R'], nargs='+', help='Brains to reconstruct. Default = reconstruct all hemispheres.')
     parser.add_argument('--ligand', dest='ligand',default='afdx', help='Ligand to reconstruct for final volume.')
     parser.add_argument('--clobber', dest='clobber',default=False,action='store_true', help='Overwrite existing results')
+    parser.add_argument('--debug', dest='debug',default=False,action='store_true', help='DEBUG mode')
+
     parser.add_argument('--slab','-s', dest='slab', nargs='+', default=[1], help='Slabs to reconstruct. Default = reconstruct all slabs.')
-    parser.add_argument('--resolutions','-r', dest='resolution_list', nargs='+', default=['4.0', '3.0', '2.0', '1.0', '0.5', '0.25'], help='Resolution list.')
+    parser.add_argument('--resolutions','-r', dest='resolution_list', nargs='+', default=[4.0, 3.0, 2.0, 1.0, 0.5, 0.25],type=float, help='Resolution list.')
     parser.add_argument('--chunk-perc','-u', dest='slab_chunk_perc', type=float, default=1., help='Subslab size (use with --nonlinear-only option) ')
     parser.add_argument('--chunk','-c', dest='slab_chunk_i', type=int, default=1, help='Subslab to align (use with --nonlinear-only option).')
     parser.add_argument('--nvertices', dest='n_vertices', type=int, default=81920, help='n vertices for mesh')
@@ -276,6 +284,7 @@ def setup_parameters(args) :
         args.autoradiograph_info_fn=args.out_dir+'/autoradiograph_info_volume_order.csv'
 
     args.crop_dir = f'{args.out_dir}/0_crop'
+    args.qc_dir = f'{args.out_dir}/6_quality_control/'
     os.makedirs(args.crop_dir,exist_ok=True)
 
     #args.landmark_src_dir=f'{manual_dir}/landmarks/'
@@ -309,7 +318,7 @@ def add_tfm_column(slab_df, init_tfm_csv, slab_tfm_csv) :
 def create_directories(args, files, brain, hemi, resolution_list) :
     for slab in args.slabs :
         for resolution_itr, resolution in enumerate(resolution_list) :
-            cfiles = files[brain][hemi][str(slab)][str(resolution)] #Current files
+            cfiles = files[brain][hemi][str(slab)][resolution] #Current files
             
             dirs_to_create=[ cfiles['cur_out_dir'], cfiles['seg_dir'], cfiles['srv_dir'],
                              cfiles['align_to_mri_dir'], cfiles['nl_2d_dir'] ]
@@ -322,50 +331,60 @@ def create_srv_volumes_for_next_slab(args,files, slab_list, resolution_list, res
     
     if not_last_slab  :
         resolution = resolution_list[-1]
-        rec_3d_rsl_fn = files[brain][hemi][str(slab)][str(resolution)]['rec_3d_rsl_fn']
+        rec_3d_rsl_fn = files[brain][hemi][str(slab)][float(resolution)]['rec_3d_rsl_fn']
         # filenames for the next slab
         next_slab = args.slabs[slab_index+1]
         next_slab_files = files[brain][hemi][next_slab]
+
         # filename for cropped srv file for next slab
-        stage_3_5_outputs = [ next_slab_files[str(r)]['srv_crop_rsl_fn']   for r in resolution_list ]
+        stage_3_5_outputs = [ next_slab_files[float(r)]['srv_crop_rsl_fn']   for r in resolution_list ]
+        print(stage_3_5_outputs)
         if run_stage( [], stage_3_5_outputs):
             print('\tNext Slab:', next_slab)
             print('\t\tStage 4.5 : Removing aligned slab from srv')
 
-            crop_srv_rsl_fn = files[brain][hemi][str(int(slab))][str(resolution)]['srv_crop_rsl_fn']
+            crop_srv_rsl_fn = files[brain][hemi][str(int(slab))][float(resolution)]['srv_crop_rsl_fn']
             create_new_srv_volumes(rec_3d_rsl_fn, crop_srv_rsl_fn, stage_3_5_outputs, resolution_list_3d)
 
-
-
-def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=None) :
+def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=None) :
     ###
     ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
     ###
     final_ligand_dict={}
+    ligands = np.unique(hemi_df['ligand'])
 
+    slabData = SlabReconstructionData(brain, hemi, args.slabs, ligands, args.depth_list, interp_dir, interp_dir +'/surfaces/', highest_resolution)
 
-    thickened_dict = create_thickened_volumes(interp_dir, slab_dict, hemi_df, args.n_depths, highest_resolution, norm_df_csv=norm_df_csv)
-    
     for ligand, df_ligand in hemi_df.groupby(['ligand']):
-        #if ligand != 'flum' : continue
+        if ligand != 'cgp5' : continue
         print('\t\tLigand:', ligand)
-        final_ligand_fn = surface_interpolation(thickened_dict[ligand], df_ligand, slab_dict, interp_dir, brain, hemi, highest_resolution, args.srv_cortex_fn, args.slabs, files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices, n_depths=args.n_depths)
+
+        ligandSlabData = slabData
+        ligandSlabData.volumes = slabData.volumes[ligand] 
+        ligandSlabData.cls = slabData.cls[ligand] 
+        ligandSlabData.values_raw = slabData.values_raw[ligand] 
+        ligandSlabData.values_interp = slabData.values_interp[ligand] 
+        ligandSlabData.ligand = ligand
+    
+        create_thickened_volumes(interp_dir, slab_files_dict, hemi_df.loc[hemi_df['ligand']==ligand], slabData.n_depths, slabData.resolution, norm_df_csv=norm_df_csv)
+
+        final_ligand_fn = surface_interpolation(ligandSlabData, df_ligand, slab_files_dict, args.srv_cortex_fn,  files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices)
         final_ligand_dict[ligand] = final_ligand_fn
 
-    return final_ligand_dict
+    return slabData, final_ligand_dict
 
 def create_file_dict_output_resolution(files, brain, hemi, resolution_list):
-    slab_dict={} 
-    for slab, temp_slab_dict in files[brain][hemi].items() :
-        nl_3d_tfm_exists = os.path.exists(temp_slab_dict[resolution_list[-1]]['nl_3d_tfm_fn'])
-        nl_2d_vol_exists = os.path.exists(temp_slab_dict[resolution_list[-1]]['nl_2d_vol_fn'])
+    slab_files_dict={} 
+    for slab, temp_slab_files_dict in files[brain][hemi].items() :
+        nl_3d_tfm_exists = os.path.exists(temp_slab_files_dict[resolution_list[-1]]['nl_3d_tfm_fn'])
+        nl_2d_vol_exists = os.path.exists(temp_slab_files_dict[resolution_list[-1]]['nl_2d_vol_fn'])
         if nl_3d_tfm_exists and nl_2d_vol_exists :
-            slab_dict[slab] = temp_slab_dict[resolution_list[-1]] 
+            slab_files_dict[int(slab)] = temp_slab_files_dict[resolution_list[-1]] 
         else : 
             print(f'Error: not including slab {slab} for interpolation (nl 3d tfm exists = {nl_3d_tfm_exists}, 2d nl vol exists = {nl_2d_vol_exists}) ')
 
-    assert len(slab_dict.keys()) != 0 , print('No slabs to interpolate over')
-    return slab_dict
+    assert len(slab_files_dict.keys()) != 0 , print('No slabs to interpolate over')
+    return slab_files_dict
 
 def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_resolution_3d=0.3):
     hemi_df = df.loc[ (df['mri']==brain) & (df['hemisphere']==hemi) ]
@@ -377,7 +396,11 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
 
     create_directories(args, files, brain, hemi, resolution_list)
 
-    resolution_list_3d = [ float(resolution) if float(resolution) > max_resolution_3d else max_resolution_3d for resolution in resolution_list ]
+    resolution_list_3d = [ float(resolution) for resolution in resolution_list + [max_resolution_3d] if float(resolution) >= max_resolution_3d ]
+    
+    dt = (1./args.n_depths)
+    args.depth_list = np.round(np.arange(0, 1+dt/10, dt),3)
+    args.depth_list = np.insert(args.depth_list,0, 0)
 
     ### Reconstruct slab
     for slab_index, slab in enumerate(args.slabs) :
@@ -385,46 +408,83 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
    
     interp_dir=f'{args.out_dir}/5_surf_interp/'
 
-    slab_dict = create_file_dict_output_resolution(files, brain, hemi, resolution_list)
+    slab_files_dict = create_file_dict_output_resolution(files, brain, hemi, resolution_list)
     
     if not args.no_surf : 
         print('\tSurface-based reconstruction') 
-        final_ligand_dict = surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=args.norm_df_csv)
+        slabData, final_ligand_dict = surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=args.norm_df_csv)
     
-    validate_alignment(f'{args.out_dir}/6_quality_control/validate_alignment/', files[brain][hemi])
-    
+    validate_alignment(f'{args.qc_dir}/validate_alignment/', files[brain][hemi])
+
     ###
     ### 6. Quality Control
     ###
-    exit(0)
-    for ligand, df_ligand in hemi_df.groupby(['ligand']):
-        final_ligand_fn=final_ligand_dict[ligand]
+    df_list=[]
+    for ligand, final_ligand_fn in final_ligand_dict.items() :
+        df_ligand = hemi_df.loc[hemi_df['ligand']==ligand]
         max_resolution = resolution_list[-1]
-        
-        depth_list = np.round(np.arange(0, 1+(1./args.n_depths)/10, dt),3)
-        depth_list = np.insert(depth_list,0, 0)
 
-        depth = depth_list[int(len(depth_list/2)) ]
+        depth = args.depth_list[int((len(args.depth_list)+2)/2) ]
+
         print('\tValidate reconstructed sections:', ligand)
-        validate_reconstructed_sections(final_ligand_fn, max_resolution, args.n_depths, df_ligand, args.srv_cortex_fn, base_out_dir=args.out_dir,  clobber=False)
+        validate_reconstructed_sections(final_ligand_fn, max_resolution, args.n_depths+2, df_ligand, args.srv_cortex_fn, base_out_dir=args.out_dir,  clobber=True)
         
-        #FIXME filename should be passed from surface_interpolation
-        print(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')
-        ligand_csv_list = glob(f'{interp_dir}/*{ligand}*{depth}*_raw.csv')
-
+        
+        ligand_csv_path = f'{interp_dir}/*{ligand}_{max_resolution}mm_l{args.n_depths}*{depth}_raw.csv'
+        ligand_csv_list = glob(ligand_csv_path)
         if len(ligand_csv_list) > 0 : 
-            sphere_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_inflate_rsl.h5')[0]
-            cortex_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_rsl.h5')[0]
-            faces_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_0.0_rsl_new_faces.h5')[0]
-            output_dir=f'/data/receptor/human/output_3_caps/6_quality_control/'
-            validate_interpolation(ligand_csv, sphere_mesh_fn, cortex_mesh_fn, faces_fn, output_dir, n_samples=1000, max_depth=6, ligand=ligand)
-        else : 
-            print('Could not find file for validate_interpolation')
+            ligand_csv = ligand_csv_list[0]
+        else :
+            print('Errpr: could not find ligand_csv', ligand_csv_path)
+            exit(1)
+
+        sphere_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_sphere_rsl.npz')[0]
+        cortex_mesh_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_{depth}_rsl.npz')[0]
+
+        sphere_mesh_orig_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_0.0.surf.gii')[0]
+        cortex_mesh_orig_fn = glob(f'{interp_dir}/surfaces/surf_{max_resolution}mm_0.0.sphere')[0]
+        inflation_ratio = calculate_dist_of_sphere_inflation(cortex_mesh_orig_fn, sphere_mesh_orig_fn)
+        
+        sphere_resolution = float(max_resolution) * inflation_ratio
+        tdf = validate_interpolation(ligand_csv, 
+                            sphere_mesh_fn,
+                            cortex_mesh_fn,  
+                            args.qc_dir, 
+                            max_resolution, 
+                            ligand=ligand,
+                            n_samples=1000,
+                            clobber=True )
+        df_list.append(tdf)
+    df = pd.concat(df_list)
+
+    out_r2_fn = f'{args.qc_dir}/interpolation_validation_r2.png'
+
+    plot_r2(df, out_r2_fn)
+
+from utils.mesh_utils import load_mesh_ext
+from utils.utils import get_edges_from_faces
+
+def calculate_dist_of_sphere_inflation(cortex_fn, sphere_fn):
+    coord, faces = load_mesh_ext(cortex_fn)
+    coord_sphere, faces_sphere = load_mesh_ext(sphere_fn)
+    edges = get_edges_from_faces(faces)
+
+    d0 = np.sqrt(np.sum(np.power(coord[edges[:,0]] - coord[edges[:,1]], 2),axis=1))
+    d1 = np.sqrt(np.sum(np.power(coord_sphere[edges[:,0]] - coord_sphere[edges[:,1]], 2),axis=1))
+
+    edge_ratios = d1 / d0
+
+    ratio_average = np.mean(edge_ratios)
+    ratio_std = np.std(edge_ratios)
+    return ratio_average
+
+
+
 
 
 def reconstruct_slab(hemi_df, brain, hemi, slab, slab_index, args, files, resolution_list, resolution_list_3d, max_resolution_3d=0.3):
     print('Slab:', slab)
-    cdict = files[brain][hemi][str(slab)][str(resolution_list[0])]
+    cdict = files[brain][hemi][str(slab)][float(resolution_list[0])]
     slab_df=hemi_df.loc[ hemi_df['slab'].astype(int) ==int(slab) ]
     init_align_fn = cdict['init_align_fn']
     init_align_dir = cdict['init_align_dir']
@@ -441,34 +501,31 @@ def reconstruct_slab(hemi_df, brain, hemi, slab, slab_index, args, files, resolu
         slab_df = add_tfm_column(slab_df, init_tfm_csv,slab_tfm_csv)
     else : slab_df = pd.read_csv(slab_tfm_csv)
   
-    #print(hemi_df['batch_corrected_fn'].values); exit(0)
     #apply_transforms_to_landmarks(args.landmark_df, slab_df, args.landmark_dir, init_align_fn)
 
     ### Steps 2-4 : Multiresolution alignment
     cfiles=files[brain][hemi][str(slab)]
     multiresolution_outputs = []
-    for file_name in ['seg_rsl_fn','nl_3d_tfm_fn','nl_3d_tfm_inv_fn','rec_3d_rsl_fn','srv_3d_rsl_fn','srv_iso_space_rec_fn','srv_space_rec_fn','nl_2d_vol_fn','nl_2d_vol_cls_fn', 'slab_info_fn']:
-        multiresolution_outputs += [ cfiles[str(resolution)][file_name] for resolution in resolution_list ]
+    for file_name in ['seg_rsl_fn','nl_3d_tfm_fn','nl_3d_tfm_inv_fn','rec_3d_rsl_fn','srv_3d_rsl_fn','srv_iso_space_rec_fn','srv_space_rec_fn','nl_2d_vol_fn','nl_2d_vol_cls_fn', 'slab_info_fn', 'srv_crop_rsl_fn', 'srv_rsl_fn']:
+        multiresolution_outputs += [ cfiles[float(resolution)][file_name] for resolution in resolution_list ]
         
-    #multiresolution_outputs+=[cfiles[str(resolution_list[-1])]['slab_info_fn']]
+    #multiresolution_outputs+=[cfiles[float(resolution_list[-1])]['slab_info_fn']]
     if run_stage([init_align_fn], multiresolution_outputs) or args.clobber : 
         print('\tMultiresolution Alignment')
         multiresolution_alignment( slab_df, hemi_df, brain, hemi, slab, slab_index, args, files, resolution_list, resolution_list_3d, init_align_fn, max_resolution_3d)
 
     print('\tCreate SRV volumes for next slab')
     create_srv_volumes_for_next_slab(args,files, args.slabs, resolution_list, resolution_list_3d, brain, hemi, slab, slab_index)
-
     ###
     ### Stage 4.5 : Create a new srv_rsl_fn file that removes the currently aligned slab
     ###
     #check that the current slab isn't the last one
 
-    slab_info_fn = cfiles[str(resolution_list[-1])]['slab_info_fn'] #Current files
+    slab_info_fn = cfiles[float(resolution_list[-1])]['slab_info_fn'] #Current files
     slab_df = pd.read_csv(slab_info_fn, index_col=None)
 
     slab_idx = hemi_df['slab'].astype(int) == int(slab)
-    #hemi_df.iloc[slab_idx] = slab_df
-    print(hemi_df['nl_2d_rsl'].loc[ slab_idx ])
+
     assert np.sum(slab_idx) == slab_df.shape[0] , f'Error: no slab {slab} in {hemi_df["slab"].values}'
     hemi_df['nl_2d_rsl'].loc[ slab_idx ] = slab_df['nl_2d_rsl'].values
     hemi_df['nl_2d_cls_rsl'].loc[ slab_idx ] = slab_df['nl_2d_cls_rsl'].values
@@ -489,6 +546,8 @@ def reconstruct_slab(hemi_df, brain, hemi, slab, slab_index, args, files, resolu
 if __name__ == '__main__':
 
     args, files = setup_parameters(setup_argparse().parse_args() )
+    
+    args.resolution_list = [ float(r) for r in args.resolution_list ]
 
     #Process the base autoradiograph csv
     if not os.path.exists(args.autoradiograph_info_fn) : 
@@ -508,7 +567,8 @@ if __name__ == '__main__':
     print('\tFinished cropping') 
     #args.landmark_df = process_landmark_images(df, args.landmark_src_dir, args.landmark_dir, args.scale_factors_fn)
 
-    #df, args.norm_df_csv = correct_batch_effects(df, args)
+    #df = correct_batch_effects(df, args, n_samples=30, maxiter=10000, tolerance=1e-9)
+    
     args.norm_df_csv = None
     
     for brain in args.brain :

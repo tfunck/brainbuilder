@@ -50,14 +50,8 @@ def get_surface_filename(surf_obj_fn, surf_gii_fn, surf_fs_fn):
     return surf_fn, ext
 
 
-def prepare_surfaces(slab_dict, thickened_dict, depth_list, interp_dir, resolution, upsample_resolution, mni_fn, ligand, df_ligand, input_surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, brain='mri1', hemi='R', clobber=0):
-    '''
 
-    '''
-    surf_rsl_dir = interp_dir +'/surfaces/' 
-    os.makedirs(surf_rsl_dir, exist_ok=True)
-    
-    #Interpolate at coordinate locations
+def get_gm_wm_surfaces(input_surf_dir, brain, hemi, n_vertices):
     ref_surf_fn = surf_base_str.format( input_surf_dir, brain,'gray', hemi, n_vertices,'','surf.gii')
     ref_surf_obj_fn = surf_base_str.format( input_surf_dir, brain,'gray', hemi, n_vertices,'','obj')
 
@@ -73,9 +67,28 @@ def prepare_surfaces(slab_dict, thickened_dict, depth_list, interp_dir, resoluti
     
     surf_gm_fn, ext = get_surface_filename(surf_gm_obj_fn, surf_gm_gii_fn, surf_gm_fs_fn)
     surf_wm_fn, _ = get_surface_filename(surf_wm_obj_fn, surf_wm_gii_fn, surf_wm_fs_fn)
+
+    return surf_gm_fn, surf_wm_fn, ext
+
+def prepare_surfaces(slab_dict, ligandSlabData,  mni_fn, df_ligand, input_surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, brain='mri1', hemi='R', clobber=0):
+    '''
+
+    '''
+    depth_list=ligandSlabData.depths
+    interp_dir = ligandSlabData.volume_dir
+    resolution = ligandSlabData.resolution
+    ligand=ligandSlabData.ligand
+    brain=ligandSlabData.brain
+    hemi=ligandSlabData.hemi
+
+    surf_rsl_dir = interp_dir +'/surfaces/' 
+    os.makedirs(surf_rsl_dir, exist_ok=True)
+    
+    #Interpolate at coordinate locations
+    surf_gm_fn, surf_wm_fn, ext = get_gm_wm_surfaces(input_surf_dir, brain, hemi, n_vertices)
     
     origin=[0,0,0]
-    if ext.gm == '.pial' : origin= load_mesh(surf_gm_fn)[2]['cras']
+    if ext.gm == '.pial' : origin = load_mesh(surf_gm_fn)[2]['cras']
     
     sphere_obj_fn = surf_base_str.format(input_surf_dir, brain, 'mid', hemi, n_vertices,'_sphere',ext.gm)
     print('\tSurf GM filename:', surf_gm_fn) 
@@ -89,20 +102,18 @@ def prepare_surfaces(slab_dict, thickened_dict, depth_list, interp_dir, resoluti
     surf_depth_mni_dict = inflate_surfaces(surf_depth_mni_dict, surf_rsl_dir, ext, resolution,  depth_list,  clobber=clobber)
 
     print("\tUpsampling surfaces.") 
-    surf_depth_mni_dict = upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_rsl_dir, surf_gm_fn, ext, resolution, upsample_resolution,  depth_list, slab_dict, ligand, df_ligand, mni_fn, clobber=clobber)
+    surf_depth_mni_dict = upsample_surfaces(surf_depth_mni_dict, ligandSlabData.volumes, surf_rsl_dir, surf_gm_fn, ext, resolution, depth_list, slab_dict, ligand, df_ligand, mni_fn, clobber=clobber)
 
     #For each slab, transform the mesh surface to the receptor space
     print("\tTransforming surfaces to slab space.")
+    transfrom_depth_surf_to_slab_space(slab_dict, surf_depth_mni_dict, ligandSlabData.volumes, surf_rsl_dir)
 
-    surf_depth_slab_dict = transfrom_depth_surf_to_slab_space(slab_dict, surf_depth_mni_dict, thickened_dict, surf_rsl_dir)
-
-    return surf_depth_mni_dict, surf_depth_slab_dict, origin
-
+    return surf_depth_mni_dict, origin
 
 
-def transfrom_depth_surf_to_slab_space(slab_dict, surf_depth_mni_dict, thickened_dict, surf_rsl_dir):
-    surf_depth_slab_dict={}
-    for slab in slab_dict.keys(): surf_depth_slab_dict[slab]={}
+
+def transfrom_depth_surf_to_slab_space(slab_dict, surf_depth_mni_dict, volumes, surf_rsl_dir):
+
     
     for depth, depth_dict in surf_depth_mni_dict.items():
         faces_fn=None
@@ -110,12 +121,9 @@ def transfrom_depth_surf_to_slab_space(slab_dict, surf_depth_mni_dict, thickened
         ref_gii_fn=depth_dict['depth_surf_fn']
 
         surf_fn = depth_dict['depth_rsl_fn']
-        temp_rsl_dict = transform_surface_to_slabs( slab_dict, thickened_dict,  surf_rsl_dir, surf_fn, faces_fn=faces_fn, ref_gii_fn=ref_gii_fn, ext='.surf.gii')
+        transform_surface_to_slabs( volumes, depth, slab_dict,  surf_rsl_dir, surf_fn, faces_fn=faces_fn, ref_gii_fn=ref_gii_fn, ext='.surf.gii')
 
-        for slab in slab_dict.keys() :
-            surf_depth_slab_dict[slab][depth]=  temp_rsl_dict[slab]
 
-    return surf_depth_slab_dict
 
 def generate_cortical_depth_surfaces(surf_depth_mni_dict, depth_list, resolution, wm_surf_fn, surf_gm_fn, surf_dir, ligand, ext):
 
@@ -223,7 +231,7 @@ def resample_points(surf_fn, new_points_gen):
     new_points += np.random.normal(0,0.0001, new_points.shape )
     return new_points, points
 
-def upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_dir, surf_gm_fn, ext, resolution, upsample_resolution,  depth_list, slab_dict, ligand, df_ligand, mni_fn, clobber=False):
+def upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_dir, surf_gm_fn, ext, resolution, depth_list, slab_dict, ligand, df_ligand, mni_fn, clobber=False):
 
     gm_obj_fn="{}/surf_{}mm_{}_rsl.obj".format(surf_dir, resolution,0)
     upsample_0_fn = "{}/surf_{}mm_{}_rsl{}".format(surf_dir, resolution,depth_list[0], ext.gm)
@@ -247,8 +255,6 @@ def upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_dir, surf_gm_fn,
         input_list += [depth_surf_fn, sphere_fn]
         output_list+= [depth_rsl_fn, sphere_rsl_fn]
 
-        #if depth == 0:
-        #    surf_slab_space_dict = transform_surface_to_slabs( slab_dict, thickened_dict, surf_dir, surf_gm_fn, ext='.surf.gii')
         
 
     surf_depth_mni_dict[depth_list[0]]['depth_rsl_gii'] = upsample_0_fn
