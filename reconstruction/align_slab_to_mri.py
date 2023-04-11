@@ -81,9 +81,11 @@ def get_slab_start_end(srv_rsl_fn, manual_points_fn,  orientation='lpi', verbose
 
     y0_temp = min(y0,y1)
     y1_temp = max(y0,y1)
-
-    y0 = np.floor(y0_temp).astype(int)
-    y1 = np.ceil(y1_temp).astype(int)
+    #y0 = np.floor(y0_temp).astype(int)
+    #y1 = np.ceil(y1_temp).astype(int)
+    #DEBUG
+    y0 = np.round(y0_temp).astype(int)
+    y1 = np.round(y1_temp).astype(int)
 
     assert y0 > 0 , f'Error: y0 is negative: {y0}'
     assert y1 > 0 , f'Error: y1 is negatove: {y1}'
@@ -153,34 +155,57 @@ def pad_seg_vol(seg_rsl_fn,max_downsample_level):
 
         
 
-def get_alignment_schedule(resolution_list, resolution, resolution_cutoff_for_cc = 0.5, base_nl_itr = 100, base_lin_itr = 500):
+def get_alignment_schedule(resolution_list, resolution, resolution_cutoff_for_cc = 0.3, base_nl_itr = 200, base_lin_itr = 500):
     #cur_res/res = 2^(f-1) --> f = 1+ log2(cur_res/res)
     #min_nl_itr = len( [ resolution for resolution in resolution_list[0:resolution_itr] if  float(resolution) <= .1 ] ) # I gues this is to limit nl alignment above 0.1mm
-    base_cc_itr = np.rint(base_nl_itr/10)
+    base_cc_itr = np.rint(base_nl_itr/2)
+
+
+    resolution_list = [ float(r) for r in resolution_list ]
+
+    #CC APPEARS TO BE VERY IMPORTANT, especially for temporal lobe
     
     cc_resolution_list = [ r for r in resolution_list if float(r) > resolution_cutoff_for_cc ]
     print(cc_resolution_list)
 
     linParams = AntsParams(resolution_list, resolution, base_lin_itr) 
-    nlParams = AntsParams(resolution_list, resolution, base_nl_itr)  
-    cc_resolution=max(min(cc_resolution_list), resolution)
-    ccParams = AntsParams(cc_resolution_list, cc_resolution, base_cc_itr)  
-    print('itr')
-    print(ccParams.itr_str)
+    print('lin')
     print(linParams.itr_str)
-    
-    print('smoothing')
-    print(linParams.s_str)
-    print(nlParams.s_str)
-    print(ccParams.s_str)
-    print('factor')
     print(linParams.f_str)
+    print(linParams.s_str)
+
+    #resolution_list_lo = [ f for r in resolution_listdd ]
+    max_GC_resolution = 1.
+    GC_resolution = max(resolution, max_GC_resolution)
+
+    #nlParams = AntsParams(resolution_list, resolution, base_nl_itr, max_resolution=1.0)  
+    nlParams = AntsParams(resolution_list, resolution, base_nl_itr)  
+
+    nlParamsHi = AntsParams(resolution_list, resolution, base_nl_itr, start_resolution=0.999)  
+    nlParamsHi = None
+    
+    print('nl')
+    print(nlParams.itr_str)
+    print(nlParams.s_str)
     print(nlParams.f_str)
+
+    if nlParamsHi != None :
+        print('NL Params Hi Resolution')
+        print(nlParamsHi.itr_str)
+        print(nlParamsHi.s_str)
+        print(nlParamsHi.f_str)
+    
+    cc_resolution = max(min(cc_resolution_list), resolution)
+    ccParams = AntsParams(cc_resolution_list, cc_resolution, base_cc_itr)  
+    
+    print('cc')
+    print(ccParams.itr_str)
     print(ccParams.f_str)
+    print(ccParams.s_str)
     
     max_downsample_level = linParams.max_downsample_factor
 
-    return max_downsample_level, linParams, nlParams, ccParams 
+    return max_downsample_level, linParams, nlParams, nlParamsHi, ccParams 
 
 def write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0w, y0, y1, resolution, srv_ystep, srv_ystart, max_downsample_level, clobber=False):
 
@@ -228,7 +253,7 @@ def gen_mask(fn, clobber=False) :
     
     return out_fn
 
-def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, linParams, nlParams, ccParams, resolution, manual_affine_fn, metric='GC',nbins=10, use_init_tfm=False, use_masks=True, sampling=0.9, clobber=False ):
+def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, linParams, nlParams, nlParamsHi, ccParams, resolution, manual_affine_fn, metric='GC',nbins=10, use_init_tfm=False, use_masks=True, sampling=0.9, clobber=False ):
     prefix=re.sub('_SyN_Composite.h5','',out_tfm_fn)
     prefix_init = prefix+'_init_'
     prefix_rigid = prefix+'_Rigid_'
@@ -248,25 +273,24 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
 
 
     seg_mask_fn = gen_mask(seg_rsl_fn,clobber=True)
-    srv_mask_fn = gen_mask(srv_slab_fn,clobber=True)
+    srv_mask_fn = gen_mask(srv_rsl_fn,clobber=True)
 
     srv_tgt_fn=srv_slab_fn
     step=0.1
     #calculate SyN
 
+    nl_metric=metric
+    #if float(resolution) <= 0.3 : 
     #if float(resolution) <= 0.5 : 
-    #    metric = 'Mattes'
-    #    if int(nbins) < 16 : 
-    #        nbins=16
+    #    nl_metric = 'Mattes'
 
     use_cc = True
     if float(resolution) >= 1.0 : use_cc = True
     
-    nl_metric=f' -m {metric}[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]'
 
-    syn_rate='0.5'
+    syn_rate='0.1'
    
-    base=f'antsRegistration -v 1 -a 1 -d 3'
+    base=f'antsRegistration -v 1 -a 1 -d 3 '
     if use_masks :
         base=f'{base} --masks [{srv_mask_fn},{seg_mask_fn}] '
 
@@ -304,15 +328,18 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     syn_out_fn = f'{prefix_syn}volume.nii.gz'
     syn_inv_fn = f'{prefix_syn}volume_inverse.nii.gz'
     if not os.path.exists(f'{prefix_syn}Composite.h5'): 
-        # --masks [{srv_mask_fn},{seg_mask_fn}]
         syn_init = f'{prefix_affine}Composite.h5'
+
+        #nl_base += f' --masks [{srv_mask_fn},{seg_mask_fn}]'
             
         nl_base=f'{base}  --initial-moving-transform {prefix_affine}Composite.h5 -o [{prefix_syn},{syn_out_fn},{syn_inv_fn}] '
         
-        nl_base += f' -t SyN[{syn_rate}] -m Mattes[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} ' 
+        nl_base += f' -t SyN[{syn_rate}] -m {nl_metric}[{srv_rsl_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} ' 
 
-        nl_base += f' -t SyN[{syn_rate}] -m CC[{srv_tgt_fn},{seg_rsl_fn},1,3,Random,{sampling}]  -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str}'
+        #if type(nlParamsHi) != None :
+        #    nl_base += f' -t SyN[{syn_rate}] -m Mattes[{srv_rsl_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {nlParamsHi.s_str} -f {nlParamsHi.f_str} -c {nlParamsHi.itr_str} ' 
 
+        nl_base += f' -t SyN[{syn_rate}] -m CC[{srv_rsl_fn},{seg_rsl_fn},1,3,Random,{sampling}]  -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str}'
         shell(nl_base, verbose=True)
 
     simple_ants_apply_tfm(seg_rsl_fn, srv_rsl_fn, prefix_syn+'Composite.h5', out_fn)
@@ -348,7 +375,7 @@ def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, sl
     # get iteration schedules for the linear and non-linear portion of the ants alignment
     # get maximum number steps by which the srv image will be downsampled by 
     # with ants, each step means dividing the image size by 2^(level-1)
-    max_downsample_level, linParams, nlParams, ccParams = get_alignment_schedule(resolution_list, resolution )
+    max_downsample_level, linParams, nlParams, nlParamsHi, ccParams = get_alignment_schedule(resolution_list, resolution )
 
     # pad the segmented volume so that it can be downsampled by the 
     # ammount of times specified by max_downsample_level
@@ -364,12 +391,15 @@ def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, sl
 
     # get the start and end values of the slab in srv voxel coordinates
     y0w, y1w, y0, y1 = get_slab_start_end(srv_rsl_fn, manual_points_fn, verbose=True)
+
+
     
     # extract slab from srv and write it
     srv_slab_fn = write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0w, y0, y1, resolution, srv_ystep, srv_ystart, max_downsample_level)
-    
+    print(srv_slab_fn) 
+    print(y0, y1)
     # run ants alignment between segmented volume (from autoradiographs) to slab extracte
-    run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_pad_fn, linParams, nlParams, ccParams, resolution, manual_affine_fn, use_masks=use_masks ) #, metric='Mattes', nbins=32 )
+    run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_pad_fn, linParams, nlParams, nlParamsHi, ccParams, resolution, manual_affine_fn, use_masks=use_masks ) 
     return 0
 
 '''

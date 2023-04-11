@@ -34,19 +34,17 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
 
     base_lin_itr= 100
     base_nl_itr = 20
+    base_cc_itr = 5
 
-    base_lin_itr= 1000 #DEBUG OLD ITERATIONS
-    base_nl_itr = 100 #DEBUG OLD ITERATIONS
-    base_cc_itr = 10 #DEBUG OLD ITERATIONS
-
-    cc_resolution_list = [ r for r in resolution_list if float(r) <= 1 ] #CC does not work well at lower resolution 
-    cc_resolution=max(min(cc_resolution_list), resolution)
+    cc_resolution_list = [ r for r in resolution_list if float(r) < 1 ] #CC does not work well at lower resolution 
+    ccParams=None
+    if len(cc_resolution_list) > 0 :
+        cc_resolution=max(min(cc_resolution_list), resolution)
+        if cc_resolution in cc_resolution_list :
+            ccParams = AntsParams(cc_resolution_list, cc_resolution, base_cc_itr)
 
     linParams = AntsParams(resolution_list, resolution, base_lin_itr)
     nlParams = AntsParams(resolution_list, resolution, base_nl_itr)
-    ccParams=None
-    if cc_resolution in cc_resolution_list :
-        ccParams = AntsParams(cc_resolution_list, cc_resolution, base_cc_itr)
 
 
 
@@ -130,14 +128,16 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     img = nib.load(crop_fn)
     img_res = np.array([img.affine[0,0], img.affine[1,1] ])
     vol = img.get_fdata()
+
     assert np.max(vol) < 256 , 'Problem with file '+ crop_fn + f'\n Max Value = {np.max(vol)}'
+
     sd = np.array( (float(resolution)/img_res) / np.pi )
     vol = gaussian_filter(vol, sd )
     nib.Nifti1Image(vol, img.affine).to_filename(crop_rsl_fn)
     
     #fix_affine(crop_rsl_fn)
     #fix_affine(fx_fn)
-    shell(f'antsApplyTransforms -v 1 -d 2 -n NearestNeighbor -i {crop_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
+    shell(f'antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {crop_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
     
     #Commented out masking because GM receptor mask not good enough at the moment.
     #rsl_img = nib.load(out_fn)
@@ -202,9 +202,9 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
     for i, row in df.iterrows() :
         y = int(row['slab_order'])
         prefix = f'{tfm_dir}/y-{y}' 
-        out_fn = prefix+'_rsl.nii.gz'
-        tfm_fn = prefix+'_Composite.h5'
-        tfm_affine_fn = prefix+'_Affine_Composite.h5'
+        out_fn = prefix + '_rsl.nii.gz'
+        tfm_fn = prefix + '_Composite.h5'
+        tfm_affine_fn = prefix + '_Affine_Composite.h5'
         df['tfm'].loc[ df['slab_order'] == y ] = tfm_fn
         df['tfm_affine'].loc[ df['slab_order'] == y ] = tfm_affine_fn
 

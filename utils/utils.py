@@ -596,24 +596,40 @@ def resample_to_output(vol, aff, resolution_list, order=1, dtype=None):
 
 
 class AntsParams():
-    def __init__(self, resolution_list, resolution, base_itr):
+    def __init__(self, resolution_list, resolution, base_itr, max_resolution=None, start_resolution=None, verbose=False):
+
+        if type(max_resolution) == type(None) :
+            self.max_resolution=resolution
+        else :
+            self.max_resolution=max_resolution
+
+        if start_resolution != None :
+            resolution_list = [ r for r in resolution_list if float(r) < float(start_resolution) ]
+        if len(resolution_list) == 0 : return None
+
         self.resolution_list=resolution_list
         self.max_n = len(resolution_list)
         self.cur_n = resolution_list.index(resolution)
         self.max_itr=int((self.max_n+1)*base_itr)
+        
         self.f_list = self.gen_downsample_factor_list(resolution_list)
         self.max_downsample_factor = int(self.f_list[0] )
+
         self.f_str = self.get_downsample_params(resolution_list)
         self.s_list = self.gen_smoothing_factor_list(resolution_list)
         self.s_str = self.get_smoothing_params(resolution_list)
         self.itr_str =  self.gen_itr_str(self.max_itr, base_itr)
 
+        if verbose: self._print()
 
         assert len(self.f_list) == len(self.s_list) == len(self.itr_str.split('x')), f'Error: incorrect number of elements in: \n{self.f_list}\n{self.s_list}\n{self.itr_str}\n{resolution_list}'
-
+    def _print(self):
+        print('Iterations:\t',self.itr_str)
+        print('Factors:\t', self.f_str)
+        print('Smoothing:\t',self.s_str)
 
     def gen_itr_str(self,max_itr, step):
-        itr_str = 'x'.join([str(int(max_itr - i*step)) for i in range(self.cur_n+1)])
+        itr_str = 'x'.join([str(int(max_itr - i*step)) for i in range(self.cur_n+1) if self.resolution_list[i] >= self.max_resolution ])
         itr_str ='['+ itr_str +',1e-7,20 ]' 
         return itr_str
 
@@ -621,7 +637,7 @@ class AntsParams():
         return 'x'.join( [str(i) for i in lst] ) + 'vox'
 
     def gen_smoothing_factor_list(self, resolution_list):
-        return [ np.round(float(float(resolution_list[i])/float(resolution_list[self.cur_n]))/np.pi,2) if i != self.cur_n-1 else 0 for i in range(self.cur_n+1)  ] 
+        return [ np.round(float(float(resolution_list[i])/float(resolution_list[self.cur_n]))/np.pi,2) if i != self.cur_n else 0 for i in range(self.cur_n+1)   if self.resolution_list[i] >= self.max_resolution ] 
 
     def get_smoothing_params(self, resolution_list):
         s_list = self.gen_smoothing_factor_list(resolution_list)
@@ -631,7 +647,7 @@ class AntsParams():
         return np.rint(1+np.log2(float(cur_res)/float(image_res))).astype(int).astype(str)
 
     def gen_downsample_factor_list(self, resolution_list) :
-        return [ self.calc_downsample_factor(resolution_list[i], resolution_list[self.cur_n]) for i in range(self.cur_n+1)  ]
+        return [ self.calc_downsample_factor(resolution_list[i], resolution_list[self.cur_n]) for i in range(self.cur_n+1) if self.resolution_list[i] >= self.max_resolution  ]
 
     def get_downsample_params(self, resolution_list) :
         return 'x'.join( self.gen_downsample_factor_list(resolution_list) )

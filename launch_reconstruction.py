@@ -64,6 +64,7 @@ def create_new_srv_volumes(rec_3d_rsl_fn, srv_rsl_fn, cropped_output_list, resol
             prefilter_and_downsample(highest_res_srv_rsl_fn, [float(r)]*3, lower_res_srv_rsl_fn) #, reference_image_fn=rec_3d_rsl_fn)
 
         print('Next srv fn:', lower_res_srv_rsl_fn)
+    
 
 def remove_slab_from_srv(slab_to_remove_fn, srv_rsl_fn, new_srv_rsl_fn):
     '''
@@ -80,7 +81,9 @@ def remove_slab_from_srv(slab_to_remove_fn, srv_rsl_fn, new_srv_rsl_fn):
         None
     '''
     print('slab_to_remove_fn', slab_to_remove_fn)
-    print('srv_rsl_fn', srv_rsl_fn)
+    print('SRV', srv_rsl_fn)
+    print('New SRV RSL', new_srv_rsl_fn)
+    
     #load slab gm mask, not strictly binary
     aligned_slab = nib.load(slab_to_remove_fn).get_fdata()
     
@@ -430,7 +433,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
         validate_reconstructed_sections(final_ligand_fn, max_resolution, args.n_depths+2, df_ligand, args.srv_cortex_fn, base_out_dir=args.out_dir,  clobber=True)
         
         
-        ligand_csv_path = f'{interp_dir}/*{ligand}_{max_resolution}mm_l{args.n_depths}*{depth}_raw.csv'
+        ligand_csv_path = f'{interp_dir}/*{ligand}_{max_resolution}mm_l{args.n_depths+2}*{depth}_raw.csv'
         ligand_csv_list = glob(ligand_csv_path)
         if len(ligand_csv_list) > 0 : 
             ligand_csv = ligand_csv_list[0]
@@ -452,7 +455,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
                             args.qc_dir, 
                             max_resolution, 
                             ligand=ligand,
-                            n_samples=1000,
+                            n_samples=10000,
                             clobber=True )
         df_list.append(tdf)
     df = pd.concat(df_list)

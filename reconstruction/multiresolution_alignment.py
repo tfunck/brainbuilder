@@ -46,15 +46,15 @@ def multiresolution_alignment( slab_df,  hemi_df, brain, hemi, slab, slab_index,
 
     '''
     slab_list = [int(i) for i in  files[brain][hemi].keys() ]
-    slab_files = files[brain][hemi][str(slab)]
+    slab_files = files[brain][hemi][slab]
     
 
     ### Iterate over progressively finer resolution
     for resolution_itr, resolution in enumerate(resolution_list) :
         print('\tMulti-Resolution Alignement:',resolution)
-        cfiles = files[brain][hemi][str(slab)][str(resolution)] #Current files
+        cfiles = files[brain][hemi][slab][resolution] #Current files
         
-        slab_info_fn = files[brain][hemi][str(slab)][str(resolution)]['slab_info_fn']
+        slab_info_fn = files[brain][hemi][slab][resolution]['slab_info_fn']
         
         cur_out_dir = cfiles['cur_out_dir']
         seg_dir = cfiles['seg_dir'] 
@@ -83,7 +83,7 @@ def multiresolution_alignment( slab_df,  hemi_df, brain, hemi, slab, slab_index,
 
         prev_resolution=resolution_list[resolution_itr-1]
 
-        last_nl_2d_vol_fn = files[brain][hemi][str(slab)][str(resolution_list[resolution_itr-1])]['nl_2d_vol_fn']
+        last_nl_2d_vol_fn = files[brain][hemi][slab][resolution_list[resolution_itr-1]]['nl_2d_vol_fn']
         #DEBUG
         #if resolution_itr > 0 : 
         #    align_fn = last_nl_2d_vol_fn
@@ -94,7 +94,7 @@ def multiresolution_alignment( slab_df,  hemi_df, brain, hemi, slab, slab_index,
         ### Stage 1.25 : Downsample SRV to current resolution
         ###
         print('\t\tStage 1.25' )
-        crop_srv_rsl_fn = files[brain][hemi][str(int(slab))][str(resolution)]['srv_crop_rsl_fn']
+        crop_srv_rsl_fn = files[brain][hemi][slab][resolution]['srv_crop_rsl_fn']
         if run_stage([args.srv_fn], [srv_rsl_fn, crop_srv_rsl_fn]) or args.clobber :
             # downsample the original srv gm mask to current 3d resolution
             prefilter_and_downsample(args.srv_fn, [resolution_3d]*3, srv_rsl_fn)
@@ -135,7 +135,7 @@ def multiresolution_alignment( slab_df,  hemi_df, brain, hemi, slab, slab_index,
             align_slab_to_mri(  brain, hemi, slab, seg_rsl_fn, crop_srv_rsl_fn, align_to_mri_dir, 
                                 hemi_df, args.slabs, nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_rsl_fn, srv_3d_rsl_fn, 
                                 resolution_3d, resolution_list_3d, 
-                                slab_direction, cfiles['manual_alignment_points'], cfiles['manual_alignment_affine'], use_masks=False )
+                                slab_direction, cfiles['manual_alignment_points'], cfiles['manual_alignment_affine'], use_masks=True )
         
         ###
         ### Stage 4 : 2D alignment of receptor to resample MRI GM vol
