@@ -53,8 +53,8 @@ def load_mesh(surf_mesh,correct_offset=False):
                     pass
 
         elif surf_mesh.endswith('gii'):
-            coords, faces = nb.gifti.read(surf_mesh).getArraysFromIntent(nb.nifti1.intent_codes['NIFTI_INTENT_POINTSET'])[0].data, \
-                            nb.gifti.read(surf_mesh).getArraysFromIntent(nb.nifti1.intent_codes['NIFTI_INTENT_TRIANGLE'])[0].data
+            coords, faces = nb.load(surf_mesh).get_arrays_from_intent(nb.nifti1.intent_codes['NIFTI_INTENT_POINTSET'])[0].data, \
+                            nb.load(surf_mesh).get_arrays_from_intent(nb.nifti1.intent_codes['NIFTI_INTENT_TRIANGLE'])[0].data
         elif surf_mesh.endswith('vtk'):
             coords, faces, _ = read_vtk(surf_mesh)
         elif surf_mesh.endswith('ply'):
