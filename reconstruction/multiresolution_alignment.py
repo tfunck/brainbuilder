@@ -135,7 +135,7 @@ def multiresolution_alignment( slab_df,  hemi_df, brain, hemi, slab, slab_index,
             align_slab_to_mri(  brain, hemi, slab, seg_rsl_fn, crop_srv_rsl_fn, align_to_mri_dir, 
                                 hemi_df, args.slabs, nl_3d_tfm_fn, nl_3d_tfm_inv_fn, rec_3d_rsl_fn, srv_3d_rsl_fn, 
                                 resolution_3d, resolution_list_3d, 
-                                slab_direction, cfiles['manual_alignment_points'], cfiles['manual_alignment_affine'], use_masks=True )
+                                slab_direction, cfiles['manual_alignment_points'], cfiles['manual_alignment_affine'], use_masks=False )
         
         ###
         ### Stage 4 : 2D alignment of receptor to resample MRI GM vol

@@ -609,6 +609,7 @@ class AntsParams():
 
         self.resolution_list=resolution_list
         self.max_n = len(resolution_list)
+        print(resolution_list)
         self.cur_n = resolution_list.index(resolution)
         self.max_itr=int((self.max_n+1)*base_itr)
         
@@ -637,17 +638,21 @@ class AntsParams():
         return 'x'.join( [str(i) for i in lst] ) + 'vox'
 
     def gen_smoothing_factor_list(self, resolution_list):
-        return [ np.round(float(float(resolution_list[i])/float(resolution_list[self.cur_n]))/np.pi,2) if i != self.cur_n else 0 for i in range(self.cur_n+1)   if self.resolution_list[i] >= self.max_resolution ] 
+        #smooth_f = lambda x, y:  np.round(float(float(x)/float(y))/np.pi,2)
+        smooth_f = lambda x, y:  np.round(float(float(x)/float(y)-1)*0.2,3)
+        #smooth_f = lambda x, y:  (float(x)/float(y))/2
+        return [ smooth_f(resolution_list[i],resolution_list[self.cur_n]) if i != self.cur_n else 0 for i in range(self.cur_n+1) if self.resolution_list[i] >= self.max_resolution ] 
 
     def get_smoothing_params(self, resolution_list):
         s_list = self.gen_smoothing_factor_list(resolution_list)
         return self.gen_smoothing_factor_string(s_list)
 
-    def calc_downsample_factor(self, cur_res, image_res): 
-        return np.rint(1+np.log2(float(cur_res)/float(image_res))).astype(int).astype(str)
+    def calc_downsample_factor(self, cur_res, image_res):
+        return np.floor(1+np.log2(float(cur_res)/float(image_res))).astype(int).astype(str)
 
     def gen_downsample_factor_list(self, resolution_list) :
-        return [ self.calc_downsample_factor(resolution_list[i], resolution_list[self.cur_n]) for i in range(self.cur_n+1) if self.resolution_list[i] >= self.max_resolution  ]
+        factors = [ self.calc_downsample_factor(resolution_list[i], resolution_list[self.cur_n]) for i in range(self.cur_n+1) if self.resolution_list[i] >= self.max_resolution  ]
+        return factors
 
     def get_downsample_params(self, resolution_list) :
         return 'x'.join( self.gen_downsample_factor_list(resolution_list) )

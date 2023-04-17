@@ -36,7 +36,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     base_nl_itr = 20
     base_cc_itr = 5
 
-    cc_resolution_list = [ r for r in resolution_list if float(r) < 1 ] #CC does not work well at lower resolution 
+    cc_resolution_list = [ r for r in resolution_list if float(r) <= 1 ] #CC does not work well at lower resolution 
     ccParams=None
     if len(cc_resolution_list) > 0 :
         cc_resolution=max(min(cc_resolution_list), resolution)
@@ -66,11 +66,11 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
 
     #DEBUG FIXME USING ONLY MATTES TO TEST alignment with WM
     #nl_metric=f'Mattes[{fx_fn},{mv_fn},1,12,Random,0.9]'
-    metric='GC'
-    bins=10
+    metric='Mattes'
+    bins=32
     if float(resolution) < 0.15 :
         metric='Mattes'
-        bins='16'
+        bins='32'
 
     #fix_affine(fx_fn)
     #fix_affine(mv_fn)

@@ -162,7 +162,10 @@ def get_alignment_schedule(resolution_list, resolution, resolution_cutoff_for_cc
 
 
     resolution_list = [ float(r) for r in resolution_list ]
-
+   
+    #Masks work really poorly when separating the temporal lobe
+    # seems to be only true with masks --> Mattes works MUCH better than GC for separating the temporal lobe from the frontal lobe
+    #because of mask --> However, Mattes[bins=32] failed at 1mm 
     #CC APPEARS TO BE VERY IMPORTANT, especially for temporal lobe
     
     cc_resolution_list = [ r for r in resolution_list if float(r) > resolution_cutoff_for_cc ]
@@ -175,13 +178,13 @@ def get_alignment_schedule(resolution_list, resolution, resolution_cutoff_for_cc
     print(linParams.s_str)
 
     #resolution_list_lo = [ f for r in resolution_listdd ]
-    max_GC_resolution = 1.
-    GC_resolution = max(resolution, max_GC_resolution)
+    #max_GC_resolution = 1.
+    #GC_resolution = max(resolution, max_GC_resolution)
 
     #nlParams = AntsParams(resolution_list, resolution, base_nl_itr, max_resolution=1.0)  
     nlParams = AntsParams(resolution_list, resolution, base_nl_itr)  
 
-    nlParamsHi = AntsParams(resolution_list, resolution, base_nl_itr, start_resolution=0.999)  
+    #nlParamsHi = AntsParams(resolution_list, resolution, base_nl_itr, start_resolution=0.999)  
     nlParamsHi = None
     
     print('nl')
@@ -245,7 +248,7 @@ def gen_mask(fn, clobber=False) :
         vol[ vol < 1 ] = 0
         
         average_resolution = np.mean( img.affine[[0,1,2],[0,1,2]] )
-        iterations = np.ceil( 3 / average_resolution).astype(int)
+        iterations = np.ceil( 5 / average_resolution).astype(int)
 
         vol = binary_dilation(vol, iterations=iterations).astype(np.uint8)
 
@@ -253,7 +256,7 @@ def gen_mask(fn, clobber=False) :
     
     return out_fn
 
-def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, linParams, nlParams, nlParamsHi, ccParams, resolution, manual_affine_fn, metric='GC',nbins=10, use_init_tfm=False, use_masks=True, sampling=0.9, clobber=False ):
+def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, linParams, nlParams, nlParamsHi, ccParams, resolution, manual_affine_fn, metric='GC',nbins=32, use_init_tfm=False, use_masks=True, sampling=0.9, clobber=False ):
     prefix=re.sub('_SyN_Composite.h5','',out_tfm_fn)
     prefix_init = prefix+'_init_'
     prefix_rigid = prefix+'_Rigid_'
@@ -273,20 +276,25 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
 
 
     seg_mask_fn = gen_mask(seg_rsl_fn,clobber=True)
-    srv_mask_fn = gen_mask(srv_rsl_fn,clobber=True)
 
     srv_tgt_fn=srv_slab_fn
-    step=0.1
+    step=0.5
     #calculate SyN
 
     nl_metric=metric
     #if float(resolution) <= 0.3 : 
     #if float(resolution) <= 0.5 : 
     #    nl_metric = 'Mattes'
-
-    use_cc = True
-    if float(resolution) >= 1.0 : use_cc = True
     
+    if float(resolution) >= 1.0 :
+        #nl_metric = f'GC[{srv_rsl_fn},{seg_rsl_fn},1,20,Regular,1]'
+        nl_metric=f'Mattes[{srv_rsl_fn},{seg_rsl_fn},1,32,Regular,1]' 
+        cc_metric=f'CC[{srv_rsl_fn},{seg_rsl_fn},1,3,Regular,1]'
+        srv_mask_fn = gen_mask(srv_rsl_fn,clobber=True)
+    else :
+        nl_metric=f'Mattes[{srv_slab_fn},{seg_rsl_fn},1,32,Regular,1]' 
+        cc_metric=f'CC[{srv_slab_fn},{seg_rsl_fn},1,3,Regular,1]'
+        srv_mask_fn = gen_mask(srv_slab_fn,clobber=True)
 
     syn_rate='0.1'
    
@@ -299,26 +307,31 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     skip_manual=True
     if not os.path.exists( manual_affine_fn ) or skip_manual :
         ### Create init tfm to adjust for brains of very differnt sizes
+        '''
         if use_init_tfm and not os.path.exists(f'{prefix_init}Composite.h5'):
             s_str_0 = linParams.s_list[0] +'x'
             f_str_0 = linParams.f_list[0] 
-            shell(f'{base}  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]   -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000   -t Affine[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000  -o [{prefix_init},{prefix_init}volume.nii.gz,{prefix_init}volume_inverse.nii.gz]  ', verbose=True)
+            #why does the similarity transform only have one iteration step?
+            #shell(f'{base}  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]   -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000   -t Affine[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000  -o [{prefix_init},{prefix_init}volume.nii.gz,{prefix_init}volume_inverse.nii.gz]  ', verbose=False)
+            
+            shell(f'{base}  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]   -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}   -t Affine[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000  -o [{prefix_init},{prefix_init}volume.nii.gz,{prefix_init}volume_inverse.nii.gz]  ', verbose=False)
             init_str = f' --initial-moving-transform {prefix_init}Composite.h5 '
         else :
             init_str = f' --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1] '
-
+        '''
+        init_str = f' --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1] '
         # calculate rigid registration
         if not os.path.exists(f'{prefix_rigid}Composite.h5'):
             shell(f'{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] ', verbose=True)
         # calculate similarity registration
 
         if not os.path.exists(f'{prefix_similarity}Composite.h5'):
-            shell(f'{base}  --initial-moving-transform  {prefix_rigid}Composite.h5 -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] ', verbose=True)
+            shell(f'{base}  --initial-moving-transform  {prefix_rigid}Composite.h5 -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] ', verbose=True)
         affine_init = f'--initial-moving-transform {prefix_similarity}Composite.h5'
-    else :
-        print('\tApply manual transformation')
-        shell(f'antsApplyTransforms -v 1 -d 3 -i {seg_rsl_fn} -r {srv_tgt_fn} -t [{manual_affine_fn},0] -o {manual_out_fn}', verbose=True)
-        affine_init = f'--initial-moving-transform [{manual_affine_fn},0]'
+    #else :
+    #    print('\tApply manual transformation')
+    #    shell(f'antsApplyTransforms -v 1 -d 3 -i {seg_rsl_fn} -r {srv_tgt_fn} -t [{manual_affine_fn},0] -o {manual_out_fn}', verbose=False)
+    #    affine_init = f'--initial-moving-transform [{manual_affine_fn},0]'
     
     #calculate affine registration
     if not os.path.exists(f'{prefix_affine}Composite.h5'):
@@ -334,17 +347,15 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
             
         nl_base=f'{base}  --initial-moving-transform {prefix_affine}Composite.h5 -o [{prefix_syn},{syn_out_fn},{syn_inv_fn}] '
         
-        nl_base += f' -t SyN[{syn_rate}] -m {nl_metric}[{srv_rsl_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} ' 
+        #nl_base += f' -t SyN[{syn_rate}] -m {nl_metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} ' 
+        nl_base += f' -t SyN[{syn_rate}] -m {nl_metric}  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} ' 
 
-        #if type(nlParamsHi) != None :
-        #    nl_base += f' -t SyN[{syn_rate}] -m Mattes[{srv_rsl_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {nlParamsHi.s_str} -f {nlParamsHi.f_str} -c {nlParamsHi.itr_str} ' 
-
-        nl_base += f' -t SyN[{syn_rate}] -m CC[{srv_rsl_fn},{seg_rsl_fn},1,3,Random,{sampling}]  -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str}'
+        nl_base += f' -t SyN[{syn_rate}] -m {cc_metric} -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str}'
         shell(nl_base, verbose=True)
 
     simple_ants_apply_tfm(seg_rsl_fn, srv_rsl_fn, prefix_syn+'Composite.h5', out_fn)
     simple_ants_apply_tfm(srv_rsl_fn, seg_rsl_fn, prefix_syn+'InverseComposite.h5', out_inv_fn)
-    
+
 def get_max_downsample_level(resolution_list, resolution_itr):
     cur_resolution = float(resolution_list[resolution_itr])
     max_resolution = float(resolution_list[0])
@@ -392,14 +403,13 @@ def align_slab_to_mri(brain, hemi, slab, seg_rsl_fn, srv_rsl_fn, out_dir, df, sl
     # get the start and end values of the slab in srv voxel coordinates
     y0w, y1w, y0, y1 = get_slab_start_end(srv_rsl_fn, manual_points_fn, verbose=True)
 
-
-    
     # extract slab from srv and write it
     srv_slab_fn = write_srv_slab(brain, hemi, slab, srv_rsl_fn, out_dir, y0w, y0, y1, resolution, srv_ystep, srv_ystart, max_downsample_level)
     print(srv_slab_fn) 
     print(y0, y1)
     # run ants alignment between segmented volume (from autoradiographs) to slab extracte
-    run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_pad_fn, linParams, nlParams, nlParamsHi, ccParams, resolution, manual_affine_fn, use_masks=use_masks ) 
+    run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_pad_fn, linParams, nlParams, nlParamsHi, ccParams, resolution, manual_affine_fn, use_masks=use_masks, sampling=0.9, metric='Mattes' ) 
+
     return 0
 
 '''
