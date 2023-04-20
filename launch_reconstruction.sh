@@ -18,9 +18,9 @@ done
 
 mkdir -p $out_dir
 
-#rm -r /data/receptor/human/output_5//MR1_R_*/srv
+#rm -r /data/receptor/human/output_5//MR1_R_5/srv
 
-singularity exec -B "/data":"/data" ~/receptor-v.1.2.simg bash -c "python3.8 ~/projects/julich-receptor-atlas/launch_reconstruction.py $debug -o /data/receptor/human/output_5/ -b $brain --hemi $hemisphere --mri-gm /data/receptor/human/mri1_R_gm_bg_srv.nii.gz --cortex-gm /data/receptor/human/mri1_gm_srv.nii.gz --ndepths 18 --surf-dir /data/receptor/human/civet/mri1/surfaces/ -r 4.0 3.0 2.0 1.0" # 0.5 0.25 "
+singularity exec -B "/data":"/data" ~/receptor-v.1.2.simg bash -c "python3.8 ~/projects/julich-receptor-atlas/launch_reconstruction.py $debug -o /data/receptor/human/output_5/ -b $brain --hemi $hemisphere --mri-gm /data/receptor/human/mri1_R_gm_bg_srv.nii.gz --cortex-gm /data/receptor/human/mri1_gm_srv.nii.gz --ndepths 18 --surf-dir /data/receptor/human/civet/mri1/surfaces/ -r 4.0 3.0 2.0 1.0 0.5 0.25 "
 
 exit 0
 

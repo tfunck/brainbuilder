@@ -95,9 +95,9 @@ def multiresolution_alignment( slab_df,  hemi_df, brain, hemi, slab, slab_index,
         ###
         print('\t\tStage 1.25' )
         crop_srv_rsl_fn = files[brain][hemi][slab][resolution]['srv_crop_rsl_fn']
-        if run_stage([args.srv_fn], [srv_rsl_fn, crop_srv_rsl_fn]) or args.clobber :
+        if run_stage([args.srv_cortex_fn], [srv_rsl_fn, crop_srv_rsl_fn]) or args.clobber :
             # downsample the original srv gm mask to current 3d resolution
-            prefilter_and_downsample(args.srv_fn, [resolution_3d]*3, srv_rsl_fn)
+            prefilter_and_downsample(args.srv_cortex_fn, [resolution_3d]*3, srv_rsl_fn)
             
             # if this is the fiest slab, then the cropped version of the gm mask
             # is the same as the downsampled version because there are no prior slabs to remove.

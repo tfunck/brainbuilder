@@ -413,12 +413,14 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
 
     slab_files_dict = create_file_dict_output_resolution(files, brain, hemi, resolution_list)
     
+    hemi_df, _ = validate_alignment(f'{args.qc_dir}/validate_alignment/', args.srv_cortex_fn, files[brain][hemi])
+    
+    hemi_df = hemi_df.loc[ hemi_df['align_dice'] < 0.5 ]
+
     if not args.no_surf : 
         print('\tSurface-based reconstruction') 
         slabData, final_ligand_dict = surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=args.norm_df_csv)
     
-    validate_alignment(f'{args.qc_dir}/validate_alignment/', files[brain][hemi])
-
     ###
     ### 6. Quality Control
     ###
@@ -431,7 +433,6 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
 
         print('\tValidate reconstructed sections:', ligand)
         validate_reconstructed_sections(final_ligand_fn, max_resolution, args.n_depths+2, df_ligand, args.srv_cortex_fn, base_out_dir=args.out_dir,  clobber=True)
-        
         
         ligand_csv_path = f'{interp_dir}/*{ligand}_{max_resolution}mm_l{args.n_depths+2}*{depth}_raw.csv'
         ligand_csv_list = glob(ligand_csv_path)
