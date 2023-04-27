@@ -648,7 +648,8 @@ class AntsParams():
         return self.gen_smoothing_factor_string(s_list)
 
     def calc_downsample_factor(self, cur_res, image_res):
-        return np.floor(1+np.log2(float(cur_res)/float(image_res))).astype(int).astype(str)
+        return np.floor(float(cur_res)/float(image_res)).astype(int).astype(str) #DEBUG
+        #return np.floor(1+np.log2(float(cur_res)/float(image_res))).astype(int).astype(str)
 
     def gen_downsample_factor_list(self, resolution_list) :
         factors = [ self.calc_downsample_factor(resolution_list[i], resolution_list[self.cur_n]) for i in range(self.cur_n+1) if self.resolution_list[i] >= self.max_resolution  ]

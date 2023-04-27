@@ -10,6 +10,7 @@ import utils.ants_nibabel as nib
 import matplotlib.pyplot as plt
 import seaborn as sns
 import debug; 
+from skimage.transform import resize
 from scipy.interpolate import interp1d
 from joblib import Parallel, delayed
 from validation.validate_alignment import validate_alignment
@@ -98,10 +99,14 @@ def remove_slab_from_srv(slab_to_remove_fn, srv_rsl_fn, new_srv_rsl_fn):
     
     #remove aligned slab from existing srv rsl volume.
     #needs to be thresholded because smoothing across the y-axis during downsampling
-    #resutls in slab blurring too far across y-axis.
-    
-    vol[aligned_slab > 0. ] = 0 
+    #resutls in slab blurring too far across y-axis
 
+    aligned_slab = resize(aligned_slab, vol.shape, order=0)
+
+    vol[aligned_slab > 0. ] = 0 
+    
+    #nib.Nifti1Image(vol,img.affine,direction_order='lpi').to_filename(new_srv_rsl_fn) #DEBUG
+    #return None #DEBUG
 
     #removing additional islands of tissue that may remain in srv volume
     vol_bin = np.zeros_like(vol)
@@ -410,6 +415,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
         hemi_df = reconstruct_slab(hemi_df, brain, hemi, slab, slab_index, args, files, resolution_list, resolution_list_3d, max_resolution_3d=0.3)
    
     interp_dir=f'{args.out_dir}/5_surf_interp/'
+    exit(0)
 
     slab_files_dict = create_file_dict_output_resolution(files, brain, hemi, resolution_list)
     
@@ -420,7 +426,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
     if not args.no_surf : 
         print('\tSurface-based reconstruction') 
         slabData, final_ligand_dict = surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=args.norm_df_csv)
-    
+   
     ###
     ### 6. Quality Control
     ###
