@@ -19,7 +19,7 @@ from glob import glob
 from scipy.ndimage import label
 from scipy.ndimage import binary_dilation, binary_closing, binary_fill_holes
 from scipy.ndimage.filters import gaussian_filter
-from utils.utils import shell, create_2d_sections, run_stage, prefilter_and_downsample, resample_to_autoradiograph_sections, num_cores
+from utils.utils import shell,  run_stage, prefilter_and_downsample, resample_to_autoradiograph_sections, num_cores
 from utils.ANTs import ANTs
 from utils.mesh_io import load_mesh_geometry, save_mesh_data, save_obj, read_obj
 from utils.reconstruction_classes import SlabReconstructionData
@@ -53,11 +53,13 @@ def create_new_srv_volumes(rec_3d_rsl_fn, srv_rsl_fn, cropped_output_list, resol
         None 
     '''
     highest_res_srv_rsl_fn = cropped_output_list[-1]
-    remove_slab_from_srv(rec_3d_rsl_fn, srv_rsl_fn, highest_res_srv_rsl_fn)
+    highest_res_srv_rsl_fn = srv_rsl_fn #DEBUG #cropped_output_list[-1]
+    #DEBUG remove_slab_from_srv(rec_3d_rsl_fn, srv_rsl_fn, highest_res_srv_rsl_fn)
     
     print('Next srv fn:', highest_res_srv_rsl_fn)
 
-    for i in range(len(cropped_output_list)-1) : #DEBUG resolution_list[0:-1] :
+    #for i in range(len(cropped_output_list)-1) : #DEBUG resolution_list[0:-1] :
+    for i in range(len(cropped_output_list)) : #DEBUG 
         lower_res_srv_rsl_fn = cropped_output_list[i]
         print('\tCreating', lower_res_srv_rsl_fn)
         if not os.path.exists(lower_res_srv_rsl_fn) :
@@ -84,6 +86,8 @@ def remove_slab_from_srv(slab_to_remove_fn, srv_rsl_fn, new_srv_rsl_fn):
     print('slab_to_remove_fn', slab_to_remove_fn)
     print('SRV', srv_rsl_fn)
     print('New SRV RSL', new_srv_rsl_fn)
+    shutil.copy(srv_rsl_fn, new_srv_rsl_fn)
+    return None
     
     #load slab gm mask, not strictly binary
     aligned_slab = nib.load(slab_to_remove_fn).get_fdata()
@@ -253,8 +257,8 @@ def setup_files_json(args ):
                     manual_tfm_dir = cdict['align_to_mri_dir']
                     cdict['manual_alignment_points'] = f'{manual_dir}/3d/{brain}_{hemi}_{slab}_points.txt'
                     cdict['manual_alignment_affine'] = f'{manual_dir}/3d/{brain}_{hemi}_{slab}_manual_affine.mat'
-                    cdict['nl_3d_tfm_fn'] = f'{cdict["align_to_mri_dir"]}/{brain}_{hemi}_{slab}_rec_to_mri_{resolution}mm_SyN_Composite.h5'
-                    cdict['nl_3d_tfm_inv_fn'] = f'{cdict["align_to_mri_dir"]}/{brain}_{hemi}_{slab}_rec_to_mri_{resolution}mm_SyN_InverseComposite.h5'
+                    cdict['nl_3d_tfm_fn'] = f'{cdict["align_to_mri_dir"]}/{brain}_{hemi}_{slab}_rec_to_mri_{resolution}mm_SyN_CC_Composite.h5'
+                    cdict['nl_3d_tfm_inv_fn'] = f'{cdict["align_to_mri_dir"]}/{brain}_{hemi}_{slab}_rec_to_mri_{resolution}mm_SyN_CC_InverseComposite.h5'
 
                     cdict['nl_2d_vol_fn'] = "{}/{}_{}_{}_nl_2d_{}mm.nii.gz".format(cdict['nl_2d_dir'] ,brain,hemi,slab,resolution) 
                     cdict['nl_2d_vol_cls_fn'] = "{}/{}_{}_{}_nl_2d_cls_{}mm.nii.gz".format(cdict['nl_2d_dir'],brain,hemi,slab,resolution) 
@@ -352,7 +356,8 @@ def create_srv_volumes_for_next_slab(args,files, slab_list, resolution_list, res
             print('\t\tStage 4.5 : Removing aligned slab from srv')
 
             crop_srv_rsl_fn = files[brain][hemi][str(int(slab))][float(resolution)]['srv_crop_rsl_fn']
-            create_new_srv_volumes(rec_3d_rsl_fn, crop_srv_rsl_fn, stage_3_5_outputs, resolution_list_3d)
+            #DEBUG create_new_srv_volumes(rec_3d_rsl_fn, crop_srv_rsl_fn, stage_3_5_outputs, resolution_list_3d)
+            create_new_srv_volumes(rec_3d_rsl_fn, args.srv_cortex_fn, stage_3_5_outputs, resolution_list_3d)
 
 def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=None) :
     ###
@@ -362,7 +367,7 @@ def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_
     ligands = np.unique(hemi_df['ligand'])
 
     slabData = SlabReconstructionData(brain, hemi, args.slabs, ligands, args.depth_list, interp_dir, interp_dir +'/surfaces/', highest_resolution)
-
+    
     for ligand, df_ligand in hemi_df.groupby(['ligand']):
         if ligand != 'cgp5' : continue
         print('\t\tLigand:', ligand)
@@ -408,25 +413,25 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
     
     dt = (1./args.n_depths)
     args.depth_list = np.round(np.arange(0, 1+dt/10, dt),3)
-    args.depth_list = np.insert(args.depth_list,0, 0)
+    #DEBUG args.depth_list = np.insert(args.depth_list,0, 0)
 
     ### Reconstruct slab
     for slab_index, slab in enumerate(args.slabs) :
         hemi_df = reconstruct_slab(hemi_df, brain, hemi, slab, slab_index, args, files, resolution_list, resolution_list_3d, max_resolution_3d=0.3)
    
     interp_dir=f'{args.out_dir}/5_surf_interp/'
-    exit(0)
 
     slab_files_dict = create_file_dict_output_resolution(files, brain, hemi, resolution_list)
     
     hemi_df, _ = validate_alignment(f'{args.qc_dir}/validate_alignment/', args.srv_cortex_fn, files[brain][hemi])
-    
-    hemi_df = hemi_df.loc[ hemi_df['align_dice'] < 0.5 ]
+
+    hemi_df = hemi_df.loc[ hemi_df['align_dice'] > 0.5 ]
+    #for (slab,align_dice), ddf in hemi_df.loc[hemi_df['ligand']=='cgp5'].groupby(['slab','align_dice']):
+    #    print(ddf[['slab','align_dice']])
 
     if not args.no_surf : 
         print('\tSurface-based reconstruction') 
         slabData, final_ligand_dict = surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=args.norm_df_csv)
-   
     ###
     ### 6. Quality Control
     ###
@@ -438,8 +443,8 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
         depth = args.depth_list[int((len(args.depth_list)+2)/2) ]
 
         print('\tValidate reconstructed sections:', ligand)
-        validate_reconstructed_sections(final_ligand_fn, max_resolution, args.n_depths+2, df_ligand, args.srv_cortex_fn, base_out_dir=args.out_dir,  clobber=True)
-        
+        validate_reconstructed_sections(final_ligand_fn, max_resolution, args.n_depths+2, df_ligand, args.srv_cortex_fn, base_out_dir=args.out_dir,  clobber=False)
+    for ligand, final_ligand_fn in final_ligand_dict.items() :
         ligand_csv_path = f'{interp_dir}/*{ligand}_{max_resolution}mm_l{args.n_depths+2}*{depth}_raw.csv'
         ligand_csv_list = glob(ligand_csv_path)
         if len(ligand_csv_list) > 0 : 
@@ -463,7 +468,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
                             max_resolution, 
                             ligand=ligand,
                             n_samples=10000,
-                            clobber=True )
+                            clobber=False )
         df_list.append(tdf)
     df = pd.concat(df_list)
 

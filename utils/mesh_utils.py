@@ -117,8 +117,11 @@ def multi_mesh_to_volume(profiles, surfaces, depth_list, dimensions, starts, ste
     slab_end = max(y0,y1)
 
     for ii in range(profiles.shape[1]) :
-        surf_fn = surfaces[depth_list[ii]]['depth_rsl_fn']
-        print('\tSURF', surf_fn)
+        print(ii)
+        print(depth_list)
+        print(surfaces.keys())
+        surf_fn = surfaces[depth_list[ii]]#DEBUG['depth_rsl_fn']
+        print('\tSURF', surf_fn);
 
         if 'npz' in os.path.splitext(surf_fn)[-1] : ext = '.npz'
         else : ext='.surf.gii'

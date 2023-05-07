@@ -47,7 +47,6 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     nlParams = AntsParams(resolution_list, resolution, base_nl_itr)
 
 
-
     y=int(row['slab_order'])
 
     prefix = f'{tfm_dir}/y-{y}' 
@@ -199,6 +198,8 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
     if to_do_resample_df.shape[0] > 0 :
         Parallel(n_jobs=num_cores)(delayed(apply_transforms_parallel)(tfm_dir, mv_dir,  resolution_itr, resolution, row) for i, row in  to_do_resample_df.iterrows()) 
     
+    return df
+'''
     for i, row in df.iterrows() :
         y = int(row['slab_order'])
         prefix = f'{tfm_dir}/y-{y}' 
@@ -208,7 +209,8 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
         df['tfm'].loc[ df['slab_order'] == y ] = tfm_fn
         df['tfm_affine'].loc[ df['slab_order'] == y ] = tfm_affine_fn
 
-        return df
+    return df #DEBUG untabbed this. seems like this would cause major problems
+'''
 
 def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='rsl'):
     exit_flag=False

@@ -158,7 +158,6 @@ def pad_seg_vol(seg_rsl_fn,max_downsample_level):
 def get_alignment_schedule(resolution_list, resolution, resolution_cutoff_for_cc = 0.3, base_nl_itr = 200, base_lin_itr = 500):
     #cur_res/res = 2^(f-1) --> f = 1+ log2(cur_res/res)
     #min_nl_itr = len( [ resolution for resolution in resolution_list[0:resolution_itr] if  float(resolution) <= .1 ] ) # I gues this is to limit nl alignment above 0.1mm
-    base_nl_itr = 20 #DEBUG
     base_cc_itr = np.rint(base_nl_itr/2)
 
 
@@ -258,7 +257,7 @@ def gen_mask(fn, clobber=False) :
     return out_fn
 
 def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_fn, seg_rsl_fn, linParams, nlParams, nlParamsHi, ccParams, resolution, manual_affine_fn, metric='GC',nbins=32, use_init_tfm=False, use_masks=True, sampling=0.9, clobber=False ):
-    prefix=re.sub('_SyN_Composite.h5','',out_tfm_fn)
+    prefix=re.sub('_SyN_CC_Composite.h5','',out_tfm_fn) # FIXME this is bad coding
     log_fn = f'{prefix}/log.txt'
 
     prefix_init = prefix+'_init_'
@@ -279,8 +278,8 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     srv_tgt_fn=srv_slab_fn
     step=0.5
     # Parameters that worked well for slab 1 at 0.25mm, testing them out...
-    step=0.1 #DEBUG
-    nbins=64 #DEBUG
+    step=0.5 #DEBUG
+    nbins=32 #DEBUG
     sampling=0.9 #DEBUG
 
     #calculate SyN
@@ -290,8 +289,8 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     #if float(resolution) <= 0.5 : 
     #    nl_metric = 'Mattes'
     
-    nl_metric=f'Mattes[{srv_slab_fn},{seg_rsl_fn},1,32,Regular,1]' 
-    cc_metric=f'CC[{srv_slab_fn},{seg_rsl_fn},1,3,Regular,1]'
+    nl_metric=f'Mattes[{srv_slab_fn},{seg_rsl_fn},1,32,Random,{sampling}]' 
+    cc_metric=f'CC[{srv_slab_fn},{seg_rsl_fn},1,3,Random,{sampling}]'
 
     syn_rate='0.1'
    
@@ -324,13 +323,13 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
         if not os.path.exists(f'{prefix_rigid}Composite.h5'):
             rigid_cmd=f'{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] '
             shell(rigid_cmd, verbose=True)
-            write_log(prefix,'rigid',rigid_cmd)
+            write_log(out_dir,'rigid',rigid_cmd)
         # calculate similarity registration
 
         if not os.path.exists(f'{prefix_similarity}Composite.h5'):
             similarity_cmd = f'{base}  --initial-moving-transform  {prefix_rigid}Composite.h5 -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] '
             shell(similarity_cmd, verbose=True)
-            write_log(prefix,'similarity',similarity_cmd)
+            write_log(out_dir,'similarity',similarity_cmd)
 
         affine_init = f'--initial-moving-transform {prefix_similarity}Composite.h5'
     #else :
@@ -342,7 +341,7 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     if not os.path.exists(f'{prefix_affine}Composite.h5'):
         affine_cmd=f'{base}  {affine_init} -t Affine[{step}] -m {metric}[{srv_tgt_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] '
         shell(affine_cmd, verbose=True)
-        write_log(prefix,'affine', affine_cmd)
+        write_log(out_dir,'affine', affine_cmd)
      
     prefix_mattes_syn = f'{prefix}_SyN_Mattes_'
     mattes_syn_out_fn = f'{prefix_mattes_syn}volume.nii.gz'
@@ -357,7 +356,7 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
         nl_base=f'{base}  --initial-moving-transform {prefix_affine}Composite.h5 -o [{prefix_mattes_syn},{mattes_syn_out_fn},{mattes_syn_inv_fn}] '
         nl_base += f' -t SyN[{syn_rate}] -m {nl_metric}  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} ' 
         shell(nl_base, verbose=True)
-        write_log(prefix,'syn-mattes', nl_base)
+        write_log(out_dir,'syn-mattes', nl_base)
 
 
     if not os.path.exists(f'{prefix_cc_syn}Composite.h5'): 
@@ -365,7 +364,7 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
         nl_base=f'{base}  --initial-moving-transform {prefix_affine}Composite.h5 -o [{prefix_cc_syn},{cc_syn_out_fn},{cc_syn_inv_fn}] '
         nl_base += f' -t SyN[{syn_rate}] -m {cc_metric} -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str}'
         shell(nl_base, verbose=True)
-        write_log(prefix,'syn-cc', nl_base)
+        write_log(out_dir,'syn-cc', nl_base)
 
     prefix_syn = prefix_cc_syn
     simple_ants_apply_tfm(seg_rsl_fn, srv_rsl_fn, prefix_syn+'Composite.h5', out_fn)

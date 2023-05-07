@@ -36,8 +36,6 @@ from ants import image_read, registration
 from utils.utils import shell, w2v, v2w, get_section_intervals, prefilter_and_downsample
 from utils.reconstruction_classes import SlabReconstructionData
 
-
-
  
 from ants import get_center_of_mass
 
@@ -141,6 +139,9 @@ def thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn
         y = int(row['slab_order'])
         # Conversion of radioactivity values to receptor density values
         section = array_src[:, y, :].copy()
+        conversion_factor = slab_df['conversion_factor'].values[0]
+        section*= conversion_factor
+
         cls_section = cls_vol[:,y,:].copy()
 
         if np.sum(section) == 0 : 
@@ -172,21 +173,23 @@ def thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn
     return rec_vol, slab_df
 
 def create_thickened_volumes(interp_dir, slab_dict, hemi_ligand, n_depths, resolution, tissue_type='', norm_df_csv=None ):
-
+    
     rec_thickened_dict = {} 
     for ligand, df0 in hemi_ligand.groupby(['ligand']) :
         rec_thickened_dict[ligand]={} 
         for slab, _ in df0.groupby(['slab']) :
             print(ligand, slab)
             rec_thickened_dict[ligand][int(slab)]={}
-
+    
     target_file=f'nl_2d_vol{tissue_type}_fn'
 
     if type(norm_df_csv) != type(None) :
         norm_df = pd.read_csv(norm_df_csv)
     else :
         norm_df=None
-   
+    
+    
+
     for (ligand,slab), df_ligand_slab in hemi_ligand.groupby(['ligand','slab']) :
 
         source_image_fn = slab_dict[slab][target_file]
@@ -734,7 +737,9 @@ def interpolate_between_slabs(combined_slab_vol, surf_depth_mni_dict, depth_list
     slab_start = min(y0,y1)
     slab_end = max(y0,y1)
 
-    interp_vol = multi_mesh_to_volume(profiles, surf_depth_mni_dict,  depth_list, dimensions, starts, steps, resolution, slab_start, slab_end, origin=origin, ref_fn=ref_fn)
+    depth_rsl_dict = dict([ (k,v['depth_rsl_fn']) for k, v in surf_depth_mni_dict.items() ])
+
+    interp_vol = multi_mesh_to_volume(profiles, depth_rsl_dict,  depth_list, dimensions, starts, steps, resolution, slab_start, slab_end, origin=origin, ref_fn=ref_fn)
 
     #interp_vol[ combined_slab_vol != 0 ] = combined_slab_vol[ combined_slab_vol != 0 ]
 

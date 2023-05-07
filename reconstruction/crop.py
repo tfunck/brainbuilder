@@ -38,10 +38,14 @@ from skimage.segmentation import slic
 np.set_printoptions(suppress=True)
 
 
-def classify_section(crop, seg, max_roi=5):
-    n_roi = np.random.randint(1,max_roi)
-    
-    im_cls = slic(crop,n_segments=n_roi, mask=seg)
+def classify_section(crop, seg, max_roi=7):
+    n_roi = np.random.randint(2,max_roi)
+    #print(n_roi, len(np.unique(crop))) 
+    #print(len(np.unique(seg)), np.max(seg), seg.dtype )
+    #print('n_roi', n_roi)
+    im_cls = slic(crop,n_segments=n_roi, mask=seg.astype(bool))
+    #assert len(np.unique(im_cls)) > 2, 'Error, only one label created in psuedo-cls'
+
     
     return im_cls
 
@@ -71,10 +75,10 @@ def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn, y, slab, 
 
     for l in out_unique :
         index = np.core.defchararray.add(str(slab)+str(y), str(l)).astype(int)
+        print(l, index)
         out_rsl[ out_rsl==l ] = index
         
         #out[ out > 0 ] = index
-
     if np.sum(out_rsl) == 0 :
         out_rsl = mask_vol_rsl
 
