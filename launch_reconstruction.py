@@ -29,7 +29,7 @@ from reconstruction.crop import crop, process_landmark_images
 from validation.validate_interpolation import validate_interpolation, plot_r2
 from validation.validate_reconstructed_sections import validate_reconstructed_sections
 from preprocessing.preprocessing import fill_regions_3d
-#from reconstruction.batch_correction import correct_batch_effects 
+from reconstruction.batch_correction_surface import batch_correction_surf
 
 global file_dir
 base_file_dir, fn =os.path.split( os.path.abspath(__file__) )
@@ -384,6 +384,10 @@ def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_
         final_ligand_fn = surface_interpolation(ligandSlabData, df_ligand, slab_files_dict, args.srv_cortex_fn,  files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices)
         final_ligand_dict[ligand] = final_ligand_fn
 
+        perc = 0.1
+        df = batch_correction_surf( df_ligand, perc, ligandSlabData, interp_dir)
+        exit(0)
+
     return slabData, final_ligand_dict
 
 def create_file_dict_output_resolution(files, brain, hemi, resolution_list):
@@ -469,7 +473,10 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
                             ligand=ligand,
                             n_samples=10000,
                             clobber=False )
+
         df_list.append(tdf)
+
+
     df = pd.concat(df_list)
 
     out_r2_fn = f'{args.qc_dir}/interpolation_validation_r2.png'
@@ -583,6 +590,7 @@ if __name__ == '__main__':
     #args.landmark_df = process_landmark_images(df, args.landmark_src_dir, args.landmark_dir, args.scale_factors_fn)
 
     #df = correct_batch_effects(df, args, n_samples=30, maxiter=10000, tolerance=1e-9)
+
     
     args.norm_df_csv = None
     
