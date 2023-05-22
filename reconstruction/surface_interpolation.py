@@ -119,7 +119,7 @@ def setup_section_normalization(ligand, slab_df, array_src):
 
     return array_src, normalize_sections
 
-def thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn, cls_image_fn, ligand, slab_df, resolution, tissue_type='', norm_df=None):
+def thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn, cls_image_fn, ligand, slab_df, resolution, tissue_type='',  use_batch_correction=False):
     array_img = nib.load(source_image_fn)
     array_src = array_img.get_fdata()
 
@@ -140,7 +140,7 @@ def thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn
         # Conversion of radioactivity values to receptor density values
         section = array_src[:, y, :].copy()
         conversion_factor = slab_df['conversion_factor'].values[0]
-        section*= conversion_factor
+        section *= conversion_factor
 
         cls_section = cls_vol[:,y,:].copy()
 
@@ -161,18 +161,18 @@ def thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn
         cls_vol_thick[:,yrange,:] = cls_rep
         
     print('\tthickened_fn', thickened_fn)
-    if False :
-        conversion_factor = slab_df['conversion_factor'].values[0]
+    
+    if 'conversion_offset' in slab_df.columns
         conversion_offset = slab_df['conversion_offset'].values[0]
         idx = rec_vol > np.percentile(rec_vol,[1])[0]
-        rec_vol = rec_vol*conversion_factor + conversion_offset
+        rec_vol = rec_vol + conversion_offset
 
     nib.Nifti1Image(rec_vol, array_img.affine).to_filename(thickened_fn)
     nib.Nifti1Image(cls_vol_thick, array_img.affine).to_filename(cls_thickened_fn)
     
     return rec_vol, slab_df
 
-def create_thickened_volumes(interp_dir, slab_dict, hemi_ligand, n_depths, resolution, tissue_type='', norm_df_csv=None ):
+def create_thickened_volumes(interp_dir, slab_dict, hemi_ligand, n_depths, resolution, tissue_type='',  use_batch_correction=False ):
     
     rec_thickened_dict = {} 
     for ligand, df0 in hemi_ligand.groupby(['ligand']) :
@@ -183,11 +183,6 @@ def create_thickened_volumes(interp_dir, slab_dict, hemi_ligand, n_depths, resol
     
     target_file=f'nl_2d_vol{tissue_type}_fn'
 
-    if type(norm_df_csv) != type(None) :
-        norm_df = pd.read_csv(norm_df_csv)
-    else :
-        norm_df=None
-    
     
 
     for (ligand,slab), df_ligand_slab in hemi_ligand.groupby(['ligand','slab']) :
@@ -199,7 +194,7 @@ def create_thickened_volumes(interp_dir, slab_dict, hemi_ligand, n_depths, resol
         cls_thickened_fn = f'{interp_dir}thickened_cls_{int(slab)}_{ligand}_{resolution}{tissue_type}_l{n_depths}.nii.gz'
         
         if not os.path.exists(thickened_fn) or not os.path.exists(cls_thickened_fn) :
-            thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn, cls_image_fn, ligand, df_ligand_slab, resolution, norm_df=norm_df)
+            thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn, cls_image_fn, ligand, df_ligand_slab, resolution,  use_batch_correction=use_batch_correction)
 
         rec_thickened_dict[ligand][int(slab)]['rec'] = thickened_fn
         rec_thickened_dict[ligand][int(slab)]['cls'] = cls_thickened_fn
@@ -828,7 +823,7 @@ def create_final_reconstructed_volume(final_mni_fn, mni_fn, resolution,  surf_de
 
 
 
-def surface_interpolation(ligandSlabData, df_ligand, slab_dict, orig_mni_fn, files, scale_factors_json,   tissue_type='', input_surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, gm_label=2, clobber=0):
+def surface_interpolation(interp, ligandSlabData, df_ligand, slab_dict, orig_mni_fn, files, scale_factors_json,   tissue_type='', input_surf_dir='civet/mri1/surfaces/surfaces/', n_vertices = 327696, gm_label=2, clobber=0):
 
     interp_dir = ligandSlabData.volume_dir
     brain = ligandSlabData.brain
@@ -838,6 +833,7 @@ def surface_interpolation(ligandSlabData, df_ligand, slab_dict, orig_mni_fn, fil
     n_depths = ligandSlabData.n_depths
     os.makedirs(interp_dir, exist_ok=True)
     
+    create_thickened_volumes(interp_dir, slab_dict, df_ligand, ligandSlabData.n_depths, ligandSlabData.resolution, use_batch_correction=args.use_batch_correction)
 
     mni_fn=f'{interp_dir}/{brain}_{hemi}_cortex_{resolution}mm.nii.gz'
     if not os.path.exists(mni_fn): 
@@ -889,6 +885,10 @@ def surface_interpolation(ligandSlabData, df_ligand, slab_dict, orig_mni_fn, fil
         # Project autoradiograph densities onto surfaces
         # Extract profiles from the slabs using the surfaces 
         profiles_fn = project_volume_to_surfaces(profiles_fn, ligandSlabData, slab_dict, df_ligand, surf_depth_mni_dict, recon_slab_prefix,origin=origin, tissue_type=tissue_type)
+        
+        if use_batch_correction :
+            df = batch_correction_surf( df_ligand, perc, ligandSlabData, interp_dir)
+            return None
 
         # Interpolate a 3D receptor volume from the surface mesh profiles
         print('\tCreate Reconstructed Volume')

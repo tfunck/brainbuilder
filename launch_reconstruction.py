@@ -198,6 +198,7 @@ def setup_argparse():
     parser.add_argument('--nvertices', dest='n_vertices', type=int, default=81920, help='n vertices for mesh')
     parser.add_argument('--ndepths', dest='n_depths', type=int, default=10, help='n depths for mesh')
     parser.add_argument('--no-surf', dest='no_surf', action='store_true', default=False, help='Exit after multi-resolution alignment')
+    parser.add_argument('--batch-correction', dest='use_batch_correction', action='store_true', default=False, help='Use batch correction')
     parser.add_argument('--mask-dir', dest='mask_dir', type=str, default='/data/receptor/human/crop/combined_final/mask/', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--out-dir','-o', dest='out_dir', type=str, default='output', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--scale-factors', dest='scale_factors_fn', type=str, default=None, help='json file with scaling and ordering info for each slab')
@@ -359,34 +360,57 @@ def create_srv_volumes_for_next_slab(args,files, slab_list, resolution_list, res
             #DEBUG create_new_srv_volumes(rec_3d_rsl_fn, crop_srv_rsl_fn, stage_3_5_outputs, resolution_list_3d)
             create_new_srv_volumes(rec_3d_rsl_fn, args.srv_cortex_fn, stage_3_5_outputs, resolution_list_3d)
 
-def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=None) :
+def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors)  :
     ###
     ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
     ###
     final_ligand_dict={}
     ligands = np.unique(hemi_df['ligand'])
 
-    slabData = SlabReconstructionData(brain, hemi, args.slabs, ligands, args.depth_list, interp_dir, interp_dir +'/surfaces/', highest_resolution)
+    batch_correction_dir='/'
+    if use_batch_correction:
+        batch_correction_dir='/for_batch_correction/'
+
     
     for ligand, df_ligand in hemi_df.groupby(['ligand']):
         if ligand != 'cgp5' : continue
         print('\t\tLigand:', ligand)
 
+
+    
+        perc = 0.1
+        if args.use_batch_correction :
+            slabData = SlabReconstructionData(brain, hemi, args.slabs, ligands, args.depth_list, interp_dir+'/for_batch_correction/', interp_dir +'/surfaces/', highest_resolution)
+       
+            #FIXME  create method for converting to ligandSlabData
+            ligandSlabData = slabData
+            ligandSlabData.volumes = slabData.volumes[ligand] 
+            ligandSlabData.cls = slabData.cls[ligand] 
+            ligandSlabData.values_raw = slabData.values_raw[ligand] 
+            ligandSlabData.values_interp = slabData.values_interp[ligand] 
+            ligandSlabData.ligand = ligand
+            
+            #calculate atch correctoin factors and add them to df_ligand so that they can
+            # be used to fully reconstruct the volume in next call to surface_interpolation
+            df_ligand = surface_interpolation(interp_dir, ligandSlabData, df_ligand, slab_files_dict, args.srv_cortex_fn,  files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices, use_batch_correction=args.use_batch_correction)
+
+        slabData = SlabReconstructionData(brain, hemi, args.slabs, ligands, args.depth_list, interp_dir, interp_dir +'/surfaces/', highest_resolution)
+    
         ligandSlabData = slabData
         ligandSlabData.volumes = slabData.volumes[ligand] 
         ligandSlabData.cls = slabData.cls[ligand] 
         ligandSlabData.values_raw = slabData.values_raw[ligand] 
         ligandSlabData.values_interp = slabData.values_interp[ligand] 
         ligandSlabData.ligand = ligand
-    
-        create_thickened_volumes(interp_dir, slab_files_dict, hemi_df.loc[hemi_df['ligand']==ligand], slabData.n_depths, slabData.resolution, norm_df_csv=norm_df_csv)
 
-        final_ligand_fn = surface_interpolation(ligandSlabData, df_ligand, slab_files_dict, args.srv_cortex_fn,  files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices)
+        #perform surface interpolation. if batch correction factors have been defined
+        #then they will be used.
+        final_ligand_fn = surface_interpolation(ligandSlabData, df_ligand, slab_files_dict, args.srv_cortex_fn,  files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices, use_batch_correction=False)
+
+
         final_ligand_dict[ligand] = final_ligand_fn
 
-        perc = 0.1
-        df = batch_correction_surf( df_ligand, perc, ligandSlabData, interp_dir)
-        exit(0)
+
 
     return slabData, final_ligand_dict
 
