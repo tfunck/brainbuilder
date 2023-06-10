@@ -130,14 +130,17 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
 
     assert np.max(vol) < 256 , 'Problem with file '+ crop_fn + f'\n Max Value = {np.max(vol)}'
 
-    sd = np.array( (float(resolution)/img_res) / np.pi )
+    sd = np.array( (float(resolution)/img_res)  / np.pi )
+    print('SD',sd)
     vol = gaussian_filter(vol, sd )
-    nib.Nifti1Image(vol, img.affine).to_filename(crop_rsl_fn)
+    #vol = resize(vol, nib.load(fx_fn).shape, order=3)
+    aff = img.affine
+    #aff[[0,1,2],[0,1,2]] = resolution
+    nib.Nifti1Image(vol, aff).to_filename(crop_rsl_fn)
     
     #fix_affine(crop_rsl_fn)
     #fix_affine(fx_fn)
     shell(f'antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {crop_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} ')
-    
     #Commented out masking because GM receptor mask not good enough at the moment.
     #rsl_img = nib.load(out_fn)
     #rsl_vol = rsl_img.get_fdata()

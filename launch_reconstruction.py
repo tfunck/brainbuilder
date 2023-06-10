@@ -18,7 +18,6 @@ from reconstruction.multiresolution_alignment import multiresolution_alignment
 from glob import glob
 from scipy.ndimage import label
 from scipy.ndimage import binary_dilation, binary_closing, binary_fill_holes
-from scipy.ndimage.filters import gaussian_filter
 from utils.utils import shell,  run_stage, prefilter_and_downsample, resample_to_autoradiograph_sections, num_cores
 from utils.ANTs import ANTs
 from utils.mesh_io import load_mesh_geometry, save_mesh_data, save_obj, read_obj
@@ -309,11 +308,7 @@ def setup_parameters(args) :
 
     files = setup_files_json(args)
 
-
     return args, files 
-
-
-
 
 def add_tfm_column(slab_df, init_tfm_csv, slab_tfm_csv) :
     tfm_df = pd.read_csv(init_tfm_csv)
@@ -369,7 +364,7 @@ def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_
     slabData = SlabReconstructionData(brain, hemi, args.slabs, ligands, args.depth_list, interp_dir, interp_dir +'/surfaces/', highest_resolution)
     
     for ligand, df_ligand in hemi_df.groupby(['ligand']):
-        #if ligand != 'cgp5' : continue
+        if ligand != 'cgp5' : continue
         print('\t\tLigand:', ligand)
 
         ligandSlabData = deepcopy(slabData)
@@ -385,7 +380,7 @@ def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_
         final_ligand_fn = args.out_dir + f'/reference_{highest_resolution}mm.nii.gz' 
         if not os.path.exists(final_ligand_fn) :
             prefilter_and_downsample(args.srv_cortex_fn, [float(highest_resolution)]*3, final_ligand_fn)
-        validate_reconstructed_sections(final_ligand_fn, highest_resolution, args.n_depths+2, df_ligand, args.srv_cortex_fn, base_out_dir=args.out_dir,  clobber=False)
+        validate_reconstructed_sections(final_ligand_fn, highest_resolution, args.n_depths+1, df_ligand, args.srv_cortex_fn, base_out_dir=args.out_dir,  clobber=False)
     
     exit(0)
     for ligand, df_ligand in hemi_df.groupby(['ligand']):
