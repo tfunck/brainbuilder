@@ -39,11 +39,11 @@ np.set_printoptions(suppress=True)
 
 
 def classify_section(crop, seg, max_roi=7):
-    n_roi = np.random.randint(2,max_roi)
+    n_roi = np.random.randint(5,10)
     #print(n_roi, len(np.unique(crop))) 
     #print(len(np.unique(seg)), np.max(seg), seg.dtype )
     #print('n_roi', n_roi)
-    im_cls = slic(crop,n_segments=n_roi, mask=seg.astype(bool))
+    im_cls = slic(crop, n_segments=n_roi, compactness=1000, mask=seg.astype(bool))
     #assert len(np.unique(im_cls)) > 2, 'Error, only one label created in psuedo-cls'
 
     
@@ -66,6 +66,11 @@ def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn, y, slab, 
     vol_rsl = resize(vol, new_shape, order=5)
     out_rsl = classify_section(vol_rsl, mask_vol_rsl)
 
+    print(f'/tmp/tmp_{os.path.basename(out_fn)}.png')
+    plt.imshow(out_rsl)
+    plt.savefig(f'/tmp/tmp_{os.path.basename(out_fn)}.png')
+    plt.clf()
+    plt.cla()
 
     out_unique = np.unique(out_rsl)[1:]
     #out_label_sizes = np.bincount(out_rsl.reshape(-1,))[1:].astype(float)
@@ -84,11 +89,11 @@ def pseudo_classify_autoradiograph(autoradiograph_fn, mask_fn, out_fn, y, slab, 
 
     out = resize(out_rsl.astype(float), original_shape, order=0) 
    
-    plt.subplot(2,1,1)
-    plt.imshow(out_rsl);
-    plt.subplot(2,1,2)
-    plt.imshow(out)
-    plt.savefig('/tmp/test.png')
+    #plt.subplot(2,1,1)
+    #plt.imshow(out_rsl);
+    #plt.subplot(2,1,2)
+    #plt.imshow(out)
+    #plt.savefig('/tmp/test.png')
     
     if np.sum(out) == 0 : 
         print('Error empty pseudo cls'); exit(1)

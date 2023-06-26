@@ -18,7 +18,6 @@ from reconstruction.multiresolution_alignment import multiresolution_alignment
 from glob import glob
 from scipy.ndimage import label
 from scipy.ndimage import binary_dilation, binary_closing, binary_fill_holes
-from scipy.ndimage.filters import gaussian_filter
 from utils.utils import shell,  run_stage, prefilter_and_downsample, resample_to_autoradiograph_sections, num_cores
 from utils.ANTs import ANTs
 from utils.mesh_io import load_mesh_geometry, save_mesh_data, save_obj, read_obj
@@ -310,11 +309,7 @@ def setup_parameters(args) :
 
     files = setup_files_json(args)
 
-
     return args, files 
-
-
-
 
 def add_tfm_column(slab_df, init_tfm_csv, slab_tfm_csv) :
     tfm_df = pd.read_csv(init_tfm_csv)
@@ -359,8 +354,13 @@ def create_srv_volumes_for_next_slab(args,files, slab_list, resolution_list, res
             crop_srv_rsl_fn = files[brain][hemi][str(int(slab))][float(resolution)]['srv_crop_rsl_fn']
             #DEBUG create_new_srv_volumes(rec_3d_rsl_fn, crop_srv_rsl_fn, stage_3_5_outputs, resolution_list_3d)
             create_new_srv_volumes(rec_3d_rsl_fn, args.srv_cortex_fn, stage_3_5_outputs, resolution_list_3d)
+<<<<<<< HEAD
 
 def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors)  :
+=======
+from copy import deepcopy
+def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=None) :
+>>>>>>> master
     ###
     ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
     ###
@@ -376,6 +376,7 @@ def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_
         if ligand != 'cgp5' : continue
         print('\t\tLigand:', ligand)
 
+<<<<<<< HEAD
 
     
         perc = 0.1
@@ -397,17 +398,34 @@ def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_
         slabData = SlabReconstructionData(brain, hemi, args.slabs, ligands, args.depth_list, interp_dir, interp_dir +'/surfaces/', highest_resolution)
     
         ligandSlabData = slabData
+=======
+        ligandSlabData = deepcopy(slabData)
+>>>>>>> master
         ligandSlabData.volumes = slabData.volumes[ligand] 
         ligandSlabData.cls = slabData.cls[ligand] 
         ligandSlabData.values_raw = slabData.values_raw[ligand] 
         ligandSlabData.values_interp = slabData.values_interp[ligand] 
         ligandSlabData.ligand = ligand
 
+<<<<<<< HEAD
         #perform surface interpolation. if batch correction factors have been defined
         #then they will be used.
         final_ligand_fn = surface_interpolation(ligandSlabData, df_ligand, slab_files_dict, args.srv_cortex_fn,  files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices, use_batch_correction=False)
 
 
+=======
+        print('\tValidate reconstructed sections:', ligand)
+        final_ligand_fn = args.out_dir + f'/reference_{highest_resolution}mm.nii.gz' 
+        if not os.path.exists(final_ligand_fn) :
+            prefilter_and_downsample(args.srv_cortex_fn, [float(highest_resolution)]*3, final_ligand_fn)
+        validate_reconstructed_sections(final_ligand_fn, highest_resolution, args.n_depths+1, df_ligand, args.srv_cortex_fn, base_out_dir=args.out_dir,  clobber=False)
+    
+    exit(0)
+    for ligand, df_ligand in hemi_df.groupby(['ligand']):
+        #if ligand != 'cgp5' : continue
+        print('\t\tLigand:', ligand)
+        final_ligand_fn = surface_interpolation(ligandSlabData, df_ligand, slab_files_dict, args.srv_cortex_fn,  files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices)
+>>>>>>> master
         final_ligand_dict[ligand] = final_ligand_fn
 
 
@@ -470,8 +488,6 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
 
         depth = args.depth_list[int((len(args.depth_list)+2)/2) ]
 
-        print('\tValidate reconstructed sections:', ligand)
-        validate_reconstructed_sections(final_ligand_fn, max_resolution, args.n_depths+2, df_ligand, args.srv_cortex_fn, base_out_dir=args.out_dir,  clobber=False)
     for ligand, final_ligand_fn in final_ligand_dict.items() :
         ligand_csv_path = f'{interp_dir}/*{ligand}_{max_resolution}mm_l{args.n_depths+2}*{depth}_raw.csv'
         ligand_csv_list = glob(ligand_csv_path)

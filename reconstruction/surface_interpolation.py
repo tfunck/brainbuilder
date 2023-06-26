@@ -139,8 +139,14 @@ def thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn
         y = int(row['slab_order'])
         # Conversion of radioactivity values to receptor density values
         section = array_src[:, y, :].copy()
+<<<<<<< HEAD
         conversion_factor = slab_df['conversion_factor'].values[0]
         section *= conversion_factor
+=======
+        conversion_factor = row['conversion_factor']
+        print(y, conversion_factor)
+        section*= conversion_factor
+>>>>>>> master
 
         cls_section = cls_vol[:,y,:].copy()
 
