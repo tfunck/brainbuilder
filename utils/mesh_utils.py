@@ -96,10 +96,10 @@ def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[0,0
 
     for i, (xc, yc, zc) in enumerate(zip(x,y,z)) :
 
-        if debug.DEBUG == 4 :
-            interp_vol[xc,yc,zc] += yc
-        else :
-            interp_vol[xc,yc,zc] += vertex_values[i]
+        #if debug.DEBUG == 4 :
+        #    interp_vol[xc,yc,zc] += yc
+        #else :
+        interp_vol[xc,yc,zc] += vertex_values[i]
     
         n_vol[xc,yc,zc] += 1
 
@@ -117,9 +117,6 @@ def multi_mesh_to_volume(profiles, surfaces, depth_list, dimensions, starts, ste
     slab_end = max(y0,y1)
 
     for ii in range(profiles.shape[1]) :
-        print(ii)
-        print(depth_list)
-        print(surfaces.keys())
         surf_fn = surfaces[depth_list[ii]]#DEBUG['depth_rsl_fn']
         print('\tSURF', surf_fn);
 
@@ -130,7 +127,6 @@ def multi_mesh_to_volume(profiles, surfaces, depth_list, dimensions, starts, ste
         #to_do_ist.append((surf_fn,surf_fn))
         points = np.load(surf_fn)['points']
         assert points.shape[0] == profiles.shape[0], 'Error mismatch in number of points between {surf_fn} and vertex values file'
-        print(np.sum(np.abs(profiles[:,ii])))
 
         interp_vol, n_vol = mesh_to_volume(points, profiles[:,ii], dimensions, starts, steps, interp_vol=interp_vol, n_vol=n_vol)
     
@@ -273,9 +269,6 @@ def volume_to_surface(coords, volume_fn, values_fn=''):
     idx = idx_range[idx0 & idx1 & idx2]
 
     coords_idx = coords_idx[ idx0 & idx1 & idx2 ]
-
-    print(np.max(coords_idx[:,0]), np.max(coords_idx[:,1]), np.max(coords_idx[:,2]))
-    print(dimensions)
 
     values = vol[coords_idx[:,0],coords_idx[:,1],coords_idx[:,2]]
 

@@ -73,6 +73,10 @@ def get_surf_from_dict(d):
         exit(1)
     return surf_fn
 
+def get_thicken_width(resolution):
+
+    return np.round(1*(1+float(resolution)/(0.02*2))).astype(int)
+
 def get_edges_from_faces(faces):
     #for convenience create vector for each set of faces 
     f_i = faces[:,0]
