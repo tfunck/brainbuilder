@@ -894,7 +894,8 @@ def surface_interpolation(ligandSlabData, df_ligand, slab_dict, orig_mni_fn, fil
                     local_dice_volume_dict[slab][ligand] = ligand_dict['local_dice_volume_fn']
             print('\tBatch Correction')
             #local_dice_volume_dict = dict([ (slab, tmp[resolution]['nl_2d_vol_fn']) for slab, tmp in files.items() ])
-            df = batch_correction_surf( df_ligand, perc, ligandSlabData, interp_dir, ref_vol_dict=local_dice_volume_dict)
+            params = batch_correction_surf( df_ligand, perc, ligandSlabData, interp_dir, ref_vol_dict=local_dice_volume_dict)
+            df = update_df_with_correction_params(df_ligand, params)
             return df
 
         # Interpolate a 3D receptor volume from the surface mesh profiles
