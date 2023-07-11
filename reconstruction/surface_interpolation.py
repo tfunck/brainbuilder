@@ -119,7 +119,7 @@ def setup_section_normalization(ligand, slab_df, array_src):
 
     return array_src, normalize_sections
 
-def thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn, cls_image_fn, ligand, slab_df, resolution, tissue_type='', norm_df=None):
+def thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn, cls_image_fn, ligand, slab_df, resolution, tissue_type='' ):
     array_img = nib.load(source_image_fn)
     array_src = array_img.get_fdata()
 
@@ -173,7 +173,7 @@ def thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn
     
     return rec_vol, slab_df
 
-def create_thickened_volumes(interp_dir, slab_dict, hemi_ligand, n_depths, resolution, tissue_type='', norm_df_csv=None ):
+def create_thickened_volumes(interp_dir, slab_dict, hemi_ligand, n_depths, resolution, tissue_type='' ):
     
     rec_thickened_dict = {} 
     for ligand, df0 in hemi_ligand.groupby(['ligand']) :
@@ -184,23 +184,19 @@ def create_thickened_volumes(interp_dir, slab_dict, hemi_ligand, n_depths, resol
     
     target_file=f'nl_2d_vol{tissue_type}_fn'
 
-    if type(norm_df_csv) != type(None) :
-        norm_df = pd.read_csv(norm_df_csv)
-    else :
-        norm_df=None
-    
-    
 
     for (ligand,slab), df_ligand_slab in hemi_ligand.groupby(['ligand','slab']) :
 
         source_image_fn = slab_dict[slab][target_file]
+
+
         cls_image_fn = slab_dict[slab]['nl_2d_vol_cls_fn']
 
         thickened_fn = f'{interp_dir}thickened_{int(slab)}_{ligand}_{resolution}{tissue_type}_l{n_depths}.nii.gz'
         cls_thickened_fn = f'{interp_dir}thickened_cls_{int(slab)}_{ligand}_{resolution}{tissue_type}_l{n_depths}.nii.gz'
         
         if not os.path.exists(thickened_fn) or not os.path.exists(cls_thickened_fn) :
-            thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn, cls_image_fn, ligand, df_ligand_slab, resolution, norm_df=norm_df)
+            thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn, cls_image_fn, ligand, df_ligand_slab, resolution)
 
         rec_thickened_dict[ligand][int(slab)]['rec'] = thickened_fn
         rec_thickened_dict[ligand][int(slab)]['cls'] = cls_thickened_fn
@@ -570,7 +566,12 @@ def create_reconstructed_volume(interp_fn_list, ligandSlabData, profiles_fn, sur
             if type(profiles) != type(np.array) : profiles = h5.File(profiles_fn, 'r')['data'][:]
             #assert np.sum(profiles>0) > 0, 'Error: profiles h5 is empty: '+profiles_fn
             # Hiad dimensions for output volume
-            files_resolution = files[str(int(slab))]
+            try :
+                files_resolution = files[str(int(slab))]
+            except KeyError :
+                print(files.keys())
+                files_resolution = files[int(slab)]
+
             resolution_list = list(files_resolution.keys())
             max_resolution = resolution_list[-1]
             slab_fn = files_resolution[ max_resolution ]['nl_2d_vol_fn'] 

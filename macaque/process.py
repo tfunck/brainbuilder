@@ -9,9 +9,11 @@ import pandas as pd
 import nibabel 
 import utils.ants_nibabel as nib
 import json
+from reconstruction.surface_interpolation import  surface_interpolation, create_thickened_volumes
+from copy import deepcopy
+from utils.reconstruction_classes import SlabReconstructionData
 from reconstruction.volumetric_interpolation import volumetric_interpolation
-from reconstruction.surface_interpolation import surface_interpolation
-from utils.utils import prefilter_and_downsample, resample_to_autoradiograph_sections, shell
+from utils.utils import prefilter_and_downsample, resample_to_autoradiograph_sections, shell, create_file_dict_output_resolution
 from reconstruction.align_slab_to_mri import get_alignment_schedule, run_alignment
 from utils.utils import get_section_intervals
 from reconstruction.nonlinear_2d_alignment import create_2d_sections, receptor_2d_alignment, concatenate_sections_to_volume
@@ -824,36 +826,51 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
 
     highest_resolution = resolution_list[-1]
     n_depths=10
+    dt=1/n_depths
     n_vertices = 0 
     
     class Arguments() :
         pass
     args=Arguments()
+    args.depth_list=np.arange(0,1+dt, dt)
     args.surf_dir = surf_dir
     args.n_vertices = n_vertices
-    args.slabs=['1']
-    df_ligand=aligned_df
-    df_ligand['slab']=['1'] * df_ligand.shape[0]
+    args.slabs=[1]
+    aligned_df['slab']=[1] * aligned_df.shape[0]
     to_reconstruct=np.unique(aligned_df['ligand'])#['cellbody','flum','myelin']
-    df_ligand = df_ligand[ df_ligand['ligand'].apply(lambda x: x in to_reconstruct ) ]
-    files={ brain:{hemi:{'1':{}} }}
-    files[brain][hemi]['1'][highest_resolution] = {
+    aligned_df = aligned_df[ aligned_df['ligand'].apply(lambda x: x in to_reconstruct ) ]
+    files={ brain:{hemi:{1:{}} }}
+    files[brain][hemi][1][highest_resolution] = {
             'nl_3d_tfm_fn' : tfm_3d_fn,
             'nl_3d_tfm_inv_fn' : tfm_3d_inv_fn,
             'nl_2d_vol_fn' : volume_align_2d_fn,
+            'nl_2d_vol_cls_fn' : volume_align_2d_fn,
             'srv_space_rec_fn':template_rec_space_fn,
             'srv_iso_space_rec_fn':template_iso_rec_space_fn
         }
     
     gm_label= np.percentile(nib.load(template_rec_space_fn).dataobj, [95])[0]
     
-    slab_dict={'1':files[brain][hemi]['1'][highest_resolution]}
+    slab_dict={1:files[brain][hemi][1][highest_resolution]}
 
     subcortex_mask_fn='templates/MEBRAINS_T1_WM_L.nii.gz'
-    for ligand, cur_df_ligand in df_ligand.groupby(["ligand"]):
 
+    slabData = SlabReconstructionData(brain, hemi, args.slabs, to_reconstruct, args.depth_list, ligand_dir, ligand_dir +'/surfaces/', highest_resolution)
+    
+    slab_files_dict = create_file_dict_output_resolution(files, brain, hemi, resolution_list)
 
-        surface_interpolation(cur_df_ligand, slab_dict, ligand_dir, brain, hemi, highest_resolution,  template_fn, args.slabs, files[brain][hemi], scale_factors_json, input_surf_dir=surf_dir, n_vertices=n_vertices, upsample_resolution=20, n_depths=n_depths, gm_label=gm_label)
+    for ligand, df_ligand in aligned_df.groupby(['ligand']):
+        print('\t\tLigand:', ligand)
+        ligandSlabData = deepcopy(slabData)
+        ligandSlabData.volumes = slabData.volumes[ligand] 
+        ligandSlabData.cls = slabData.cls[ligand] 
+        ligandSlabData.values_raw = slabData.values_raw[ligand] 
+        ligandSlabData.values_interp = slabData.values_interp[ligand] 
+        ligandSlabData.ligand = ligand
+    
+        create_thickened_volumes(ligand_dir, slab_files_dict, df_ligand, slabData.n_depths, slabData.resolution) 
+        surface_interpolation(ligandSlabData, df_ligand, slab_dict, template_fn, files[brain][hemi], scale_factors_json,   tissue_type='', input_surf_dir=surf_dir, n_vertices = 0, gm_label=2, clobber=0)
+        
 
         volumetric_interpolation(brain, hemi, highest_resolution, slab_dict, to_reconstruct, subcortex_mask_fn, ligand_dir,n_depths)
     print('Done')

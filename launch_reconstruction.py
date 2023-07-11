@@ -10,6 +10,7 @@ import utils.ants_nibabel as nib
 import matplotlib.pyplot as plt
 import seaborn as sns
 import debug; 
+from copy import deepcopy
 from skimage.transform import resize
 from scipy.interpolate import interp1d
 from joblib import Parallel, delayed
@@ -353,7 +354,6 @@ def create_srv_volumes_for_next_slab(args,files, slab_list, resolution_list, res
             crop_srv_rsl_fn = files[brain][hemi][str(int(slab))][float(resolution)]['srv_crop_rsl_fn']
             #DEBUG create_new_srv_volumes(rec_3d_rsl_fn, crop_srv_rsl_fn, stage_3_5_outputs, resolution_list_3d)
             create_new_srv_volumes(rec_3d_rsl_fn, args.srv_cortex_fn, stage_3_5_outputs, resolution_list_3d)
-from copy import deepcopy
 def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=None) :
     ###
     ### Step 5 : Interpolate missing receptor densities using cortical surface mesh

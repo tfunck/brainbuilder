@@ -73,6 +73,20 @@ def get_surf_from_dict(d):
         exit(1)
     return surf_fn
 
+def create_file_dict_output_resolution(files, brain, hemi, resolution_list):
+    slab_files_dict={} 
+    for slab, temp_slab_files_dict in files[brain][hemi].items() :
+        nl_3d_tfm_exists = os.path.exists(temp_slab_files_dict[resolution_list[-1]]['nl_3d_tfm_fn'])
+        nl_2d_vol_exists = os.path.exists(temp_slab_files_dict[resolution_list[-1]]['nl_2d_vol_fn'])
+        if nl_3d_tfm_exists and nl_2d_vol_exists :
+            slab_files_dict[int(slab)] = temp_slab_files_dict[resolution_list[-1]] 
+        else : 
+            print(f'Error: not including slab {slab} for interpolation (nl 3d tfm exists = {nl_3d_tfm_exists}, 2d nl vol exists = {nl_2d_vol_exists}) ')
+
+    assert len(slab_files_dict.keys()) != 0 , print('No slabs to interpolate over')
+    return slab_files_dict
+
+
 def get_edges_from_faces(faces):
     #for convenience create vector for each set of faces 
     f_i = faces[:,0]
