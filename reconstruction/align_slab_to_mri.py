@@ -304,34 +304,34 @@ def run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, srv_rsl_fn, srv_slab_
     # calculate rigid registration
     skip_manual=True
 
-    if not os.path.exists( manual_affine_fn ) or skip_manual :
-        ### Create init tfm to adjust for brains of very differnt sizes
-        '''
-        if use_init_tfm and not os.path.exists(f'{prefix_init}Composite.h5'):
-            s_str_0 = linParams.s_list[0] +'x'
-            f_str_0 = linParams.f_list[0] 
-            #why does the similarity transform only have one iteration step?
-            #shell(f'{base}  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]   -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000   -t Affine[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000  -o [{prefix_init},{prefix_init}volume.nii.gz,{prefix_init}volume_inverse.nii.gz]  ', verbose=False)
-            
-            shell(f'{base}  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]   -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}   -t Affine[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000  -o [{prefix_init},{prefix_init}volume.nii.gz,{prefix_init}volume_inverse.nii.gz]  ', verbose=False)
-            init_str = f' --initial-moving-transform {prefix_init}Composite.h5 '
-        else :
-            init_str = f' --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1] '
-        '''
-        init_str = f' --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1] '
-        # calculate rigid registration
-        if not os.path.exists(f'{prefix_rigid}Composite.h5'):
-            rigid_cmd=f'{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] '
-            shell(rigid_cmd, verbose=True)
-            write_log(out_dir,'rigid',rigid_cmd)
-        # calculate similarity registration
+    init_str = f' --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1] '
+    if not skip_manual or type(manual_affine_fn) == str :
+        if os.path.exists( manual_affine_fn ):
+            ### Create init tfm to adjust for brains of very differnt sizes
+            '''
+            if use_init_tfm and not os.path.exists(f'{prefix_init}Composite.h5'):
+                s_str_0 = linParams.s_list[0] +'x'
+                f_str_0 = linParams.f_list[0] 
+                #why does the similarity transform only have one iteration step?
+                #shell(f'{base}  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]   -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000   -t Affine[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000  -o [{prefix_init},{prefix_init}volume.nii.gz,{prefix_init}volume_inverse.nii.gz]  ', verbose=False)
+                
+                shell(f'{base}  --initial-moving-transform [{srv_slab_fn},{seg_rsl_fn},1]   -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}   -t Affine[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000  -o [{prefix_init},{prefix_init}volume.nii.gz,{prefix_init}volume_inverse.nii.gz]  ', verbose=False)
+                init_str = f' --initial-moving-transform {prefix_init}Composite.h5 '
+            '''
 
-        if not os.path.exists(f'{prefix_similarity}Composite.h5'):
-            similarity_cmd = f'{base}  --initial-moving-transform  {prefix_rigid}Composite.h5 -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] '
-            shell(similarity_cmd, verbose=True)
-            write_log(out_dir,'similarity',similarity_cmd)
+    # calculate rigid registration
+    if not os.path.exists(f'{prefix_rigid}Composite.h5'):
+        rigid_cmd=f'{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] '
+        shell(rigid_cmd, verbose=True)
+        write_log(out_dir,'rigid',rigid_cmd)
+    # calculate similarity registration
 
-        affine_init = f'--initial-moving-transform {prefix_similarity}Composite.h5'
+    if not os.path.exists(f'{prefix_similarity}Composite.h5'):
+        similarity_cmd = f'{base}  --initial-moving-transform  {prefix_rigid}Composite.h5 -t Similarity[{step}]  -m {metric}[{srv_slab_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] '
+        shell(similarity_cmd, verbose=True)
+        write_log(out_dir,'similarity',similarity_cmd)
+
+    affine_init = f'--initial-moving-transform {prefix_similarity}Composite.h5'
     #else :
     #    print('\tApply manual transformation')
     #    shell(f'antsApplyTransforms -v 1 -d 3 -i {seg_rsl_fn} -r {srv_tgt_fn} -t [{manual_affine_fn},0] -o {manual_out_fn}', verbose=False)

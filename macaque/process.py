@@ -304,6 +304,7 @@ def create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn ):
 
         #Add downsample and crop, files
         df['crop'] = df['raw'].apply(lambda fn: '{}/{}'.format(crop_dir,os.path.splitext(os.path.basename(fn))[0]+'_crop.nii.gz') )
+        df['crop_fn']=df['crop']
         df['aligned']=[False]*df.shape[0]
         df.sort_values(['order'],inplace=True)
       
@@ -418,7 +419,7 @@ def align_sections(df, i_list, init_dir, reference_ligand, direction, metric='Ma
                     metrics=[metric], tfm_type=['Rigid'],
                     iterations=['1000x500x250x125'],
                     shrink_factors=['4x3x2x1'], 
-                    smoothing_sigmas=[8/np.pi, 4/np.pi, 2/np.pi, 0 ], #['2.0x1.0x0.5x0'], 
+                    smoothing_sigmas=[f'{4*0.2}x{3*0.2}x{2*0.2}x{0}'], #], #['2.0x1.0x0.5x0'], 
                     init_tfm=None, no_init_tfm=False, dim=2, nbins=32,
                     sampling_method='Regular',sampling=1, verbose=0, generate_masks=False, clobber=1)
                 qc_align(moving_row, fixed_row, init_dir, moving_row[file_to_align], mv_rsl_fn, qc_fn)
@@ -556,19 +557,21 @@ def align_3d(rec_fn, template_fn, out_dir, subject_id, res, f_str='5x4x3x2', s_s
     return tfm_fn, inv_fn
 
 def multires_align_3d(subject_id, out_dir, volume_interp_fn, template_fn, resolution_list, curr_res, init_affine_fn='', metric='GC'):
-    out_tfm_fn=f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN_Composite.h5' 
-    out_tfm_inv_fn=f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN_InverseComposite.h5' 
-    out_inv_fn=f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN_inverse.nii.gz' 
-    out_fn=    f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN.nii.gz' 
+    out_tfm_fn=f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN_CC_Composite.h5' 
+    out_tfm_inv_fn=f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN_CC_InverseComposite.h5' 
+    out_inv_fn=f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN_CC_inverse.nii.gz' 
+    out_fn=    f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN_CC.nii.gz' 
 
     resolution_itr = resolution_list.index( curr_res)
 
     #max_downsample_level = get_max_downsample_level(resolution_list, resolution_itr)
     #= get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr, base_nl_itr=100)
 
-    max_downsample_level, f_str, s_str, lin_itr_str, nl_itr_str = get_alignment_schedule(resolution_list, resolution_itr,base_nl_itr = 100 )
     
-    run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, template_fn, template_fn, volume_interp_fn, s_str, f_str, lin_itr_str, nl_itr_str, curr_res, manual_affine_fn=init_affine_fn, metric=metric )
+
+    max_downsample_level, linParams, nlParams, nlParamsHi, ccParams = get_alignment_schedule(resolution_list, curr_res )
+
+    run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, template_fn, template_fn, volume_interp_fn, linParams, nlParams, nlParamsHi, ccParams, curr_res, None, metric='GC',nbins=32, use_init_tfm=False, use_masks=False, sampling=0.9, clobber=False )
 
     return out_tfm_fn, out_tfm_inv_fn
 

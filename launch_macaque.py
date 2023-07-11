@@ -22,4 +22,4 @@ if __name__ == '__main__' :
     print(df['global_order'].min(), df['global_order'].max())
     
     flip_dict = {'rostral_to_caudal':(0,), 'caudal_to_rostral':(0,1) }
-    reconstruct(str(subject_id), auto_dir, template_fn, scale_factors_json, out_dir, csv_fn, pytorch_model='Task501', flip_dict=flip_dict, hemi='L', resolution_list=[3,2,1,0.5,0.25])
+    reconstruct(str(subject_id), auto_dir, template_fn, scale_factors_json, out_dir, csv_fn, pytorch_model='Task501', flip_dict=flip_dict, hemi='L', resolution_list=[3,2,1])

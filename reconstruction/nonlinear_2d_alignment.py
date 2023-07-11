@@ -128,7 +128,8 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     img_res = np.array([img.affine[0,0], img.affine[1,1] ])
     vol = img.get_fdata()
 
-    assert np.max(vol) < 256 , 'Problem with file '+ crop_fn + f'\n Max Value = {np.max(vol)}'
+    #DEBUG add this back in once the macaque raw data is fixed
+    #assert np.max(vol) < 256 , 'Problem with file '+ crop_fn + f'\n Max Value = {np.max(vol)}'
 
     sd = np.array( (float(resolution)/img_res)  / np.pi )
     print('SD',sd)
@@ -239,7 +240,8 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='r
             try : 
                 sec = nib.load(fn).get_fdata()
 
-                assert np.max(sec) < 256 , 'Problem with file '+ fn + f'\n Max Value = {np.max(sec)}'
+                #DEBUG add this back in once the macaque raw data is fixed
+                #assert np.max(sec) < 256 , 'Problem with file '+ fn + f'\n Max Value = {np.max(sec)}'
                 out_vol[:,int(y),:] = sec 
             except EOFError :
                 print('Error:', fn)

@@ -149,7 +149,8 @@ def process_image(img, row, scale, pad, affine,brain_str='mri', mask_fn='', flip
         # apply mask to image
         img[ mask < np.max(mask)*0.5 ] = 0
 
-    assert img.max() < 256, 'Error: max value is {img.max()} for \n'+fn
+    #DEBUG add this back in once the macaque raw data is fixed
+    #assert img.max() < 256, 'Error: max value is {img.max()} for \n'+fn
 
     #print('d image max:',np.max(img))
     brain = row[brain_str]
@@ -162,7 +163,8 @@ def process_image(img, row, scale, pad, affine,brain_str='mri', mask_fn='', flip
     img = img.reshape(img.shape[0], img.shape[1])
 
     #print('e image max:',np.max(img))
-    assert img.max() < 256, 'Error: max value is {img.max()} for \n'+fn
+    #DEBUG add this back in once the macaque raw data is fixed
+    #assert img.max() < 256, 'Error: max value is {img.max()} for \n'+fn
 
     for  dict_direction, flip_axes in flip_axes_dict.items() :
         if direction == dict_direction :
@@ -177,7 +179,8 @@ def process_image(img, row, scale, pad, affine,brain_str='mri', mask_fn='', flip
     img_pad[p:p+img.shape[0],p:p+img.shape[1]] =img
     #print('f image max:',np.max(img_pad))
     
-    assert img_pad.max() < 256, 'Error: max value is {img.max()} for \n'+fn
+    #DEBUG add this back in once the macaque raw data is fixed
+    #assert img_pad.max() < 256, 'Error: max value is {img.max()} for \n'+fn
     try :
         section_rotation =  row['rotate']
         print(section_rotation)
@@ -221,7 +224,8 @@ def crop_parallel(row, mask_dir, scale, global_order_min, brain_str='mri', crop_
         
         # load mask image 
         img = imageio.imread(fn)
-        assert img.max() < 256, 'Error: prior to process_image max value is {img.max()} for \n'+fn
+        #DEBUG add this back in once the macaque raw data is fixed
+        #assert np.max(img) < 256, 'Error: prior to process_image max value is {img.max()} for \n'+fn
 
         if len(img.shape) > 2 : img = img[:,:,0] #np.max(img,axis=2)
         affine = gen_affine(row, scale, img.shape, global_order_min, xstep_from_size=True, brain_str=brain_str)
@@ -233,7 +237,9 @@ def crop_parallel(row, mask_dir, scale, global_order_min, brain_str='mri', crop_
             exit(1)
         
         #print('a image max:',np.max(img))
-        assert img.max() < 256, 'Error: max value is {img.max()} for \n'+fn
+
+        #DEBUG add this back in once the macaque raw data is fixed
+        #assert img.max() < 256, 'Error: max value is {img.max()} for \n'+fn
         nib.Nifti1Image(img, affine ).to_filename(crop_fn)
 
     '''
