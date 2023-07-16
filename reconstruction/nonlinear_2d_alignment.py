@@ -91,7 +91,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     #assert np.sum(nib.load(prefix+'_affine_cls_rsl.nii.gz').dataobj) > 0, 'Error: 2d affine transfromation failed'
 
     #--masks [{fx_mask_fn},{mv_mask_fn}] 
-    syn_command_str = f'antsRegistration -n NearestNeighbor -v {int(verbose)} -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -c {nlParams.itr_str} -s {nlParams.s_str} -f {nlParams.f_str}' 
+    syn_command_str = f'antsRegistration -v 1 -n NearestNeighbor -v {int(verbose)} -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -c {nlParams.itr_str} -s {nlParams.s_str} -f {nlParams.f_str}' 
 
     if type(ccParams) != type(None) : 
         syn_command_str= syn_command_str + f' -t SyN[0.1] -m CC[{fx_fn},{mv_fn},1,3,Random,0.99] -c {ccParams.itr_str} -s {ccParams.s_str} -f {ccParams.f_str}' 

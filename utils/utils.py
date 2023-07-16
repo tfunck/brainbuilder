@@ -683,7 +683,6 @@ def simple_ants_apply_tfm(in_fn, ref_fn, tfm_fn, out_fn,ndim=3,n='Linear',empty_
         shell(str0, verbose=True)
         check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn,empty_ok=empty_ok)
 
-
 def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, ref_fn, tfm_inv_fn, iso_output_fn, output_fn):
     '''
     About:
@@ -702,9 +701,13 @@ def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, 
     Outpus:
         None
     '''
-    simple_ants_apply_tfm(input_fn, ref_fn, tfm_inv_fn, '/tmp/tmp.nii.gz',ndim=3)
-    
-    img = nib.load('/tmp/tmp.nii.gz')
+    print('\tInput', input_fn)
+    rand = tempfile.NamedTemporaryFile().name
+    rand_fn = f'{rand}.nii.gz'
+    print('\tTfm', rand_fn)
+    simple_ants_apply_tfm(input_fn, ref_fn, tfm_inv_fn, rand_fn, ndim=3)
+
+    img = nib.load(rand_fn)
     vol = img.get_fdata()
     assert np.sum(vol) > 0, f'Error: empty volume {iso_output_fn}'
     
@@ -712,16 +715,17 @@ def resample_to_autoradiograph_sections(brain, hemi, slab, resolution,input_fn, 
     
     vol = ( 255*(vol-vol.min())/(vol.max()-vol.min()) ).astype(np.uint8)
 
-    img_iso = resample_to_output(vol, aff, [float(resolution)]*3, order=0, dtype=np.uint8)
+    img_iso = resample_to_output(vol, aff, [float(resolution)]*3, order=0, dtype=np.uint16)
+    print('\tIso:', iso_output_fn)
     img_iso.to_filename(iso_output_fn)
     
     aff = img.affine.copy()
-
-    img3 = resample_to_output(vol, aff, [float(resolution),0.02, float(resolution)], order=1, dtype=np.uint8)
+    print('\t20um:', output_fn)
+    img3 = resample_to_output(vol, aff, [float(resolution),0.02, float(resolution)], order=1, dtype=np.uint16)
     
     img3.to_filename(output_fn)
 
-    os.remove('/tmp/tmp.nii.gz')
+    os.remove(rand_fn)
 
 
 def fix_affine(fn):
@@ -1127,8 +1131,8 @@ def recenter(vol, affine, direction=np.array([1,1,-1])):
     return vol, affine
 
 
-def prefilter_and_downsample(input_filename, new_resolution, output_filename, 
-                            new_starts=[None, None, None], recenter_image=False, dtype=None ):
+def prefilter_and_downsample(input_filename, new_resolution, output_filename, new_dimensions=None, 
+                            new_starts=[None, None, None], recenter_image=False, dtype=None, order=5 ):
 
     #img = nib.load(input_filename)
     img = ants.image_read(input_filename)
@@ -1175,6 +1179,9 @@ def prefilter_and_downsample(input_filename, new_resolution, output_filename,
         print(f'Error: number of dimensions ({ndim}) does not equal 2 or 3 for {input_filename}')
         exit(1)
 
+    #new_dims = np.ceil(img.shape * ( steps / np.array(new_resolution) ))
+
+    #resize(vol, new_dimension, order=order)
 
     vol = resample_to_output( vol, affine, new_resolution, order=5).get_fdata()
     new_dims = [ vol.shape[0], vol.shape[1] ]

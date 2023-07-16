@@ -1,25 +1,71 @@
 # julich-receptor-atlas
 
-## Running on server
+### Purpose
 
-### For increasing spatial resolution, do:
-#### Stage 1A
+3D reconstruction of 2D histological sections.
 
-Initial inter-autoradiograph alignment *OR* Combine warped 2D autoradiograph sections into a volume. 
+Manuscript with full description: https://www.biorxiv.org/content/10.1101/2022.11.18.517039v1
 
-Autoradiograph segmentation
+## Useage
 
-3D alignment to MRI
+### Inputs 
 
-Resample MRI GM volume to autoradiograph space
+subject_id: subject name
 
-#### Stage 1B
+auto_dir: autoradiography directory
 
-2D non-linear alignment of autoadiographs to MRI GM volume warped to autoradiograph space
+template_fn: reference template volume for reconstruction
 
-Return to Stage 2 if high resolution level has not been reached.
+scale factors .json : json file that specifies slicing direction and section pixel size in each tissue slab
 
-### Stage 2
+out_dir : output directory
 
-Surface-based interpolation
+section info .csv : .csv file that contains the fields specified below
 
+
+
+singularity exec   ~/projects/julich-receptor-atlas/receptor.simg bash -c "python3.8 ~/projects/julich-receptor-atlas/launch_macaque.py rh_11530_mf macaque/rh_11530_mf/ templates/MEBRAINS_segmentation_NEW_gm_bg_left.nii.gz macaque/rh_11530_mf_points_lpi.txt macaque/rh_11530_mf/scale_factors.json ${out_dir}" 
+
+### Scale Factors .json
+
+### Section Info .csv
+
+#### Required Fields:
+
+raw : path to raw section file
+
+brain : id of brain 
+
+hemisphere : L or R hemisphere
+
+slab : tissue slab from which section was acquired
+
+ligand: ligand or method used to produce section
+
+order : section order number within slab
+
+rotate : rotation to apply to raw image
+
+#### Optional :
+
+conversion_factor : conversion factor to apply to convert from radioactivity concentration to receptor binding, Default = 1.
+
+repeat :  
+
+repeat count :
+
+binding : type of binding, specific (S) or unspecific (UB)
+
+
+#### Generated during reconstruction
+slab_order :
+
+global_order :
+
+volume_order : 
+
+seg_fn : 
+
+crop : path to cropped section file
+
+aligned : path to aligned section file

@@ -88,15 +88,26 @@ def prepare_surfaces(slab_dict, ligandSlabData,  mni_fn, df_ligand, input_surf_d
     surf_gm_fn, surf_wm_fn, ext = get_gm_wm_surfaces(input_surf_dir, brain, hemi, n_vertices)
     
     origin=[0,0,0]
-    if ext.gm == '.pial' : origin = load_mesh(surf_gm_fn)[2]['cras']
-    
+    #DEBUG if ext.gm == '.pial' : origin = load_mesh(surf_gm_fn)[2]['cras']
+    print(surf_gm_fn)
+    coords = load_mesh(surf_gm_fn, correct_offset=True)[0]
+   
+    img = nb_surf.load(mni_fn)
+    dimensions = img.shape
+    steps = img.affine[[0,1,2],[0,1,2]]
+    starts = img.affine[[0,1,2],[3,3,3]]
+    print(steps)
+    print(starts)
+    interp_vol, _  = mesh_to_volume(coords, np.ones(coords.shape[0]), dimensions, starts, steps)
+    nib.Nifti1Image(interp_vol, nib.load(mni_fn).affine,direction_order='lpi').to_filename(f'{interp_dir}/tmp.nii.gz')
+
     sphere_obj_fn = surf_base_str.format(input_surf_dir, brain, 'mid', hemi, n_vertices,'_sphere',ext.gm)
     print('\tSurf GM filename:', surf_gm_fn) 
     #upsample transformed surfaces to given resolution
     surf_depth_mni_dict={}
 
     print("\tGenerating surfaces across cortical depth.") 
-    surf_depth_mni_dict = generate_cortical_depth_surfaces(surf_depth_mni_dict, depth_list, resolution, surf_wm_fn, surf_gm_fn, surf_rsl_dir, ligand, ext)
+    surf_depth_mni_dict = generate_cortical_depth_surfaces(surf_depth_mni_dict, mni_fn, depth_list, resolution, surf_wm_fn, surf_gm_fn, surf_rsl_dir, ligand, ext)
 
     print("\tInflating surfaces.") 
     surf_depth_mni_dict = inflate_surfaces(surf_depth_mni_dict, surf_rsl_dir, ext, resolution,  depth_list,  clobber=clobber)
@@ -125,10 +136,15 @@ def transfrom_depth_surf_to_slab_space(slab_dict, surf_depth_mni_dict, volumes, 
 
 
 
-def generate_cortical_depth_surfaces(surf_depth_mni_dict, depth_list, resolution, wm_surf_fn, surf_gm_fn, surf_dir, ligand, ext):
+def generate_cortical_depth_surfaces(surf_depth_mni_dict, ref_vol_fn, depth_list, resolution, wm_surf_fn, surf_gm_fn, surf_dir, ligand, ext):
 
-    gm_coords, gm_faces, gm_info = load_mesh(surf_gm_fn)
-    wm_coords, wm_faces, wm_info = load_mesh(wm_surf_fn)
+    img = nb_surf.load(ref_vol_fn)
+    dimensions = img.shape
+    steps = img.affine[[0,1,2],[0,1,2]]
+    starts = img.affine[[0,1,2],[3,3,3]]
+
+    gm_coords, gm_faces, gm_info = load_mesh(surf_gm_fn, correct_offset=True)
+    wm_coords, wm_faces, wm_info = load_mesh(wm_surf_fn, correct_offset=True)
 
     #if gm_info != None:
     #    print('Volume info (origin):', gm_info['cras'])
@@ -147,13 +163,16 @@ def generate_cortical_depth_surfaces(surf_depth_mni_dict, depth_list, resolution
 
     for depth in depth_list :
         depth_surf_fn = "{}/surf_{}mm_{}{}".format(surf_dir,resolution,depth, ext.gm)
+        depth_vol_fn = "{}/surf_{}mm_{}{}".format(surf_dir,resolution,depth, '.nii.gz')
         surf_depth_mni_dict[depth]={'depth_surf_fn':depth_surf_fn}
         
         coords = gm_coords + depth * d_coords
         
         if not os.path.exists(depth_surf_fn) :
             save_mesh(depth_surf_fn, coords, gm_faces, volume_info=volume_info)
-        del coords
+            interp_vol, _  = mesh_to_volume(coords, np.ones(coords.shape[0]), dimensions, starts, steps)
+            print('\tWriting', depth_vol_fn)
+            nib.Nifti1Image(interp_vol, nib.load(ref_vol_fn).affine,direction_order='lpi').to_filename(depth_vol_fn)
 
 
     return surf_depth_mni_dict
@@ -189,12 +208,6 @@ def inflate_surfaces(surf_depth_mni_dict, surf_dir, ext, resolution,  depth_list
             print(f'\t\t{inflate_fn}')
             shell(f'~/freesurfer/bin/mris_sphere -q  {inflate_fn} {sphere_fn}')
             print(f'\t\t{sphere_fn}')
-            #for n in [500, 1000] :
-            #    for d in [2, 3, 4]:
-            #        sphere_fn=f'./test_{n}_{d}.pial'
-            #        if not os.path.exists(sphere_fn):
-            #            shell(f'~/freesurfer/bin/mris_inflate -n {n} -scale 1 -no-save-sulc -dist {d}  {depth_surf_fn} {sphere_fn}')
-            #            print('Saving to', sphere_fn)
 
     return surf_depth_mni_dict
 

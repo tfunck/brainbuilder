@@ -354,6 +354,7 @@ def create_srv_volumes_for_next_slab(args,files, slab_list, resolution_list, res
             crop_srv_rsl_fn = files[brain][hemi][str(int(slab))][float(resolution)]['srv_crop_rsl_fn']
             #DEBUG create_new_srv_volumes(rec_3d_rsl_fn, crop_srv_rsl_fn, stage_3_5_outputs, resolution_list_3d)
             create_new_srv_volumes(rec_3d_rsl_fn, args.srv_cortex_fn, stage_3_5_outputs, resolution_list_3d)
+
 def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=None) :
     ###
     ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
@@ -495,9 +496,6 @@ def calculate_dist_of_sphere_inflation(cortex_fn, sphere_fn):
     ratio_average = np.mean(edge_ratios)
     ratio_std = np.std(edge_ratios)
     return ratio_average
-
-
-
 
 
 def reconstruct_slab(hemi_df, brain, hemi, slab, slab_index, args, files, resolution_list, resolution_list_3d, max_resolution_3d=0.3):

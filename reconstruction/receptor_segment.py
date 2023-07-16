@@ -85,7 +85,7 @@ def get_input_file(seg_fn, seg_rsl_fn, row, output_dir, new_starts, resolution_2
 
 def resample_and_transform(output_dir, resolution_itr, resolution_2d, resolution_3d, row, tfm_ref_fn, recenter_image=False, file_to_align='seg_fn'):
     seg_fn = row[file_to_align]
-    
+     
     seg_rsl_fn = get_seg_fn(output_dir, int(row['slab_order']), resolution_2d, seg_fn, '_rsl')
     seg_rsl_tfm_fn = get_seg_fn(output_dir, int(row['slab_order']), resolution_3d, seg_fn, '_rsl_tfm')
 
@@ -117,6 +117,7 @@ def resample_transform_segmented_images(df,resolution_itr,resolution_2d,resoluti
         num_cores = min(14, multiprocessing.cpu_count() )
    
     tfm_ref_fn = output_dir+'/2d_reference_image.nii.gz'
+
     if not os.path.exists(tfm_ref_fn) and resolution_itr != 0 : 
         ref_img = nib.load(df['nl_2d_rsl'].values[0])
         xstart, zstart = ref_img.affine[[0,1],3]
@@ -184,8 +185,15 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, resolution_3d, re
             for i, row in df.iterrows() :
                 s0 = int(row['slab_order'])
                 fn = get_seg_fn(in_dir, int(row['slab_order']), resolution_3d, row[file_to_align], '_rsl_tfm')
+                print(fn)
                 img_2d = nib.load(fn).get_fdata()
+                print(img_2d.shape)
                 #FIXME : Skipping frames that have been rotated
+
+                #FIXME This is not a good way to solve issue with rsl_tfm files being the wrong size. Problem is probably in the use of nibabel's resampling function in prefilter_and_downsample
+                if img_2d.shape[0] != data.shape[0] or img_2d.shape[1] != data.shape[2] :
+                    img_2d = resize(img_2d, [data.shape[0],data.shape[2]], order=0)
+
                 data[:,s0,:] = img_2d 
 
             data = interpolate_missing_sections(data, dilate_volume=True)

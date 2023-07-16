@@ -315,7 +315,6 @@ def project_volume_to_depth(surf_fn_list, slab_dict, thickened_dict, thickened_c
                     #ylo=min([y0w,y1w])
                     #yhi=max([y0w,y1w])
                     #if np.min(coords[valid_coords_idx,1]) < ylo : # or (np.max(valid_coords_world[:,1]) > y0w) :
-                    #    print('error', np.min(valid_coords_world[:,1]), np.min(coords[valid_coords_idx,1]), y0w); #exit(0)
                     x = np.rint( (valid_coords_world[:,0] - xstart)/xstep ).astype(int)
                     y = np.rint( (valid_coords_world[:,1] - ystart)/ystep ).astype(int)
                     z = np.rint( (valid_coords_world[:,2] - zstart)/zstep ).astype(int)
@@ -442,29 +441,7 @@ def interpolate_over_surface(sphere_obj_fn,surface_val,threshold=0,order=1):
     interp_val, interp_type = mesh.interpolate(lons,lats, zdata=surface_val[surface_mask], order=order)
         
     return interp_val
-'''
-DELETEME?
-def transform_surf_to_slab(interp_dir, slab_dict, depth_fn_space_mni, ref_gii_fn, ext, mni_fn, clobber=0):
-    surf_rsl_dict={}
-    for slab, cur_slab_dict in slab_dict.items() :
-        surf_rsl_dict[slab]={}
-        print(cur_slab_dict)
-        for depth, depth_dict in depth_fn_space_mni.items() :
-            upsample_fn = depth_dict['upsample_fn']
-            upsample_gii_fn = depth_dict['upsample_gii_fn']
-            sphere_rsl_fn = depth_dict['sphere_rsl_fn']
-            surf_rsl_dict[slab][depth]={}
-            upsample_slab_space_fn="{}/slab-{}_{}".format(interp_dir,slab,os.path.basename(upsample_fn))
-            upsample_slab_space_gii="{}/slab-{}_{}".format(interp_dir,slab,os.path.basename(upsample_gii_fn))
-            surf_rsl_dict[slab][depth]['upsample_h5'] = upsample_slab_space_fn
-            surf_rsl_dict[slab][depth]['upsample_gii'] = upsample_slab_space_gii
-             
-            if not os.path.exists(upsample_slab_space_fn) or clobber >= 1 : 
-                print(f"\t\tTransformig surface at depth {depth} to slab {slab}")
-                apply_ants_transform_to_gii(upsample_fn, [cur_slab_dict['nl_3d_tfm_fn']], upsample_slab_space_fn, 0) #, depth_fn_space_mni[0]['faces_fn'])
-     
-    return surf_rsl_dict
-'''
+
 class Ext():
     def __init__(self,gm_sphere,wm_sphere,gm,wm):
         self.gm_sphere = gm_sphere
@@ -585,7 +562,9 @@ def create_reconstructed_volume(interp_fn_list, ligandSlabData, profiles_fn, sur
             out_affine= nib.load(srv_iso_space_rec_fn).affine
 
             imageParamHi = get_image_parameters(slab_fn)
+            print(slab_fn, imageParamHi.dimensions)
             imageParamLo = get_image_parameters(srv_iso_space_rec_fn) 
+            print(srv_iso_space_rec_fn, imageParamLo.dimensions)
            
             mask_img = nib.load(srv_iso_space_rec_fn)
             mask_vol = mask_img.get_fdata()
@@ -606,15 +585,15 @@ def create_reconstructed_volume(interp_fn_list, ligandSlabData, profiles_fn, sur
             multi_mesh_filled_fn = re.sub('.nii','_multimesh-filled.nii', interp_fn)
             gm_mask_fn = re.sub('.nii','_gm-mask.nii', interp_fn)
             nib.Nifti1Image(mask_vol, out_affine ).to_filename(gm_mask_fn)
-            
-            if not os.path.exists(multi_mesh_interp_fn) or not os.path.exists(multi_mesh_filled_fn) : 
+           
+            if not os.path.exists(multi_mesh_interp_fn) or not os.path.exists(multi_mesh_filled_fn) or clobber: 
 
                 y0=df_ligand['slab_order'].min()*imageParamHi.steps[1] + imageParamHi.starts[1]
                 y1=df_ligand['slab_order'].max()*imageParamHi.steps[1] + imageParamHi.starts[1]
                 slab_start = min(y0,y1)
                 slab_end = max(y0,y1)
                 
-                if not os.path.exists(multi_mesh_interp_fn) :
+                if not os.path.exists(multi_mesh_interp_fn) or clobber :
                     interp_vol = multi_mesh_to_volume(profiles, ligandSlabData.surfaces[slab],  depth_list, imageParamLo.dimensions, imageParamLo.starts, imageParamLo.steps, resolution, y0, y1, origin=origin, ref_fn=ref_fn)
                     print("\t\tWriting", multi_mesh_interp_fn)
                     nib.Nifti1Image(interp_vol, out_affine ).to_filename(multi_mesh_interp_fn)

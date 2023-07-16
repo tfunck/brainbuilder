@@ -58,7 +58,7 @@ def get_surf_from_dict(d):
 
 
 
-def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[0,0,0], interp_vol=None, n_vol=None ):
+def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[0,0,0], interp_vol=None, n_vol=None, validate=True ):
     '''
     About
         Interpolate mesh values into a volume
@@ -87,7 +87,8 @@ def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[0,0
     #perc_mesh_in_volume = np.sum(~idx)/idx.shape[0]
     #assert perc_mesh_in_volume < 0.1, f'Error: significant portion ({perc_mesh_in_volume}) of mesh outside of volume '
     
-    assert np.sum(idx) > 0, 'Assert: no voxels found inside mesh_to_volume'
+    if validate :
+        assert np.sum(idx) > 0, 'Assert: no voxels found inside mesh_to_volume'
     x = x[idx]
     y = y[idx]
     z = z[idx]
@@ -197,8 +198,11 @@ def upsample_over_faces(surf_fn, resolution, out_fn,  face_mask=None, profiles_v
         face_vertex_values = face_vertex_values[face_mask,:]
     else :
         face_vertex_values = np.zeros([face_coords.shape[0],3])
-
-    points, values, new_points_gen = calculate_upsampled_points(faces, face_coords, face_vertex_values, resolution)
+    
+    #resolution is divided by 2 to oversample the surface and guarantee two points per voxel.
+    #this is useful because when the mesh is warped into slab space the vertices can be pulled apart
+    #and may not sample the volume with sufficient density to have 1 vertex per voxel
+    points, values, new_points_gen = calculate_upsampled_points(faces, face_coords, face_vertex_values, resolution/2)
 
     assert points.shape[1]==3, 'Error: shape of points is incorrect ' + points.shape 
     points, unique_index, unique_reverse = unique_points(points)
@@ -377,7 +381,7 @@ def calculate_upsampled_points(faces,  face_coords, face_vertex_values, resoluti
     for f in range(face_coords.shape[0]):
         if f % 1000 == 0 : print(f'\t\tUpsampling Faces: {100.*f/face_coords.shape[0]:.3}',end='\r')
         
-        p0, v0, x, y = interpolate_face(face_coords[f], face_vertex_values[f], resolution*0.9, new_points_only=new_points_only)
+        p0, v0, x, y = interpolate_face(face_coords[f], face_vertex_values[f], resolution, new_points_only=new_points_only)
         
         if n_points + p0.shape[0] >= points.shape[0]:
             points = np.concatenate([points,np.zeros([face_coords.shape[0],3]).astype(np.float128)], axis=0)
@@ -419,7 +423,6 @@ def transform_surface_to_slabs( volume_dict, depth, slab_dict, out_dir, surf_fn,
             apply_ants_transform_to_gii(surf_fn, [nl_3d_tfm_fn], surf_slab_space_fn, 0, faces_fn=faces_fn, ref_gii_fn=ref_gii_fn, ref_vol_fn=thickened_fn)
 
 
-
 def load_mesh_ext(in_fn, faces_fn='', correct_offset=False):
     #TODO: move to mesh_io.py
     ext = os.path.splitext(in_fn)[1]
@@ -451,7 +454,6 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, ref_gi
     else : volume_info = ref_gii_fn
     
     coords, faces = load_mesh_ext(in_gii_fn)
-    
     tfm = ants.read_transform(tfm_list[0])
     flip = 1
     #if np.sum(tfm.fixed_parameters) != 0 : 
@@ -461,23 +463,35 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, ref_gi
     #        flipz=1
     #        flip_label='MR1'
     #    else :
-    flipx=flipy=-1
-    flipz=1
-    flip_label=f'{flipx}{flipy}{flipz}'
+    
+    flipx=flipy=-1 #HUMAN/gifti
+    flipz=1 #HUMAN/gifti
+    
+    signx=signy=signz=1
     
     in_file = open(in_gii_fn, 'r')
     
     out_path, out_ext = os.path.splitext(out_gii_fn)
-    coord_fn = out_path + f'_{flip_label}_ants_reformat.csv'
-    temp_out_fn = out_path + f'_{flip_label}_ants_reformat_warped.csv'
-    coords = np.concatenate([coords, np.zeros([coords.shape[0],2])], axis=1 )
+
     #the for loops are here because it makes it easier to trouble shoot to check how the vertices need to be flipped to be correctly transformed by ants
-    #for flipx in [-1]: #[1,-1] :
-    #    for flipy in [-1]: #[1,-1]:
-    #        for flipz in [1]: #[1,-1]:
-    coords[:,0] = flipx*(coords[:,0] -origin[0])
-    coords[:,1] = flipy*(coords[:,1] +origin[1])
-    coords[:,2] = flipz*(coords[:,2] +origin[2])
+    #for origin in [ [0,0,0], true_origin] :
+    #    for flipx in [1,-1] :
+    #        for flipy in [1,-1]:
+    #            for flipz in [1,-1]:
+    #                for signx in [1,-1] :
+    #                    for signy in [1,-1]:
+    #                        for signz in [1,-1]:
+    #flip_label=f'params_{np.sum(np.abs(origin))}_{flipx}{flipy}{flipz}_{signx}{signy}{signz}'
+    flip_label=''
+    coord_fn = out_path + f'{flip_label}_ants_reformat.csv'
+    temp_out_fn = out_path + f'{flip_label}_ants_reformat_warped.csv'
+
+    coords = np.concatenate([coords, np.zeros([coords.shape[0],2])], axis=1 )
+    coords[:,0] = flipx*(coords[:,0] +signx*origin[0]) #GIFTI
+
+    coords[:,1] = flipy*(coords[:,1] +signy*origin[1]) #GIFTI
+
+    coords[:,2] = flipz*(coords[:,2] +signz*origin[2]) #GIFTI
 
     df = pd.DataFrame(coords,columns=['x','y','z','t','label'])
     df.to_csv(coord_fn, columns=['x','y','z','t','label'], header=True, index=False)
@@ -485,12 +499,27 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, ref_gi
     shell(f'antsApplyTransformsToPoints -d 3 -i {coord_fn} -t [{tfm_list[0]},{invert}]  -o {temp_out_fn}',verbose=True)
     df = pd.read_csv(temp_out_fn,index_col=False)
     df['x'] = flipx * (df['x'] - origin[0])
-    df['y'] = flipy * (df['y'] - origin[1])
+    df['y'] = flipy * (df['y'] + origin[1])
     df['z'] = flipz * (df['z'] - origin[2])
 
     new_coords = df[['x','y','z']].values
+
     out_basename, out_ext = os.path.splitext(out_gii_fn)
-    
+
+    nii_fn = out_path + flip_label +  '.nii.gz'
+    if ref_vol_fn != None :
+        img = nb.load(ref_vol_fn)
+        steps=img.affine[[0,1,2],[0,1,2]]
+        starts=img.affine[[0,1,2],3]
+        dimensions=img.shape
+        print('\t\tReference volume:', ref_vol_fn)
+        interp_vol, n  = mesh_to_volume(new_coords, np.ones(new_coords.shape[0]), dimensions, starts, steps, validate=False)
+
+        if np.sum(interp_vol) > 0 :
+            interp_vol[n>0] = interp_vol[n>0] / n[n>0]
+            print('\tWriting surface to volume file:',nii_fn)
+            nib.Nifti1Image(interp_vol, nib.load(ref_vol_fn).affine).to_filename(nii_fn)
+
     if out_ext == '.h5':
         f_h5 = h5.File(out_gii_fn, 'w')
         f_h5.create_dataset('data', data=new_coords) 
@@ -502,16 +531,6 @@ def apply_ants_transform_to_gii( in_gii_fn, tfm_list, out_gii_fn, invert, ref_gi
     else :
         print('\tWriting Transformed Surface:',out_gii_fn, faces.shape )
         save_mesh(out_gii_fn, new_coords, faces, volume_info=volume_info)
-    
-    nii_fn = out_path +  '.nii.gz'
-    if ref_vol_fn != None :
-        img = nb.load(ref_vol_fn)
-        steps=img.affine[[0,1,2],[0,1,2]]
-        starts=img.affine[[0,1,2],3]
-        dimensions=img.shape
-        interp_vol, _  = mesh_to_volume(new_coords, np.ones(new_coords.shape[0]), dimensions, starts, steps)
-        print('\tWriting surface to volume file:',nii_fn)
-        nib.Nifti1Image(interp_vol, nib.load(ref_vol_fn).affine).to_filename(nii_fn)
     
     #obj_fn = out_path +  '.obj'
     #save_obj(obj_fn,coords, faces)

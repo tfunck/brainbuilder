@@ -32,6 +32,7 @@ def load_mesh(surf_mesh,correct_offset=False):
                 surf_mesh.endswith('white') or surf_mesh.endswith('sphere') or
                 surf_mesh.endswith('inflated')):
             coords, faces, volume_info = nb.freesurfer.io.read_geometry(surf_mesh, read_metadata=True)
+
             if correct_offset and volume_info != None :
                 try :
                     origin=volume_info['cras'] 
@@ -45,10 +46,12 @@ def load_mesh(surf_mesh,correct_offset=False):
                     xdir = get_sign(xras)
                     ydir = get_sign(yras)
                     zdir = get_sign(zras)
-                    print(xdir, ydir, zdir)
-                    coords[:,0] = coords[:,0] + origin[0]
-                    coords[:,1] = coords[:,1] + origin[1]
-                    coords[:,2] = coords[:,2] + origin[2]
+                    xdir=ydir=zdir=1 
+                    print('Adding origin to freesurfer surface', origin)
+                    print('\tDirections:', xdir, ydir, zdir)
+                    coords[:,0] = coords[:,0] + xdir * origin[0]
+                    coords[:,1] = coords[:,1] + ydir * origin[1]
+                    coords[:,2] = coords[:,2] + zdir * origin[2]
                 except KeyError :
                     pass
 

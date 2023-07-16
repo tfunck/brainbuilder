@@ -30,6 +30,10 @@ from utils.utils import safe_imread, points2tfm
 from skimage.filters import threshold_otsu, threshold_li , threshold_sauvola, threshold_yen
 from scipy.ndimage import label, center_of_mass
 
+
+global ligand_receptor_dict
+ligand_receptor_dict={'ampa':'AMPA', 'kain':'Kainate', 'mk80':'NMDA', 'ly34':'mGluR2/3', 'flum':'GABA$_A$ Benz.', 'cgp5':'GABA$_B$', 'musc':'GABA$_A$ Agonist', 'sr95':'GABA$_A$ Antagonist', 'pire':r'Muscarinic M$_1$', 'afdx':r'Muscarinic M$_2$ (antagonist)','damp':r'Muscarinic M$_3$','epib':r'Nicotinic $\alpha_4\beta_2$','oxot':r'Muscarinic M$_2$ (oxot)', 'praz':r'$\alpha_1$','uk14':r'$\alpha_2$ (agonist)','rx82':r'$\alpha_2$ (antagonist)', 'dpat':r'5-HT$_{1A}$','keta':r'5HT$_2$', 'sch2':r"D$_1$", 'dpmg':'Adenosine 1', 'cellbody':'Cell Body', 'myelin':'Myelin'}
+
 def crop_image(crop_dir, y, ligand, fn, crop_fn, pixel_size):
     img = imageio.imread(fn)
     if len(img.shape) == 3 : img = img[:,:,0]
@@ -359,7 +363,7 @@ def create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn ):
     else : 
         df = pd.read_csv(csv_fn)
 
-    
+     
 
     return df
 
@@ -386,6 +390,7 @@ def align_sections(df, i_list, init_dir, reference_ligand, direction, metric='Ma
 
     # Check if we are doing the initial alignment for the reference ligand
     ligand_list = df['ligand'].unique()
+    
     if reference_ligand in ligand_list and len(ligand_list) == 1:
         reference_align=True
     else :
@@ -564,16 +569,20 @@ def multires_align_3d(subject_id, out_dir, volume_interp_fn, template_fn, resolu
     out_inv_fn=f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN_CC_inverse.nii.gz' 
     out_fn=    f'{out_dir}/{subject_id}_align_3d_{curr_res}mm_SyN_CC.nii.gz' 
 
+    template_rsl_basename = re.sub('.nii.gz',f'_{curr_res}.nii.gz', os.path.basename(template_fn))
+    template_rsl_fn =  f'{out_dir}/{template_rsl_basename}'
+
+    if not os.path.exists(template_rsl_fn) :
+        prefilter_and_downsample(template_fn, [curr_res]*3, template_rsl_fn)
+
     resolution_itr = resolution_list.index( curr_res)
 
     #max_downsample_level = get_max_downsample_level(resolution_list, resolution_itr)
     #= get_alignment_schedule(max_downsample_level, resolution_list, resolution_itr, base_nl_itr=100)
 
-    
-
     max_downsample_level, linParams, nlParams, nlParamsHi, ccParams = get_alignment_schedule(resolution_list, curr_res )
 
-    run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, template_fn, template_fn, volume_interp_fn, linParams, nlParams, nlParamsHi, ccParams, curr_res, None, metric='GC',nbins=32, use_init_tfm=False, use_masks=False, sampling=0.9, clobber=False )
+    run_alignment(out_dir, out_tfm_fn, out_inv_fn, out_fn, template_rsl_fn, template_rsl_fn, volume_interp_fn, linParams, nlParams, nlParamsHi, ccParams, curr_res, None, metric='GC',nbins=32, use_init_tfm=False, use_masks=False, sampling=0.9, clobber=False )
 
     return out_tfm_fn, out_tfm_inv_fn
 
@@ -693,7 +702,7 @@ def get_ligand_contrast_order(df):
     print(df_mean)
     
 
-def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_dir, csv_fn, native_pixel_size=0.02163,brain = '11530', hemi='B', pytorch_model='', ligands_to_exclude=[], resolution_list=[4,3,2,1], lowres=0.4, flip_dict={}, rat=False ):
+def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_dir, csv_fn, native_pixel_size=0.02163,brain = '11530', hemi='B', pytorch_model='', ligands_to_exclude=[], resolution_list=[4,3,2,1], lowres=0.4, flip_dict={}, n_depths=10, rat=False ):
     mask_dir = f'{auto_dir}/mask_dir/'
     subject_dir=f'{out_dir}/{subject_id}/' 
     crop_dir = f'{out_dir}/{subject_id}/crop/'
@@ -739,14 +748,15 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     # Crop non-cellbody stains
     crop(crop_dir, mask_dir, df.loc[df['ligand'] != 'cellbody'], scale_factors_json_fn, resolution=[60,45], remote=False, pad=0, clobber=False, create_pseudo_cls=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model=pytorch_model )
     
+    print('123')
     # Crop cellbody stains
     crop(crop_dir, mask_dir, df.loc[ df['ligand'] == 'cellbody' ], scale_factors_json_fn, resolution=[91,91], remote=False, pad=0, clobber=False,create_pseudo_cls=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model=pytorch_model)
     df['crop_raw_fn'] = df['crop']
-
     df = df.loc[ df['crop'].apply(lambda fn : os.path.exists(fn)) ]
     assert df.shape[0] > 0 , 'Error: empty data frame'
 
     ### 3. Resample images
+    print('3. Downsample Images')
     df = downsample(df, downsample_dir, lowres)
 
     ### 4. Align
@@ -755,7 +765,8 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
 
     
     #TODO: ligand_contrast_order = get_ligand_contrast_order()
-    ligand_contrast_order = ['flum', 'mk80', 'musc', 'cgp5', 'ampa', 'kain', 'pire', 'damp', 'praz', 'uk14', 'keta', 'sch2', 'dpmg', 'dpat', 'cellbody', 'myelin']
+    ligand_contrast_order = ['flum', 'mk80', 'musc', 'cgp5', 'ampa', 'kain', 'pire', 'damp', 'praz', 'uk14', 'keta', 'dpmg', 'dpat', 'cellbody', 'myelin']
+    #currently excluding racl and sch2 because there are 
     if rat :
         ligand_contrast_order=['oxot'] #DEBUG just for rat!
     
@@ -825,7 +836,6 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     #reconstruct_ligands(ligand_dir, subject_id, resolution_list[-1], aligned_df, template_fn, tfm_3d_fn, interp_align_2d_fn)
 
     highest_resolution = resolution_list[-1]
-    n_depths=10
     dt=1/n_depths
     n_vertices = 0 
     
@@ -837,7 +847,10 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     args.n_vertices = n_vertices
     args.slabs=[1]
     aligned_df['slab']=[1] * aligned_df.shape[0]
-    to_reconstruct=np.unique(aligned_df['ligand'])#['cellbody','flum','myelin']
+    to_reconstruct=np.unique(aligned_df['ligand'])
+    exclude=['cgp5','dpat','ampa']
+    to_reconstruct = [l for l in to_reconstruct if l not in exclude]
+
     aligned_df = aligned_df[ aligned_df['ligand'].apply(lambda x: x in to_reconstruct ) ]
     files={ brain:{hemi:{1:{}} }}
     files[brain][hemi][1][highest_resolution] = {
@@ -859,6 +872,7 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     
     slab_files_dict = create_file_dict_output_resolution(files, brain, hemi, resolution_list)
 
+    final_recon_list=[]
     for ligand, df_ligand in aligned_df.groupby(['ligand']):
         print('\t\tLigand:', ligand)
         ligandSlabData = deepcopy(slabData)
@@ -869,11 +883,54 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
         ligandSlabData.ligand = ligand
     
         create_thickened_volumes(ligand_dir, slab_files_dict, df_ligand, slabData.n_depths, slabData.resolution) 
-        surface_interpolation(ligandSlabData, df_ligand, slab_dict, template_fn, files[brain][hemi], scale_factors_json,   tissue_type='', input_surf_dir=surf_dir, n_vertices = 0, gm_label=2, clobber=0)
-        
+        final_ligand_fn = surface_interpolation(ligandSlabData, df_ligand, slab_dict, template_fn, files[brain][hemi], scale_factors_json,   tissue_type='', input_surf_dir=surf_dir, n_vertices = 0, gm_label=2, clobber=0)
 
-        volumetric_interpolation(brain, hemi, highest_resolution, slab_dict, to_reconstruct, subcortex_mask_fn, ligand_dir,n_depths)
+        final_recon_list.append(final_ligand_fn)
+        #volumetric_interpolation(brain, hemi, highest_resolution, slab_dict, to_reconstruct, subcortex_mask_fn, ligand_dir,n_depths)
+
+    #plt.rcParams['axes.facecolor'] = 'black'  
+    
+    
+    t1 = nib.load('templates/MEBRAINS_T1.nii.gz').get_fdata()
+    gm = nib.load('templates/MEBRAINS_segmentation_NEW_gm_left.nii.gz').get_fdata()
+    fig = plt.figure(figsize=(21,21))
+    fig.patch.set_facecolor('black')
+    n=len(to_reconstruct)
+    m0=m1=int(np.ceil(np.sqrt(n)))
+    for i, ligand in enumerate(to_reconstruct):
+        fn = [fn for fn in final_recon_list if ligand in fn][0]
+        vol = nib.load(fn).get_fdata()
+        vol[gm<1]=0
+        print(gm.shape, t1.shape, vol.shape)
+        x,_,_ = center_of_mass(vol)
+        x = int(x)
+        
+        t1_section=t1[int(x),:,:]
+        section=vol[int(x),:,:]
+        section = np.rot90(section, 1)
+        t1_section = np.rot90(t1_section,1)
+            
+
+        ax=plt.subplot(m0,m1,i+1)
+        receptor=ligand_receptor_dict[ligand]
+        plt.title(receptor, {'color':'white','fontsize':30})
+        v0,v1=np.percentile(section[section>0], [2,98])
+        
+        plt.imshow(t1_section,cmap='gray')
+        plt.imshow(section, vmin=v0,vmax=v1, cmap='nipy_spectral',alpha=0.5)
+
+        ax.spines[['right', 'top']].set_visible(False)
+        plt.axis('off')
+        ax.set_facecolor('black')
+
+    plt.tight_layout()
+    out_fn=f'{out_dir}/macaque_ligands.png'
+    print('Writing', out_fn)
+    plt.savefig(out_fn) 
+
     print('Done')
+
+
 
 if __name__ == '__main__':
     launch()

@@ -490,22 +490,22 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
     file_check = lambda x : not os.path.exists(x)
     crop_check = df[crop_str].apply( file_check ).values
     seg_check =  df['seg_fn'].apply( file_check ).values
-
+    print('create_pseudo_cls')
     if create_pseudo_cls :
         cls_check =  df['pseudo_cls_fn'].apply( file_check ).values
     else :
         cls_check= np.zeros_like(crop_check)
-
     #if pytorch_model != '':
     #    missing_files = crop_check + cls_check
     #else :
     missing_files = crop_check + seg_check + cls_check
-    
     if np.sum( missing_files ) > 0 : 
         pass
     else : 
+        print('nothing to crop') 
         return 0
-
+    print(df_to_process)
+    exit(0)
     df_to_process = df.loc[ crop_check ]  
 
     Parallel(n_jobs=num_cores)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min, pytorch_model=pytorch_model, pad=pad, brain_str=brain_str, crop_str=crop_str, lin_str=lin_str, flip_axes_dict=flip_axes_dict) for i, row in  df_to_process.iterrows()) 
