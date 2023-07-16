@@ -57,7 +57,6 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     init_str = f'[{fx_fn},{mv_fn},1]'
     #if type(init_tfm) == str :
     #    init_str = init_tfm
-
     #if float(resolution) >= 0.5 :
     #nl_metric = f'CC[{fx_fn},{mv_fn},1,3,Random,0.9]'
     #else :
