@@ -33,7 +33,7 @@ from nibabel.processing import resample_to_output
 from skimage.filters import threshold_otsu, threshold_li
 from ants import  from_numpy,  apply_transforms, apply_ants_transform, read_transform
 from ants import image_read, registration
-from utils.utils import shell, w2v, v2w, get_section_intervals, prefilter_and_downsample
+from utils.utils import shell, w2v, v2w, get_section_intervals, prefilter_and_downsample, get_thicken_width
 from utils.reconstruction_classes import SlabReconstructionData
 
  
@@ -128,7 +128,8 @@ def thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn
     assert np.sum(array_src) != 0, 'Error: source volume for thickening sections is empty\n'+ source_image_fn
 
     array_src, normalize_sections = setup_section_normalization(ligand, slab_df, array_src)
-    width = np.round(1*(1+float(resolution)/(0.02*2))).astype(int)
+    #width = np.round(1*(1+float(resolution)/(0.02*2))).astype(int)
+    width = get_thicken_width(resolution)
     print('\t\tThickening sections to ', 0.02*width*2)
     
     dim = [array_src.shape[0], 1, array_src.shape[2]]
@@ -557,7 +558,8 @@ def create_reconstructed_volume(interp_fn_list, ligandSlabData, profiles_fn, sur
             
             thickened_fn = ligandSlabData.volumes[ slab ]
             print('Thickened Filename', thickened_fn)
-            
+            print('Mask fn', srv_iso_space_rec_fn)
+
             #out_affine= nib.load(slab_fn).affine
             out_affine= nib.load(srv_iso_space_rec_fn).affine
 
@@ -574,8 +576,8 @@ def create_reconstructed_volume(interp_fn_list, ligandSlabData, profiles_fn, sur
             #gm_lo = gm_label * 0.75
             #gm_hi = gm_label * 1.25
             #valid_idx = (mask_vol >= gm_lo) & (mask_vol < gm_hi)
-            valid_idx = mask_vol >= 0.5
-            assert np.sum(valid_idx)
+            valid_idx = mask_vol >= 0.5 * np.max(mask_vol)
+            assert np.sum(valid_idx) > 0
             mask_vol = np.zeros_like(mask_vol).astype(np.uint8)
             mask_vol[ valid_idx ] = 1
             
@@ -605,7 +607,7 @@ def create_reconstructed_volume(interp_fn_list, ligandSlabData, profiles_fn, sur
                 nib.Nifti1Image(interp_vol, out_affine ).to_filename(multi_mesh_filled_fn)
             else : 
                 interp_vol = nib.load(multi_mesh_interp_fn).get_fdata()
-
+            
             ystep_interp = imageParamHi.steps[1]
             ystart_interp = imageParamHi.starts[1]
 
@@ -725,6 +727,7 @@ def interpolate_between_slabs(combined_slab_vol, surf_depth_mni_dict, depth_list
     #interp_vol[ combined_slab_vol != 0 ] = combined_slab_vol[ combined_slab_vol != 0 ]
 
     mask_vol = resize(mask_vol, interp_vol.shape, order=0) 
+    mask_vol[mask_vol < 0.5 * np.max(mask_vol)] = 0 
     
     interp_vol = fill_in_missing_voxels(interp_vol, mask_vol, slab_start, slab_end, starts[1], steps[1])
     return interp_vol, mask_vol
@@ -802,7 +805,7 @@ def create_final_reconstructed_volume(final_mni_fn, mni_fn, resolution,  surf_de
 
     output_vol = combined_slab_vol
 
-    output_vol[ mask_vol < 0.5 ] = 0
+    output_vol[ mask_vol < 0.5 * np.max(mask_vol) ] = 0
     
     print('\tWriting', final_mni_fn)
     nib.Nifti1Image(output_vol, ref_img.affine, direction_order='lpi').to_filename(final_mni_fn)
@@ -830,9 +833,10 @@ def surface_interpolation(ligandSlabData, df_ligand, slab_dict, orig_mni_fn, fil
         tfm_fn = slab_dict[int(slab)]['nl_3d_tfm_inv_fn'] 
         ref_fn = slab_dict[int(slab)]['srv_iso_space_rec_fn']
         if not os.path.exists(slab_fn) :
-            shell(f'antsApplyTransforms -v 1 -i {mni_fn} -r {ref_fn} -t [{tfm_fn},0] -o {slab_fn}', verbose=True)
+            shell(f'antsApplyTransforms -v 1 -n NearestNeighbor -i {mni_fn} -r {ref_fn} -t [{tfm_fn},0] -o {slab_fn}', verbose=True)
+            print('Writing', slab_fn)
         slab_dict[int(slab)]['cortex_fn'] = slab_fn
-
+    
     ligand = df_ligand['ligand'].values[0]
 
 
@@ -874,7 +878,6 @@ def surface_interpolation(ligandSlabData, df_ligand, slab_dict, orig_mni_fn, fil
         # Interpolate a 3D receptor volume from the surface mesh profiles
         print('\tCreate Reconstructed Volume')
         create_reconstructed_volume(interp_fn_list, ligandSlabData, profiles_fn,  surf_depth_mni_dict, files,  df_ligand, scale_factors_json, use_mapper=True, clobber=clobber, origin=origin, gm_label=gm_label)
-
         # transform interp_fn to mni space
         print('\tTransform slab to mni')
         transform_slab_to_mni(slabs, ligandSlabData, slab_dict,mni_fn, template_out_prefix)

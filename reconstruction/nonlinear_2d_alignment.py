@@ -168,10 +168,12 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
     if os_info[1] == 'imenb079':
         num_cores = 4 
     else :
-        if float(resolution) >= 0.2 :
+        if float(resolution) >= 0.75 :
             max_cores=28
+        elif float(resolution) >= 0.5 :
+            max_cores=14
         else :
-            max_cores=4
+            max_cores=7
             
         num_cores = min(max_cores, multiprocessing.cpu_count() )
 

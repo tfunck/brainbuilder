@@ -18,7 +18,7 @@ import ants
 import multiprocessing
 import SimpleITK as sitk
 from scipy.ndimage import rotate
-from utils.utils import safe_imread, downsample, shell
+from utils.utils import safe_imread, downsample, shell, imshow_images
 from scipy.ndimage.filters import gaussian_filter
 from skimage.filters import threshold_otsu, threshold_li
 from glob import glob
@@ -45,7 +45,6 @@ def classify_section(crop, seg, max_roi=7):
     #print('n_roi', n_roi)
     im_cls = slic(crop, n_segments=n_roi, compactness=1000, mask=seg.astype(bool))
     #assert len(np.unique(im_cls)) > 2, 'Error, only one label created in psuedo-cls'
-
     
     return im_cls
 
@@ -196,6 +195,16 @@ def find_landmark_files(landmark_dir, brain, hemisphere, slab, volume_order) :
     landmark_files = glob(fn)
     if len(landmark_files) != 0 : print(landmark_files)
     return landmark_files 
+
+def qc_crop_parallel(crop_fn, seg_fn, qc_fn, clobber=False ):
+
+    if not os.path.exists(qc_fn) or clobber :
+        seg = nib.load(seg_fn).dataobj
+        crop = nib.load(crop_fn).dataobj
+        
+        imshow_images(qc_fn, [crop, seg], 1, 2)
+
+
 
 def crop_parallel(row, mask_dir, scale, global_order_min, brain_str='mri', crop_str='crop_fn', lin_str='lin_fn', pytorch_model='', pad = 1000, clobber=True, flip_axes_dict={} ):
     fn = row[lin_str]
@@ -470,10 +479,12 @@ def nnunet_gm_segmentation(crop_dir, df, res, crop_str, num_cores):
                 to_do.append((fn,crop_fn,seg_fn))
 
         print('\tConvert Files from nnUNet nifti files')
-        Parallel(n_jobs=14)(delayed(convert_from_nnunet)(fn, crop_fn, seg_fn, crop_dir) for fn, crop_fn, seg_fn in to_do) 
+        Parallel(n_jobs=14)(delayed(convert_from_nnunet)(fn, crop_fn, seg_fn, crop_dir) for fn, crop_fn, seg_fn in to_do)
 
 
-def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='', remote=False, pad=1000, clobber=False, brain_str='mri', crop_str='crop_fn', lin_str='lin_fn', res=[20,20], flip_axes_dict={}, create_pseudo_cls=True):
+
+
+def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='', remote=False, pad=1000, clobber=False, brain_str='mri', crop_str='crop_fn', lin_str='lin_fn', res=[20,20], flip_axes_dict={}, create_pseudo_cls=False):
     '''take raw linearized images and crop them'''
 
     os_info = os.uname()
@@ -486,41 +497,51 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
     global_order_min = df["global_order"].min()
     
     with open(scale_factors_json) as f : scale=json.load(f)
-    
+   
+    qc_file_list = [ sub('.nii.gz', '_qc.png', fn) for fn in df[crop_str]]
+
     file_check = lambda x : not os.path.exists(x)
     crop_check = df[crop_str].apply( file_check ).values
     seg_check =  df['seg_fn'].apply( file_check ).values
-    print('create_pseudo_cls')
+    qc_check = np.array([ not os.path.exists(fn) for fn in qc_file_list ])
+    
+
     if create_pseudo_cls :
+        print('create_pseudo_cls')
         cls_check =  df['pseudo_cls_fn'].apply( file_check ).values
     else :
         cls_check= np.zeros_like(crop_check)
     #if pytorch_model != '':
     #    missing_files = crop_check + cls_check
     #else :
-    missing_files = crop_check + seg_check + cls_check
+    missing_files = crop_check + seg_check + cls_check + qc_check
     if np.sum( missing_files ) > 0 : 
         pass
     else : 
         print('nothing to crop') 
         return 0
-    print(df_to_process)
-    exit(0)
+    
     df_to_process = df.loc[ crop_check ]  
 
     Parallel(n_jobs=num_cores)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min, pytorch_model=pytorch_model, pad=pad, brain_str=brain_str, crop_str=crop_str, lin_str=lin_str, flip_axes_dict=flip_axes_dict) for i, row in  df_to_process.iterrows()) 
     print('pytorch', pytorch_model)
     #create binary cortical segmentations
 
-    if pytorch_model != '' :
-        nnunet_gm_segmentation(crop_dir, df, res, crop_str, num_cores)
+    #if pytorch_model != ''  :
+    #    nnunet_gm_segmentation(crop_dir, df, res, crop_str, num_cores)
      
-    histogram_gm_segmentation(df,crop_str,num_cores)
+    #histogram_gm_segmentation(df,crop_str,num_cores)
 
     if create_pseudo_cls :
         create_pseudo_classifications(df, crop_str, resolution)
 
-        
+    to_process = []
+    for (i, row), qc_fn in zip(df.iterrows(), qc_file_list) :
+        if not os.path.exists(qc_fn) or clobber :
+            to_process.append([row[crop_str], row['seg_fn'], qc_fn])
+
+    Parallel(n_jobs=num_cores)(delayed(qc_crop_parallel)(crop_fn, seg_fn, out_fn) for crop_fn, seg_fn, out_fn in to_process)
+
     return 0
 
 

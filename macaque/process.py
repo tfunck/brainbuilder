@@ -9,6 +9,7 @@ import pandas as pd
 import nibabel 
 import utils.ants_nibabel as nib
 import json
+from validation.validate_alignment import validate_alignment
 from reconstruction.surface_interpolation import  surface_interpolation, create_thickened_volumes
 from copy import deepcopy
 from utils.reconstruction_classes import SlabReconstructionData
@@ -108,7 +109,7 @@ def add_autoradiographs_images(auto_files):
     
     return df
 
-def add_histology_images(hist_files, ligand = 'cellbody'):
+def add_histology_images(hist_files, brain, hemisphere, ligand = 'cellbody'):
 
     df_list = []
     for fn in hist_files :
@@ -117,8 +118,11 @@ def add_histology_images(hist_files, ligand = 'cellbody'):
         fn_split = re.sub(ext, '', os.path.basename(fn)).split('#')
         #'RH11530#L#AG#25.png'
         
-        brain, hemisphere, ligand_label, repeat = [fn_split[i] for i in [2,3,4,6]]
-        
+        try :
+            brain, hemisphere, ligand_label, repeat = [fn_split[i] for i in [2,3,4,6]]
+        except IndexError:
+            hemisphere, ligand_label, repeat = [fn_split[i] for i in [1,2,3]]
+
         if hemisphere == 'right' : hemisphere = 'R'
         elif hemisphere == 'left' : hemisphere = 'L'
         
@@ -233,7 +237,7 @@ def add_conversion_factor(df):
 
 
 
-def create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn ):
+def create_section_dataframe(brain, hemi, auto_dir, crop_dir, csv_fn, template_fn, ligands_to_exclude=[], clobber=False ):
     
     # Define the order of ligands in "short" repeats
     # cell body
@@ -249,7 +253,7 @@ def create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn ):
     short_repeat_dict = { v:k for k,v in enumerate(short_repeat) }
     long_repeat_dict = { v:k for k,v in enumerate(long_repeat) }
     
-    if not os.path.exists(csv_fn) or True :
+    if not os.path.exists(csv_fn) or clobber :
    
         # load raw tif files
         auto_files = [ fn for fn in glob(f'{auto_dir}/img_lin_modified/*TIF') ]  #if not 'UB' in fn and not '#00' in fn ]
@@ -257,8 +261,8 @@ def create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn ):
         myelin_files = [ fn for fn in glob(f'{auto_dir}/img_histology/*MS*.png') ] 
 
         df_auto = add_autoradiographs_images(auto_files)
-        df_hist = add_histology_images(hist_files)
-        df_ms = add_histology_images(myelin_files,ligand='myelin')
+        df_hist = add_histology_images(hist_files, brain, hemi)
+        df_ms = add_histology_images(myelin_files,brain, hemi, ligand='myelin')
         df = pd.concat([df_auto,df_hist,df_ms])
        
         repeat_gap_n = get_repeat_gap_size(template_fn, df.shape[0], df['repeat'].max(), 0.02)
@@ -357,6 +361,11 @@ def create_section_dataframe(auto_dir, crop_dir, csv_fn, template_fn ):
             df['seg_fn'].iloc[i]=seg_fn
 
         df = add_conversion_factor(df)
+
+
+
+        if ligands_to_exclude != [] :
+            df = df.loc[ df['ligand'].apply(lambda x : not x in ligands_to_exclude  ) ] 
 
         df.to_csv(csv_fn)
         print(csv_fn)
@@ -702,10 +711,11 @@ def get_ligand_contrast_order(df):
     print(df_mean)
     
 
-def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_dir, csv_fn, native_pixel_size=0.02163,brain = '11530', hemi='B', pytorch_model='', ligands_to_exclude=[], resolution_list=[4,3,2,1], lowres=0.4, flip_dict={}, n_depths=10, rat=False ):
+def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_dir, csv_fn, native_pixel_size=0.02163,brain = '11530', hemi='B', pytorch_model='', ligands_to_exclude=[], resolution_list=[4,3,2,1], lowres=0.4, flip_dict={}, n_depths=10, rat=False, clobber=False ):
     mask_dir = f'{auto_dir}/mask_dir/'
     subject_dir=f'{out_dir}/{subject_id}/' 
     crop_dir = f'{out_dir}/{subject_id}/crop/'
+    qc_dir = f'{out_dir}/{subject_id}/validation/'
     init_dir = f'{out_dir}/{subject_id}/init_align/'
     downsample_dir = f'{out_dir}/{subject_id}/downsample'
     init_3d_dir = f'{out_dir}/{subject_id}/init_align_3d/'
@@ -714,7 +724,7 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     srv_max_resolution_fn=template_fn #might need to be upsampled to maximum resolution
     surf_dir = f'{auto_dir}/surfaces/'
     
-    for dirname in [subject_dir, crop_dir, init_dir, downsample_dir, init_3d_dir, ligand_dir] : os.makedirs(dirname, exist_ok=True)
+    for dirname in [subject_dir, qc_dir, crop_dir, init_dir, downsample_dir, init_3d_dir, ligand_dir] : os.makedirs(dirname, exist_ok=True)
 
     
     affine=np.array([[lowres,0,0,-90],[0,0.02,0,0.0],[0,0,lowres,-70],[0,0,0,1]])
@@ -728,13 +738,11 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     volume_seg_fn = f'{subject_dir}/{subject_id}_segment_volume.nii.gz'
     volume_seg_iso_fn = f'{subject_dir}/{subject_id}_segment_iso_volume.nii.gz'
 
-    scale_factors_json = json.load(open(scale_factors_json_fn,'r'))[brain][hemi]
+    scale_factors_json = json.load(open(scale_factors_json_fn,'r'))[subject_id][hemi]
 
     ### 1. Section Ordering
     print('1. Section Ordering')
-    if ligands_to_exclude != [] :
-        df = df.loc[ df['ligand'].apply(lambda x : not x in ligands_to_exclude  ) ] 
- 
+
     section_scale_factor = get_section_scale_factor(out_dir, template_fn, df['raw'].values)
 
     pixel_size = section_scale_factor * native_pixel_size  
@@ -748,7 +756,6 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     # Crop non-cellbody stains
     crop(crop_dir, mask_dir, df.loc[df['ligand'] != 'cellbody'], scale_factors_json_fn, resolution=[60,45], remote=False, pad=0, clobber=False, create_pseudo_cls=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model=pytorch_model )
     
-    print('123')
     # Crop cellbody stains
     crop(crop_dir, mask_dir, df.loc[ df['ligand'] == 'cellbody' ], scale_factors_json_fn, resolution=[91,91], remote=False, pad=0, clobber=False,create_pseudo_cls=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model=pytorch_model)
     df['crop_raw_fn'] = df['crop']
@@ -803,6 +810,7 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
         # Define volume filenames
         volume_seg_fn = f'{seg_dir}/{subject_id}_segment_volume.nii.gz'
         volume_align_2d_fn = f'{align_2d_dir}/{subject_id}_align_2d_space-nat.nii.gz'
+        volume_cls_align_2d_fn = f'{align_2d_dir}/{subject_id}_cls_align_2d_space-nat.nii.gz'
         current_template_fn = f'{align_2d_dir}/'+os.path.basename(re.sub('.nii',f'_{curr_res}mm.nii', template_fn))
         template_rec_space_fn = f'{align_2d_dir}/'+os.path.basename(re.sub('.nii',f'_{curr_res}mm_y-0.02_space-nat.nii', template_fn))
         template_iso_rec_space_fn = f'{align_2d_dir}/'+os.path.basename(re.sub('.nii',f'_{curr_res}mm_space-nat.nii', template_fn))
@@ -826,6 +834,7 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
         aligned_df = align_2d(aligned_df, align_2d_dir, volume_init_fn, template_rec_space_fn, seg_2d_dir, resolution_2d, itr, resolution_list, use_syn=True)
          
         aligned_df = concatenate_sections_to_volume( aligned_df, template_rec_space_fn, align_2d_dir, volume_align_2d_fn)
+        aligned_df = concatenate_sections_to_volume( aligned_df, template_rec_space_fn, align_2d_dir, volume_cls_align_2d_fn, target_str='cls_rsl')
 
     ### 8. Perform a final alignment to the template
     final_3d_dir = f'{subject_dir}/final_3d_dir/'
@@ -848,8 +857,7 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     args.slabs=[1]
     aligned_df['slab']=[1] * aligned_df.shape[0]
     to_reconstruct=np.unique(aligned_df['ligand'])
-    exclude=['cgp5','dpat','ampa']
-    to_reconstruct = [l for l in to_reconstruct if l not in exclude]
+    #to_reconstruct = [l for l in to_reconstruct if l not in exclude]
 
     aligned_df = aligned_df[ aligned_df['ligand'].apply(lambda x: x in to_reconstruct ) ]
     files={ brain:{hemi:{1:{}} }}
@@ -857,9 +865,10 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
             'nl_3d_tfm_fn' : tfm_3d_fn,
             'nl_3d_tfm_inv_fn' : tfm_3d_inv_fn,
             'nl_2d_vol_fn' : volume_align_2d_fn,
-            'nl_2d_vol_cls_fn' : volume_align_2d_fn,
-            'srv_space_rec_fn':template_rec_space_fn,
-            'srv_iso_space_rec_fn':template_iso_rec_space_fn
+            'nl_2d_vol_cls_fn' : volume_cls_align_2d_fn,
+            'srv_space_rec_fn' : template_rec_space_fn,
+            'srv_iso_space_rec_fn' : template_iso_rec_space_fn,
+            'slab_info_fn': csv_fn
         }
     
     gm_label= np.percentile(nib.load(template_rec_space_fn).dataobj, [95])[0]
@@ -884,19 +893,39 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     
         create_thickened_volumes(ligand_dir, slab_files_dict, df_ligand, slabData.n_depths, slabData.resolution) 
         final_ligand_fn = surface_interpolation(ligandSlabData, df_ligand, slab_dict, template_fn, files[brain][hemi], scale_factors_json,   tissue_type='', input_surf_dir=surf_dir, n_vertices = 0, gm_label=2, clobber=0)
-
         final_recon_list.append(final_ligand_fn)
+
+    gm_fn = '/data/receptor/macaque/templates/MEBRAINS_segmentation_NEW_gm_left.nii.gz'
+    gm_rsl_basename=re.sub(".nii.gz",f'_{highest_resolution}.nii.gz',os.path.basename(gm_fn))
+    gm_rsl_fn=f'{qc_dir}/{gm_rsl_basename}'
+    
+    if not os.path.exists(gm_rsl_fn) or clobber or True:
+        img = nib.load(final_recon_list[0])
+        dims = img.shape
+        affine = img.affine
+        gm_rsl_vol = resize( nib.load(gm_fn).get_fdata(), dims, order=0 )
+        print('Writing', gm_rsl_fn)
+        nib.Nifti1Image(gm_rsl_vol, affine, direction_order='lpi').to_filename(gm_rsl_fn)
+    
+    hemi_df, _ = validate_alignment(f'{qc_dir}/validate_alignment/', gm_rsl_fn, files[brain][hemi], highest_resolution, clobber=False)
+
+
         #volumetric_interpolation(brain, hemi, highest_resolution, slab_dict, to_reconstruct, subcortex_mask_fn, ligand_dir,n_depths)
 
     #plt.rcParams['axes.facecolor'] = 'black'  
     
     
-    t1 = nib.load('templates/MEBRAINS_T1.nii.gz').get_fdata()
-    gm = nib.load('templates/MEBRAINS_segmentation_NEW_gm_left.nii.gz').get_fdata()
+    t1 = nib.load('/data/receptor/macaque/templates/MEBRAINS_T1.nii.gz').get_fdata()
+    gm = nib.load('/data/receptor/macaque/templates/MEBRAINS_segmentation_NEW_gm_left.nii.gz').get_fdata()
     fig = plt.figure(figsize=(21,21))
     fig.patch.set_facecolor('black')
     n=len(to_reconstruct)
     m0=m1=int(np.ceil(np.sqrt(n)))
+    m0=4
+    m1=4
+
+    gm = resize(gm, nib.load(final_recon_list[0]).shape, order=0 )
+    t1 = resize(t1, nib.load(final_recon_list[0]).shape, order=0 )
     for i, ligand in enumerate(to_reconstruct):
         fn = [fn for fn in final_recon_list if ligand in fn][0]
         vol = nib.load(fn).get_fdata()
@@ -922,8 +951,18 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
         ax.spines[['right', 'top']].set_visible(False)
         plt.axis('off')
         ax.set_facecolor('black')
+        ax.set_aspect('equal')
 
-    plt.tight_layout()
+
+
+    r=m0
+    c=m1
+    wspace=0.1
+    hspace=0
+    fig.subplots_adjust(wspace=wspace, hspace=hspace)
+    fig.set_figheight(fig.get_figwidth() * ax.get_data_ratio() * r / c )
+
+    #plt.tight_layout()
     out_fn=f'{out_dir}/macaque_ligands.png'
     print('Writing', out_fn)
     plt.savefig(out_fn) 

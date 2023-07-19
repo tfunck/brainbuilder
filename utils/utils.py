@@ -466,6 +466,48 @@ def identify_target_edges_within_slab(edge_mask, section_numbers, ligand_vol_fn,
     
     return edge_mask 
 
+
+def imshow_images(out_fn, images, rows,columns,  wspace=0.1, hspace=0, titles=[], facecolor='black', figsize=(10,10), rotn=0):
+
+    fig, axes = plt.subplots(rows, columns, figsize=figsize)
+
+    if titles == [] :
+        titles = [''] * len(images)
+    
+    assert len(titles) == len(images), 'Error: images and titles dont have same number of elements, {len(images)} and {len(titles)}'
+
+    fig.patch.set_facecolor(facecolor)
+
+    for i, (img, title) in enumerate(zip(images,titles)):
+        ax = axes.ravel()[i]
+        
+
+        img = np.rot90(img,rotn)
+        ax.imshow(img,cmap='gray_r')
+        if title != '' and type(title) != type(None):
+            ax.set_title(title)
+
+        ax.spines[['right', 'top']].set_visible(False)
+        ax.axis('off')
+        ax.set_facecolor('black')
+        ax.set_aspect('equal')
+
+    print(rows, columns)
+    print(axes.shape)
+    #r, c = axes.shape
+    r=rows
+    c=columns
+
+    fig.subplots_adjust(wspace=wspace, hspace=hspace)
+    fig.set_figheight(fig.get_figwidth() * ax.get_data_ratio() * r / c )
+    plt.savefig(out_fn)
+    plt.cla()
+    plt.clf()
+ 
+
+def get_thicken_width(resolution):
+    return np.round(1*(1+float(resolution)/(0.02*2))).astype(int)
+
 def transform_surface_to_slabs( slab_dict, thickened_dict,  out_dir, surf_fn, ref_gii_fn=None, faces_fn=None, ext='.surf.gii'):
     surf_slab_space_dict={}
 
