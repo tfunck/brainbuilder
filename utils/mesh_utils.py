@@ -19,6 +19,7 @@ import h5py as h5
 import multiprocessing
 import nibabel
 import debug
+import seaborn as sns
 from glob import glob
 from re import sub
 from joblib import Parallel, delayed
@@ -56,9 +57,49 @@ def get_surf_from_dict(d):
         assert False, f'Error: could not find surface in keys, {keys}'
     return surf_fn
 
+def write_mesh_to_volume(coords, vertex_values, ref_fn, out_fn):
+    vol, n = mesh_to_volume(coords, vertex_values, ref_vol_fn=ref_fn)
+    idx = n>0
+    vol[idx] = vol[idx] / n[idx]
+    print('\t Writing', out_fn)
+    nib.Nifti1Image(vol, nib.load(ref_fn).affine, direction_order='lpi').to_filename(out_fn)
 
 
-def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[0,0,0], interp_vol=None, n_vol=None ):
+def visualization(surf_coords_filename, values, output_filename):
+    def get_valid_idx(c,r):
+        cmean=np.mean(c)
+        cr = np.std(c)/r
+        idx = (c > cmean-cr) & (c < cmean+cr)
+        return idx
+    print(surf_coords_filename) 
+    surf_coords = load_mesh_ext(surf_coords_filename)[0]
+
+    x = surf_coords[:,0]
+    y = surf_coords[:,1]
+    z = surf_coords[:,2]
+    x_idx = get_valid_idx(x,5)
+    z_idx = get_valid_idx(z,5)
+    sns.set(rc={'axes.facecolor':'black', 'figure.facecolor':'black'})
+
+    plt.figure(figsize=(22,12))
+    plt.subplot(1,2,1)
+    #sns.set_style("dark")
+    ax1 = sns.scatterplot(x=y[x_idx], y=z[x_idx], hue=values[x_idx], palette='nipy_spectral',alpha=0.2)
+
+    sns.despine(left=True, bottom=True)
+    plt.subplot(1,2,2)
+    ax2 = sns.scatterplot(x=y[z_idx], y=x[z_idx], hue=values[z_idx], palette='nipy_spectral',alpha=0.2)
+    sns.despine(left=True, bottom=True)
+    for ax in [ax1,ax2]:
+        ax.get_legend().remove()
+        ax.grid(False)
+
+    print('\tWriting', output_filename)
+    plt.savefig(output_filename)
+    plt.clf()
+    plt.cla()
+
+def mesh_to_volume(coords, vertex_values, dimensions=[], starts=[0,0,0], steps=[1,1,1], interp_vol=None, n_vol=None, ref_vol_fn='' ):
     '''
     About
         Interpolate mesh values into a volume
@@ -74,15 +115,35 @@ def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[0,0
         interp_vol
         n_vol
     '''
-    if type(vertex_values) != np.ndarray  or type(n_vol) != np.ndarray :
-        interp_vol = np.zeros(dimensions)
-        n_vol = np.zeros_like(interp_vol)
+
+    if ref_vol_fn != '' :
+        ref_img = nibabel.load(ref_vol_fn)
+        dimensions = ref_img.shape
+        steps=ref_img.affine[[0,1,2],[0,1,2]]
+        starts=ref_img.affine[[0,1,2],3]
+        print('Reference Volume:', ref_vol_fn)
+        print('\tDimensions:', dimensions)
+        print('\tSteps:', steps)
+        print('\tStarts:', starts)
+
+
     
     x = np.rint( (coords[:,0] - starts[0]) / steps[0] ).astype(int)
     y = np.rint( (coords[:,1] - starts[1]) / steps[1] ).astype(int)
     z = np.rint( (coords[:,2] - starts[2]) / steps[2] ).astype(int)
 
+
+    if dimensions == [] :
+        dimensions = np.array([np.max(x), np.max(y), np.max(z)])+1
+
+    if type(vertex_values) != np.ndarray  or type(n_vol) != np.ndarray :
+        print('dimensions', dimensions)
+        interp_vol = np.zeros(dimensions)
+        n_vol = np.zeros_like(interp_vol)
+
     idx = (x >= 0) & (y >= 0) & (z >= 0) & (x < dimensions[0]) & ( y < dimensions[1]) & ( z < dimensions[2] )
+
+
 
     #perc_mesh_in_volume = np.sum(~idx)/idx.shape[0]
     #assert perc_mesh_in_volume < 0.1, f'Error: significant portion ({perc_mesh_in_volume}) of mesh outside of volume '
