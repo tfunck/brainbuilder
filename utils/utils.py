@@ -86,6 +86,9 @@ def create_file_dict_output_resolution(files, brain, hemi, resolution_list):
     assert len(slab_files_dict.keys()) != 0 , print('No slabs to interpolate over')
     return slab_files_dict
 
+def get_thicken_width(resolution):
+
+    return np.round(1*(1+float(resolution)/(0.02*2))).astype(int)
 
 def get_edges_from_faces(faces):
     #for convenience create vector for each set of faces 
@@ -492,8 +495,6 @@ def imshow_images(out_fn, images, rows,columns,  wspace=0.1, hspace=0, titles=[]
         ax.set_facecolor('black')
         ax.set_aspect('equal')
 
-    print(rows, columns)
-    print(axes.shape)
     #r, c = axes.shape
     r=rows
     c=columns
@@ -665,7 +666,6 @@ class AntsParams():
 
         self.resolution_list=resolution_list
         self.max_n = len(resolution_list)
-        print(resolution_list)
         self.cur_n = resolution_list.index(resolution)
         self.max_itr=int((self.max_n+1)*base_itr)
         

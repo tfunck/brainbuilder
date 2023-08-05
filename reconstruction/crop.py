@@ -524,7 +524,6 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
     df_to_process = df.loc[ crop_check ]  
 
     Parallel(n_jobs=num_cores)(delayed(crop_parallel)(row, mask_dir, scale, global_order_min, pytorch_model=pytorch_model, pad=pad, brain_str=brain_str, crop_str=crop_str, lin_str=lin_str, flip_axes_dict=flip_axes_dict) for i, row in  df_to_process.iterrows()) 
-    print('pytorch', pytorch_model)
     #create binary cortical segmentations
 
     #if pytorch_model != ''  :
@@ -539,7 +538,7 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
     for (i, row), qc_fn in zip(df.iterrows(), qc_file_list) :
         if not os.path.exists(qc_fn) or clobber :
             to_process.append([row[crop_str], row['seg_fn'], qc_fn])
-
+    
     Parallel(n_jobs=num_cores)(delayed(qc_crop_parallel)(crop_fn, seg_fn, out_fn) for crop_fn, seg_fn, out_fn in to_process)
 
     return 0

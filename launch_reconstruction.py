@@ -10,6 +10,8 @@ import utils.ants_nibabel as nib
 import matplotlib.pyplot as plt
 import seaborn as sns
 import debug; 
+from utils.mesh_utils import load_mesh_ext, visualization
+from utils.utils import get_edges_from_faces
 from copy import deepcopy
 from skimage.transform import resize
 from scipy.interpolate import interp1d
@@ -29,7 +31,7 @@ from reconstruction.crop import crop, process_landmark_images
 from validation.validate_interpolation import validate_interpolation, plot_r2
 from validation.validate_reconstructed_sections import validate_reconstructed_sections
 from preprocessing.preprocessing import fill_regions_3d
-#from reconstruction.batch_correction import correct_batch_effects 
+from reconstruction.batch_correction_surface import batch_correction_surf
 
 global file_dir
 base_file_dir, fn =os.path.split( os.path.abspath(__file__) )
@@ -198,6 +200,7 @@ def setup_argparse():
     parser.add_argument('--nvertices', dest='n_vertices', type=int, default=81920, help='n vertices for mesh')
     parser.add_argument('--ndepths', dest='n_depths', type=int, default=10, help='n depths for mesh')
     parser.add_argument('--no-surf', dest='no_surf', action='store_true', default=False, help='Exit after multi-resolution alignment')
+    parser.add_argument('--batch-correction', dest='use_batch_correction', action='store_true', default=False, help='Use batch correction')
     parser.add_argument('--mask-dir', dest='mask_dir', type=str, default='/data/receptor/human/crop/combined_final/mask/', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--out-dir','-o', dest='out_dir', type=str, default='output', help='Slabs to reconstruct. Default = reconstruct all slabs.')
     parser.add_argument('--scale-factors', dest='scale_factors_fn', type=str, default=None, help='json file with scaling and ordering info for each slab')
@@ -265,6 +268,10 @@ def setup_files_json(args ):
                     cdict['slab_info_fn'] = "{}/{}_{}_{}_{}_slab_info.csv".format(cdict['cur_out_dir'] ,brain,hemi,slab,resolution) 
                     cdict['srv_space_rec_fn'] = "{}/{}_{}_{}_srv_space-rec_{}mm.nii.gz".format(cdict['nl_2d_dir'], brain, hemi, slab, resolution)   
                     cdict['srv_iso_space_rec_fn'] = "{}/{}_{}_{}_srv_space-rec_{}mm_iso.nii.gz".format(cdict['nl_2d_dir'], brain, hemi, slab, resolution)   
+                    cdict['ligands']={}
+                    for ligand in args.ligands :
+                        cdict['ligands'][ligand] = {}
+                        cdict['ligands'][ligand]['local_dice_volume_fn'] = "{}/{}_{}_{}_{}_local_dice_{}mm.nii.gz".format(cdict['nl_2d_dir'], brain, hemi, slab, ligand, resolution)   
                     #if resolution_itr == max_3d_itr :  
                     #    max_3d_cdict=cdict
                     files[brain][hemi][slab][resolution]=cdict
@@ -307,9 +314,7 @@ def setup_parameters(args) :
     args.files_json = args.out_dir+"/reconstruction_files.json"
     args.manual_2d_dir=f'{manual_dir}/2d/'
 
-    files = setup_files_json(args)
-
-    return args, files 
+    return args
 
 def add_tfm_column(slab_df, init_tfm_csv, slab_tfm_csv) :
     tfm_df = pd.read_csv(init_tfm_csv)
@@ -356,38 +361,52 @@ def create_srv_volumes_for_next_slab(args,files, slab_list, resolution_list, res
             create_new_srv_volumes(rec_3d_rsl_fn, args.srv_cortex_fn, stage_3_5_outputs, resolution_list_3d)
 
 def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=None) :
+    hemi_df = hemi_df.loc[:, ~hemi_df.columns.str.contains('^Unnamed')]
     ###
     ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
     ###
     final_ligand_dict={}
     ligands = np.unique(hemi_df['ligand'])
 
-    slabData = SlabReconstructionData(brain, hemi, args.slabs, ligands, args.depth_list, interp_dir, interp_dir +'/surfaces/', highest_resolution)
+    batch_correction_dir='/'
+    batch_correction_dir='/for_batch_correction/'
+
     
     for ligand, df_ligand in hemi_df.groupby(['ligand']):
         if ligand != 'cgp5' : continue
         print('\t\tLigand:', ligand)
-
+        ligand_interp_dir = interp_dir + f'/for_batch_correction_{ligand}/'
+        slabData = SlabReconstructionData(brain, hemi, args.slabs, ligands, args.depth_list, ligand_interp_dir, interp_dir +'/surfaces/', highest_resolution)
+        
         ligandSlabData = deepcopy(slabData)
         ligandSlabData.volumes = slabData.volumes[ligand] 
         ligandSlabData.cls = slabData.cls[ligand] 
         ligandSlabData.values_raw = slabData.values_raw[ligand] 
         ligandSlabData.values_interp = slabData.values_interp[ligand] 
         ligandSlabData.ligand = ligand
-    
-        create_thickened_volumes(interp_dir, slab_files_dict, hemi_df.loc[hemi_df['ligand']==ligand], slabData.n_depths, slabData.resolution, norm_df_csv=norm_df_csv)
 
+        #perform surface interpolation. if batch correction factors have been defined
+        #then they will be used.
+        batch_corr_df = surface_interpolation(ligandSlabData, df_ligand, slab_files_dict, args.srv_cortex_fn,  files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices, use_batch_correction=args.use_batch_correction)
+        
+        '''
         print('\tValidate reconstructed sections:', ligand)
         final_ligand_fn = args.out_dir + f'/reference_{highest_resolution}mm.nii.gz' 
         if not os.path.exists(final_ligand_fn) :
             prefilter_and_downsample(args.srv_cortex_fn, [float(highest_resolution)]*3, final_ligand_fn)
-        validate_reconstructed_sections(final_ligand_fn, highest_resolution, args.n_depths+1, df_ligand, args.srv_cortex_fn, base_out_dir=args.out_dir,  clobber=False)
+        validate_reconstructed_sections(final_ligand_fn, highest_resolution, args.n_depths+1, batch_corr_df, args.srv_cortex_fn, base_out_dir=args.out_dir,  clobber=clobber)
+        '''
     
-    exit(0)
-    for ligand, df_ligand in hemi_df.groupby(['ligand']):
-        #if ligand != 'cgp5' : continue
-        print('\t\tLigand:', ligand)
-        final_ligand_fn = surface_interpolation(ligandSlabData, df_ligand, slab_files_dict, args.srv_cortex_fn,  files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices)
+        slabData_corr = SlabReconstructionData(brain, hemi, args.slabs, ligands, args.depth_list, interp_dir, interp_dir +'/surfaces/', highest_resolution)
+        
+        ligandSlabData = deepcopy(slabData_corr)
+        ligandSlabData.volumes = slabData_corr.volumes[ligand] 
+        ligandSlabData.cls = slabData_corr.cls[ligand] 
+        ligandSlabData.values_raw = slabData_corr.values_raw[ligand] 
+        ligandSlabData.values_interp = slabData_corr.values_interp[ligand] 
+        ligandSlabData.ligand = ligand
+
+        final_ligand_fn = surface_interpolation(ligandSlabData, batch_corr_df, slab_files_dict, args.srv_cortex_fn,  files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices)
         final_ligand_dict[ligand] = final_ligand_fn
 
     return slabData, final_ligand_dict
@@ -429,7 +448,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
 
     slab_files_dict = create_file_dict_output_resolution(files, brain, hemi, resolution_list)
     
-    hemi_df, _ = validate_alignment(f'{args.qc_dir}/validate_alignment/', args.srv_cortex_fn, files[brain][hemi])
+    hemi_df, _ = validate_alignment(f'{args.qc_dir}/validate_alignment/', args.srv_cortex_fn, files[brain][hemi], highest_resolution, clobber=False)
 
     hemi_df = hemi_df.loc[ hemi_df['align_dice'] > 0.5 ]
     #for (slab,align_dice), ddf in hemi_df.loc[hemi_df['ligand']=='cgp5'].groupby(['slab','align_dice']):
@@ -438,6 +457,8 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
     if not args.no_surf : 
         print('\tSurface-based reconstruction') 
         slabData, final_ligand_dict = surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=args.norm_df_csv)
+    exit(0)
+
     ###
     ### 6. Quality Control
     ###
@@ -449,7 +470,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
         depth = args.depth_list[int((len(args.depth_list)+2)/2) ]
 
     for ligand, final_ligand_fn in final_ligand_dict.items() :
-        ligand_csv_path = f'{interp_dir}/*{ligand}_{max_resolution}mm_l{args.n_depths+2}*{depth}_raw.csv'
+        ligand_csv_path = f'{interp_dir}/*{ligand}_{max_resolution}mm_l{args.n_depths+1}*{depth}_raw.csv'
         ligand_csv_list = glob(ligand_csv_path)
         if len(ligand_csv_list) > 0 : 
             ligand_csv = ligand_csv_list[0]
@@ -473,15 +494,16 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
                             ligand=ligand,
                             n_samples=10000,
                             clobber=False )
+
         df_list.append(tdf)
+
+
     df = pd.concat(df_list)
 
     out_r2_fn = f'{args.qc_dir}/interpolation_validation_r2.png'
 
     plot_r2(df, out_r2_fn)
 
-from utils.mesh_utils import load_mesh_ext
-from utils.utils import get_edges_from_faces
 
 def calculate_dist_of_sphere_inflation(cortex_fn, sphere_fn):
     coord, faces = load_mesh_ext(cortex_fn)
@@ -561,7 +583,7 @@ def reconstruct_slab(hemi_df, brain, hemi, slab, slab_index, args, files, resolu
 
 if __name__ == '__main__':
 
-    args, files = setup_parameters(setup_argparse().parse_args() )
+    args = setup_parameters(setup_argparse().parse_args() )
     
     args.resolution_list = [ float(r) for r in args.resolution_list ]
 
@@ -570,6 +592,10 @@ if __name__ == '__main__':
         calculate_section_order(args.autoradiograph_info_fn,  args.out_dir, in_df_fn=file_dir+os.sep+'autoradiograph_info.csv')
 
     df = pd.read_csv(args.autoradiograph_info_fn)
+
+    args.ligands=np.unique(df['ligand'])
+
+    files = setup_files_json(args)
     
     ### Step 0 : Crop downsampled autoradiographs
     pytorch_model=f'{base_file_dir}/caps/Pytorch-UNet/MODEL.pth'
@@ -584,6 +610,7 @@ if __name__ == '__main__':
     #args.landmark_df = process_landmark_images(df, args.landmark_src_dir, args.landmark_dir, args.scale_factors_fn)
 
     #df = correct_batch_effects(df, args, n_samples=30, maxiter=10000, tolerance=1e-9)
+
     
     args.norm_df_csv = None
     

@@ -11,6 +11,7 @@ import time
 import shutil
 import tempfile
 import multiprocessing
+from validation.validate_alignment import dice, prepare_volume 
 from reconstruction.align_slab_to_mri import gen_mask
 from utils.utils import AntsParams
 from joblib import Parallel, delayed
@@ -49,15 +50,15 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
 
     y=int(row['slab_order'])
 
-    prefix = f'{tfm_dir}/y-{y}' 
-    fx_fn = gen_2d_fn(prefix,'_fx')
+    prefix = row['prefix_nl_2d'] #f 
+    fx_fn = gen_2d_fn(f'{tfm_dir}/y-{y}','_fx')
+    
     mv_fn = get_seg_fn(mv_dir, int(y), resolution, row[file_to_align], suffix='_rsl')
 
     init_tfm = row['init_tfm']
     init_str = f'[{fx_fn},{mv_fn},1]'
     #if type(init_tfm) == str :
     #    init_str = init_tfm
-
     #if float(resolution) >= 0.5 :
     #nl_metric = f'CC[{fx_fn},{mv_fn},1,3,Random,0.9]'
     #else :
@@ -81,7 +82,7 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     mv_mask_fn = gen_mask(mv_fn, clobber=False)
     #--masks [{fx_mask_fn},{mv_mask_fn}] 
 
-    affine_command_str = f'antsRegistration -n {interpolation} -v {int(verbose)} -d 2  --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[{step}] -c {linParams.itr_str}  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str} -t Similarity[.1]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -s {linParams.s_str} -f {linParams.f_str} -t Affine[{step}] -c {linParams.itr_str} -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.95] -s {linParams.s_str} -f {linParams.f_str} '
+    affine_command_str = f'antsRegistration -n {interpolation} -v {int(verbose)} -d 2  --initial-moving-transform {init_str} --write-composite-transform 1 -o [{prefix}_Affine_,{prefix}_affine_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t Rigid[{step}] -c {linParams.itr_str}  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.90] -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str} -t Similarity[.1]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.90] -s {linParams.s_str} -f {linParams.f_str} -t Affine[{step}] -c {linParams.itr_str} -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.90] -s {linParams.s_str} -f {linParams.f_str} '
 
     if verbose: print(affine_command_str)
 
@@ -91,10 +92,10 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     #assert np.sum(nib.load(prefix+'_affine_cls_rsl.nii.gz').dataobj) > 0, 'Error: 2d affine transfromation failed'
 
     #--masks [{fx_mask_fn},{mv_mask_fn}] 
-    syn_command_str = f'antsRegistration -v 1 -n NearestNeighbor -v {int(verbose)} -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.99] -c {nlParams.itr_str} -s {nlParams.s_str} -f {nlParams.f_str}' 
+    syn_command_str = f'antsRegistration -v 1 -n NearestNeighbor -v {int(verbose)} -d 2  --initial-moving-transform {prefix}_Affine_Composite.h5 --write-composite-transform 1 -o [{prefix}_,{prefix}_cls_rsl.nii.gz,/tmp/out_inv.nii.gz] -t SyN[0.1] -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,0.90] -c {nlParams.itr_str} -s {nlParams.s_str} -f {nlParams.f_str}' 
 
     if type(ccParams) != type(None) : 
-        syn_command_str= syn_command_str + f' -t SyN[0.1] -m CC[{fx_fn},{mv_fn},1,3,Random,0.99] -c {ccParams.itr_str} -s {ccParams.s_str} -f {ccParams.f_str}' 
+        syn_command_str= syn_command_str + f' -t SyN[0.1] -m CC[{fx_fn},{mv_fn},1,3,Random,0.90] -c {ccParams.itr_str} -s {ccParams.s_str} -f {ccParams.f_str}' 
     
     if verbose : print(syn_command_str)
 
@@ -112,18 +113,17 @@ def align_2d_parallel(tfm_dir, mv_dir, resolution_itr, resolution, resolution_li
     
 def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     y=int(row['slab_order'])
-    prefix=f'{tfm_dir}/y-{y}' 
+    prefix=row['prefix_nl_2d'] # 
     crop_rsl_fn=f'{prefix}_{resolution}mm.nii.gz'
     cls_rsl_fn = prefix+'_cls_rsl.nii.gz'
     out_fn=prefix+'_rsl.nii.gz'
-    fx_fn = gen_2d_fn(prefix,'_fx')
+    fx_fn = gen_2d_fn(f'{tfm_dir}/y-{y}','_fx')
     
     #try :
     #    crop_fn = row['batch_corrected_fn'] # crop_raw_fn
     #except IndexError: 
     crop_fn = row['crop_fn'] # crop_raw_fn
    
-    print('crop fn', crop_fn)
     img = nib.load(crop_fn)
     img_res = np.array([img.affine[0,0], img.affine[1,1] ])
     vol = img.get_fdata()
@@ -132,7 +132,7 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     #assert np.max(vol) < 256 , 'Problem with file '+ crop_fn + f'\n Max Value = {np.max(vol)}'
 
     sd = np.array( (float(resolution)/img_res)  / np.pi )
-    print('SD',sd)
+    
     vol = gaussian_filter(vol, sd )
     #vol = resize(vol, nib.load(fx_fn).shape, order=3)
     aff = img.affine
@@ -156,7 +156,7 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     assert os.path.exists(f'{out_fn}'), 'Error apply nl 2d tfm to cropped autoradiograph'
     return 0
 
-def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, resolution_itr, resolution_list, file_to_align='seg_fn', use_syn=True, batch_processing=False, verbose=False, clobber=False): 
+def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, resolution_itr, resolution_list, file_to_align='seg_fn', use_syn=True, batch_processing=False, n_trials = 3, verbose=False, clobber=False): 
     df.reset_index(drop=True,inplace=True)
     df.reset_index(drop=True,inplace=True)
 
@@ -177,34 +177,93 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
             
         num_cores = min(max_cores, multiprocessing.cpu_count() )
 
-    to_do_df = pd.DataFrame([])
-    to_do_resample_df = pd.DataFrame([])
-
     df['tfm_affine']=['']*df.shape[0]
 
-    for i, row in df.iterrows() :
-        y = int(row['slab_order'])
-        prefix = f'{tfm_dir}/y-{y}' 
-        cls_fn = prefix+'_cls_rsl.nii.gz'
-        out_fn = prefix+'_rsl.nii.gz'
-        tfm_fn = prefix+'_Composite.h5'
-        tfm_affine_fn = prefix+'_Affine_Composite.h5'
-        df['tfm'].loc[ df['slab_order'] == y ] = tfm_fn
-        df['tfm_affine'].loc[ df['slab_order'] == y ] = tfm_affine_fn
-        
-        if not os.path.exists(tfm_fn) or not os.path.exists(cls_fn):
-            to_do_df = to_do_df.append(row)
+    df['misaligned']=[True]*df.shape[0]
 
-        if not os.path.exists(out_fn)  :
-            to_do_resample_df = to_do_resample_df.append(row)
+    df['cls_rsl_2d_fn']=[None]*df.shape[0]
+    df['fx_2d_fn']=[None]*df.shape[0]
+    df['prefix_nl_2d']=[None]*df.shape[0]
 
-    if to_do_df.shape[0] > 0 :
-        Parallel(n_jobs=num_cores)(delayed(align_2d_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, resolution_list, row, file_to_align=file_to_align,use_syn=use_syn, verbose=verbose) for i, row in  to_do_df.iterrows()) 
-        
-    if to_do_resample_df.shape[0] > 0 :
-        Parallel(n_jobs=num_cores)(delayed(apply_transforms_parallel)(tfm_dir, mv_dir,  resolution_itr, resolution, row) for i, row in  to_do_resample_df.iterrows()) 
+    for trial in range(n_trials) :
+        print('\tNL 2D Align: Trial', trial)
     
+        to_do_df, to_do_resample_df, df = get_to_do_list(df, trial, tfm_dir)
+
+        if to_do_df.shape[0] > 0 :
+            Parallel(n_jobs=num_cores)(delayed(align_2d_parallel)(tfm_dir, mv_dir, resolution_itr, resolution, resolution_list, row, file_to_align=file_to_align,use_syn=use_syn, verbose=verbose) for i, row in  to_do_df.iterrows()) 
+            
+        if to_do_resample_df.shape[0] > 0 :
+            Parallel(n_jobs=num_cores)(delayed(apply_transforms_parallel)(tfm_dir, mv_dir,  resolution_itr, resolution, row) for i, row in  to_do_resample_df.iterrows())
+
+        df = calculate_section_dice(df)
+        df = outlier_detection(df)
+        perc_misaligned = np.rint(100*np.sum(df["misaligned"])/df.shape[0])
+        print(f'\t\t{perc_misaligned}\% of sections still misaligned') 
+        if df['misaligned'].sum() == 0 :  break
+
     return df
+
+
+def outlier_detection(df, cutoff=0.8):
+    dice_values = df['dice']
+    #dice_std = np.std(dice_values)
+    #dice_mean = np.mean(dice_values)
+    #dice_values = (dice_values-dice_mean)/ dice_std
+    df['misaligned'].loc[ (dice_values > cutoff) ] = False
+    
+    print('\tDice of Aligned Sections:', np.round(df['dice'].loc[ ~df['misaligned']].mean(),2))
+    print('\tDice of Misaligned Sections:', np.round(df['dice'].loc[df['misaligned']].mean(),2))
+    return df
+
+    
+
+
+def calculate_section_dice(df):
+    
+    load = lambda fn : prepare_volume(nib.load(fn).get_fdata())
+    df['dice']=[0]*df.shape[0]
+
+    for i, row in df.iterrows() :
+        vol0 = prepare_volume(nib.load(row['cls_rsl_2d_fn']).get_fdata())
+        vol1 = prepare_volume(nib.load(row['fx_2d_fn']).get_fdata())
+        dice_score = dice(vol0,vol1)
+        df['dice'].iloc[i] = dice_score
+
+    return df
+
+def get_to_do_list(df, trial, tfm_dir):
+    to_do_df = pd.DataFrame([])
+    to_do_resample_df = pd.DataFrame([])
+  
+
+    
+    for i, row in df.iterrows() :
+        if row['misaligned'] :
+            y = int(row['slab_order'])
+            prefix = f'{tfm_dir}/y-{y}_trial-{trial}' 
+            df['prefix_nl_2d'].iloc[i] = prefix
+
+            cls_fn = prefix+'_cls_rsl.nii.gz'
+            tfm_fn = prefix+'_Composite.h5'
+            tfm_affine_fn = prefix+'_Affine_Composite.h5'
+            df['tfm'].loc[ df['slab_order'] == y ] = tfm_fn
+            df['tfm_affine'].loc[ df['slab_order'] == y ] = tfm_affine_fn
+
+            df['cls_rsl_2d_fn'].iloc[i] = cls_fn
+            df['fx_2d_fn'].iloc[i] = gen_2d_fn(f'{tfm_dir}/y-{y}','_fx')
+            
+    for i, row in df.iterrows() :
+        if row['misaligned'] :
+            if not os.path.exists(row['tfm']) or not os.path.exists(row['cls_rsl_2d_fn']):
+                to_do_df = to_do_df.append(row)
+
+            out_fn = row['prefix_nl_2d'] +'_rsl.nii.gz'
+            if not os.path.exists(out_fn)  :
+                to_do_resample_df = to_do_resample_df.append(row)
+
+    return to_do_df, to_do_resample_df, df
+
 '''
     for i, row in df.iterrows() :
         y = int(row['slab_order'])
@@ -218,7 +277,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
     return df #DEBUG untabbed this. seems like this would cause major problems
 '''
 
-def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='rsl'):
+def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='_rsl'):
     exit_flag=False
     tfm_dir=output_dir + os.sep + 'tfm'
 
@@ -230,8 +289,9 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='r
 
     for idx, (i, row) in enumerate(df.iterrows()):
         y = int(row['slab_order'])
-        prefix = f'{tfm_dir}/y-{y}'
-        fn = f'{tfm_dir}/y-{y}_{target_str}.nii.gz' 
+        prefix = row['prefix_nl_2d'] #f'{tfm_dir}/y-{y}'
+        #fn = f'{tfm_dir}/y-{y}_{target_str}.nii.gz' 
+        fn = f'{prefix}{target_str}.nii.gz' 
         
         df[target_name].loc[i] = fn
 

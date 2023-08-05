@@ -81,7 +81,7 @@ def prepare_surfaces(slab_dict, ligandSlabData,  mni_fn, df_ligand, input_surf_d
     brain=ligandSlabData.brain
     hemi=ligandSlabData.hemi
 
-    surf_rsl_dir = interp_dir +'/surfaces/' 
+    surf_rsl_dir = ligandSlabData.surface_dir 
     os.makedirs(surf_rsl_dir, exist_ok=True)
     
     #Interpolate at coordinate locations

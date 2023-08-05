@@ -19,6 +19,7 @@ import h5py as h5
 import multiprocessing
 import nibabel
 import debug
+import seaborn as sns
 from glob import glob
 from re import sub
 from joblib import Parallel, delayed
@@ -56,9 +57,51 @@ def get_surf_from_dict(d):
         assert False, f'Error: could not find surface in keys, {keys}'
     return surf_fn
 
+def write_mesh_to_volume(coords, vertex_values, ref_fn, out_fn):
+    vol, n = mesh_to_volume(coords, vertex_values, ref_vol_fn=ref_fn)
+    idx = n>0
+    vol[idx] = vol[idx] / n[idx]
+    print('\t Writing', out_fn)
+    nib.Nifti1Image(vol, nib.load(ref_fn).affine, direction_order='lpi').to_filename(out_fn)
 
+def visualization(surf_coords_filename, values, output_filename):
+    def get_valid_idx(c,r):
+        cmean=np.mean(c)
+        cr = np.std(c)/r
+        idx = (c > cmean-cr) & (c < cmean+cr)
+        return idx
 
-def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[0,0,0], interp_vol=None, n_vol=None, validate=True ):
+    if len(values.shape) > 1 :
+        values=values.reshape(-1,)
+
+    surf_coords = load_mesh_ext(surf_coords_filename)[0]
+
+    x = surf_coords[:,0]
+    y = surf_coords[:,1]
+    z = surf_coords[:,2]
+    x_idx = get_valid_idx(x,5)
+    z_idx = get_valid_idx(z,5)
+    sns.set(rc={'axes.facecolor':'black', 'figure.facecolor':'black'})
+
+    plt.figure(figsize=(22,12))
+    plt.subplot(1,2,1)
+    #sns.set_style("dark")
+    ax1 = sns.scatterplot(x=y[x_idx], y=z[x_idx], hue=values[x_idx], palette='nipy_spectral',alpha=0.2)
+
+    sns.despine(left=True, bottom=True)
+    plt.subplot(1,2,2)
+    ax2 = sns.scatterplot(x=y[z_idx], y=x[z_idx], hue=values[z_idx], palette='nipy_spectral',alpha=0.2)
+    sns.despine(left=True, bottom=True)
+    for ax in [ax1,ax2]:
+        ax.get_legend().remove()
+        ax.grid(False)
+
+    print('\tWriting', output_filename)
+    plt.savefig(output_filename)
+    plt.clf()
+    plt.cla()
+
+def mesh_to_volume(coords, vertex_values, dimensions=[], starts=[0,0,0], steps=[1,1,1], interp_vol=None, n_vol=None, ref_vol_fn='', validate=True ):
     '''
     About
         Interpolate mesh values into a volume
@@ -74,13 +117,28 @@ def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[0,0
         interp_vol
         n_vol
     '''
-    if type(vertex_values) != np.ndarray  or type(n_vol) != np.ndarray :
-        interp_vol = np.zeros(dimensions)
-        n_vol = np.zeros_like(interp_vol)
+
+    if ref_vol_fn != '' :
+        ref_img = nibabel.load(ref_vol_fn)
+        dimensions = ref_img.shape
+        steps=ref_img.affine[[0,1,2],[0,1,2]]
+        starts=ref_img.affine[[0,1,2],3]
+        print('Reference Volume:', ref_vol_fn)
+        print('\tDimensions:', dimensions)
+        print('\tSteps:', steps)
+        print('\tStarts:', starts)
     
     x = np.rint( (coords[:,0] - starts[0]) / steps[0] ).astype(int)
     y = np.rint( (coords[:,1] - starts[1]) / steps[1] ).astype(int)
     z = np.rint( (coords[:,2] - starts[2]) / steps[2] ).astype(int)
+
+    if dimensions == [] :
+        dimensions = np.array([np.max(x), np.max(y), np.max(z)])+1
+
+    if type(vertex_values) != np.ndarray  or type(n_vol) != np.ndarray :
+        print('dimensions', dimensions)
+        interp_vol = np.zeros(dimensions)
+        n_vol = np.zeros_like(interp_vol)
 
     idx = (x >= 0) & (y >= 0) & (z >= 0) & (x < dimensions[0]) & ( y < dimensions[1]) & ( z < dimensions[2] )
 
@@ -97,10 +155,10 @@ def mesh_to_volume(coords, vertex_values, dimensions, starts, steps, origin=[0,0
 
     for i, (xc, yc, zc) in enumerate(zip(x,y,z)) :
 
-        if debug.DEBUG == 4 :
-            interp_vol[xc,yc,zc] += yc
-        else :
-            interp_vol[xc,yc,zc] += vertex_values[i]
+        #if debug.DEBUG == 4 :
+        #    interp_vol[xc,yc,zc] += yc
+        #else :
+        interp_vol[xc,yc,zc] += vertex_values[i]
     
         n_vol[xc,yc,zc] += 1
 
@@ -118,9 +176,6 @@ def multi_mesh_to_volume(profiles, surfaces, depth_list, dimensions, starts, ste
     slab_end = max(y0,y1)
 
     for ii in range(profiles.shape[1]) :
-        print(ii)
-        print(depth_list)
-        print(surfaces.keys())
         surf_fn = surfaces[depth_list[ii]]#DEBUG['depth_rsl_fn']
         print('\tSURF', surf_fn);
 
@@ -131,7 +186,6 @@ def multi_mesh_to_volume(profiles, surfaces, depth_list, dimensions, starts, ste
         #to_do_ist.append((surf_fn,surf_fn))
         points = np.load(surf_fn)['points']
         assert points.shape[0] == profiles.shape[0], 'Error mismatch in number of points between {surf_fn} and vertex values file'
-        print(np.sum(np.abs(profiles[:,ii])))
 
         interp_vol, n_vol = mesh_to_volume(points, profiles[:,ii], dimensions, starts, steps, interp_vol=interp_vol, n_vol=n_vol)
     
@@ -278,9 +332,6 @@ def volume_to_surface(coords, volume_fn, values_fn=''):
 
     coords_idx = coords_idx[ idx0 & idx1 & idx2 ]
 
-    print(np.max(coords_idx[:,0]), np.max(coords_idx[:,1]), np.max(coords_idx[:,2]))
-    print(dimensions)
-
     values = vol[coords_idx[:,0],coords_idx[:,1],coords_idx[:,2]]
 
     if values_fn != '' :
@@ -422,6 +473,21 @@ def transform_surface_to_slabs( volume_dict, depth, slab_dict, out_dir, surf_fn,
         if not os.path.exists(surf_slab_space_fn) :
             apply_ants_transform_to_gii(surf_fn, [nl_3d_tfm_fn], surf_slab_space_fn, 0, faces_fn=faces_fn, ref_gii_fn=ref_gii_fn, ref_vol_fn=thickened_fn)
 
+
+
+def load_values(in_fn,data_str='data'):
+    #TODO: move to mesh_io.py
+
+    if os.path.exists(in_fn+'.npz') :
+        values = np.load(in_fn+'.npz')[data_str]
+        return values
+
+    ext = os.path.splitext(in_fn)[1]
+    if  ext == '.npz' :
+        values = np.load(in_fn)[data_str]
+    else :
+        values = pd.read_csv(in_fn, header=None, index_col=None).values
+    return values
 
 def load_mesh_ext(in_fn, faces_fn='', correct_offset=False):
     #TODO: move to mesh_io.py
