@@ -16,6 +16,7 @@ import time
 import re
 import debug
 from utils.mesh_utils import load_mesh_ext, visualization
+from utils.mesh_utils import write_mesh_to_volume
 from reconstruction.batch_correction_surface import batch_correction_surf
 from scipy.interpolate import interp1d, CubicSpline
 from reconstruction.prepare_surfaces import prepare_surfaces
@@ -204,7 +205,7 @@ def thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn
         # Conversion of radioactivity values to receptor density values
         section = array_src[:, y, :].copy()
         section *= row['conversion_factor']
-        #section[section>0] = row['slab']
+        #section[section>0] = 10*row['slab'] + (row['y1w'] / slab_df['y1w'].max())
 
         cls_section = cls_vol[:,y,:].copy()
         if 'batch_offset' in slab_df.columns:
@@ -552,32 +553,33 @@ def get_image_parameters(fn ):
 
     return imageParam
 
-def combine_interpolated_sections(slab_fn, interp_vol, ystep_lo, ystart_lo) :
+def combine_interpolated_sections(df, slab_fn, interp_vol, ystep_lo, ystart_lo) :
     img = nib.load(slab_fn)
-    vol = img.get_fdata()
-    vol_min = np.ceil(np.min(vol))
+    orig_vol = img.get_fdata()
+    vol_min = np.min(orig_vol)
 
     affine = nb_surf.load(slab_fn).affine
     ystep_hires = affine[1,1]
     ystart_hires = affine[1,3]
 
     print('\tCombining interpolated sections with original sections')
-    interp_vol[ np.min(interp_vol) == interp_vol ] = np.min(vol)
+    #vol[ np.min(interp_vol) == interp_vol ] = np.min(vol)
+    for y in range(orig_vol.shape[1]) :
+        #section from thickened volume is empty 
+        section_empty = np.max(orig_vol[:,y,:]) <= 0 # == vol_min 
 
-    for y in range(vol.shape[1]) :
-        
-        section_not_empty = np.max(vol[:,y,:]) > vol_min 
-        # convert from y from thickened filename 
+        print(y, np.max(orig_vol[:,y,:]))
+        # convert from y from hires thickened file to lo_res interp 
         yw = y * ystep_hires + ystart_hires
         y_lo = np.rint( (yw - ystart_lo)/ystep_lo).astype(int)
-        if section_not_empty and y_lo < interp_vol.shape[1] :
-            #use if using mapper interpolation interp_section = interp_vol[ : , yi, : ]
-            original_section = vol[ : , y, : ]
 
+        if not section_empty and y_lo < interp_vol.shape[1] :
+            print('adding section', y)
+            original_section = orig_vol[ : , y, : ]
             interp_vol[:, y_lo, :] = original_section 
         else :
+            print('nothing to add', y)
             pass
-
     return interp_vol
 
 
@@ -630,9 +632,6 @@ def create_reconstructed_volume(interp_fn_list, ligandSlabData, profiles_fn, sur
             
             #commented out because was used when masks had multiple labels
 
-            #gm_lo = gm_label * 0.75
-            #gm_hi = gm_label * 1.25
-            #valid_idx = (mask_vol >= gm_lo) & (mask_vol < gm_hi)
             valid_idx = mask_vol >= 0.5 * np.max(mask_vol)
             assert np.sum(valid_idx) > 0
             mask_vol = np.zeros_like(mask_vol).astype(np.uint8)
@@ -674,7 +673,7 @@ def create_reconstructed_volume(interp_fn_list, ligandSlabData, profiles_fn, sur
             print('Writing', interp_only_fn)
             nib.Nifti1Image(interp_vol, mask_img.affine ).to_filename(interp_only_fn)
 
-            output_vol = combine_interpolated_sections(thickened_fn, interp_vol, imageParamLo.steps[1], imageParamLo.starts[1])
+            output_vol = combine_interpolated_sections(df_ligand_slab, thickened_fn, interp_vol, imageParamLo.steps[1], imageParamLo.starts[1])
 
             print('Writing', interp_fn)
             nib.Nifti1Image(output_vol, mask_img.affine ).to_filename(interp_fn)
@@ -914,13 +913,16 @@ def create_surface_section_labels(ligand_df, values_filename, slabData, out_dir,
 
                 idx = (y > row['y0w']) & (y <= row['y1w']) & (values > np.min(values) ) 
                 labels[idx] = label
-        
+       
         np.savez(out_fn, data=labels)
 
         visualization(slabData.stx_surfaces[slabData.middle_depth], labels, qc_fn)
         #y = load_mesh_ext(slabData.stx_surfaces[slabData.middle_depth])[0]
         #plt.scatter(y,labels)
         #plt.savefig('/tmp/tmp.png')
+
+
+   
     return out_fn, ligand_df, label_to_slab_dict
     
 
@@ -1004,15 +1006,26 @@ def surface_interpolation(ligandSlabData, df_ligand, slab_dict, orig_mni_fn, fil
             
             sphere_rsl_fn = surf_depth_mni_dict[depth]['sphere_rsl_fn'] 
             cortex_rsl_fn = surf_depth_mni_dict[depth]['depth_rsl_fn'] 
-    
+   
             params, vtx_pairs = batch_correction_surf(surface_labels_filename, values_filename, sphere_rsl_fn, cortex_rsl_fn, interp_dir,  clobber=clobber)
             
-            idx = np.vstack([vtx_pairs['curr_idx'], vtx_pairs['next_idx']])
-            val = np.vstack([vtx_pairs['vtx_pair_id'], vtx_pairs['vtx_pair_idx']])
-            coords = load_mesh_ext(cortex_rsl_fn)
-            write_mesh_to_volume( coords[idx], val, '/tmp/tmp.nii.gz' )
-            exit(0)
+            coords = load_mesh_ext(cortex_rsl_fn)[0]
+            '''
+            for i, row in vtx_pairs.iterrows() :
 
+                if i < 500 :continue
+                idx = np.hstack([row['curr_idx'], row['next_idx']]).astype(int)
+                val = np.hstack([row['curr_values'], row['next_values']])
+                
+                vtx_coords = coords[idx]
+                print(vtx_coords)
+                print(val)
+
+                write_mesh_to_volume( coords[idx], val, mni_fn, '/tmp/tmp.nii.gz' )
+                
+                #val = np.hstack([vtx_pairs['curr_values'], vtx_pairs['next_values']])
+                #write_mesh_to_volume( coords[idx], val, mni_fn, '/tmp/tmp.nii.gz' )
+            '''
             df_ligand = update_df_with_correction_params(df_ligand, params, label_to_slab_dict)
             return df_ligand
 

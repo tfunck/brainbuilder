@@ -262,6 +262,7 @@ def setup_files_json(args ):
                     cdict['manual_alignment_affine'] = f'{manual_dir}/3d/{brain}_{hemi}_{slab}_manual_affine.mat'
                     cdict['nl_3d_tfm_fn'] = f'{cdict["align_to_mri_dir"]}/{brain}_{hemi}_{slab}_rec_to_mri_{resolution}mm_SyN_CC_Composite.h5'
                     cdict['nl_3d_tfm_inv_fn'] = f'{cdict["align_to_mri_dir"]}/{brain}_{hemi}_{slab}_rec_to_mri_{resolution}mm_SyN_CC_InverseComposite.h5'
+                    cdict['nl_4d_tfm_inv_fn'] = f'{cdict["align_to_mri_dir"]}/{brain}_{hemi}_{slab}_rec_to_mri_{resolution}mm_SyN_CC_InverseComposite.h6'
 
                     cdict['nl_2d_vol_fn'] = "{}/{}_{}_{}_nl_2d_{}mm.nii.gz".format(cdict['nl_2d_dir'] ,brain,hemi,slab,resolution) 
                     cdict['nl_2d_vol_cls_fn'] = "{}/{}_{}_{}_nl_2d_cls_{}mm.nii.gz".format(cdict['nl_2d_dir'],brain,hemi,slab,resolution) 
@@ -360,7 +361,11 @@ def create_srv_volumes_for_next_slab(args,files, slab_list, resolution_list, res
             #DEBUG create_new_srv_volumes(rec_3d_rsl_fn, crop_srv_rsl_fn, stage_3_5_outputs, resolution_list_3d)
             create_new_srv_volumes(rec_3d_rsl_fn, args.srv_cortex_fn, stage_3_5_outputs, resolution_list_3d)
 
-def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=None) :
+def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, batch_correction_resolution=0, norm_df_csv=None) :
+
+    if batch_correction_resolution == 0 :
+        batch_correction_resolution = highest_resolution
+
     hemi_df = hemi_df.loc[:, ~hemi_df.columns.str.contains('^Unnamed')]
     ###
     ### Step 5 : Interpolate missing receptor densities using cortical surface mesh
@@ -376,7 +381,7 @@ def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_
         if ligand != 'cgp5' : continue
         print('\t\tLigand:', ligand)
         ligand_interp_dir = interp_dir + f'/for_batch_correction_{ligand}/'
-        slabData = SlabReconstructionData(brain, hemi, args.slabs, ligands, args.depth_list, ligand_interp_dir, interp_dir +'/surfaces/', highest_resolution)
+        slabData = SlabReconstructionData(brain, hemi, args.slabs, ligands, args.depth_list, ligand_interp_dir, interp_dir +'/surfaces/', batch_correction_resolution)
         
         ligandSlabData = deepcopy(slabData)
         ligandSlabData.volumes = slabData.volumes[ligand] 
@@ -456,7 +461,7 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
 
     if not args.no_surf : 
         print('\tSurface-based reconstruction') 
-        slabData, final_ligand_dict = surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, norm_df_csv=args.norm_df_csv)
+        slabData, final_ligand_dict = surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, batch_correction_resolution=3, norm_df_csv=args.norm_df_csv)
     exit(0)
 
     ###
@@ -542,9 +547,11 @@ def reconstruct_slab(hemi_df, brain, hemi, slab, slab_index, args, files, resolu
     #apply_transforms_to_landmarks(args.landmark_df, slab_df, args.landmark_dir, init_align_fn)
 
     ### Steps 2-4 : Multiresolution alignment
-    cfiles=files[brain][hemi][str(slab)]
+    cfiles=files[brain][hemi][slab]
     multiresolution_outputs = []
+    print('hello', files['MR1']['R']['1'][4.0]['nl_3d_tfm_fn'] ); 
     for file_name in ['seg_rsl_fn','nl_3d_tfm_fn','nl_3d_tfm_inv_fn','rec_3d_rsl_fn','srv_3d_rsl_fn','srv_iso_space_rec_fn','srv_space_rec_fn','nl_2d_vol_fn','nl_2d_vol_cls_fn', 'slab_info_fn', 'srv_crop_rsl_fn', 'srv_rsl_fn']:
+
         multiresolution_outputs += [ cfiles[float(resolution)][file_name] for resolution in resolution_list ]
         
     #multiresolution_outputs+=[cfiles[float(resolution_list[-1])]['slab_info_fn']]

@@ -74,6 +74,7 @@ def visualization(surf_coords_filename, values, output_filename):
     if len(values.shape) > 1 :
         values=values.reshape(-1,)
 
+    print(surf_coords_filename) 
     surf_coords = load_mesh_ext(surf_coords_filename)[0]
 
     x = surf_coords[:,0]
