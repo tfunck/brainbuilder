@@ -10,7 +10,6 @@ import brainbuilder.utils.ants_nibabel as nib
 matplotlib.use("Agg")
 import multiprocessing
 
-import debug
 import h5py as h5
 import nibabel
 import numpy as np
