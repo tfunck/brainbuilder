@@ -54,7 +54,7 @@ def reconstruct(
     sect_info_csv: str,
     resolution_list: list,
     output_dir: str,
-    pytorch_model_dir: str = f"{repo_dir}/caps/nnUNet_results/nnUNet/2d/Task502_cortex",
+    pytorch_model_dir: str = f"{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/",
     interp_type: str = "surf",
     output_csv: str = "",
     n_depths: int = 0,
@@ -209,7 +209,7 @@ def setup_argparse():
         "--pytorch-model",
         "-m",
         dest="pytorch_model_dir",
-        default=f"{repo_dir}/caps/nnUNet_results/nnUNet/2d/Task502_cortex",
+        default = f"{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/",
         help="Numer of cores to use for segmentation (Default=0; This is will set the number of cores to use to the maximum number of cores availale)",
     )
 

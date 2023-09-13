@@ -372,8 +372,6 @@ def align_chunk(
             resolution_list_3d,
             world_chunk_limits,
             vox_chunk_limits,
-            base_nl_itr = 2, #FIXME
-            base_lin_itr = 5, #FIXME
             use_masks=False,
             clobber=clobber
         )
@@ -396,8 +394,6 @@ def align_chunk(
             row["nl_2d_vol_cls_fn"],
             row["section_thickness"],
             file_to_align = "seg",
-            base_nl_itr = 2, #FIXME
-            base_lin_itr = 5, #FIXME
             num_cores = num_cores,
             clobber = clobber
         )

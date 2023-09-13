@@ -3,7 +3,6 @@ import os
 import re
 from re import sub
 
-import debug
 import h5py as h5
 import matplotlib
 import matplotlib.pyplot as plt
