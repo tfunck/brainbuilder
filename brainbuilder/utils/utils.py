@@ -468,13 +468,11 @@ def parse_resample_arguments(input_arg, output_filename, aff, dtype) -> tuple:
     :return: vol, dtype, output_filename, aff
     """
 
-    if type(input_arg) == str:
+    if isinstance(input_arg, str):
         assert os.path.exists(
             input_arg
         ), f"Error: input file does not exist {input_arg}"
-        assert (
-            type(output_filename) == str
-        ), "Error: output filename must be as string, got {type(output_filename)}"
+
         img = ants.image_read(input_arg)
 
         vol = img.numpy()
@@ -482,7 +480,9 @@ def parse_resample_arguments(input_arg, output_filename, aff, dtype) -> tuple:
         spacing = img.spacing
         direction = img.direction
 
-        if type(dtype) == type(None):
+        aff = nib.load(input_arg).affine
+
+        if isinstance(dtype, type(None)):
             dtype = img.dtype
 
     elif type(input_arg) == np.ndarray:
@@ -507,8 +507,13 @@ def parse_resample_arguments(input_arg, output_filename, aff, dtype) -> tuple:
         print("Error: input_arg must be a string or numpy array")
         exit(1)
 
-    return vol, origin, spacing, direction, dtype, output_filename, aff
 
+    if not isinstance(output_filename, type(None)):
+        assert (
+            isinstance(output_filename, str)
+        ), f"Error: output filename must be as string, got {type(output_filename)}"
+
+    return vol, origin, spacing, direction, dtype, output_filename, aff
 
 def resample_to_resolution(
         input_arg,
@@ -516,8 +521,9 @@ def resample_to_resolution(
         output_filename=None,
         dtype=None,
         aff=None,
-        order=5,
-    ):
+        direction_order="lpi",
+        order=1,
+    ) :
     '''
     Resample a volume to a new resolution
 
@@ -550,9 +556,13 @@ def resample_to_resolution(
         if vol.shape[2] == 1:
             vol = vol.reshape([vol.shape[0], vol.shape[1]])
 
-    new_dims = np.ceil(vol.shape * (old_resolution / np.array(new_resolution)))
+    scale = old_resolution / np.array(new_resolution)
 
-    vol = resize(vol, new_dims, order=order)
+    new_dims = np.ceil(vol.shape * scale)
+
+    sigma = (new_resolution / np.array(old_resolution)) / 5
+
+    vol = resize(vol, new_dims, order=order, anti_aliasing=True, anti_aliasing_sigma=sigma)
 
     assert np.sum(np.abs(vol)) > 0, (
         "Error: empty output array for prefilter_and_downsample\n" + output_filename
@@ -563,7 +573,7 @@ def resample_to_resolution(
     affine[dim_range, dim_range] = new_resolution
     affine[dim_range, 3] = origin
 
-    img_out = nib.Nifti1Image(vol, affine, direction=direction, dtype=dtype)
+    img_out = nib.Nifti1Image(vol, affine, dtype = dtype, direction_order = direction_order)
 
     if type(output_filename) == str:
         img_out.to_filename(output_filename)

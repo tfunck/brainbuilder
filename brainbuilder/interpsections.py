@@ -2,27 +2,29 @@
 import pandas as pd
 import numpy as np
 import os
+import re
 
 from brainbuilder.utils import utils
-from brainbuilder.interp.surfinterp import surface_interpolation
+from brainbuilder.interp.surfinterp import generate_surface_profiles, create_final_reconstructed_volume
 from brainbuilder.interp.acqvolume import create_thickened_volumes
 from brainbuilder.interp.volinterp import volumetric_interpolation
 from brainbuilder.interp.prepare_surfaces import prepare_surfaces
+from brainbuilder.interp.batch_correction import apply_batch_correction 
 
-
-def resample_struct_reference_volume(orig_struct_vol_fn, sub, hemisphere, resolution, output_dir, clobber=False):
+def resample_struct_reference_volume(orig_struct_vol_fn, resolution, output_dir, clobber=False):
     '''
     resample the structural reference volume to the desired resolution
 
     :param orig_struct_vol_fn: path to the original structural reference volume 
-    :param sub: subject id
     :param hemisphere: hemisphere
     :param resolution: resolution of the volume
     :param output_dir: path to output directory
     :param clobber: boolean indicating whether to overwrite existing files
     :return: path to the resampled structural reference volume
     '''
-    struct_vol_rsl_fn = f'{output_dir}/{sub}_{hemisphere}_{resolution}mm_structural.nii.gz'
+
+    base_name = re.sub('.nii', f'_{resolution}mm.nii', os.path.basename(orig_struct_vol_fn))
+    struct_vol_rsl_fn = f'{output_dir}/{base_name}'
     
     if not os.path.exists(struct_vol_rsl_fn) or clobber :
         utils.resample_to_resolution(orig_struct_vol_fn, [ resolution ] * 3, struct_vol_rsl_fn )
@@ -39,6 +41,7 @@ def surface_pipeline(
     gm_surf_fn: str,
     wm_surf_fn: str,
     n_depths: int = 0,
+    batch_correction: bool = False,
     clobber: bool = False,
 ) -> None:
     """
@@ -58,10 +61,6 @@ def surface_pipeline(
     assert len(np.unique(sect_info["hemisphere"])) == 1, "Error: multiple hemispheres"
     assert len(np.unique(sect_info["acquisition"])) == 1, "Error: multiple acquisitions"
 
-    sub = sect_info["sub"].values[0]
-    hemisphere = sect_info["hemisphere"].values[0]
-    acquisition = sect_info["acquisition"].values[0]
-
     if n_depths == 0:
         n_depths = np.ceil(5 / resolution).astype(int)
     
@@ -80,24 +79,47 @@ def surface_pipeline(
         clobber=clobber
     )
 
-    chunk_info_thickened_csv = create_thickened_volumes(
-        output_dir, chunk_info, sect_info, resolution
-    )
+    struct_vol_rsl_fn = resample_struct_reference_volume(ref_vol_fn,  resolution, output_dir, clobber=clobber)
 
-    struct_vol_rsl_fn = resample_struct_reference_volume(ref_vol_fn, sub, hemisphere, resolution, output_dir, clobber=clobber)
-
-    # do surface based interpolation to fill missing sections
-    interp_cortex_fn = surface_interpolation(
-            sect_info,
-            surf_depth_mni_dict,
+    profiles_fn, chunk_info_thickened_csv = generate_surface_profiles(
+            chunk_info, 
+            sect_info, 
             surf_depth_chunk_dict,
-            chunk_info_thickened_csv,
-            struct_vol_rsl_fn,
-            output_dir,
-            resolution,
+            surf_depth_mni_dict,
+            resolution, 
             depth_list,
-            clobber=clobber,
-            )
+            struct_vol_rsl_fn,
+            output_dir, 
+            clobber = clobber )
+
+    if batch_correction :
+        sect_info, chunk_info = apply_batch_correction(
+                sect_info,
+                profiles_fn,
+                surf_depth_mni_dict,
+                surf_depth_chunk_dict,
+                chunk_info,
+                depth_list,
+                resolution,
+                struct_vol_rsl_fn,
+                output_dir, 
+                clobber=clobber)
+        
+    # do surface based interpolation to fill missing sections
+    sub = sect_info["sub"].values[0]
+    hemisphere = sect_info["hemisphere"].values[0]
+    acquisition = sect_info["acquisition"].values[0]
+
+    reconstructed_cortex_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_cortex.nii.gz"
+    
+    create_final_reconstructed_volume(
+        reconstructed_cortex_fn,
+        struct_vol_rsl_fn,
+        resolution,
+        surf_depth_mni_dict,
+        profiles_fn,
+        clobber=clobber
+        )
 
     # create a mask of the subcortex that can be used for volumetric interpolation
     #FIXME NOT YET IMPLEMENTED
@@ -135,7 +157,6 @@ def volumetric_pipeline(
         sect_info, brain_mask_fn, clobber=clobber
     )
 
-
     return None
 
 
@@ -146,6 +167,7 @@ def interpolate_missing_sections(
         resolution: float,
         output_dir: str,
         n_depths: int = 0,
+        batch_correction: bool = False,
         clobber: bool = False,
 ):
     """
@@ -160,8 +182,7 @@ def interpolate_missing_sections(
     sect_info = pd.read_csv(sect_info_csv, index_col=False)
     chunk_info = pd.read_csv(chunk_info_csv, index_col=False)
     hemi_info = pd.read_csv(hemi_info_csv, index_col=False)
-    print('ADIO')
-    print(sect_info)
+
     for (sub, hemisphere,acquisition), curr_sect_info in sect_info.groupby(["sub", "hemisphere", "acquisition"]):
         curr_output_dir = f"{output_dir}/sub-{sub}/hemi-{hemisphere}/acq-{acquisition}/"
 
@@ -177,17 +198,24 @@ def interpolate_missing_sections(
         gm_surf_fn = curr_hemi_info['gm_surf'].values[0]
         wm_surf_fn = curr_hemi_info['wm_surf'].values[0] 
         ref_vol_fn = curr_hemi_info['struct_ref_vol'].values[0]
-        print('HOLA')
+
         if (os.path.exists(gm_surf_fn) and os.path.exists(wm_surf_fn)) or clobber:
             surface_pipeline(
-                 curr_chunk_info, curr_sect_info, resolution, curr_output_dir, ref_vol_fn, gm_surf_fn, wm_surf_fn, n_depths, clobber=clobber
+                 curr_chunk_info, 
+                 curr_sect_info, 
+                 resolution, 
+                 curr_output_dir, 
+                 ref_vol_fn,
+                 gm_surf_fn,
+                 wm_surf_fn,
+                 n_depths,
+                 batch_correction=batch_correction,
+                 clobber=clobber
             )
         else:
             print("Error: Volumetric interpolation pipeline not yet implemented")
             exit(1)
             # volumetric_pipeline(sect_info_csv, chunk_info_csv, resolution, output_dir, clobber=clobber)
-
-    
 
     return None
 

@@ -47,12 +47,11 @@ base_file_dir, fn = os.path.split(os.path.abspath(__file__))
 
 
 def convert_2d_array_to_nifti(
-    f: str,
+    input_filename: str,
     output_filename: str,
     res: list = [20, 20],
     spacing: tuple = (999, 1, 1),
-    transform=None,
-    is_seg: bool = False,
+    clobber = False
 ) -> None:
     """
     Converts numpy into a series of niftis.
@@ -65,58 +64,37 @@ def convert_2d_array_to_nifti(
     If Transform is not None it will be applied to the image after loading.
     Segmentations will be converted to np.uint32!
     :param is_seg:
-    :param transform:
     :param input_array:
-    :param output_filename_truncated: do not use a file ending for this one! Example: output_name='./converted/image1'. This
-    function will add the suffix (_0000) and file ending (.nii.gz) for you.
+    :param output_filename_truncated: do not use a file ending for this one! Example: output_name='./converted/image1'. This function will add the suffix (_0000) and file ending (.nii.gz) for you.
     :param spacing:
     :return:
     """
-    if not os.path.exists(output_filename):
-        img = np.array(nib.load(f).get_fdata())
+    if not os.path.exists(output_filename) or clobber:
 
-        img = resize(
-            img,
-            np.round(np.array(img.shape) * np.array(res) / 200).astype(int),
-            order=3,
-        )
 
-        if transform is not None:
-            img = transform(img)
+        nii_img = utils.resample_to_resolution(input_filename, [.2,.2], order=1)
+        
+        img = nii_img.get_fdata()
 
-        if len(img.shape) == 2:  # 2d image with no color channels
-            img = img[None, None]  # add dimensions
-        else:
-            assert (
-                len(img.shape) == 3
-            ), "image should be 3d with color channel last but has shape %s" % str(
-                img.shape
-            )
-            # we assume that the color channel is the last dimension. Transpose it to be in first
-            img = img.transpose((2, 0, 1))
-            # add third dimension
-            img = img[:, None]
-        # image is now (c, x, x, z) where x=1 since it's 2d
+        img = np.rot90(np.fliplr(img),-1)
+        
+        assert len(img.shape) == 2
+
+        img = img[None, None]  # add dimensions
+        # image is now (c, y, x, z) where x=1 since it's 2d
 
         img = img.astype(np.uint32)
 
-        if is_seg:
-            assert (
-                img.shape[0] == 1
-            ), "segmentations can only have one color channel, not sure what happened here"
+        assert np.sum(np.abs(img)) > 0
 
         for j, i in enumerate(img):
-            if is_seg:
-                i = i.astype(np.uint32)
 
             itk_img = sitk.GetImageFromArray(i)
             itk_img.SetSpacing(list(spacing)[::-1])
-            if not is_seg:
-                # sitk.WriteImage(itk_img, output_filename_truncated + "_%04.0d.nii.gz" % j)
-                sitk.WriteImage(itk_img, output_filename)
-            else:
-                print("\t2.", output_filename_truncated + ".nii.gz")
-                # sitk.WriteImage(itk_img, output_filename_truncated + ".nii.gz")
+            # sitk.WriteImage(itk_img, output_filename_truncated + "_%04.0d.nii.gz" % j)
+            sitk.WriteImage(itk_img, output_filename)
+            #nib.Nifti1Image(i, nii_img.affine).to_filename(output_filename)
+
         print("Wrote:", output_filename)
 
 
@@ -153,7 +131,7 @@ def convert_from_nnunet_list(
     to_do = []
     for i, row in sect_info.iterrows():
         raw_fn = row["raw"]
-        seg_fn = row["seg_fn"]
+        seg_fn = row["seg"]
         nnunet_fn = glob(f"{nnunet_out_dir}/{os.path.basename(raw_fn)}")[0]
         if not os.path.exists(seg_fn) or clobber:
             to_do.append((nnunet_fn, raw_fn, seg_fn))
@@ -161,8 +139,10 @@ def convert_from_nnunet_list(
 
 
 def convert_to_nnunet_list(
-    sect_info: typeDataFrame, nnunet_in_dir: str, clobber: bool = False
-) -> list:
+    sect_info: typeDataFrame, 
+    nnunet_in_dir: str, 
+    clobber: bool = False
+    ) -> list:
     """
     Convert the raw images to nnunet format
     param: sect_info: dataframe with columns: raw, seg_fn
@@ -185,7 +165,7 @@ def segment(
     sect_info_csv: str,
     output_dir: str,
     resolution: float,
-    model_dir: str = f"{repo_dir}/caps/nnUNet_results/nnUNet/2d/Task502_cortex",
+    model_dir: str = f"{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/",
     output_csv: str = "",
     num_cores: int = 0,
     use_nnunet: bool = True,
@@ -229,28 +209,31 @@ def segment(
         )
 
         Parallel(n_jobs=num_cores)(
-            delayed(convert_2d_array_to_nifti)(ii_fn, oo_fn, res=resolution)
+            delayed(convert_2d_array_to_nifti)(ii_fn, oo_fn, res = resolution, clobber = clobber)
             for ii_fn, oo_fn in nifti2nnunet_to_do
         )
 
-        try:
-            utils.shell(
-                f"nnUNetv2_predict_from_modelfolder -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir}"
-            )
-            use_nnunet = True
-        except:
-            apply_histogram_threshold(sect_info, num_cores=num_cores)
-            use_nnunet = False
+        nnunet2nifti_to_do = convert_from_nnunet_list(
+            sect_info, nnunet_out_dir, clobber=clobber
+        )
+        nnunet_outputs_exists = False in [os.path.exists(arg[0]) for arg in nnunet2nifti_to_do]
+
+
+        if nnunet_outputs_exists or clobber :
+            try:
+                utils.shell(
+                    f"nnUNetv2_predict_from_modelfolder --verbose -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir} -f 0  -d Dataset501_Brain -device cpu"
+                )
+                use_nnunet = True
+            except:
+                apply_histogram_threshold(sect_info, num_cores=num_cores)
+                use_nnunet = False
 
         if use_nnunet:
-            nnunet2nifti_to_do = convert_from_nnunet_list(
-                sect_info, nnunet_out_dir, clobber=clobber
-            )
-
             print("\tConvert Files from nnUNet nifti files")
             Parallel(n_jobs=num_cores)(
                 delayed(convert_from_nnunet)(nnunet_fn, raw_fn, seg_fn, output_dir)
-                for fn, raw_fn, seg_fn in nnunet2nifti_to_do
+                for nnunet_fn, raw_fn, seg_fn in nnunet2nifti_to_do
             )
 
         assert not False in [os.path.exists(fn) for fn in sect_info["seg"]]
@@ -284,7 +267,7 @@ def convert_from_nnunet(input_fn: str, reference_fn: str, output_fn: str, seg_di
         ar[gm] = 1
 
         ar = ar.reshape([ar.shape[0], ar.shape[1]])
-        ar = ar.T
+        #ar = ar.T
         ar = resize(ar, ref_img.shape, order=0)
 
         print("\tWriting", output_fn)
@@ -310,7 +293,6 @@ def get_args():
 
     parser.add_argument(
         "--output-csv",
-        "-c",
         dest="output_csv",
         default="",
         help='Path to output dataframe in .csv format (Default: store input ".csv" as "_segment.csv" in output directory)',

@@ -16,10 +16,12 @@ from joblib import Parallel, delayed
 from scipy.interpolate import interp1d
 from skimage.transform import resize
 
+from brainbuilder.interp.acqvolume import create_thickened_volumes
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils.mesh_utils import load_mesh_ext, multi_mesh_to_volume, volume_to_mesh
 from brainbuilder.utils.utils import (get_section_intervals, get_thicken_width )
+
 
 
 def get_valid_coords(coords, iw):
@@ -45,12 +47,6 @@ def get_valid_coords(coords, iw):
     # print('Bad min', np.min(valid_coords[:,1]))
 
     return valid_coords, valid_coords_idx
-
-
-
-
-
-
 
 def get_profiles(
     profiles_fn,
@@ -162,7 +158,12 @@ def volume_to_surface_over_chunks(
         clobber=False,
     )->None:
     """
-
+    Project a volume onto a surface
+    :param surf_chunk_dict: dictionary with surface information for each chunk
+    :param volumes_df: dataframe with volume information
+    :param interp_csv: path to csv file containing interpolated values
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: None
     """
 
     # Get surfaces transformed into chunk space
@@ -196,9 +197,6 @@ def volume_to_surface_over_chunks(
             steps = affine[[0,1,2], [0,1,2]]
 
             dimensions = vol.shape
-            print( starts )
-            print( steps )
-            print( np.array(starts)+np.array(steps)*dimensions )
             # get the intervals along the y-axis of the volume where
             # we have voxel intensities that should be interpolated onto the surfaces
             
@@ -215,6 +213,65 @@ def volume_to_surface_over_chunks(
         ), "Error, empty array all_values in project_volumes_to_surfaces"
     
     return None
+
+
+def generate_surface_profiles(
+        chunk_info: pd.DataFrame,
+        sect_info: pd.DataFrame,
+        surf_depth_chunk_dict:dict,
+        surf_depth_mni_dict:dict,
+        resolution: float,
+        depth_list: list,
+        struct_vol_rsl_fn: str,
+        output_dir: str,
+        tissue_type: str = "",
+        clobber: bool = False) -> str:
+    '''
+    Create surface profiles over a set of brain chunks and over multiple cortical depths
+    :param chunk_info: dataframe with chunk information
+    :param sect_info: dataframe with section information
+    :param resolution: resolution of the volume
+    :param depth_list: list of cortical depths
+    :param output_dir: output directory where results will be put
+    :param clobber: if True, overwrite existing files
+    :return: path to profiles file
+    '''
+
+    chunk_info_thickened_csv = create_thickened_volumes(
+        output_dir, chunk_info, sect_info, resolution
+    )
+
+    sub = sect_info["sub"].values[0]
+    hemisphere = sect_info["hemisphere"].values[0]
+    acquisition = sect_info["acquisition"].values[0]
+
+    n_depths = len(depth_list)
+    chunks = np.unique(sect_info['chunk'])
+
+    chunk_info_thickened = pd.read_csv(chunk_info_thickened_csv, index_col=None)
+
+
+    output_prefix = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm{tissue_type}_l{n_depths}"
+
+    profiles_fn = f"{output_prefix}_profiles"
+    
+    
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Project autoradiograph densities onto surfaces
+    # Extract profiles from the chunks using the surfaces
+    project_volume_to_surfaces(
+        profiles_fn,
+        surf_depth_chunk_dict,
+        surf_depth_mni_dict,
+        chunk_info_thickened,
+        output_prefix,
+    )
+
+    return profiles_fn, chunk_info_thickened_csv
+
+
+
 
 def project_volume_to_surfaces(
         profiles_fn:str,
@@ -235,19 +292,25 @@ def project_volume_to_surfaces(
     :return: path to profiles file 
     '''
 
-    if not os.path.exists(profiles_fn+'.npz') or clobber :
-        surf_raw_values_dict = {}
-        # iterate over depth
-        for depth, surf_depth_dict in surf_depth_chunk_dict.items():
-            interp_csv = f'{output_prefix}{tissue_type}_{depth}_interp.csv'
+    # iterate over depth
+    for depth, surf_depth_dict in surf_depth_chunk_dict.items():
 
+        interp_csv = f'{output_prefix}{tissue_type}_{depth}_interp.csv'
+
+        if not os.path.exists(interp_csv) or clobber:
             volume_to_surface_over_chunks(
                 surf_depth_dict,
                 chunk_info_thickened,
                 interp_csv,
                 clobber=clobber
             )
+
             surf_raw_values_dict[depth] = interp_csv
+
+    if not os.path.exists(profiles_fn+'.npz') or clobber :
+
+        surf_raw_values_dict = {}
+
         profiles_fn = get_profiles( 
                             profiles_fn, 
                             surf_depth_chunk_dict, 
@@ -271,10 +334,6 @@ def interpolate_over_surface(sphere_obj_fn, surface_val, threshold=0, order=1):
     # define a mask of verticies where we have receptor densitiies
     surface_mask = surface_val > threshold * np.max(surface_val)
 
-    # a=1636763
-    # b=1636762
-    # print(coords[surface_mask.astype(bool)][a])
-    # print(coords[surface_mask.astype(bool)][b])
     assert np.sum(surface_mask) != 0, "Error, empty profiles {}".format(
         np.sum(surface_mask)
     )
@@ -293,17 +352,7 @@ def interpolate_over_surface(sphere_obj_fn, surface_val, threshold=0, order=1):
         spherical_coords_src[:, 1] - np.pi / 2,
         spherical_coords_src[:, 2],
     )
-    """
-    print(lats_src.shape, np.unique(lats_src).shape[0]) 
-    a=13971-1
-    b=13974-1
-    print(coords[a])
-    print(coords[b])
-    print(spherical_coords_src[a])
-    print(spherical_coords_src[b])
-    print(lats_src[a], lons_src[a])
-    print(lats_src[b], lons_src[b])
-    """
+
     temp = np.concatenate(
         [
             (spherical_coords_src[:, 1] - np.pi / 2).reshape(-1, 1),
@@ -313,13 +362,12 @@ def interpolate_over_surface(sphere_obj_fn, surface_val, threshold=0, order=1):
     )
 
     # create mesh data structure
-
     temp = np.concatenate([lons_src.reshape(-1, 1), lats_src.reshape(-1, 1)], axis=1)
 
     mesh = stripy.sTriangulation(lons_src, lats_src)
+
     lats, lons = spherical_coords[:, 1] - np.pi / 2, spherical_coords[:, 2]
-    # print(lats[a], lats[b])
-    # print(lons[a], lons[b])
+    
     interp_val, interp_type = mesh.interpolate(
         lons, lats, zdata=surface_val[surface_mask], order=order
     )
@@ -327,244 +375,7 @@ def interpolate_over_surface(sphere_obj_fn, surface_val, threshold=0, order=1):
     return interp_val
 
 
-class Ext:
-    def __init__(self, gm_sphere, wm_sphere, gm, wm):
-        self.gm_sphere = gm_sphere
-        self.wm_sphere = wm_sphere
-        self.gm = gm
-        self.wm = wm
-
-
-def get_surface_filename(surf_obj_fn, surf_gii_fn, surf_fs_fn):
-    if os.path.exists(surf_gii_fn):
-        surf_fn = surf_gii_fn
-        ext = Ext(".surf.gii", ".surf.gii", ".surf.gii", ".surf.gii")
-    elif os.path.exists(surf_fs_fn):
-        surf_fn = surf_fs_fn
-        ext = Ext(".pial.sphere", ".white.sphere", ".pial", ".white")
-    elif os.path.exists(surf_obj_fn):
-        surf_fn = surf_gii_fn
-        ext = Ext(".surf.gii", "surf.gii", ".surf.gii", ".surf.gii")
-        obj_to_gii(surf_obj_fn, ref_surf_fn, surf_fn)
-    else:
-        print("Error: could not find input GM surface (obj, fs, gii) for ", surf_gii_fn)
-        exit(1)
-    return surf_fn, ext
-
-
-class ImageParameters:
-    def __init__(self, starts, steps, dimensions):
-        self.starts = starts
-        self.steps = steps
-        self.dimensions = dimensions
-        self.affine = np.array(
-            [
-                [self.steps[0], 0, 0, self.starts[0]],
-                [0, self.steps[1], 0, self.starts[1]],
-                [0, 0, self.steps[2], self.starts[2]],
-                [0, 0, 0, 1],
-            ]
-        )
-        # print('\tStarts', self.starts)
-        # print('\tSteps', self.steps)
-        # print('\tDimensions:', self.dimensions)
-        # print('\tAffine', self.affine)
-
-
-def get_image_parameters(fn):
-    img = nib.load(fn)
-    affine = nb_surf.load(fn).affine
-
-    starts = np.array(affine[[0, 1, 2], 3])
-    steps = affine[[0, 1, 2], [0, 1, 2]]
-
-    dimensions = img.shape
-
-    imageParam = ImageParameters(starts, steps, dimensions)
-
-    return imageParam
-
-
-def combine_interpolated_sections(chunk_fn, interp_vol, ystep_lo, ystart_lo):
-    img = nib.load(chunk_fn)
-    vol = img.get_fdata()
-    vol_min = np.ceil(np.min(vol))
-
-    affine = nb_surf.load(chunk_fn).affine
-    ystep_hires = affine[1, 1]
-    ystart_hires = affine[1, 3]
-
-    print("\tCombining interpolated sections with original sections")
-    interp_vol[np.min(interp_vol) == interp_vol] = np.min(vol)
-
-    for y in range(vol.shape[1]):
-        section_not_empty = np.max(vol[:, y, :]) > vol_min
-        print(np.max(vol[:, y, :]), vol_min)
-        # convert from y from thickened filename
-        yw = y * ystep_hires + ystart_hires
-        y_lo = np.rint((yw - ystart_lo) / ystep_lo).astype(int)
-        if section_not_empty and y_lo < interp_vol.shape[1]:
-            # use if using mapper interpolation interp_section = interp_vol[ : , yi, : ]
-            original_section = vol[:, y, :]
-
-            interp_vol[:, y_lo, :] = original_section
-        else:
-            pass
-
-    return interp_vol
-
-
-def create_reconstructed_volume(
-    interp_fn_list,
-    acquisitionSlabData,
-    profiles_fn,
-    surf_depth_mni_dict,
-    files,
-    df_acquisition,
-    scale_factors_json,
-    use_mapper=True,
-    clobber=False,
-    gm_label=2.0,
-):
-    ref_fn = surf_depth_mni_dict[0.0]["depth_surf_fn"]
-
-    profiles = None
-
-    interp_dir = acquisitionSlabData.volume_dir
-    depth_list = acquisitionSlabData.depths
-    resolution = acquisitionSlabData.resolution
-    chunks = acquisitionSlabData.chunks
-
-    for interp_fn, chunk in zip(interp_fn_list, chunks):
-        print(chunk, type(chunk))
-        sectioning_direction = scale_factors_json[str(chunk)]["direction"]
-        df_acquisition_chunk = df_acquisition.loc[df_acquisition["chunk"].astype(int) == int(chunk)]
-
-        if not os.path.exists(interp_fn) or clobber:
-            print("\tReading profiles", profiles_fn)
-            if type(profiles) != type(np.array):
-                profiles = np.load(profiles_fn)["data"]
-            # assert np.sum(profiles>0) > 0, 'Error: profiles h5 is empty: '+profiles_fn
-            # Hiad dimensions for output volume
-            try:
-                files_resolution = files[str(int(chunk))]
-            except KeyError:
-                print(files.keys())
-                files_resolution = files[int(chunk)]
-
-            resolution_list = list(files_resolution.keys())
-            max_resolution = resolution_list[-1]
-            chunk_fn = files_resolution[max_resolution]["nl_2d_vol_fn"]
-            srv_space_rec_fn = files_resolution[max_resolution]["srv_space_rec_fn"]
-            srv_iso_space_rec_fn = files_resolution[max_resolution]["cortex_fn"]
-
-            thickened_fn = acquisitionSlabData.volumes[chunk]
-            print("Thickened Filename", thickened_fn)
-            print("Mask fn", srv_iso_space_rec_fn)
-
-            # out_affine= nib.load(chunk_fn).affine
-            out_affine = nib.load(srv_iso_space_rec_fn).affine
-
-            imageParamHi = get_image_parameters(chunk_fn)
-            print(chunk_fn, imageParamHi.dimensions)
-            imageParamLo = get_image_parameters(srv_iso_space_rec_fn)
-            print(srv_iso_space_rec_fn, imageParamLo.dimensions)
-
-            mask_img = nib.load(srv_iso_space_rec_fn)
-            mask_vol = mask_img.get_fdata()
-
-            # commented out because was used when masks had multiple labels
-
-            # gm_lo = gm_label * 0.75
-            # gm_hi = gm_label * 1.25
-            # valid_idx = (mask_vol >= gm_lo) & (mask_vol < gm_hi)
-            valid_idx = mask_vol >= 0.5 * np.max(mask_vol)
-            assert np.sum(valid_idx) > 0
-            mask_vol = np.zeros_like(mask_vol).astype(np.uint8)
-            mask_vol[valid_idx] = 1
-
-            # Use algorithm that averages vertex values into voxels
-            interp_only_fn = re.sub(".nii", "_interp-only.nii", interp_fn)
-            multi_mesh_interp_fn = re.sub(".nii", "_multimesh.nii", interp_fn)
-            multi_mesh_filled_fn = re.sub(".nii", "_multimesh-filled.nii", interp_fn)
-            gm_mask_fn = re.sub(".nii", "_gm-mask.nii", interp_fn)
-            nib.Nifti1Image(mask_vol, out_affine).to_filename(gm_mask_fn)
-
-            if (
-                not os.path.exists(multi_mesh_interp_fn)
-                or not os.path.exists(multi_mesh_filled_fn)
-                or clobber
-            ):
-                y0 = (
-                    df_acquisition["chunk_order"].min() * imageParamHi.steps[1]
-                    + imageParamHi.starts[1]
-                )
-                y1 = (
-                    df_acquisition["chunk_order"].max() * imageParamHi.steps[1]
-                    + imageParamHi.starts[1]
-                )
-                chunk_start = min(y0, y1)
-                chunk_end = max(y0, y1)
-
-                if not os.path.exists(multi_mesh_interp_fn) or clobber:
-                    interp_vol = multi_mesh_to_volume(
-                        profiles,
-                        acquisitionSlabData.surfaces[chunk],
-                        depth_list,
-                        imageParamLo.dimensions,
-                        imageParamLo.starts,
-                        imageParamLo.steps,
-                        resolution,
-                        y0,
-                        y1,
-                        ref_fn=ref_fn,
-                    )
-                    print("\t\tWriting", multi_mesh_interp_fn)
-                    nib.Nifti1Image(interp_vol, out_affine).to_filename(
-                        multi_mesh_interp_fn
-                    )
-                else:
-                    interp_vol = nib.load(multi_mesh_interp_fn).get_fdata()
-
-                interp_vol = fill_in_missing_voxels(
-                    interp_vol,
-                    mask_vol,
-                    chunk_start,
-                    chunk_end,
-                    imageParamLo.starts[1],
-                    imageParamLo.steps[1],
-                )
-                print("\t\tWriting", multi_mesh_filled_fn)
-                nib.Nifti1Image(interp_vol, out_affine).to_filename(
-                    multi_mesh_filled_fn
-                )
-            else:
-                interp_vol = nib.load(multi_mesh_interp_fn).get_fdata()
-
-            ystep_interp = imageParamHi.steps[1]
-            ystart_interp = imageParamHi.starts[1]
-
-            assert (
-                np.sum(interp_vol) > 0
-            ), f"Error: interpolated volume is empty using {profiles_fn}"
-
-            df_acquisition_chunk = df_acquisition.loc[df_acquisition["chunk"].astype(int) == int(chunk)]
-            print("Writing", interp_only_fn)
-            nib.Nifti1Image(interp_vol, mask_img.affine).to_filename(interp_only_fn)
-
-            output_vol = combine_interpolated_sections(
-                thickened_fn, interp_vol, imageParamLo.steps[1], imageParamLo.starts[1]
-            )
-
-            print("Writing", interp_fn)
-            nib.Nifti1Image(output_vol, mask_img.affine).to_filename(interp_fn)
-            print("\nDone.")
-        else:
-            print(interp_fn, "already exists")
-
-
 def fill_in_missing_voxels(interp_vol, mask_vol, chunk_start, chunk_end, start, step):
-    print("\tFilling in missing voxels.")
     mask_vol = np.rint(mask_vol)
     mask_vol = np.pad(mask_vol, ((1, 1), (1, 1), (1, 1)))
     interp_vol = np.pad(interp_vol, ((1, 1), (1, 1), (1, 1)))
@@ -581,13 +392,13 @@ def fill_in_missing_voxels(interp_vol, mask_vol, chunk_start, chunk_end, start, 
     yw = yv * step + start
 
     voxels_within_chunk = (yw >= chunk_start) & (yw <= chunk_end)
+
     missing_voxels = (
         (mask_vol[xv, yv, zv] > 0.5)
         & (interp_vol[xv, yv, zv] == 0)
         & voxels_within_chunk
     )
-    print(start, step)
-    print(np.sum(yv > (121 - start) / step))
+
     counter = 0
     last_missing_voxels = np.sum(missing_voxels) + 1
 
@@ -643,87 +454,13 @@ def fill_in_missing_voxels(interp_vol, mask_vol, chunk_start, chunk_end, start, 
             & (interp_vol[xv, yv, zv] == 0)
             & voxels_within_chunk
         )
-        print("missing", np.sum(missing_voxels), np.sum(interp_vol == 10000))
+
+        #print("\t\t\t\tmissing", np.sum(missing_voxels), np.sum(interp_vol == 10000))
         counter += 1
 
     interp_vol = interp_vol[1:-1, 1:-1, 1:-1]
     return interp_vol
 
-
-def interpolate_between_chunks(
-    combined_chunk_vol,
-    surf_depth_mni_dict,
-    depth_list,
-    profiles_fn,
-    ref_fn,
-    interp_dir,
-    srv_rsl_fn,
-    resolution,
-):
-    img = nb_surf.load(srv_rsl_fn)
-    starts = np.array(img.affine[[0, 1, 2], 3])
-    steps = np.array(img.affine[[0, 1, 2], [0, 1, 2]])
-    dimensions = img.shape
-
-    ref_fn = surf_depth_mni_dict[0.0]["depth_surf_fn"]
-
-    wm_upsample_fn = surf_depth_mni_dict[depth_list[0]]["depth_rsl_gii"]
-    gm_upsample_fn = surf_depth_mni_dict[depth_list[-1]]["depth_rsl_gii"]
-    profiles = np.load(profiles_fn)["data"]
-    mask_vol = np.rint(nib.load(srv_rsl_fn).get_fdata())
-
-    y0 = starts[1]
-    y1 = starts[1] + dimensions[1] * steps[1]
-
-    chunk_start = min(y0, y1)
-    chunk_end = max(y0, y1)
-
-    depth_rsl_dict = dict(
-        [(k, v["depth_rsl_fn"]) for k, v in surf_depth_mni_dict.items()]
-    )
-
-    interp_vol = multi_mesh_to_volume(
-        profiles,
-        depth_rsl_dict,
-        depth_list,
-        dimensions,
-        starts,
-        steps,
-        resolution,
-        chunk_start,
-        chunk_end,
-        ref_fn=ref_fn,
-    )
-
-    # interp_vol[ combined_chunk_vol != 0 ] = combined_chunk_vol[ combined_chunk_vol != 0 ]
-
-    mask_vol = resize(mask_vol, interp_vol.shape, order=0)
-    mask_vol[mask_vol < 0.5 * np.max(mask_vol)] = 0
-
-    interp_vol = fill_in_missing_voxels(
-        interp_vol, mask_vol, chunk_start, chunk_end, starts[1], steps[1]
-    )
-    return interp_vol, mask_vol
-
-
-def combine_chunks_to_volume(interp_fn_mni_list, output_fn):
-    ref_img = nib.load(interp_fn_mni_list[0])
-    output_volume = np.zeros(ref_img.shape)
-
-    if not os.path.exists(output_fn):
-        n = np.zeros_like(output_volume)
-        for interp_cortex_vol_fn in interp_fn_mni_list:
-            vol = nib.load(interp_cortex_vol_fn).get_fdata()
-            output_volume += vol
-            n[vol > 0] += 1
-        # FIXME taking the average can attenuate values in overlapping areas
-        output_volume[n > 0] /= n[n > 0]
-        output_volume[np.isnan(output_volume)] = 0
-        nib.Nifti1Image(
-            output_volume, ref_img.affine, direction_order="lpi"
-        ).to_filename(output_fn)
-
-    return output_fn
 
 def create_final_reconstructed_volume(
     reconstructed_cortex_fn,
@@ -734,7 +471,7 @@ def create_final_reconstructed_volume(
     clobber:bool=False
     ):
 
-    
+    print('\t Creating final reconstructed volume')
     if not os.path.exists(reconstructed_cortex_fn) or clobber :
     
         mask_vol = nib.load(cortex_mask_fn).get_fdata()
@@ -747,7 +484,8 @@ def create_final_reconstructed_volume(
         starts = np.array(affine[[0, 1, 2], 3])
         steps = np.array(affine[[0, 1, 2], [0, 1, 2]])
         dimensions = mask_vol.shape
-
+        
+        print('\t\tMulti-mesh to volume')
         out_vol = multi_mesh_to_volume(
             profiles,
             surf_depth_mni_dict,
@@ -757,7 +495,7 @@ def create_final_reconstructed_volume(
             steps,
             resolution)
 
-        
+        print('\t\tFilling in missing voxels') 
         out_vol = fill_in_missing_voxels(
             out_vol,
             mask_vol,
@@ -769,65 +507,13 @@ def create_final_reconstructed_volume(
 
         affine[[0,1,2],[0,1,2]] = resolution
 
+
+        print('\tWriting', reconstructed_cortex_fn )
+
         nib.Nifti1Image(out_vol, affine, direction_order="lpi").to_filename(
             reconstructed_cortex_fn
         )
 
-
-def surface_interpolation(
-        sect_info:str,
-        surf_depth_mni_dict:dict,
-        surf_depth_chunk_dict:dict,
-        chunk_info_thickened_csv:str,
-        cortex_mask_fn:str,
-        output_dir:str,
-        resolution:float,
-        depth_list:list[float],
-        tissue_type = '',
-        clobber:bool = False,
-):
-    sub = sect_info['sub'].values[0]
-    hemisphere = sect_info['hemisphere'].values[0]
-    acquisition = sect_info['acquisition'].values[0]
-
-
-    chunk_info_thickened = pd.read_csv(chunk_info_thickened_csv, index_col=None)
-
-    n_depths = len(depth_list)
-    chunks = np.unique(sect_info['chunk'])
-
-    output_prefix = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm{tissue_type}_l{n_depths}"
-
-    profiles_fn = f"{output_prefix}_profiles"
-    
-    reconstructed_cortex_fn = f"{output_prefix}_cortex.nii.gz"
-    
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Project autoradiograph densities onto surfaces
-    # Extract profiles from the chunks using the surfaces
-    project_volume_to_surfaces(
-        profiles_fn,
-        surf_depth_chunk_dict,
-        surf_depth_mni_dict,
-        chunk_info_thickened,
-        output_prefix,
-    )
-
-    # interpolate from surface to volume over entire brain
-    print("\tCreate final reconstructed volume")
-     
-    create_final_reconstructed_volume(
-        reconstructed_cortex_fn,
-        cortex_mask_fn,
-        resolution,
-        surf_depth_mni_dict,
-        profiles_fn,
-        clobber=clobber
-        )
-   
-
-    return reconstructed_cortex_fn
 
 
 if __name__ == "__main__":

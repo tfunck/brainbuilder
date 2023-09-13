@@ -60,6 +60,7 @@ def reconstruct(
     n_depths: int = 0,
     dice_threshold:float = 0.5,
     num_cores: int = 0,
+    batch_correction: bool = False,
     clobber: bool = False,
 ):
     """
@@ -127,8 +128,9 @@ def reconstruct(
             align_sect_info_csv,
             maximum_resolution,
             interp_dir,
-            n_depths=n_depths,
-            clobber=clobber,
+            n_depths = n_depths,
+            batch_correction = batch_correction,
+            clobber = clobber,
     )
 
     return output_csv
@@ -210,6 +212,15 @@ def setup_argparse():
         default=f"{repo_dir}/caps/nnUNet_results/nnUNet/2d/Task502_cortex",
         help="Numer of cores to use for segmentation (Default=0; This is will set the number of cores to use to the maximum number of cores availale)",
     )
+
+    parser.add_argument(
+        "--batch-correction",
+        dest="batch_correction",
+        default=False,
+        action="store_true",
+        help="Correct batch effects",
+    )
+
     parser.add_argument(
         "--clobber",
         dest="clobber",
@@ -241,6 +252,7 @@ if __name__ == "__main__":
         gm_surf_fn=args.gm_surf_fn,
         wm_surf_fn=args.wm_surf_fn,
         dice_threshold=args.dice_threshold,
+        batch_correction=args.batch_correction,
         num_cores=args.num_cores,
     )
 

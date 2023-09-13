@@ -154,6 +154,19 @@ def thicken_sections_within_chunk(
 
     return rec_vol
 
+
+def check_all_thickened_files_exist(output_csv:str)->bool:
+    '''
+    Check if all thickened files exist
+    :param output_csv: path to csv file containing chunk information
+    :return: True if all thickened files exist, False otherwise
+    '''
+    chunk_info = pd.read_csv(output_csv)
+    for (chunk, acquisition), chunk_info_row in chunk_info.groupby([ "chunk","acquisition"]):
+        if not os.path.exists(chunk_info_row['thickened'].values[0]) :
+            return False
+    return True 
+
 def create_thickened_volumes(
         output_dir:str,
         chunk_info:pd.DataFrame,
@@ -176,7 +189,12 @@ def create_thickened_volumes(
     '''
 
     output_csv = f"{output_dir}/chunk_info_thickened_{resolution}mm.csv"
-    if not os.path.exists(output_csv) or clobber or True :
+
+    if os.path.exists(output_csv) :
+        thickened_files_exist = check_all_thickened_files_exist(output_csv)
+
+
+    if not os.path.exists(output_csv) or not thickened_files_exist or clobber :
         
         chunk_info_out = pd.DataFrame({})
 
@@ -193,7 +211,7 @@ def create_thickened_volumes(
             chunk_info_row['acquisition'] = acquisition
             chunk_info_row['thickened'] = thickened_fn
             
-            if not os.path.exists(thickened_fn) or clobber or True :
+            if not os.path.exists(thickened_fn) or clobber :
                 thicken_sections_within_chunk(
                     chunk_info_row['thickened'],
                     chunk_info_row["nl_2d_vol_fn"],

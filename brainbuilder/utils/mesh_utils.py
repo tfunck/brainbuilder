@@ -569,6 +569,19 @@ def transform_surface_to_chunks(
 
     return surf_chunk_dict
 
+def load_values(in_fn,data_str='data'):
+    #TODO: move to mesh_io.py
+
+    if os.path.exists(in_fn+'.npz') :
+        values = np.load(in_fn+'.npz')[data_str]
+        return values
+
+    ext = os.path.splitext(in_fn)[1]
+    if  ext == '.npz' :
+        values = np.load(in_fn)[data_str]
+    else :
+        values = pd.read_csv(in_fn, header=None, index_col=None).values
+    return values
 
 def load_mesh_ext(in_fn, faces_fn="", correct_offset=False):
     # TODO: move to mesh_io.py
@@ -586,6 +599,45 @@ def load_mesh_ext(in_fn, faces_fn="", correct_offset=False):
             faces_h5 = h5.File(faces_fn, "r")
             faces = faces_h5["data"][:]
     return coords, faces
+
+
+def visualization(surf_coords_filename, values, output_filename):
+    def get_valid_idx(c,r):
+        cmean=np.mean(c)
+        cr = np.std(c)/r
+        idx = (c > cmean-cr) & (c < cmean+cr)
+        return idx
+
+    if len(values.shape) > 1 :
+        values=values.reshape(-1,)
+
+    print(surf_coords_filename) 
+    surf_coords = load_mesh_ext(surf_coords_filename)[0]
+
+    x = surf_coords[:,0]
+    y = surf_coords[:,1]
+    z = surf_coords[:,2]
+    x_idx = get_valid_idx(x,5)
+    z_idx = get_valid_idx(z,5)
+    sns.set(rc={'axes.facecolor':'black', 'figure.facecolor':'black'})
+
+    plt.figure(figsize=(22,12))
+    plt.subplot(1,2,1)
+    #sns.set_style("dark")
+    ax1 = sns.scatterplot(x=y[x_idx], y=z[x_idx], hue=values[x_idx], palette='nipy_spectral',alpha=0.2)
+
+    sns.despine(left=True, bottom=True)
+    plt.subplot(1,2,2)
+    ax2 = sns.scatterplot(x=y[z_idx], y=x[z_idx], hue=values[z_idx], palette='nipy_spectral',alpha=0.2)
+    sns.despine(left=True, bottom=True)
+    for ax in [ax1,ax2]:
+        ax.get_legend().remove()
+        ax.grid(False)
+
+    print('\tWriting', output_filename)
+    plt.savefig(output_filename)
+    plt.clf()
+    plt.cla()
 
 
 def apply_ants_transform_to_gii(
