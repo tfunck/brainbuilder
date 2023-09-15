@@ -79,8 +79,6 @@ def reconstruct(
     :param chunk_info_csv : str, path to json file that contains information about chunks
     :param resolution_list : list, resolutions to use for reconstruction
     :param output_dir : str, output directory where results will be put
-    :param gm_surf_fn : str, optional, path to gm surface to use for surface interpolation
-    :param wm_surf_fn : str, optional, path to wm surface to use for surface interpolation
     :param pytorch_model_dir : str, optional, path of directory of pytorch model to use for reconstruction
     :param num_cores : int, optional, number of cores to use for reconstruction, default=0 (use all cores)
 
@@ -142,16 +140,23 @@ def setup_argparse():
     """
     parser = argparse.ArgumentParser(description="Process some integers.")
 
+    
     parser.add_argument(
-        dest="sect_info_csv",
+        dest="hemi_info_csv",
         type=str,
-        help="Path to csv file containing section information",
+        help="Path to csv file containing hemisphere information. Mandatory columns: [sub, hemisphere, struct_ref_vol, gm_surf, wm_surf]",
     )
     parser.add_argument(
         dest="chunk_info_csv",
         type=str,
-        help="Path to csv file containing chunk information",
+        help="Path to csv file containing chunk informatio. Mandatory columns: [ sub, hemisphere, chunk, direction, pixel_size_0, pixel_size_1, section_thickness]",
     )
+    parser.add_argument(
+        dest="sect_info_csv",
+        type=str,
+        help="Path to csv file containing section information. Mandatory columns: [sub, hemisphere, chunk, acquisition, raw, sample] ",
+    )
+
     parser.add_argument(
         dest="ref_vol_fn",
         type=str,
@@ -167,20 +172,6 @@ def setup_argparse():
         default=[4.0, 3.0, 2.0, 1.0, 0.5, 0.25],
         type=float,
         help="Resolution list.",
-    )
-    parser.add_argument(
-        "--gm-surf",
-        dest="gm_surf_fn",
-        type=str,
-        default="",
-        help="Gray matter surface filename",
-    )
-    parser.add_argument(
-        "--wm-surf",
-        dest="wm_surf_fn",
-        type=str,
-        default="",
-        help="White matter surface filename",
     )
     parser.add_argument(
         "--num-cores",
@@ -240,7 +231,7 @@ if __name__ == "__main__":
 
     sect_info = pd.read_csv(args.sect_info_fn)
 
-    reconstruct_hemisphere(
+    reconstruct(
         args.hemi_info_csv,
         arg.chunk_info_csv,
         args.sect_info_csv,
@@ -249,8 +240,6 @@ if __name__ == "__main__":
         output_dir=args.output_dir,
         pytorch_model_dir=args.pytorch_model_dir,
         n_depths=args.n_depths,
-        gm_surf_fn=args.gm_surf_fn,
-        wm_surf_fn=args.wm_surf_fn,
         dice_threshold=args.dice_threshold,
         batch_correction=args.batch_correction,
         num_cores=args.num_cores,
