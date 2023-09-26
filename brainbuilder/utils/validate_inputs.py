@@ -3,6 +3,9 @@ import os
 import nibabel as nib
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed, cpu_count
+
+import brainbuilder.utils.utils as utils
 
 global chunk_info_required_columns
 global sect_info_required_columns
@@ -38,8 +41,8 @@ class Column:
                 pass
             else:
                 return True
-
-            validated_rows = [val_func(fn) for fn in rows]
+            n_jobs = int(cpu_count() /2)
+            validated_rows = Parallel(n_jobs=n_jobs)(delayed(val_func)(fn) for fn in rows )
             valid_inputs = np.product(np.array(validated_rows))
 
         return valid_inputs
@@ -155,12 +158,12 @@ def validate_surface(surface_filename: str) -> bool:
     return valid_inputs
 
 
-def validate_volume(template_fn: str) -> bool:
+def validate_volume(fn: str) -> bool:
     """
     Validate that a volume exists and that it is not empty
     Inputs
     ------
-        template_fn : str
+        fn : str
         Path to .nii.gz file that serves as structural reference volume to use for reconstruction
 
     Outputs
@@ -171,21 +174,20 @@ def validate_volume(template_fn: str) -> bool:
 
     valid_inputs = True
 
-    if not os.path.exists(template_fn):
-        print(f"\tMissing input: file does not exist {template_fn}")
+    if not os.path.exists(fn):
+        print(f"\tMissing input: file does not exist {fn}")
         valid_inputs = False
     else:
         try:
-            img = nib.load(template_fn)
-            vol = img.dataobj
+            vol = utils.load_image(fn)
 
             if np.sum(np.abs(vol)) == 0:
                 valid_inputs = False
-                print(f"\tMissing input: empty template file {template_fn}")
+                print(f"\tMissing input: empty template file {fn}")
         except:
             valid_inputs = False
             print(
-                f"\tIncorrect format: incorrect format, expected path to template, but got {template_fn}"
+                f"\tIncorrect format: incorrect format, expected path to volume, but got {fn}"
             )
 
     return valid_inputs
@@ -195,21 +197,39 @@ def validate_inputs(
     hemi_info_csv: str,
     chunk_info_csv: str,
     sect_info_csv: str,
+    valid_inputs_npz: str='',
+    clobber: bool = False,
 ) -> bool:
     """
     Validate that the inputs to reconstruct are valid
     :param hemi_info_csv: str, path to csv file that contains information about hemispheres to reconstruct :param chunk_info_csv: str,
     :param: sect_info_csv             Path to .csv file with information on sections to reconstruct
     :param: template_fn       Path to .nii.gz file that serves as structural reference volume to use for reconstruction
+    :param: valid_inputs_npz         Path to .npz file that contains boolean indicating whether the inputs have been validated
+    :param: clobber                   Boolean indicating whether to overwrite existing npz file
     :return: valid_inputs        boolean indicating whether the inputs have been validated
     """
+    if valid_inputs_npz != '' and os.path.exists(valid_inputs_npz+'.npz') and not clobber :
+        valid_inputs = np.load(valid_inputs_npz+'.npz')['valid_inputs']
+    else :
+        valid_inputs = False
 
-    hemi_info_valid = validate_csv(hemi_info_csv, hemi_info_required_columns)
+    if not valid_inputs :
+        hemi_info_valid = validate_csv(hemi_info_csv, hemi_info_required_columns)
+        print('Hemi Info Valid', hemi_info_valid)
 
-    chunk_info_valid = validate_csv(chunk_info_csv, chunk_info_required_columns)
+        chunk_info_valid = validate_csv(chunk_info_csv, chunk_info_required_columns)
+        print('Chunk Info Valid', chunk_info_valid)
 
-    sect_info_valid = validate_csv(sect_info_csv, sect_info_required_columns)
+        sect_info_valid = validate_csv(sect_info_csv, sect_info_required_columns)
+        print('Sect Info Valid', sect_info_valid)
 
-    valid_inputs = sect_info_valid * chunk_info_valid * hemi_info_valid
+        valid_inputs = sect_info_valid * chunk_info_valid * hemi_info_valid
+        print('Valid Inputs', valid_inputs)
+
+        if valid_inputs_npz != ''   :
+            os.makedirs(os.path.dirname(valid_inputs_npz), exist_ok=True)
+            np.savez(valid_inputs_npz, valid_inputs=valid_inputs)
+
 
     return valid_inputs

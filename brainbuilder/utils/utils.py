@@ -35,6 +35,17 @@ from brainbuilder.utils.mesh_io import load_mesh, save_mesh
 os_info = os.uname()
 
 
+def load_image(fn):
+    """
+    Load an image from a file.
+    :param fn: str, filename
+    :return: np.ndarray
+    """
+    if '.nii' in fn:
+        return ants.image_read(fn).numpy()
+    else:
+        return imageio.imread(fn)
+
 def get_chunk_pixel_size(sub, hemi, chunk, chunk_info):
     """
     Get the pixel size of a chunk.
