@@ -2,6 +2,8 @@ import os
 
 import ants
 import matplotlib
+import matplotlib.pyplot as plt
+import seaborn as sns
 import nibabel as nb
 import pandas as pd
 
@@ -173,10 +175,7 @@ def mesh_to_volume(
     vertex_values = vertex_values[idx]
 
     for i, (xc, yc, zc) in enumerate(zip(x, y, z)):
-        if debug.DEBUG == 4:
-            interp_vol[xc, yc, zc] += yc
-        else:
-            interp_vol[xc, yc, zc] += vertex_values[i]
+        interp_vol[xc, yc, zc] += yc
 
         n_vol[xc, yc, zc] += 1
 
@@ -629,8 +628,13 @@ def visualization(surf_coords_filename, values, output_filename):
     plt.subplot(1,2,2)
     ax2 = sns.scatterplot(x=y[z_idx], y=x[z_idx], hue=values[z_idx], palette='nipy_spectral',alpha=0.2)
     sns.despine(left=True, bottom=True)
+    
     for ax in [ax1,ax2]:
-        ax.get_legend().remove()
+
+        legend=ax.get_legend()
+        if not isinstance(legend, type(None)):
+            legend.remove()
+
         ax.grid(False)
 
     print('\tWriting', output_filename)
