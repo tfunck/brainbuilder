@@ -53,7 +53,7 @@ def apply_batch_correction(
         surf_depth_mni_dict[mid_depth]['sphere_rsl_fn'], #stereo_sphere_filename
         surf_depth_mni_dict[mid_depth]['depth_rsl_fn'], #stereo_cortex_filename
         f'{output_dir}/batch_correction/',
-        clobber=clobber)
+        clobber=clobber )
 
     sect_info = update_df_with_correction_params(sect_info, params, label_to_slab_dict)
 
@@ -79,7 +79,8 @@ def create_surface_section_labels(
         chunk_surface_dict:dict,
         out_dir:str,
         qc_surface_fn:str='',
-        clobber:bool=False):
+        clobber:bool=False
+        ):
 
     acquisition = sect_info['acquisition'].values[0]
     out_fn = f'{out_dir}/{acquisition}_section_labels'
@@ -251,29 +252,6 @@ if False:   # test to make sure that pairsewise_coord_distances works correctly
     print(d.shape)
     exit(1)
 
-def average_vertex_values(coords, values, smoothing_percentile, total=None, n=None, p=2):
-    # create a 2d pairwise distance matrix
-    dist_matrix = pairwise_coord_distances(coords, coords)
-    smoothing_radius = np.percentile(dist_matrix, [smoothing_percentile], axis=1).T
-    n_values =  dist_matrix.shape[0] 
-    values_vector = np.repeat(values, n_values)
-    values_matrix = np.reshape(values_vector, [n_values,n_values])
-
-    idx = dist_matrix<=smoothing_radius
-    #wgts = dist_matrix.copy()
-    
-    #wgts[ ~idx ] = 0
-    values_matrix[~idx] = 0
-    
-    wgts = np.sum(idx,axis=1)
-    print(wgts)
-    #den = np.sum(wgts,axis=1)
-    num = np.sum(values_matrix/wgts, axis=1).reshape(coords.shape[0])
-    smoothed_values = num 
-    
-    return smoothed_values
-
-
 
 def get_rostral_caudal_borders(label_surf_values, surfaces, out_dir,  perc=0.05, clobber=False):
     border_fn = f'{out_dir}/borders' 
@@ -399,7 +377,16 @@ def find_pairs_between_labels(curr_label, next_label, stereo_sphere_coords, labe
 
     return paired_values
 
-def get_paired_values(paired_values_csv, unique_paired_values_csv,  stereo_sphere_filename, label_filename, values_fn, out_dir, label_start=1, label_offset=2, clobber=False):
+def get_paired_values(
+        paired_values_csv:str, 
+        unique_paired_values_csv:str,  
+        stereo_sphere_filename:str, 
+        label_filename:str, 
+        values_fn:str, 
+        out_dir:str, 
+        label_start:int = 1, 
+        label_offset:int = 2, 
+        clobber:bool = False):
     
     if not os.path.exists(paired_values_csv) or clobber:
         # find corresponding points between caudal and rostral 
@@ -432,7 +419,7 @@ def get_paired_values(paired_values_csv, unique_paired_values_csv,  stereo_spher
         for curr_label, next_label in zip(curr_labels, next_labels) :
             print('curr label', curr_label, next_label)
             curr_paired_values = find_pairs_between_labels(curr_label, next_label, stereo_sphere_coords, labels, avg_values)
-            paired_values=paired_values.append(curr_paired_values)
+            paired_values=pd.concat([paired_values, curr_paired_values])
 
         paired_values.to_csv(paired_values_csv, index=False)
     
@@ -456,7 +443,7 @@ def get_unique_pairs(paired_values, direction, n_points=1) :
             min_distance_idx = np.argsort(j_df['distance'])[:n_points]
             row = j_df.iloc[min_distance_idx]
                 
-            unique_paired_values = unique_paired_values.append(row)
+            unique_paired_values = pd.concat([ unique_paired_values, row])
 
     return unique_paired_values
 
@@ -465,7 +452,6 @@ def get_unique_pairs(paired_values, direction, n_points=1) :
 def draw_pair_plots(surf_coords:np.ndarray, paired_values:type(pd.DataFrame), out_fn:str, hue_string_0:str='vtx_pair_id', hue_string_1:str='vtx_pair_id') -> None:
 
     d_list = []
-
     sns.set(rc={'axes.facecolor':'black', 'figure.facecolor':'black'})
     fig, axes = plt.subplots(2,3, figsize=(40,10))
 
@@ -473,6 +459,7 @@ def draw_pair_plots(surf_coords:np.ndarray, paired_values:type(pd.DataFrame), ou
         ax.grid(False)
         for i, (curr_slab, tdf) in enumerate(paired_values.groupby(['curr_label'])): 
             ax = axes.ravel()[i]
+
 
             cidx = tdf['curr_idx'].values.astype(int)
             ridx = tdf['next_idx'].values.astype(int)
@@ -492,6 +479,8 @@ def draw_pair_plots(surf_coords:np.ndarray, paired_values:type(pd.DataFrame), ou
 
     print('\tWriting', out_fn)
     plt.savefig(out_fn)
+    plt.cla()
+    plt.clf()
 
 
 def qc_paired_values(out_dir,paired_values, surf_coords, clobber=False):
@@ -515,7 +504,7 @@ def simple_slab_correction(paired_values):
                     'multiplier': [1],
                     'offset': [0] }
 
-    params = params.append(pd.DataFrame(row_dict))
+    params = pd.concat([params, pd.DataFrame(row_dict)] )
 
     total_offset = 0
 
@@ -550,7 +539,7 @@ def simple_slab_correction(paired_values):
                         'multiplier': [1],
                         'offset': [total_offset] }
 
-        params = params.append(pd.DataFrame(row_dict))
+        params = pd.concat([params, pd.DataFrame(row_dict)])
 
         X = [(curr_label, next_label)]*n
         Y = np.column_stack([curr_values, next_values])
@@ -559,8 +548,11 @@ def simple_slab_correction(paired_values):
         for x, y in zip(X,Y):
             plt.scatter(x,y,c='r', alpha=0.5)
             plt.plot(x, y, c='b', alpha=0.3)
-    exit(0)
+    
     plt.savefig('/tmp/tmp.png')
+    plt.cla()
+    plt.clf()
+
     return params
 
         
@@ -570,6 +562,8 @@ def calc_batch_correction_params(
         stereo_sphere_filename:str,
         stereo_cortex_filename:str,
         out_dir:str,
+        label_start:int=1,
+        label_offset:int=2,
         clobber=False
         ):
     '''
@@ -591,10 +585,21 @@ def calc_batch_correction_params(
     nvtx = load_mesh_ext(stereo_sphere_filename)[0].shape[0]
     vtx_range = np.arange(nvtx).astype(int)
     labels = np.unique( load_values(label_filename))[1:]
+    print('labels', labels); 
     n_labels = len(labels)
 
     print('\t\tGet Paired Values')
-    paired_values = get_paired_values(paired_values_csv, unique_paired_values_csv,  stereo_sphere_filename, label_filename, values_filename, out_dir, clobber=clobber)
+    paired_values = get_paired_values(
+            paired_values_csv, 
+            unique_paired_values_csv,  
+            stereo_sphere_filename, 
+            label_filename, 
+            values_filename, 
+            out_dir,
+            label_start = label_start,
+            label_offset = label_offset,
+            clobber=clobber
+            )
 
     if not os.path.exists(params_fn) or clobber :
         params = simple_slab_correction(paired_values)

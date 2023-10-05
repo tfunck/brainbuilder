@@ -1,71 +1,68 @@
-# julich-receptor-atlas
+# BrainBuilder
 
 ### Purpose
-
-3D reconstruction of 2D histological sections.
+BrainBuilder is a software packagefor reconstructing 3-dimensional cortical maps from data sets of 2-dimensional post-mortem serial brain sections processed for the quantification of multiple different biological components.
 
 Manuscript with full description: https://www.biorxiv.org/content/10.1101/2022.11.18.517039v1
 
 ## Useage
 
+```python3
+from brainbuilder.reconstruct import reconstruct
+
+reconstruct('hemi_info.csv', 'chunk_info.csv', 'sect_info.csv', resolution_list=[4,3,2,1], '/output/dir/')
+```
+
 ### Inputs 
 
-subject_id: subject name
+### Hemisphere Info
 
-auto_dir: autoradiography directory
+#### Mandatory fields: 
+**sub** : subject id
 
-template_fn: reference template volume for reconstruction
+**hemisphere** : hemisphere
 
-scale factors .json : json file that specifies slicing direction and section pixel size in each tissue slab
+**struct_ref_vol** : path to structural reference volume
 
-out_dir : output directory
+**gm_surf** : path to gray matter surface file (.surf.gii or .pial)
 
-section info .csv : .csv file that contains the fields specified below
-
-
-
-singularity exec   ~/projects/julich-receptor-atlas/receptor.simg bash -c "python3.8 ~/projects/julich-receptor-atlas/launch_macaque.py rh_11530_mf macaque/rh_11530_mf/ templates/MEBRAINS_segmentation_NEW_gm_bg_left.nii.gz macaque/rh_11530_mf_points_lpi.txt macaque/rh_11530_mf/scale_factors.json ${out_dir}" 
-
-### Scale Factors .json
-
-### Section Info .csv
-
-#### Required Fields:
-
-raw : path to raw section file
-
-brain : id of brain 
-
-hemisphere : L or R hemisphere
-
-slab : tissue slab from which section was acquired
-
-ligand: ligand or method used to produce section
-
-order : section order number within slab
-
-rotate : rotation to apply to raw image
-
-#### Optional :
-
-conversion_factor : conversion factor to apply to convert from radioactivity concentration to receptor binding, Default = 1.
-
-repeat :  
-
-repeat count :
-
-binding : type of binding, specific (S) or unspecific (UB)
+**wm_surf** : path to white matter surface file (.surf.gii or .pial)
 
 
-#### Generated during reconstruction
-slab_order :
 
-global_order :
+### Chunk Info
+#### Mandatory fields
+**sub** : subject id
 
-volume_order : 
+**hemisphere** : hemisphere
 
-seg_fn : 
+**chunk** : id for the tissue chunk (aka slab) 
 
-crop : path to cropped section file
+**pixel_size_0** : pixel size in the x dimension (mm)
 
-aligned : path to aligned section file
+**pixel_size_1** : pixel size in the z dimension (mm)
+
+**section_thickness** : thickness of the section (mm)
+
+**direction** : the direction of sectioning for the slab
+
+### Section Info
+
+#### Mandatory Fields
+
+**sub** : subject id
+
+**hemisphere** : hemisphere
+
+**chunk** : id for the tissue chunk (aka slab) 
+
+**sample** : integer sample number that indicates the order of the section within the data set
+
+**acquisition** : the kind of acquisition (e.g., autoradiography ligand or histological staining)
+
+**raw** : path to the raw section (.nii.gz)
+
+#### Optional Fields
+
+**conversion_factor** : conversion factor to apply to convert pixel intensitites into biological parameter 
+
