@@ -184,6 +184,7 @@ def adjust_alignment(
     j = i
     len(y_idx)
     y_idx_tier1 = df["sample"].loc[df["tier"] == 1].values.astype(int)
+    
     y_idx_tier1.sort()
     i_max = step if step < 0 else df["sample"].values.max() + 1
 
@@ -452,11 +453,12 @@ def initalign(
     param clobber: overwrite existing files
     return: path to csv file containing section information
     """
+    valid_inputs_npz = os.path.join(output_dir, "valid_inputs")
 
     # Validate Inputs
     assert valinpts.validate_csv(
-        sect_info_csv, valinpts.sect_info_required_columns
-    ), f"Invalid section info csv file: {section_info_csv}"
+        sect_info_csv, valinpts.sect_info_required_columns, valid_inputs_npz
+    ), f"Invalid section info csv file: {sect_info_csv}"
     assert valinpts.validate_csv(
         chunk_info_csv, valinpts.chunk_info_required_columns
     ), f"Invalid chunk info csv file: {chunk_info_csv}"
@@ -497,7 +499,6 @@ def initalign(
                 curr_chunk_info,
                 clobber=clobber,
             )
-            print(curr_chunk_info["init_volume"])
             initalign_sect_info = pd.concat([initalign_sect_info, curr_sect_info])
             initalign_chunk_info = pd.concat([initalign_chunk_info, curr_chunk_info])
 
@@ -524,17 +525,13 @@ def get_acquisition_contrast_order(df):
 
     df = pd.concat(df_list)
 
-    print(df)
 
     df_mean = df.groupby(["acquisition"]).mean()
     df_mean.reset_index(inplace=True)
-    print(df_mean)
 
     df_mean = df_mean.sort_values(by=["contrast"], ascending=False)
 
-    print(df_mean)
     acquisition_contrast_order = df_mean["acquisition"].values
-    print(acquisition_contrast_order)
 
     return acquisition_contrast_order
 
@@ -568,6 +565,8 @@ def align_chunk(
     df = sect_info.copy()
 
     df["original_raw"] = df["raw"]
+    
+
 
     acquisition_contrast_order = get_acquisition_contrast_order(sect_info)
     print("\tAcquistion contrast order: ", acquisition_contrast_order)

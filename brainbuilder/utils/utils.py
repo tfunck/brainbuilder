@@ -412,7 +412,12 @@ def shell(cmd, verbose=False, exit_on_failure=True):
     return stdout, stderr, errorcode
 
 
-def gen_new_filename(fn, output_dir, old_suffix, new_suffix):
+def gen_new_filename(fn, output_dir, new_suffix):
+    if '.nii.gz'  in fn :  
+        old_suffix = '.nii.gz'
+    else :
+        old_suffix = os.path.splitext(fn)[1]
+
     out_fn = output_dir + "/" + re.sub(old_suffix, new_suffix, os.path.basename(fn))
     return out_fn
 
@@ -469,6 +474,21 @@ def recenter(vol, affine, direction=np.array([1, 1, -1])):
     return vol, affine
 
 
+def get_params_from_affine(aff, ndim):
+    '''
+    Get the parameters from an affine
+    :param aff: np.ndarray, affine
+    :return: origin, spacing, direction
+    '''
+    spacing = aff[range(ndim), range(ndim)]
+    origin = aff[range(ndim), 3]
+    direction = [
+        [-1.0, 0.0, 0.0],
+        [0.0, -1.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ]  # FIXME: not sure if it's good idea to hardcord LPI direction
+    return origin, spacing, direction
+
 def parse_resample_arguments(input_arg, output_filename, aff, dtype) -> tuple:
     """
     Parse the arguments for resample_to_resolution
@@ -480,40 +500,37 @@ def parse_resample_arguments(input_arg, output_filename, aff, dtype) -> tuple:
     """
 
     if isinstance(input_arg, str):
+        
         assert os.path.exists(
             input_arg
         ), f"Error: input file does not exist {input_arg}"
 
-        img = ants.image_read(input_arg)
+        if '.nii' in input_arg:
 
-        vol = img.numpy()
-        origin = img.origin
-        spacing = img.spacing
-        direction = img.direction
+            img = ants.image_read(input_arg)
 
-        aff = nib.load(input_arg).affine
+            vol = img.numpy()
+            origin = img.origin
+            spacing = img.spacing
+            direction = img.direction
+            aff = nib.load(input_arg).affine
 
-        if isinstance(dtype, type(None)):
-            dtype = img.dtype
+            if isinstance(dtype, type(None)):
+                dtype = img.dtype
+        else :
+            vol = load_image(input_arg)
+            origin, spacing, direction = get_params_from_affine(aff, len(vol.shape))
 
     elif type(input_arg) == np.ndarray:
         vol = input_arg
         if type(dtype) == type(None):
             dtype = vol.dtype
 
-        ndim = len(vol.shape)
-
         assert (
             type(aff) == np.ndarray or type(aff) == list
         ), f"Error: affine must be provided as a list or numpy array but got {type(aff)}"
 
-        spacing = aff[range(ndim), range(ndim)]
-        origin = aff[range(ndim), 3]
-        direction = [
-            [-1.0, 0.0, 0.0],
-            [0.0, -1.0, 0.0],
-            [0.0, 0.0, 1.0],
-        ]  # FIXME: not sure if it's good idea to hardcord LPI direction
+        origin, spacing, direction = get_params_from_affine(aff, len(vol.shape))
     else:
         print("Error: input_arg must be a string or numpy array")
         exit(1)

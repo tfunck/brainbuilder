@@ -39,11 +39,24 @@ class Column:
                 val_func = validate_volume
             elif self.kind == "surface":
                 pass
+            elif self.kind == int:
+                val_func = lambda x: isinstance(x, np.integer)
+            elif self.kind == float :
+                val_func = lambda x: isinstance(x, float)
             else:
                 return True
+
             n_jobs = int(cpu_count() /2)
-            validated_rows = Parallel(n_jobs=n_jobs)(delayed(val_func)(fn) for fn in rows )
+
+            validated_rows = Parallel(n_jobs=n_jobs)(delayed(val_func)(var) for var in rows )
             valid_inputs = np.product(np.array(validated_rows))
+
+            if not valid_inputs :
+                invalid_rows = rows[~np.array(validated_rows)]
+                invalid_row_types = [type(row) for row in invalid_rows]
+                print('Error with the following rows:')
+                print('Expected type:', self.kind, 'Got type:', invalid_row_types[0:5]) 
+                print(rows[~np.array(validated_rows)])
 
         return valid_inputs
 
@@ -53,11 +66,11 @@ sub = Column("sub", None)
 hemisphere = Column("hemisphere", None)
 chunk = Column("chunk", None)
 direction = Column("direction", None)
-pixel_size_0 = Column("pixel_size_0", None)
-pixel_size_1 = Column("pixel_size_1", None)
-section_thickness = Column("section_thickness", None)
+pixel_size_0 = Column("pixel_size_0", float)
+pixel_size_1 = Column("pixel_size_1", float)
+section_thickness = Column("section_thickness", float)
 acquisition = Column("acquisition", None)
-sample = Column("sample", None)
+sample = Column("sample", int)
 
 # Volumes
 raw = Column("raw", "volume")
@@ -94,7 +107,6 @@ def validate_dataframe(df: pd.DataFrame, required_columns: list) -> bool:
     """
     # TODO Update with BIDS fields
     valid_columns = []
-
     for column in required_columns:
         if not column.name in df.columns:
             valid_inputs = False
@@ -213,16 +225,19 @@ def validate_inputs(
         valid_inputs = np.load(valid_inputs_npz+'.npz')['valid_inputs']
     else :
         valid_inputs = False
-
+    
     if not valid_inputs :
+        print('\nValidating Hemi Info')
         hemi_info_valid = validate_csv(hemi_info_csv, hemi_info_required_columns)
-        print('Hemi Info Valid', hemi_info_valid)
+        print('\tHemi Info Valid =', bool(hemi_info_valid))
 
+        print('\nValidating Chunk Info')
         chunk_info_valid = validate_csv(chunk_info_csv, chunk_info_required_columns)
-        print('Chunk Info Valid', chunk_info_valid)
+        print('\tChunk Info Valid =', bool(chunk_info_valid))
 
+        print('\nValidating Sect Info')
         sect_info_valid = validate_csv(sect_info_csv, sect_info_required_columns)
-        print('Sect Info Valid', sect_info_valid)
+        print('\tSect Info Valid =', bool(sect_info_valid))
 
         valid_inputs = sect_info_valid * chunk_info_valid * hemi_info_valid
         print('Valid Inputs', valid_inputs)

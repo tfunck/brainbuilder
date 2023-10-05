@@ -89,18 +89,19 @@ def reconstruct(
     initalign_dir = f"{output_dir}/2_init_align/"
     multires_align_dir = f"{output_dir}/3_multires_align/"
     interp_dir = f"{output_dir}/4_interp/"
+    valid_inputs_npz = f"{output_dir}/valid_inputs"
     num_cores = utils.set_cores(num_cores)
 
     maximum_resolution = resolution_list[-1]
 
     valid_inputs = validate_inputs.validate_inputs(
-        hemi_info_csv, chunk_info_csv, sect_info_csv
+        hemi_info_csv, chunk_info_csv, sect_info_csv, valid_inputs_npz
     )
 
     assert valid_inputs, "Error: invalid inputs"
 
     # Stage: Segment
-    seg_df_csv = segment(sect_info_csv, seg_dir, maximum_resolution, clobber=clobber)
+    seg_df_csv = segment(chunk_info_csv, sect_info_csv, seg_dir, maximum_resolution, clobber=clobber)
 
     # Stage: Initial rigid aligment of sections
     init_sect_csv, init_chunk_csv = initalign(

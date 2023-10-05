@@ -56,7 +56,7 @@ def prepare_surfaces(
         ref_vol_fn: str,
         gm_surf_fn: str,
         wm_surf_fn: str,
-        depth_list: list[float],
+        depth_list: list,
         output_dir: str,
         resolution: float,
         clobber: bool = False
@@ -218,7 +218,7 @@ def inflate_surfaces(
         surf_depth_mni_dict:dict, 
         output_dir:str, 
         resolution:float, 
-        depth_list:list[float], 
+        depth_list:list, 
         clobber:bool=False
 ) -> dict:
     """
