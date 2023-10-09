@@ -198,7 +198,9 @@ def interpolate_missing_sections(
         gm_surf_fn = curr_hemi_info['gm_surf'].values[0]
         wm_surf_fn = curr_hemi_info['wm_surf'].values[0] 
         ref_vol_fn = curr_hemi_info['struct_ref_vol'].values[0]
-
+        
+        print(gm_surf_fn, os.path.exists(gm_surf_fn))
+        print(wm_surf_fn, os.path.exists(wm_surf_fn) )
         if (os.path.exists(gm_surf_fn) and os.path.exists(wm_surf_fn)) or clobber:
             surface_pipeline(
                  curr_chunk_info, 

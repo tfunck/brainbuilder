@@ -18,12 +18,6 @@ from brainbuilder.utils.utils import (
     simple_ants_apply_tfm,
 )
 
-#
-# Purpose:
-# Performs GM classification on neurotransmitter receptor autoradiography sections using K-Means.
-# If K-means does not work, uses simple thresholding based on 90th percentile of values in image.
-# Reads in a 3D volume with aligned 2D autoradiographs and outputs a 3D GM classification volume.
-#
 
 
 def get_input_file(
@@ -37,6 +31,7 @@ def get_input_file(
 ):
     tfm_input_fn = seg_rsl_fn
     if not os.path.exists(seg_rsl_fn):
+        print('1')
         resample_to_resolution(
             seg_fn,
             [resolution_2d] * 2,
@@ -49,6 +44,7 @@ def get_input_file(
             output_dir, int(row["sample"]), resolution_3d, seg_fn, "_rsl"
         )
         if not os.path.exists(tfm_input_fn) or clobber:
+            print('2')
             resample_to_resolution(
                 seg_fn,
                 [resolution_3d] * 2,
@@ -88,6 +84,7 @@ def resample_and_transform(
     seg_rsl_tfm_fn = get_seg_fn(
         output_dir, int(row["sample"]), resolution_3d, seg_fn, "_rsl_tfm"
     )
+
     if not os.path.exists(seg_rsl_tfm_fn) or clobber:
         tfm_input_fn = get_input_file(
             seg_fn, seg_rsl_fn, row, output_dir, resolution_2d, resolution_3d
@@ -98,7 +95,7 @@ def resample_and_transform(
 
         # get initial rigid transform
         tfm_fn = row["tfm"]
-
+        print("\tTransforming", seg_rsl_fn, "to", seg_rsl_tfm_fn)
         if type(tfm_fn) == str:
             simple_ants_apply_tfm(
                 tfm_input_fn,
@@ -159,6 +156,18 @@ def resample_transform_segmented_images(
             order=0,
         )
 
+    '''
+    for i, row in sect_info.iterrows():
+        resample_and_transform(
+            output_dir,
+            resolution_itr,
+            resolution_2d,
+            resolution_3d,
+            row,
+            tfm_ref_fn,
+            clobber=clobber,
+        )
+    '''
     Parallel(n_jobs=num_cores)(
         delayed(resample_and_transform)(
             output_dir,

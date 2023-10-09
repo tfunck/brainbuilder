@@ -46,6 +46,10 @@ reconstruct('hemi_info.csv', 'chunk_info.csv', 'sect_info.csv', resolution_list=
 
 **direction** : the direction of sectioning for the slab
 
+#### Optional Info
+**caudal_limit** : float, the spatial coordinate of the caudal limit of the tissue on the reference template
+**rostral_limit** : float, the spatial coordinate of the rostral limit of the tissue on the reference template
+
 ### Section Info
 
 #### Mandatory Fields

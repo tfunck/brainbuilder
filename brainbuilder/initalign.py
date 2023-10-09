@@ -38,7 +38,7 @@ def align_neighbours_to_fixed(
     # and are registered to the fixed section.
 
     i_idx = df["sample"] == i
-    fixed_fn = df["raw"].loc[i_idx].values[0]
+    fixed_fn = df["img"].loc[i_idx].values[0]
     for j in j_list:
         j_idx = df["sample"] == j
         outprefix = "{}/init_transforms/{}_{}-0/".format(output_dir, j, tfm_type)
@@ -51,7 +51,7 @@ def align_neighbours_to_fixed(
         qc_fn = "{}/qc/{}_{}_{}_{}_{}_{}-0.png".format(
             output_dir, *desc, j, i, tfm_type
         )
-        moving_fn = df["raw"].loc[j_idx].values[0]
+        moving_fn = df["img"].loc[j_idx].values[0]
 
         # calculate rigid transform from moving to fixed images
         if not os.path.exists(tfm_fn) or not os.path.exists(qc_fn):
@@ -125,7 +125,7 @@ def align_neighbours_to_fixed(
                 qc_fn,
             )
 
-        df["raw_new"].loc[df["sample"] == j] = moving_rsl_fn
+        df["img_new"].loc[df["sample"] == j] = moving_rsl_fn
         df["init_tfm"].loc[df["sample"] == j] = concat_tfm_fn
         df["init_fixed"].loc[df["sample"] == j] = fixed_fn
         transforms[j] = [concat_tfm_fn]
@@ -236,18 +236,18 @@ def apply_transforms_to_sections(
                 continue
             transforms_str = " -t {}".format(" -t ".join(fixed_tfm_list))
 
-            fixed_fn = row["original_raw"]
+            fixed_fn = row["original_img"]
 
             utils.shell(
                 f"antsApplyTransforms -v 1 -d 2 -i {fixed_fn} -r {fixed_fn} {transforms_str} -o {final_rsl_fn}",
                 True,
             )
-        df["raw_new"].iloc[i] = final_rsl_fn
+        df["img_new"].iloc[i] = final_rsl_fn
     return df
 
 
 def combine_sections_to_vol(df, y_mm, z_mm, direction, out_fn, target_tier=1):
-    example_fn = df["raw"].iloc[0]
+    example_fn = df["img"].iloc[0]
     shape = nib.load(example_fn).shape
     affine = nib.load(example_fn).affine
     xstart = affine[0, 3]
@@ -267,7 +267,7 @@ def combine_sections_to_vol(df, y_mm, z_mm, direction, out_fn, target_tier=1):
     for i, row in df.iterrows():
         if row["tier"] == target_tier:
             y = row["sample"]
-            ar = nib.load(row["raw"]).get_fdata()
+            ar = nib.load(row["img"]).get_fdata()
             ar = ar.reshape(ar.shape[0], ar.shape[1])
             ar = resize(ar, [xmax, zmax])
             vol[:, int(y), :] = ar
@@ -312,8 +312,8 @@ def alignment_stage(
     # Set parameters for rigid transform
     tfm_type = "Rigid"
     shrink_factor = "12"  #'12x10x8' #x4x2x1'
-    smooth_sigma = str((2**11) / np.pi)  # '6x5x4' #x2x1x0'
-    iterations = "100"  # '100x50x25' #x100x50x20'
+    smooth_sigma = str(12*0.2)  # '6x5x4' #x2x1x0'
+    iterations = "10"  # '100x50x25' #x100x50x20'
 
     csv_fn = vol_fn_str.format(
         output_dir,
@@ -334,7 +334,7 @@ def alignment_stage(
         )
         mid = int(len(y_idx_tier1) / 2)
 
-        df["raw_new"] = df["raw"]
+        df["img_new"] = df["img"]
         df["init_tfm"] = [None] * df.shape[0]
         df["init_fixed"] = [None] * df.shape[0]
 
@@ -372,8 +372,8 @@ def alignment_stage(
             target_tier=target_tier,
             clobber=clobber,
         )
-        # update the raw so it has the new, resampled file names
-        df["raw"] = df["raw_new"]
+        # update the img so it has the new, resampled file names
+        df["img"] = df["img_new"]
 
         out_fn = vol_fn_str.format(
             output_dir,
@@ -389,7 +389,18 @@ def alignment_stage(
     return df, transforms
 
 
-def create_final_outputs(final_tfm_dir, df, step):
+def create_final_outputs(
+        final_tfm_dir:str,
+        df:pd.DataFrame, 
+        step:int,
+        )->pd.DataFrame:
+    '''
+    Create final outputs for the alignment stage
+    :param final_tfm_dir: path to directory containing final transforms
+    :param df: dataframe containing section information
+    :param step: step size for iterating over sections
+    :return: dataframe containing section information
+    '''
     y_idx_tier = df["sample"].values.astype(int)
     y_idx_tier.sort()
 
@@ -414,14 +425,12 @@ def create_final_outputs(final_tfm_dir, df, step):
         final_tfm_fn = "{}/{}_final_Rigid.h5".format(
             final_tfm_dir, int(row["sample"].values[0])
         )
-        final_section_fn = f'{final_tfm_dir}/{int(row["sample"].values[0])}{os.path.basename(row["raw"].values[0])}'
+        final_section_fn = f'{final_tfm_dir}/{int(row["sample"].values[0])}{os.path.basename(row["img"].values[0])}'
 
         idx = df["sample"].values == row["sample"].values
         if not os.path.exists(final_tfm_fn) or not os.path.exists(final_section_fn):
-            row["original_raw"]
 
             row["sample"].values[0].astype(int)
-            print(row["init_tfm"])
             if type(row["init_tfm"].values[0]) == str:
                 # standard rigid transformation for moving image
                 shutil.copy(row["init_tfm"].values[0], final_tfm_fn)
@@ -429,12 +438,12 @@ def create_final_outputs(final_tfm_dir, df, step):
                 if not os.path.exists(final_section_fn) and not os.path.islink(
                     final_section_fn
                 ):
-                    os.symlink(row["raw"].values[0], final_section_fn)
+                    os.symlink(row["img"].values[0], final_section_fn)
             else:
                 if not os.path.exists(final_section_fn) and not os.path.islink(
                     final_section_fn
                 ):
-                    os.symlink(row["raw"].values[0], final_section_fn)
+                    os.symlink(row["img"].values[0], final_section_fn)
                 final_tfm_fn = np.nan
 
             df["init_tfm"].loc[idx] = final_tfm_fn
@@ -457,7 +466,7 @@ def initalign(
 
     # Validate Inputs
     assert valinpts.validate_csv(
-        sect_info_csv, valinpts.sect_info_required_columns, valid_inputs_npz
+        sect_info_csv, valinpts.sect_info_required_columns 
     ), f"Invalid section info csv file: {sect_info_csv}"
     assert valinpts.validate_csv(
         chunk_info_csv, valinpts.chunk_info_required_columns
@@ -468,10 +477,13 @@ def initalign(
     initalign_sect_info = pd.DataFrame({})
     initalign_chunk_info = pd.DataFrame({})
 
+    run_stage = utils.check_run_stage(initalign_sect_info_csv, 'init_tfm', 'seg')
+
     if (
         not os.path.exists(initalign_sect_info_csv)
         or not os.path.exists(initalign_chunk_info_csv)
         or clobber
+        #or run_stage FIXME need to change initalign so that it overwrites outdated files
     ):
         sect_info = pd.read_csv(sect_info_csv)
         chunk_info = pd.read_csv(chunk_info_csv)
@@ -512,7 +524,7 @@ def get_acquisition_contrast_order(df):
     df_list = []
     for i, acquisition_df in df.groupby(["acquisition"]):
         for j, row in acquisition_df.iterrows():
-            ar = nib.load(row["raw"]).dataobj
+            ar = nib.load(row["img"]).dataobj
             i_max = np.max(ar)
             i_min = np.min(ar)
             contrast = (i_max - i_min) / (i_max + i_min)
@@ -564,10 +576,8 @@ def align_chunk(
 
     df = sect_info.copy()
 
-    df["original_raw"] = df["raw"]
+    df["original_img"] = df["img"]
     
-
-
     acquisition_contrast_order = get_acquisition_contrast_order(sect_info)
     print("\tAcquistion contrast order: ", acquisition_contrast_order)
 
@@ -576,9 +586,7 @@ def align_chunk(
     chunk_img_fn_str = "{}/sub-{}_hemi-{}_chunk-{}_acquisition_{}_{}_init_align_{}.{}"
 
     n_acquisitions = len(df["acquisition"].unique())
-    _, z_mm = utils.get_chunk_pixel_size(sub, hemisphere, chunk, chunk_info)
-
-    y_mm = chunk_info["section_thickness"].values[0]
+    _, z_mm, y_mm = utils.get_chunk_pixel_size(sub, hemisphere, chunk, chunk_info)
 
     direction = utils.get_chunk_direction(sub, hemisphere, chunk, chunk_info)
 
@@ -697,6 +705,7 @@ def align_chunk(
     chunk_info["init_volume"] = init_align_fn
 
     sect_info["tfm"] = sect_info["init_tfm"]
+    sect_info['img_init'] = sect_info['img_new']
 
     assert not False in [
         os.path.exists(x) for x in sect_info["init_tfm"].values if not pd.isnull(x)

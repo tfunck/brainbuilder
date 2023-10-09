@@ -264,7 +264,7 @@ def upsample_over_faces(
             print("Error: ref faces not defined")
 
     if type(face_mask) != np.ndarray:
-        face_mask = np.ones(faces.shape[0]).astype(np.bool)
+        face_mask = np.ones(faces.shape[0]).astype(bool)
 
     if ".surf.gii" in out_fn:
         pass

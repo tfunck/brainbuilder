@@ -65,7 +65,7 @@ def resample_reference_to_sections(
             vol,
             [float(resolution)] * 3,
             order=0,
-            aff=aff,
+            affine=aff,
             dtype=np.uint16,
         )
         print("\tIso:", iso_output_fn)
@@ -75,7 +75,7 @@ def resample_reference_to_sections(
         img3 = resample_to_resolution(
             vol,
             [float(resolution), section_thickeness, float(resolution)],
-            aff=aff,
+            affine=aff,
             order=1,
             dtype=np.uint16,
         )
@@ -215,14 +215,14 @@ def align_2d_parallel(
 def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     y = int(row["sample"])
     prefix = f"{tfm_dir}/y-{y}"
-    raw_rsl_fn = f"{prefix}_{resolution}mm.nii.gz"
+    img_rsl_fn = f"{prefix}_{resolution}mm.nii.gz"
     out_fn = prefix + "_rsl.nii.gz"
     fx_fn = gen_2d_fn(prefix, "_fx")
 
 
-    raw_fn = row["raw"]  
+    img_fn = row["img"]  
 
-    img = nib.load(raw_fn)
+    img = nib.load(img_fn)
     img_res = np.array([img.affine[0, 0], img.affine[1, 1]])
     vol = img.get_fdata()
 
@@ -231,14 +231,14 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
 
     # vol = resize(vol, nib.load(fx_fn).shape, order=3)
     aff = img.affine
-    nib.Nifti1Image(vol, aff, direction_order="lpi").to_filename(raw_rsl_fn)
+    nib.Nifti1Image(vol, aff, direction_order="lpi").to_filename(img_rsl_fn)
 
     # fix_affine(fx_fn)
     shell(
-        f"antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {raw_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} "
+        f"antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} "
     )
 
-    assert os.path.exists(f"{out_fn}"), "Error apply nl 2d tfm to raw autoradiograph"
+    assert os.path.exists(f"{out_fn}"), "Error apply nl 2d tfm to img autoradiograph"
     return 0
 
 
@@ -408,7 +408,7 @@ def concatenate_sections_to_volume(
                 # sec = nib.load(fn).get_fdata()
                 sec = nibabel.load(fn).get_fdata()
 
-                # DEBUG add this back in once the macaque raw data is fixed
+                # DEBUG add this back in once the macaque img data is fixed
                 # assert np.max(sec) < 256 , 'Problem with file '+ fn + f'\n Max Value = {np.max(sec)}'
                 out_vol[:, int(y), :] = sec
             except EOFError:

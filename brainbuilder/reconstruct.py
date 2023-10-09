@@ -3,11 +3,13 @@ import os
 
 import pandas as pd
 
+import brainbuilder.qc.quality_control as qc
 from brainbuilder.initalign import initalign
 from brainbuilder.segment import segment
 from brainbuilder.utils import utils, validate_inputs
 from brainbuilder.volalign import multiresolution_alignment
 from brainbuilder.interpsections import interpolate_missing_sections
+from brainbuilder.downsample import downsample_sections
 
 base_file_dir, fn = os.path.split(os.path.abspath(__file__))
 repo_dir = f"{base_file_dir}/../"
@@ -85,11 +87,15 @@ def reconstruct(
     :return sect_info : pandas dataframe, contains updated information about sections with new fields for files produced
     """
 
+    downsample_dir = f"{output_dir}/0_downsample/"
     seg_dir = f"{output_dir}/1_seg/"
     initalign_dir = f"{output_dir}/2_init_align/"
     multires_align_dir = f"{output_dir}/3_multires_align/"
     interp_dir = f"{output_dir}/4_interp/"
+    qc_dir = f"{output_dir}/qc/"
+
     valid_inputs_npz = f"{output_dir}/valid_inputs"
+
     num_cores = utils.set_cores(num_cores)
 
     maximum_resolution = resolution_list[-1]
@@ -97,11 +103,21 @@ def reconstruct(
     valid_inputs = validate_inputs.validate_inputs(
         hemi_info_csv, chunk_info_csv, sect_info_csv, valid_inputs_npz
     )
-
     assert valid_inputs, "Error: invalid inputs"
+
+    sect_info_csv = downsample_sections(
+            chunk_info_csv, 
+            sect_info_csv, 
+            min(resolution_list), 
+            downsample_dir, 
+            clobber=clobber
+            )
+    qc.data_set_quality_control(sect_info_csv, qc_dir, column='img')
 
     # Stage: Segment
     seg_df_csv = segment(chunk_info_csv, sect_info_csv, seg_dir, maximum_resolution, clobber=clobber)
+
+    qc.data_set_quality_control(seg_df_csv, qc_dir, column='seg')
 
     # Stage: Initial rigid aligment of sections
     init_sect_csv, init_chunk_csv = initalign(
@@ -119,6 +135,7 @@ def reconstruct(
         dice_threshold=dice_threshold,
         clobber=clobber,
     )
+    qc.data_set_quality_control(align_sect_info_csv, qc_dir, column='img_init')
 
     # Stage: Interpolate missing sections
     interpolate_missing_sections(

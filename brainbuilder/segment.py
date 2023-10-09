@@ -30,7 +30,12 @@ def histogram_threshold(raw_fn: str, seg_fn: str, sd: float = 1):
     """
 
     img = nib.load(raw_fn)
+
+    affine = img.affine
+    dimensions = img.shape
+
     ar = img.get_fdata()
+    assert np.sum(np.abs(ar)) > 0, "Error: empty input image with histogram thresholding " + raw_fn
     ar = gaussian_filter(ar, sd).astype(np.float64)
     out = np.zeros(ar.shape)
     values = ar[ar > np.min(ar)]
@@ -38,7 +43,12 @@ def histogram_threshold(raw_fn: str, seg_fn: str, sd: float = 1):
 
     out[idx] = 1
 
-    nib.Nifti1Image(out, img.affine, direction_order="lpi").to_filename(seg_fn)
+    out = resize(ar, dimensions, order=0)
+    if len(out.shape) == 3:
+       out = out.reshape([out.shape[0], out.shape[1]]) 
+
+    assert np.sum(np.abs(out)) > 0, "Error: empty segmented image with histogram thresholding " + raw_fn
+    nib.Nifti1Image(out, affine, direction_order="lpi").to_filename(seg_fn)
 
     return out
 
@@ -71,12 +81,12 @@ def convert_2d_array_to_nifti(
     :param spacing:
     :return:
     """
-    if not os.path.exists(output_filename) or clobber:
+    if not os.path.exists(output_filename) or not utils.newer_than(output_filename, input_filename)  or clobber:
 
         aff=np.eye(4)
         aff[0,0] = res[0]
         aff[1,1] = res[1]
-        nii_img = utils.resample_to_resolution(input_filename, [.2,.2], aff=aff, order=1)
+        nii_img = utils.resample_to_resolution(input_filename, [.2,.2], affine=aff, order=1)
         
         img = nii_img.get_fdata()
 
@@ -131,17 +141,18 @@ def convert_from_nnunet_list(
 ) -> list:
     """
     Convert the nnunet images to regular nifti images
-    param: sect_info: dataframe with columns: raw, seg_fn
+    param: sect_info: dataframe with columns: img, seg_fn
     param: nnunet_out_dir: directory to save nnunet images
     param: clobber: overwrite existing files
     return: list of files to convert
     """
     to_do = []
     for i, row in sect_info.iterrows():
+        img_fn = row["img"]
         raw_fn = row["raw"]
         seg_fn = row["seg"]
        
-        if '.nii.gz' in raw_fn :
+        if '.nii.gz' in img_fn :
             base = re.sub('.nii.gz', '', raw_fn) 
         else:
             base = os.path.splitext(raw_fn)[0]
@@ -154,11 +165,11 @@ def convert_from_nnunet_list(
         nnunet_fn = nnunet_list[0]
 
         print()
-        if not os.path.exists(seg_fn) or clobber:
+        if not os.path.exists(seg_fn) or not utils.newer_than(seg_fn, img_fn) or clobber:
             if warning_flag : 
                 print('\tWarning: Could not find file:', seg_fn)
 
-            to_do.append((nnunet_fn, raw_fn, seg_fn))
+            to_do.append((nnunet_fn, img_fn, seg_fn))
     return to_do
 
 
@@ -183,13 +194,14 @@ def convert_to_nnunet_list(
                 (chunk_info['hemisphere'] == row['hemisphere']) & \
                 (chunk_info['chunk'] == row['chunk'])
 
-        pixel_size_0 = chunk_info["pixel_size_0"].loc[idx].values[0]
-        pixel_size_1 = chunk_info["pixel_size_1"].loc[idx].values[0]
+        pixel_size_0, pixel_size_1, _ = utils.get_chunk_pixel_size(
+            row["sub"], row["hemisphere"], row["chunk"], chunk_info
+        )
 
         fname = os.path.split(f)[1].split(".")[0]
         output_filename_truncated = os.path.join(nnunet_in_dir, fname)
         output_filename = output_filename_truncated + "_0000.nii.gz"
-        if not os.path.exists(output_filename) or clobber:
+        if not os.path.exists(output_filename) or not utils.newer_than(output_filename, f) or clobber:
             to_do.append([f, pixel_size_0, pixel_size_1, output_filename])
 
     return to_do
@@ -235,7 +247,11 @@ def segment(
             + "_segment.csv"
         )
 
-    if not os.path.exists(output_csv) or clobber:
+    # check it 'seg' files are all newer than 'img' files 
+
+    run_stage = utils.check_run_stage('seg', 'img',output_csv, clobber=clobber)
+
+    if run_stage :
         nnunet_in_dir = f"{output_dir}/nnunet/"
         nnunet_out_dir = f"{output_dir}/nnunet_out/"
         os.makedirs(nnunet_in_dir, exist_ok=True)
@@ -270,14 +286,16 @@ def segment(
             except:
                 apply_histogram_threshold(sect_info, num_cores=num_cores)
 
-        if use_nnunet:
+
+        nnunet2nifti_to_do = convert_from_nnunet_list(
+            sect_info, 
+            nnunet_out_dir,
+            warning_flag=False,
+            clobber=clobber
+        )
+
+        if use_nnunet and len(nnunet2nifti_to_do) > 0:
             print("\tConvert Files from nnUNet to standard nifti files")
-            nnunet2nifti_to_do = convert_from_nnunet_list(
-                sect_info, 
-                nnunet_out_dir,
-                warning_flag=True,
-                clobber=clobber
-            )
 
             Parallel(n_jobs=num_cores)(
                 delayed(convert_from_nnunet)(nnunet_fn, raw_fn, seg_fn, output_dir)
@@ -287,6 +305,7 @@ def segment(
         assert check_seg_files(sect_info, warning_flag=True), "Missing segmentations"
 
         sect_info.to_csv(output_csv, index=False)
+
 
     return output_csv
 
@@ -301,7 +320,7 @@ def convert_from_nnunet(input_fn: str, reference_fn: str, output_fn: str, seg_di
 
     if (np.sum(ar == 1) / np.product(ar.shape)) < 0.02:
         print("\nWarning: Found a section that nnUNet failed to segment!\n")
-        histogram_threshold(input_fn, output_fn)
+        histogram_threshold(reference_fn, output_fn)
     else:
         if np.sum(ar) == 0:
             print("Error: empty segmented image with nnunet")

@@ -18,7 +18,8 @@ from glob import glob
 from os.path import basename
 from re import sub
 from subprocess import PIPE, STDOUT, Popen
-from time import time
+from time import time 
+from collections.abc import Iterable
 
 import h5py as h5
 import matplotlib.pyplot as plt
@@ -62,9 +63,16 @@ def get_chunk_pixel_size(sub, hemi, chunk, chunk_info):
     )
     pixel_size_0 = chunk_info["pixel_size_0"][idx].values[0]
     pixel_size_1 = chunk_info["pixel_size_1"][idx].values[0]
+    section_thickeness = chunk_info["section_thickness"][idx].values[0]
 
-    return pixel_size_0, pixel_size_1
+    return pixel_size_0, pixel_size_1, section_thickeness
 
+def create_2d_affine(pixel_size_0, pixel_size_1, section_thickness):
+    affine = np.eye(4)
+    affine[0,0] = pixel_size_0
+    affine[1,1] = pixel_size_1
+    affine[2,2] = section_thickness
+    return affine
 
 def get_chunk_direction(sub, hemi, chunk, chunk_info):
     """
@@ -273,10 +281,16 @@ def check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn, empty_ok=False
 
 
 def simple_ants_apply_tfm(
-    in_fn, ref_fn, tfm_fn, out_fn, ndim=3, n="Linear", empty_ok=False
+    in_fn, 
+    ref_fn,
+    tfm_fn,
+    out_fn,
+    ndim=3,
+    n="Linear", 
+    empty_ok:bool=False
 ):
     if not os.path.exists(out_fn):
-        str0 = f"antsApplyTransforms -v 0 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}"
+        str0 = f"antsApplyTransforms -v 1 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}"
         shell(str0, verbose=True)
         check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn, empty_ok=empty_ok)
 
@@ -506,10 +520,12 @@ def parse_resample_arguments(input_arg, output_filename, aff, dtype) -> tuple:
         ), f"Error: input file does not exist {input_arg}"
 
         if '.nii' in input_arg:
-
+            print('read inpus from', input_arg)
             img = ants.image_read(input_arg)
+            print('read')
 
             vol = img.numpy()
+            print('numpy')
             origin = img.origin
             spacing = img.spacing
             direction = img.direction
@@ -541,14 +557,123 @@ def parse_resample_arguments(input_arg, output_filename, aff, dtype) -> tuple:
             isinstance(output_filename, str)
         ), f"Error: output filename must be as string, got {type(output_filename)}"
 
-    return vol, origin, spacing, direction, dtype, output_filename, aff
+    vol_sum = np.sum(np.abs(vol))
+    assert vol_sum > 0, (
+        f"Error: empty ({vol_sum}) input file for resample_to_resolution\n" + input_arg 
+    )
+    ndim = len(vol.shape)
+    if ndim == 3:
+        # 2D images sometimes have dimensions (m,n,1).
+        # We resample them to (m,n)
+        if vol.shape[2] == 1:
+            vol = vol.reshape([vol.shape[0], vol.shape[1]])
+    
+    spacing = spacing[:ndim]
+
+    return vol, origin, spacing, direction, dtype, output_filename, aff, ndim
+
+def newer_than(fn1:str, fn2:str):
+    '''
+    Check if fn1 is newer than fn2
+    :param fn1: str, filename
+    :param fn2: str, filename
+    :return: bool
+    '''
+
+    if pd.isnull(fn1) :
+        return False
+    elif not os.path.exists(fn1):
+        return True
+    else:
+        return  os.path.getctime(fn1) > os.path.getctime(fn2)
+
+def compare_timestamp_of_files(x,y) -> bool:
+    '''
+    Compare the timestamps of two files. If x is newer than y, return True, otherwise return False
+    :param x: str or list
+    :param y: str or list
+    :return: bool
+    '''
+    if isinstance(x, str) and isinstance(y, str):
+        # Compare two files
+        return newer_than(x, y)
+    elif isinstance(x, Iterable) and isinstance(y, Iterable):
+        # Compare two lists of files
+        for fn1, fn2 in zip(x,y):
+            if not newer_than(fn1, fn2):
+                return False
+    else :
+        print('Error: x and y must be both strings or lists. Got {} and {}'.format(type(x), type(y)))
+        exit(1)
+
+    return True
+
+
+def check_run_stage(
+        col1:Iterable,
+        col2:Iterable,
+        df_csv:str=None,
+        clobber=False
+        )->bool:
+    '''
+    Check if a stage should be run. If the output files exist, check if they are newer than the input files. 
+    :param col1: column name
+    :param col2: column name
+    :param df_csv: path to dataframe
+    :param clobber: bool, optional, if True, overwrite existing files, default=False
+    :return: bool
+    '''
+
+    run_stage = False
+
+    def get_file_list(df_csv, col):
+        ''' Get the file list from a dataframe or a list'''
+        if isinstance(col, str) and isinstance(df_csv, str) and os.path.exists(df_csv) :
+            df = pd.read_csv(df_csv, index_col=False)
+            if col in df.columns :
+                file_list = df[col].values
+        elif isinstance(col, Iterable) :
+            file_list = col
+        else :
+            print('Error: col2 must be a string or list')
+            exit(0)
+
+        return file_list
+
+    def file_check(file_list, nan_okay=True):
+        ''' Check if all files exist'''
+        for x in file_list:
+            if nan_okay & pd.isnull(x) : continue
+            elif not os.path.exists(x)  : return False
+        return True
+
+    assert (isinstance(col1,Iterable) and isinstance(col2,Iterable)) or \
+           (isinstance(col1,str) & isinstance(col2,str) & isinstance(df_csv,str)),\
+            'Error: col1 and col2 must both be either strings or Iterables, but got {} and {}'.format(type(col1), type(col2))
+
+    if isinstance(df_csv,str) and not os.path.exists(df_csv) or clobber:
+        run_stage = True
+    else :
+        file_list_1 = get_file_list(df_csv, col1)
+        file_list_2 = get_file_list(df_csv, col2)
+
+        all_outputs_exist = file_check(file_list_1) 
+
+        if not all_outputs_exist :
+            run_stage = True
+
+        if not compare_timestamp_of_files(file_list_1, file_list_2) :
+            print('All files exist but some are older than {}'.format(col2))
+            run_stage = True
+
+    return run_stage
 
 def resample_to_resolution(
         input_arg,
         new_resolution,
         output_filename=None,
         dtype=None,
-        aff=None,
+        affine=None,
         direction_order="lpi",
         order=1,
     ) :
@@ -559,7 +684,7 @@ def resample_to_resolution(
     :param new_resolution: new resolution
     :param output_filename: output filename
     :param dtype: data type
-    :param aff: np.ndarray, affine
+    :param affine: np.ndarray, affine
     :param order: order of interpolation
     :return: img_out
     '''
@@ -570,26 +695,16 @@ def resample_to_resolution(
         direction,
         dtype,
         output_filename,
-        aff,
-    ) = parse_resample_arguments(input_arg, output_filename, aff, dtype)
-
-    assert np.sum(np.abs(vol)) > 0, (
-        "Error: empty input file for prefilter_and_downsample\n" + input_filename
-    )
-    ndim = len(vol.shape)
-
-    if ndim == 3:
-        # 2D images sometimes have dimensions (m,n,1).
-        # We resample them to (m,n)
-        if vol.shape[2] == 1:
-            vol = vol.reshape([vol.shape[0], vol.shape[1]])
+        affine,
+        ndim
+    ) = parse_resample_arguments(input_arg, output_filename, affine, dtype)
 
     scale = old_resolution / np.array(new_resolution)
 
     new_dims = np.ceil(vol.shape * scale)
 
     sigma = (new_resolution / np.array(old_resolution)) / 5
-
+    
     vol = resize(vol, new_dims, order=order, anti_aliasing=True, anti_aliasing_sigma=sigma)
 
     assert np.sum(np.abs(vol)) > 0, (
