@@ -104,7 +104,8 @@ def thicken_sections_within_chunk(
     array_src, normalize_sections = setup_section_normalization(
         acquisition, chunk_sect_info, array_src
     )
-    # width = np.round(1*(1+float(resolution)/(0.02*2))).astype(int)
+
+    #get the thicken widith fot the section. The resolution is halfed because we are thickening in both directions
     width = get_thicken_width(resolution, section_thickness)
     print("\t\tThickening sections to ", 0.02 * width * 2)
 
@@ -118,12 +119,14 @@ def thicken_sections_within_chunk(
     for row_i, row in chunk_sect_info.iterrows():
         y = int(row["chunk_sample"])
         # Conversion of radioactivity values to receptor density values
-        section = array_src[:, y, :].copy()
-       
-        print('-->', y, np.sum(section))
+        nl_2d_rsl = row['nl_2d_rsl']
+        section = nib.load(nl_2d_rsl).get_fdata().copy()
+
+        print(nl_2d_rsl)
+
         if use_conversion_factor :
             conversion_factor = row["conversion_factor"]
-            print(y, conversion_factor)
+            print('\t\t\tRadio. to Dens.:\t', y, np.min(section), np.max(section), conversion_factor)
             section *= conversion_factor
 
         if np.sum(section) == 0:
@@ -135,20 +138,25 @@ def thicken_sections_within_chunk(
             if int(y) + width < array_src.shape[1]
             else array_src.shape[1]
         )
+
         # put acquisition sections into rec_vol
-
         yrange = list(range(y0, y1))
+        #section[section>np.min(section)] = np.float32(int(row['chunk']))
+
         rep = np.repeat(section.reshape(dim), len(yrange), axis=1)
-
+        
         rec_vol[:, yrange, :] = rep
-
-    if False:
-        conversion_factor = chunk_info["conversion_factor"].values[0]
-        conversion_offset = chunk_info["conversion_offset"].values[0]
-        idx = rec_vol > np.percentile(rec_vol, [1])[0]
-        rec_vol = rec_vol * conversion_factor + conversion_offset
+    
+    if 'batch_offset' in chunk_sect_info.columns:
+        #conversion_factor = chunk_info["conversion_factor"].values[0]
+        batch_offset = chunk_sect_info["batch_offset"].values[0]
+        #rec_vol = rec_vol * conversion_factor + conversion_offset
+        print("\t\t\tbatch_offset", batch_offset)
+        idx = rec_vol > np.min(rec_vol)
+        rec_vol[idx] = rec_vol[idx] + batch_offset
 
     assert np.sum(rec_vol) != 0, "Error: thickened volume is empty"
+
     print("\tthickened_fn", thickened_fn)
     nib.Nifti1Image(rec_vol, array_img.affine, direction_order='lpi').to_filename(thickened_fn)
 
@@ -163,6 +171,7 @@ def check_all_thickened_files_exist(output_csv:str)->bool:
     '''
     chunk_info = pd.read_csv(output_csv)
     for (chunk, acquisition), chunk_info_row in chunk_info.groupby([ "chunk","acquisition"]):
+        print(chunk_info_row['thickened'].values[0])
         if not os.path.exists(chunk_info_row['thickened'].values[0]) :
             return False
     return True 
@@ -187,12 +196,12 @@ def create_thickened_volumes(
     :param tissue_type: tissue type of the interpolated volumes
     :return: None
     '''
-
     output_csv = f"{output_dir}/chunk_info_thickened_{resolution}mm.csv"
+
+    thickened_files_exist = False
 
     if os.path.exists(output_csv) :
         thickened_files_exist = check_all_thickened_files_exist(output_csv)
-
 
     if not os.path.exists(output_csv) or not thickened_files_exist or clobber :
         
@@ -220,8 +229,8 @@ def create_thickened_volumes(
                     chunk_sect_info,
                     resolution,
                 )
+
             chunk_info_out = pd.concat([chunk_info_out, chunk_info_row.to_frame().T])
 
         chunk_info_out.to_csv(output_csv, index=False)
-
     return output_csv

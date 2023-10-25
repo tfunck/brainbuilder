@@ -46,7 +46,7 @@ def prepare_volume(vol):
     return vol
 
 
-def global_dice(fx_vol, mv_vol, out_fn, offset=2, clobber=False):
+def global_dice(fx_vol, mv_vol, clobber=False):
     fx_vol = prepare_volume(fx_vol)
     mv_vol = prepare_volume(mv_vol)
 
@@ -110,79 +110,41 @@ def qc_low_dice_section(row, slab, y, mri_vol, mv_vol, fx_vol, qc_dir):
         plt.cla()
         plt.clf()
 
-def correlation(x:np.ndarray, y:np.ndarray)->float:
-    '''
-    Calculate the correlation coefficient between two arrays
-    :param x: np.ndarray
-    :param y: np.ndarray
-    :return: correlation coefficient
-    '''
-
-    x = x.flatten()
-    y = y.flatten()
-    x = (x - np.mean(x)) / np.std(x)
-    y = (y - np.mean(y)) / np.std(y)
-    corr = np.sum(x * y) / (len(x) - 1)
-    return corr
-
-
-
-def get_section_metric(fn0, fn1, out_fn, idx, resolution, metric):
-    offset = int((5 / resolution) / 2)
+def get_section_metric(fn0, fn1, out_png, idx, verbose=False):
 
     img0 = nib.load(fn0)
     vol0 = img0.get_fdata()
     vol1 = nib.load(fn1).get_fdata()
 
-    local_dice_section = local_metric(vol0, vol1, metric, offset=offset)
-    
-    fx_sum = np.sum(np.abs(vol0))
-    
-    local_dice_section[pd.isnull(local_dice_section)] = 0
-    result = np.mean(local_dice_section[local_dice_section > 0])
-   
-    result = result if not np.isnan(result) else 0
-
-    return result, fx_sum, idx, out_fn
+    section_dice, fx_sum = global_dice(vol0, vol1) 
 
 
-"""
+    plt.cla(); plt.clf();
+    plt.title(f"Dice: {section_dice:.3f}")
+    plt.subplot(1, 2, 1)
+    plt.imshow(vol0)
+    plt.subplot(1, 2, 2)
+    plt.imshow(vol1)
+    plt.tight_layout()
+    plt.savefig(out_png)
 
-    width = get_thicken_width(resolution)
-for ligand, ligand_dict in local_dice_dict.items():
+    if verbose :
+        print('\tValidation: ', out_png)
 
-    try :
-        local_dice_volume_fn = cur_res_dict['ligands'][ligand]['local_dice_volume_fn']
-    except KeyError:
-        continue
-    
-    if not os.path.exists(local_dice_volume_fn) or clobber :
-        local_dice_volume = np.zeros_like(cls_vol)
-        for y, section in ligand_dict.items():
-            y0=max(0, y-width)
-            y1=min(local_dice_volume.shape[1], y+width)
-
-            dim = [section.shape[0], 1, section.shape[1]]
-            rep = np.repeat(section.reshape(dim), y1-y0, axis=1)
-            local_dice_volume[:,y0:y1,:] = rep
-    
-        print('\t\tWriting', local_dice_volume_fn)
-
-            ants_nibabel.Nifti1Image(local_dice_volume, ants_nibabel.load(cls_fn).affine).to_filename(local_dice_volume_fn)
-print(out_df)
-"""
-
+    return section_dice, fx_sum, idx
 
 def calculate_volume_accuracy(
     sect_info: pd.DataFrame,
-    resolution: float,
-    num_cores: int = 1,
+    tfm_dir:str,
+    num_cores: int = 0,
     clobber: bool = False,
 ):
     """
     Calculate the accuracy of the alignment of histological sections to the structural reference volume
     """
     pd.DataFrame({})
+
+    num_cores = int(num_cores) if num_cores > 0 else int(os.cpu_count() / 2)
 
     to_do = []
 
@@ -191,24 +153,23 @@ def calculate_volume_accuracy(
 
         cls_fn = row["2d_align_cls"]
         tfm_dir = os.path.dirname(cls_fn)
-        out_fn = utils.gen_2d_fn(f"{tfm_dir}/y-{y}", "_dice")
 
-        if not os.path.exists(out_fn) or clobber:
-            fx_fn = utils.gen_2d_fn(f"{tfm_dir}/y-{y}", "_fx")
+        fx_fn = utils.gen_2d_fn(f"{tfm_dir}/y-{y}", "_fx")
 
-            to_do.append((cls_fn, fx_fn, out_fn, idx))
+        out_png =f"{tfm_dir}/y-{y}_dice.png" 
+        if not os.path.exists(out_png) or clobber:
+
+            to_do.append((cls_fn, fx_fn, out_png, idx))
 
     parrallel_results = Parallel(n_jobs=num_cores)(
-        delayed(get_section_metric)(cls_fn, fx_fn, out_fn, idx, resolution, correlation)
-        for cls_fn, fx_fn, out_fn, idx in to_do
+        delayed(get_section_metric)(cls_fn, fx_fn, out_png, idx, verbose=True)
+        for cls_fn, fx_fn, out_png, idx in to_do
     )
 
     sect_info["dice"] = [0] * len(sect_info)
-    sect_info["dice_sect"] = [""] * len(sect_info)
 
-    for dice, total, idx, out_fn in parrallel_results:
+    for dice, total, idx in parrallel_results:
         sect_info["dice"].iloc[idx] = dice
-        sect_info["dice_sect"].iloc[idx] = out_fn
 
     return sect_info
 
@@ -255,12 +216,8 @@ def output_stats(in_df):
 
     return out_df
 
-
-
-
-
 def validate_alignment(
-    sect_info: pd.DataFrame, qc_dir: str, resolution: float, clobber: bool = False
+    sect_info: pd.DataFrame, qc_dir: str, clobber: bool = False
 ):
     """
     Validate alignment of histological sections to structural reference volume
@@ -271,11 +228,11 @@ def validate_alignment(
     os.makedirs(qc_dir, exist_ok=True)
     out_csv = f"{qc_dir}/alignment_accuracy.csv"
 
-    if not os.path.exists(out_csv) or clobber or True:
-        out_df = calculate_volume_accuracy(sect_info, resolution, clobber=clobber)
+    if not os.path.exists(out_csv) or clobber : 
+        out_df = calculate_volume_accuracy(sect_info, qc_dir,  clobber=clobber)
         out_df.to_csv(out_csv, index=True)
     else:
         out_df = pd.read_csv(out_csv)
-
+    
     # plot
     return out_df

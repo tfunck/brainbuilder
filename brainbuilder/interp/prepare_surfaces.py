@@ -27,19 +27,20 @@ def transform_surface_to_chunks(
 
     surf_chunk_dict = {}
 
-    for (chunk), chunk_df in chunk_info.groupby(["chunk"]):
+    for (chunk,), chunk_df in chunk_info.groupby(["chunk"]):
         thickened_fn = chunk_df["nl_2d_vol_fn"].values[0]
         nl_3d_tfm_fn = chunk_df["nl_3d_tfm_fn"].values[0]
-        surf_chunk_space_fn = f"{out_dir}/chunk-{chunk[0]}_{os.path.basename(surf_fn)}"
-
-        print("\tFROM:", surf_fn)
-        print("\tTO:", surf_chunk_space_fn)
-        print("\tWITH:", nl_3d_tfm_fn)
-        print("\tREF:", thickened_fn)
+        surf_chunk_space_fn = f"{out_dir}/chunk-{chunk}_{os.path.basename(surf_fn)}"
 
         surf_chunk_dict[chunk] = surf_chunk_space_fn
 
         if not os.path.exists(surf_chunk_space_fn):
+
+            print("\tFROM:", surf_fn)
+            print("\tTO:", surf_chunk_space_fn)
+            print("\tWITH:", nl_3d_tfm_fn)
+            print("\tREF:", thickened_fn)
+
             apply_ants_transform_to_gii(
                 surf_fn,
                 [nl_3d_tfm_fn],
@@ -129,7 +130,7 @@ def transfrom_depth_surf_to_chunk_space(
 
     surf_depth_chunk_dict = {}
 
-    for (depth), depth_dict in surf_depth_mni_dict.items():
+    for depth, depth_dict in surf_depth_mni_dict.items():
         faces_fn = None
 
         ref_gii_fn = depth_dict["depth_surf_fn"]

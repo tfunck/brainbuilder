@@ -125,13 +125,11 @@ def get_alignment_schedule(
     cc_resolution_list = [
         r for r in resolution_list if float(r) > resolution_cutoff_for_cc
     ]
-    print(cc_resolution_list)
-    print(resolution_list, resolution, base_lin_itr)
     linParams = AntsParams(resolution_list, resolution, base_lin_itr)
-    print("lin")
-    print(linParams.itr_str)
-    print(linParams.f_str)
-    print(linParams.s_str)
+    print("\t\t\tLinear:")
+    print("\t\t\t\t", linParams.itr_str)
+    print("\t\t\t\t", linParams.f_str)
+    print("\t\t\t\t", linParams.s_str)
 
     # resolution_list_lo = [ f for r in resolution_listdd ]
     # max_GC_resolution = 1.
@@ -140,18 +138,18 @@ def get_alignment_schedule(
     # nlParams = AntsParams(resolution_list, resolution, base_nl_itr, max_resolution=1.0)
     nlParams = AntsParams(resolution_list, resolution, base_nl_itr)
 
-    print("nl")
-    print(nlParams.itr_str)
-    print(nlParams.s_str)
-    print(nlParams.f_str)
+    print("\t\t\t","Nonlinear")
+    print("\t\t\t\t",nlParams.itr_str)
+    print("\t\t\t\t",nlParams.s_str)
+    print("\t\t\t\t",nlParams.f_str)
 
     max(min(cc_resolution_list), resolution)
     ccParams = AntsParams(resolution_list, resolution, base_cc_itr)
 
-    print("cc")
-    print(ccParams.itr_str)
-    print(ccParams.f_str)
-    print(ccParams.s_str)
+    print("\t\t\t","Nonlinear (CC)")
+    print("\t\t\t\t",ccParams.itr_str)
+    print("\t\t\t\t",ccParams.f_str)
+    print("\t\t\t\t",ccParams.s_str)
 
     max_downsample_level = linParams.max_downsample_factor
 
@@ -453,7 +451,6 @@ def align_3d(
     if not os.path.exists(out_tfm_fn) or not os.path.exists(out_tfm_inv_fn) or clobber:
         print("\t\t3D Volumetric Alignment")
         chunk = int(chunk)
-
         # Load GM volume extracted from donor MRI.
         ref_width, ref_min, ref_max, ref_ystep, ref_ystart = get_ref_info(ref_rsl_fn)
 

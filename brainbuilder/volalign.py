@@ -26,12 +26,12 @@ output_tuples = (
 )
 
 def get_multiresolution_filenames(
-    row: pd.DataFrame,
-    sub: str,
-    hemisphere: str,
-    chunk: int,
-    resolution: float,
-    out_dir: str,
+    row : pd.DataFrame,
+    sub : str,
+    hemisphere : str,
+    chunk : int,
+    resolution : float,
+    out_dir : str,
 ) -> pd.DataFrame:
     """
     Set filenames for each stage of multiresolution stages
@@ -47,7 +47,7 @@ def get_multiresolution_filenames(
 
     # Set directory names for multi-resolution alignment
     cur_out_dir = f"{out_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/{resolution}mm/"
-    prefix = f'sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_'
+    prefix = f'sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm'
 
     row["cur_out_dir"] = cur_out_dir
     row["seg_dir"] = "{}/3.1_intermediate_volume/".format(row["cur_out_dir"])
@@ -61,41 +61,6 @@ def get_multiresolution_filenames(
         row[output[0]] =  out_fn
         output_list.append(out_fn)
     
-    '''
-    # Filenames
-    row["seg_rsl_fn"] = "{}/{}_seg.nii.gz".format(
-        row["seg_dir"], prefix 
-    )
-
-    row["rec_3d_rsl_fn"] = "{}/{}_rec_space-mri.nii.gz".format(
-        row["align_3d_dir"], prefix 
-    )
-    row["ref_3d_rsl_fn"] = "{}/{}_mri_gm_space-rec.nii.gz".format(
-        row["align_3d_dir"], prefix 
-    )
-    row[
-        "nl_3d_tfm_fn"
-    ] = f'{row["align_3d_dir"]}/{prefix}_rec_to_mri_SyN_CC_Composite.h5'
-    row[
-        "nl_3d_tfm_inv_fn"
-    ] = f'{row["align_3d_dir"]}/{prefix}_rec_to_mri_SyN_CC_InverseComposite.h5'
-
-    row["nl_2d_vol_fn"] = "{}/{}_nl_2d.nii.gz".format(
-        row["nl_2d_dir"], prefix 
-    )
-    row["nl_2d_vol_cls_fn"] = "{}/{}_nl_2d_cls.nii.gz".format(
-        row["nl_2d_dir"], prefix 
-    )
-    row["chunk_info_fn"] = "{}/{}_chunk_info.csv".format(
-        row["cur_out_dir"], prefix
-    )
-    row["ref_space_rec_fn"] = "{}/{}_ref_space-rec.nii.gz".format(
-        row["nl_2d_dir"], prefix 
-    )
-    row["ref_iso_space_rec_fn"] = "{}/{}_ref_space-rec_iso.nii.gz".format(
-        row["nl_2d_dir"], prefix 
-    )
-    '''
 
     return row
 
@@ -162,7 +127,7 @@ def multiresolution_alignment(
         #Check if the outputs in chunk_info exist, if not delete current <chunk_output_csv>
         check_chunk_outputs(chunk_output_csv)
 
-    if not os.path.exists(sect_output_csv) or not os.path.exists(chunk_output_csv) or clobber or True:
+    if not os.path.exists(sect_output_csv) or not os.path.exists(chunk_output_csv) or clobber:
         hemi_info = pd.read_csv(hemi_info_csv, index_col=None)
 
         sect_info = pd.read_csv(sect_info_csv, index_col=None)
@@ -223,9 +188,9 @@ def multiresolution_alignment(
         maximum_resolution = resolution_list[-1]
 
         sect_info_out = validate_alignment(
-            sect_info_out, qc_dir, maximum_resolution, clobber=clobber
+            sect_info_out, output_dir, clobber=clobber
         )
-        #sect_info_out = sect_info_out.loc[sect_info_out["dice"] > dice_threshold]
+        sect_info_out = sect_info_out.loc[sect_info_out["dice"] > dice_threshold]
         
         chunk_info_out.to_csv(chunk_output_csv, index=False)
         sect_info_out.to_csv(sect_output_csv, index=False)
@@ -235,7 +200,7 @@ def multiresolution_alignment(
     return chunk_output_csv, sect_output_csv
 
 
-def verify_chunk_limits(ref_rsl_fn: str, chunk_info: pd.DataFrame):
+def verify_chunk_limits(ref_rsl_fn: str, chunk_info: pd.DataFrame, verbose: bool = False):
     """
     Get the start and end of the chunk in the reference space
     :param ref_rsl_fn: reference space file name
@@ -246,11 +211,9 @@ def verify_chunk_limits(ref_rsl_fn: str, chunk_info: pd.DataFrame):
 
     ystart = img.affine[1, 3]
     ystep = img.affine[1, 1]
-
     if "caudal_limit" in chunk_info.columns and "rostral_limit" in chunk_info.columns:
-        rec_points, mni_points, fn1, fn2 = read_points(manual_points_fn)
-        y0w = np.min(mni_points[:, 1])
-        y1w = np.max(mni_points[:, 1])
+        y0w = chunk_info["caudal_limit"].values[0]
+        y1w = chunk_info["rostral_limit"].values[0]
 
         y0 = (y0w - ystart) / ystep
         y1 = (y1w - ystart) / ystep
@@ -309,7 +272,7 @@ def align_chunk(
     ### Iterate over progressively finer resolution
     for resolution_itr, resolution in enumerate(resolution_list):
         resolution_3d = resolution_list_3d[resolution_itr]
-        print(f"\tMulti-Resolution Alignement: {resolution}")
+        print(f"\tMulti-Resolution Alignement: {resolution}mm")
 
         row = chunk_info.iloc[0, :].squeeze()
         row["resolution"] = resolution
@@ -324,7 +287,7 @@ def align_chunk(
 
         # downsample the original ref gm mask to current 3d resolution
         ref_rsl_fn = (
-            row["seg_dir"] + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_mri_gm_.nii.gz"
+            row["seg_dir"] + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_mri_gm.nii.gz"
         )
 
         if not os.path.exists(ref_rsl_fn):

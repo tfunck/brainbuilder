@@ -71,7 +71,7 @@ def load_mesh(surf_mesh, correct_offset=False):
                     ydir = get_sign(yras)
                     zdir = get_sign(zras)
                     xdir = ydir = zdir = 1
-                    print("Adding origin to freesurfer surface", origin)
+                    print("Adding origin to surface", origin)
                     print("\tDirections:", xdir, ydir, zdir)
                     coords[:, 0] = coords[:, 0] + xdir * origin[0]
                     coords[:, 1] = coords[:, 1] + ydir * origin[1]

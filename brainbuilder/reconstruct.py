@@ -62,7 +62,7 @@ def reconstruct(
     n_depths: int = 0,
     dice_threshold:float = 0.5,
     num_cores: int = 0,
-    batch_correction: bool = False,
+    batch_correction_resolution: float = 0,
     clobber: bool = False,
 ):
     """
@@ -121,7 +121,11 @@ def reconstruct(
 
     # Stage: Initial rigid aligment of sections
     init_sect_csv, init_chunk_csv = initalign(
-        seg_df_csv, chunk_info_csv, initalign_dir, clobber=clobber
+        seg_df_csv, 
+        chunk_info_csv, 
+        initalign_dir, 
+        resolution_list,
+        clobber=clobber
     )
 
     # Stage: Multiresolution alignment of sections to structural reference volume
@@ -135,7 +139,7 @@ def reconstruct(
         dice_threshold=dice_threshold,
         clobber=clobber,
     )
-    qc.data_set_quality_control(align_sect_info_csv, qc_dir, column='img_init')
+    qc.data_set_quality_control(align_sect_info_csv, qc_dir, column='init_img')
 
     # Stage: Interpolate missing sections
     interpolate_missing_sections(
@@ -145,7 +149,7 @@ def reconstruct(
             maximum_resolution,
             interp_dir,
             n_depths = n_depths,
-            batch_correction = batch_correction,
+            batch_correction_resolution = batch_correction_resolution,
             clobber = clobber,
     )
 
@@ -224,10 +228,9 @@ def setup_argparse():
 
     parser.add_argument(
         "--batch-correction",
-        dest="batch_correction",
-        default=False,
-        action="store_true",
-        help="Correct batch effects",
+        dest="batch_correction_resolution",
+        default=0,
+        help=" Resolution at which to correct batch effects (Default=0, no correction)",
     )
 
     parser.add_argument(
@@ -259,7 +262,7 @@ if __name__ == "__main__":
         pytorch_model_dir=args.pytorch_model_dir,
         n_depths=args.n_depths,
         dice_threshold=args.dice_threshold,
-        batch_correction=args.batch_correction,
+        batch_correction=args.batch_correction_resolution,
         num_cores=args.num_cores,
     )
 

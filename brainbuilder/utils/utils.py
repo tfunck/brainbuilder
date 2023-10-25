@@ -42,10 +42,13 @@ def load_image(fn):
     :param fn: str, filename
     :return: np.ndarray
     """
-    if '.nii' in fn:
-        return ants.image_read(fn).numpy()
-    else:
-        return imageio.imread(fn)
+    if isinstance(fn, str) and os.path.exists(fn):
+        if '.nii' in fn:
+            return ants.image_read(fn).numpy()
+        else:
+            return imageio.imread(fn)
+    else :
+        return None
 
 def get_chunk_pixel_size(sub, hemi, chunk, chunk_info):
     """
@@ -153,7 +156,7 @@ def imshow_images(
     plt.clf()
 
 
-def get_thicken_width(resolution, section_thickness):
+def get_thicken_width(resolution, section_thickness=0.02):
     return np.round(1 * (1 + float(resolution) / (section_thickness * 2))).astype(int)
 
 
@@ -520,12 +523,9 @@ def parse_resample_arguments(input_arg, output_filename, aff, dtype) -> tuple:
         ), f"Error: input file does not exist {input_arg}"
 
         if '.nii' in input_arg:
-            print('read inpus from', input_arg)
             img = ants.image_read(input_arg)
-            print('read')
 
             vol = img.numpy()
-            print('numpy')
             origin = img.origin
             spacing = img.spacing
             direction = img.direction
@@ -643,8 +643,11 @@ def check_run_stage(
     def file_check(file_list, nan_okay=True):
         ''' Check if all files exist'''
         for x in file_list:
+
             if nan_okay & pd.isnull(x) : continue
-            elif not os.path.exists(x)  : return False
+            elif not os.path.exists(x)  : 
+                print('File does not exist: {}'.format(x))
+                return False
         return True
 
     assert (isinstance(col1,Iterable) and isinstance(col2,Iterable)) or \
@@ -661,6 +664,7 @@ def check_run_stage(
 
         if not all_outputs_exist :
             run_stage = True
+            print('Not all files exist for {}'.format(col1))
 
         if not compare_timestamp_of_files(file_list_1, file_list_2) :
             print('All files exist but some are older than {}'.format(col2))
@@ -704,7 +708,9 @@ def resample_to_resolution(
     new_dims = np.ceil(vol.shape * scale)
 
     sigma = (new_resolution / np.array(old_resolution)) / 5
-    
+
+    sigma[scale == 1] = 0
+
     vol = resize(vol, new_dims, order=order, anti_aliasing=True, anti_aliasing_sigma=sigma)
 
     assert np.sum(np.abs(vol)) > 0, (
@@ -720,7 +726,6 @@ def resample_to_resolution(
 
     if type(output_filename) == str:
         img_out.to_filename(output_filename)
-
     return img_out
 
 

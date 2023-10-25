@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 
 import matplotlib.pyplot as plt
@@ -11,6 +12,7 @@ from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
 from brainbuilder.utils.ANTs import ANTs
 
+from brainbuilder.utils.utils import AntsParams
 
 def load2d(fn):
     ar = nib.load(fn).get_fdata()
@@ -98,8 +100,6 @@ def align_neighbours_to_fixed(
             transforms_str = "-t {} ".format(" -t ".join(transforms[i] + [tfm_fn]))
             utils.shell(
                 f"antsApplyTransforms -v 0 -d 2 -i {moving_fn} -r {moving_fn} {transforms_str} -o Linear[{concat_tfm_fn}] ",
-                True,
-                True,
             )
 
         # apply the concatenated transform to the moving image. this brings it into correct alignment with all of the
@@ -107,8 +107,6 @@ def align_neighbours_to_fixed(
         if not os.path.exists(moving_rsl_fn):
             utils.shell(
                 f"antsApplyTransforms -v 0 -d 2 -i {moving_fn} -r {fixed_fn} -t {concat_tfm_fn} -o {moving_rsl_fn}",
-                True,
-                True,
             )
 
         if not os.path.exists(qc_fn):
@@ -129,7 +127,6 @@ def align_neighbours_to_fixed(
         df["init_tfm"].loc[df["sample"] == j] = concat_tfm_fn
         df["init_fixed"].loc[df["sample"] == j] = fixed_fn
         transforms[j] = [concat_tfm_fn]
-
     return df, transforms
 
 
@@ -213,6 +210,7 @@ def adjust_alignment(
             clobber=clobber,
         )
 
+
     # df.to_csv('{}/df_{}-0.csv'.format(output_dir,tfm_type))
     return transforms, df
 
@@ -240,7 +238,6 @@ def apply_transforms_to_sections(
 
             utils.shell(
                 f"antsApplyTransforms -v 1 -d 2 -i {fixed_fn} -r {fixed_fn} {transforms_str} -o {final_rsl_fn}",
-                True,
             )
         df["img_new"].iloc[i] = final_rsl_fn
     return df
@@ -256,8 +253,8 @@ def combine_sections_to_vol(df, y_mm, z_mm, direction, out_fn, target_tier=1):
     zstep = affine[1, 1]
     ystep = y_mm
 
-    xmax = int(shape[0] / 10)
-    zmax = int(shape[1] / 10)
+    xmax = int(shape[0] )
+    zmax = int(shape[1] )
     order_max = df["sample"].astype(int).max()
     df["sample"].astype(int).min()
     chunk_ymax = int(order_max + 1)  # -order_min + 1
@@ -299,6 +296,7 @@ def alignment_stage(
     vol_fn_str,
     output_dir,
     transforms,
+    linParams,
     desc=(0, 0, 0),
     target_acquisition=None,
     target_tier=1,
@@ -311,9 +309,9 @@ def alignment_stage(
     """
     # Set parameters for rigid transform
     tfm_type = "Rigid"
-    shrink_factor = "12"  #'12x10x8' #x4x2x1'
-    smooth_sigma = str(12*0.2)  # '6x5x4' #x2x1x0'
-    iterations = "10"  # '100x50x25' #x100x50x20'
+    shrink_factor = linParams.f_str #'12x10x8' #x4x2x1'
+    smooth_sigma = re.sub('vox', '', linParams.s_str) # '6x5x4' #x2x1x0'
+    iterations = linParams.itr_str.split(',')[0][1:]  # '100x50x25' #x100x50x20'
 
     csv_fn = vol_fn_str.format(
         output_dir,
@@ -324,7 +322,7 @@ def alignment_stage(
         ".csv",
     )
 
-    if not os.path.exists(csv_fn) or not os.path.exists(out_fn) or True:
+    if not os.path.exists(csv_fn) or not os.path.exists(out_fn) :
         df.sort_values(["sample"], inplace=True, ascending=False)
 
         y_idx = df["sample"].values
@@ -336,6 +334,7 @@ def alignment_stage(
 
         df["img_new"] = df["img"]
         df["init_tfm"] = [None] * df.shape[0]
+        df["init_img"] = df['img_new'] 
         df["init_fixed"] = [None] * df.shape[0]
 
         # perform alignment in forward direction from middle section
@@ -355,6 +354,7 @@ def alignment_stage(
             target_tier=target_tier,
             clobber=clobber,
         )
+
         # perform alignment in reverse direction from middle section
         transforms, df = adjust_alignment(
             df,
@@ -372,6 +372,7 @@ def alignment_stage(
             target_tier=target_tier,
             clobber=clobber,
         )
+
         # update the img so it has the new, resampled file names
         df["img"] = df["img_new"]
 
@@ -446,12 +447,17 @@ def create_final_outputs(
                     os.symlink(row["img"].values[0], final_section_fn)
                 final_tfm_fn = np.nan
 
-            df["init_tfm"].loc[idx] = final_tfm_fn
+        df["init_tfm"].loc[idx] = final_tfm_fn
+        df['init_img'].loc[idx] = final_section_fn
     return df
 
 
 def initalign(
-    sect_info_csv: str, chunk_info_csv: str, output_dir: str, clobber: bool = True
+    sect_info_csv: str,
+    chunk_info_csv: str,
+    output_dir: str,
+    resolution_list: list,
+    clobber: bool = True
 ) -> str:
     """
     Calulate initial rigid aligment between sections
@@ -478,6 +484,8 @@ def initalign(
     initalign_chunk_info = pd.DataFrame({})
 
     run_stage = utils.check_run_stage(initalign_sect_info_csv, 'init_tfm', 'seg')
+
+    linParams = AntsParams(resolution_list, resolution_list[-1], 100)  
 
     if (
         not os.path.exists(initalign_sect_info_csv)
@@ -508,6 +516,7 @@ def initalign(
                 chunk,
                 curr_output_dir,
                 curr_sect_info,
+                linParams,
                 curr_chunk_info,
                 clobber=clobber,
             )
@@ -554,6 +563,7 @@ def align_chunk(
     chunk,
     output_dir,
     sect_info,
+    linParams,
     chunk_info,
     clobber=False,
 ):
@@ -613,6 +623,7 @@ def align_chunk(
         chunk_img_fn_str,
         output_dir_1,
         transforms_1,
+        linParams,
         target_acquisition=acquisition_contrast_order[0],
         acquisition_n=0,
         target_tier=1,
@@ -662,6 +673,7 @@ def align_chunk(
             chunk_img_fn_str,
             output_dir_2,
             transforms,
+            linParams,
             target_acquisition=target_acquisition,
             acquisition_n=i,
             target_tier=2,
@@ -680,6 +692,7 @@ def align_chunk(
         ]
 
     stage_2_df = pd.concat(concat_list)
+
 
     ###########
     # Stage 3 #
@@ -701,11 +714,11 @@ def align_chunk(
         combine_sections_to_vol(df, y_mm, z_mm, direction, init_align_fn)
 
     sect_info["init_tfm"] = df["init_tfm"]
+    sect_info['init_img'] = df['init_img']
 
     chunk_info["init_volume"] = init_align_fn
 
-    sect_info["tfm"] = sect_info["init_tfm"]
-    sect_info['img_init'] = sect_info['img_new']
+    sect_info["2d_tfm"] = sect_info["init_tfm"]
 
     assert not False in [
         os.path.exists(x) for x in sect_info["init_tfm"].values if not pd.isnull(x)

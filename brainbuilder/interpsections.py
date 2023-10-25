@@ -32,16 +32,60 @@ def resample_struct_reference_volume(orig_struct_vol_fn, resolution, output_dir,
     return struct_vol_rsl_fn
 
 
+def volumes_to_surface_profiles(
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    resolution: float,
+    output_dir: str,
+    surf_dir: str,
+    ref_vol_fn: str,
+    gm_surf_fn: str,
+    wm_surf_fn: str,
+    depth_list: np.ndarray = None,
+    batch_correction_resolution:int = 0,
+    clobber: bool = False,
+    ) :
+
+    n_depths = len(depth_list)
+
+    surf_depth_mni_dict, surf_depth_chunk_dict = prepare_surfaces(
+        chunk_info,
+        ref_vol_fn,
+        gm_surf_fn,
+        wm_surf_fn,
+        depth_list,
+        surf_dir,
+        resolution,
+        clobber=clobber
+    )
+
+    struct_vol_rsl_fn = resample_struct_reference_volume(ref_vol_fn,  resolution, output_dir, clobber=clobber)
+
+    profiles_fn, surf_raw_values_dict, chunk_info_thickened_csv = generate_surface_profiles(
+            chunk_info, 
+            sect_info, 
+            surf_depth_chunk_dict,
+            surf_depth_mni_dict,
+            resolution, 
+            depth_list,
+            struct_vol_rsl_fn,
+            output_dir, 
+            clobber = clobber 
+            )
+    return surf_depth_mni_dict, surf_depth_chunk_dict, surf_raw_values_dict, profiles_fn,  chunk_info_thickened_csv, struct_vol_rsl_fn
+
+
 def surface_pipeline(
     chunk_info: pd.DataFrame,
     sect_info: pd.DataFrame,
     resolution: float,
     output_dir: str,
+    surf_dir: str,
     ref_vol_fn: str,
     gm_surf_fn: str,
     wm_surf_fn: str,
     n_depths: int = 0,
-    batch_correction: bool = False,
+    batch_correction_resolution:int = 0,
     clobber: bool = False,
 ) -> None:
     """
@@ -57,85 +101,125 @@ def surface_pipeline(
     :param clobber: boolean indicating whether to overwrite existing files
     :return: None
     """
-    assert len(np.unique(sect_info["sub"])) == 1, "Error: multiple subjects"
-    assert len(np.unique(sect_info["hemisphere"])) == 1, "Error: multiple hemispheres"
-    assert len(np.unique(sect_info["acquisition"])) == 1, "Error: multiple acquisitions"
 
-    if n_depths == 0:
-        n_depths = np.ceil(5 / resolution).astype(int)
-    
-    depth_list = np.linspace(0, 1, int(n_depths))
 
-    surf_dir = f'{output_dir}/surfaces/'
-
-    surf_depth_mni_dict, surf_depth_chunk_dict = prepare_surfaces(
-        chunk_info,
-        ref_vol_fn,
-        gm_surf_fn,
-        wm_surf_fn,
-        depth_list,
-        surf_dir,
-        resolution,
-        clobber=clobber
-    )
-
-    struct_vol_rsl_fn = resample_struct_reference_volume(ref_vol_fn,  resolution, output_dir, clobber=clobber)
-
-    profiles_fn, chunk_info_thickened_csv = generate_surface_profiles(
-            chunk_info, 
-            sect_info, 
-            surf_depth_chunk_dict,
-            surf_depth_mni_dict,
-            resolution, 
-            depth_list,
-            struct_vol_rsl_fn,
-            output_dir, 
-            clobber = clobber )
-
-    if batch_correction :
-        sect_info, chunk_info = apply_batch_correction(
-                sect_info,
-                profiles_fn,
-                surf_depth_mni_dict,
-                surf_depth_chunk_dict,
-                chunk_info,
-                depth_list,
-                resolution,
-                struct_vol_rsl_fn,
-                output_dir, 
-                clobber=clobber)
-        
-    # do surface based interpolation to fill missing sections
     sub = sect_info["sub"].values[0]
     hemisphere = sect_info["hemisphere"].values[0]
     acquisition = sect_info["acquisition"].values[0]
 
     reconstructed_cortex_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_cortex.nii.gz"
-    
-    create_final_reconstructed_volume(
-        reconstructed_cortex_fn,
-        struct_vol_rsl_fn,
-        resolution,
-        surf_depth_mni_dict,
-        profiles_fn,
-        clobber=clobber
-        )
 
-    # create a mask of the subcortex that can be used for volumetric interpolation
-    #FIXME NOT YET IMPLEMENTED
-    #subcortex_mask_fn = utils.create_subcortex_mask(wm_surf_fn)
+    if not os.path.exists(reconstructed_cortex_fn) or clobber:
+        os.makedirs(output_dir, exist_ok=True)
 
-    # perform volumetric interpolation to fill missing sections in the subcortex
-    #FIXME NOT YET IMPLEMENTED
-    #subcortex_interp_fn = volinterp.volumetric_interpolation(
-    #    sect_info, brain_mask_fn, clobber=clobber
-    #)
+        assert len(np.unique(sect_info["sub"])) == 1, "Error: multiple subjects"
+        assert len(np.unique(sect_info["hemisphere"])) == 1, "Error: multiple hemispheres"
+        assert len(np.unique(sect_info["acquisition"])) == 1, "Error: multiple acquisitions"
 
-    # combine the interpolated cortex and subcortex
-    #FIXME NOT YET IMPLEMENTED
-    #combine_volumes(interp_cortex_fn, subcortex_mask_fn)
+        if n_depths == 0:
+            n_depths = np.ceil(5 / resolution).astype(int)
+        
+        batch_correction_dir = output_dir+'/batch_correction'
+        os.makedirs(batch_correction_dir, exist_ok=True)
 
-    return None
+        depth_list = np.linspace(0, 1, int(n_depths))
+
+        (surf_depth_mni_dict, 
+        surf_depth_chunk_dict, 
+        surf_raw_values_dict, 
+        profiles_fn,  
+        chunk_info_thickened_csv, 
+        struct_vol_rsl_fn) = volumes_to_surface_profiles(
+                                chunk_info,
+                                sect_info,
+                                resolution,
+                                output_dir,
+                                surf_dir,
+                                ref_vol_fn,
+                                gm_surf_fn,
+                                wm_surf_fn,
+                                depth_list,
+                                resolution,
+                                clobber=clobber
+                                )
+
+
+        if batch_correction_resolution > 0 :
+
+            if resolution != batch_correction_resolution:
+                #recreate surfaces at batch_correction_resolution, 
+                #which should be lower res than the recosntruction resolution
+                (batch_surf_depth_mni_dict, 
+                surf_depth_chunk_dict, 
+                surf_raw_values_dict, 
+                profiles_fn,  
+                chunk_info_thickened_csv, 
+                batch_struct_vol_rsl_fn) = volumes_to_surface_profiles(
+                                        chunk_info,
+                                        sect_info,
+                                        resolution,
+                                        correction_dir,
+                                        surf_dir,
+                                        ref_vol_fn,
+                                        gm_surf_fn,
+                                        wm_surf_fn,
+                                        depth_list,
+                                        batch_correction_resolution,
+                                        clobber=clobber
+                                        )
+            else :
+                batch_surf_depth_mni_dict = surf_depth_mni_dict
+                batch_struct_vol_rsl_fn = struct_vol_rsl_fn
+
+            uncorrected_reconstructed_cortex_fn = f"{batch_correction_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_cortex_uncorrected.nii.gz"
+            
+            create_final_reconstructed_volume(
+                uncorrected_reconstructed_cortex_fn,
+                batch_struct_vol_rsl_fn,
+                batch_correction_resolution,
+                batch_surf_depth_mni_dict,
+                profiles_fn,
+                clobber=clobber
+                )
+
+            sect_info, profiles_fn = apply_batch_correction(
+                    chunk_info,
+                    sect_info,
+                    surf_raw_values_dict,
+                    batch_surf_depth_mni_dict,
+                    surf_depth_chunk_dict,
+                    depth_list,
+                    batch_correction_resolution,
+                    batch_struct_vol_rsl_fn,
+                    batch_correction_dir,
+                    clobber=clobber
+                    )
+
+        # do surface based interpolation to fill missing sections
+        
+        create_final_reconstructed_volume(
+            reconstructed_cortex_fn,
+            struct_vol_rsl_fn,
+            resolution,
+            surf_depth_mni_dict,
+            profiles_fn,
+            clobber=clobber
+            )
+        # create a mask of the subcortex that can be used for volumetric interpolation
+        #FIXME NOT YET IMPLEMENTED
+        #subcortex_mask_fn = utils.create_subcortex_mask(wm_surf_fn)
+
+        # perform volumetric interpolation to fill missing sections in the subcortex
+        #FIXME NOT YET IMPLEMENTED
+        #subcortex_interp_fn = volinterp.volumetric_interpolation(
+        #    sect_info, brain_mask_fn, clobber=clobber
+        #)
+
+        # combine the interpolated cortex and subcortex
+        #FIXME NOT YET IMPLEMENTED
+        #combine_volumes(interp_cortex_fn, subcortex_mask_fn)
+
+        return None
 
 
 def volumetric_pipeline(
@@ -167,7 +251,7 @@ def interpolate_missing_sections(
         resolution: float,
         output_dir: str,
         n_depths: int = 0,
-        batch_correction: bool = False,
+        batch_correction_resolution: int = 0,
         clobber: bool = False,
 ):
     """
@@ -182,6 +266,8 @@ def interpolate_missing_sections(
     sect_info = pd.read_csv(sect_info_csv, index_col=False)
     chunk_info = pd.read_csv(chunk_info_csv, index_col=False)
     hemi_info = pd.read_csv(hemi_info_csv, index_col=False)
+
+    surf_dir = f'{output_dir}/surfaces/'
 
     for (sub, hemisphere,acquisition), curr_sect_info in sect_info.groupby(["sub", "hemisphere", "acquisition"]):
         curr_output_dir = f"{output_dir}/sub-{sub}/hemi-{hemisphere}/acq-{acquisition}/"
@@ -199,19 +285,18 @@ def interpolate_missing_sections(
         wm_surf_fn = curr_hemi_info['wm_surf'].values[0] 
         ref_vol_fn = curr_hemi_info['struct_ref_vol'].values[0]
         
-        print(gm_surf_fn, os.path.exists(gm_surf_fn))
-        print(wm_surf_fn, os.path.exists(wm_surf_fn) )
         if (os.path.exists(gm_surf_fn) and os.path.exists(wm_surf_fn)) or clobber:
             surface_pipeline(
                  curr_chunk_info, 
                  curr_sect_info, 
                  resolution, 
                  curr_output_dir, 
+                 surf_dir,
                  ref_vol_fn,
                  gm_surf_fn,
                  wm_surf_fn,
                  n_depths,
-                 batch_correction=batch_correction,
+                 batch_correction_resolution = batch_correction_resolution,
                  clobber=clobber
             )
         else:

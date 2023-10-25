@@ -160,15 +160,11 @@ def convert_from_nnunet_list(
 
         nnunet_list = glob(f"{nnunet_out_dir}/{base}*")
 
-        print('nnunet_fn', f"{nnunet_out_dir}/{base}")
-        print('seg_fn', seg_fn)
         nnunet_fn = nnunet_list[0]
 
-        print()
-        if not os.path.exists(seg_fn) or not utils.newer_than(seg_fn, img_fn) or clobber:
+        if utils.check_run_stage([seg_fn], [nnunet_fn], clobber=clobber) :
             if warning_flag : 
                 print('\tWarning: Could not find file:', seg_fn)
-
             to_do.append((nnunet_fn, img_fn, seg_fn))
     return to_do
 
@@ -336,9 +332,10 @@ def convert_from_nnunet(input_fn: str, reference_fn: str, output_fn: str, seg_di
         ar = ar.reshape([ar.shape[0], ar.shape[1]])
         #ar = ar.T
         ar = resize(ar, ref_img.shape, order=0)
+        ar = np.fliplr(np.flipud(ar))
 
         print("\tWriting", output_fn)
-        nib.Nifti1Image(ar, ref_img.affine).to_filename(output_fn)
+        nib.Nifti1Image(ar, ref_img.affine, direction_order='lpi').to_filename(output_fn)
 
     return None
 

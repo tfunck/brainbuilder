@@ -291,7 +291,7 @@ def ANTs(
                 try:
                     # Run command line
                     stdout, stderr, errorcode = shell(
-                        cmdline, True, exit_on_failure=False
+                        cmdline,  exit_on_failure=False
                     )
                     print("Attempt:", attempt, errorcode)
                     if verbose == 1:

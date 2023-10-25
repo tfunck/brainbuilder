@@ -79,7 +79,13 @@ def get_surf_from_dict(d):
     return surf_fn
 
 
-def volume_to_mesh(coords, vol, starts, steps, dimensions):
+def volume_to_mesh(
+        coords: np.ndarray,
+        vol: np.ndarray,
+        starts: np.ndarray,
+        steps: np.ndarray,
+        dimensions: np.ndarray,
+    )->np.ndarray:
     '''
     Interpolate volume values to mesh vertices
     
@@ -89,20 +95,16 @@ def volume_to_mesh(coords, vol, starts, steps, dimensions):
     y = np.rint((coords[:, 1] - starts[1]) / steps[1]).astype(int)
     z = np.rint((coords[:, 2] - starts[2]) / steps[2]).astype(int)
 
-    np.min(x)
-    np.min(z)
-
     xmax = np.max(x)
-    np.max(y)
     zmax = np.max(z)
 
     if zmax >= vol.shape[2]:
         print(
-            f"\n\nWARNING: z index {zmax} is greater than dimension {vol.shape[2]}\n\n"
+            f"\nWARNING: z index {zmax} is greater than dimension {vol.shape[2]}\n"
         )
     if xmax >= vol.shape[0]:
         print(
-            f"\n\nWARNING: x index {xmax} is greater than dimension {vol.shape[0]}\n\n"
+            f"\nWARNING: x index {xmax} is greater than dimension {vol.shape[0]}\n"
         )
 
     idx = (
@@ -175,7 +177,7 @@ def mesh_to_volume(
     vertex_values = vertex_values[idx]
 
     for i, (xc, yc, zc) in enumerate(zip(x, y, z)):
-        interp_vol[xc, yc, zc] += yc
+        interp_vol[xc, yc, zc] += vertex_values[i]
 
         n_vol[xc, yc, zc] += 1
 
@@ -227,9 +229,6 @@ def multi_mesh_to_volume(
 
     assert np.sum(np.abs(interp_vol)) != 0, "Error: interpolated volume is empty"
     return interp_vol
-
-
-
 
 def unique_points(points, scale=1000000000):
     # rpoints = np.rint(points * scale).astype(np.int64)
@@ -369,17 +368,6 @@ def volume_to_surface(coords, volume_fn, values_fn=""):
     step = np.abs(img.affine[[0, 1, 2], [0, 1, 2]])
     dimensions = vol.shape
 
-    interp_vol, _ = mesh_to_volume(
-        coords,
-        np.ones(coords.shape[0]),
-        dimensions,
-        starts,
-        img.affine[[0, 1, 2], [0, 1, 2]],
-    )
-    #nib.Nifti1Image(
-    #    interp_vol.astype(np.float32), nib.load(volume_fn).affine
-    #).to_filename("tmp.nii.gz")
-
     coords_idx = np.rint((coords - starts) / step).astype(int)
 
     idx0 = (coords_idx[:, 0] >= 0) & (coords_idx[:, 0] < dimensions[0])
@@ -453,18 +441,7 @@ def interpolate_face(points, values, resolution, output=None, new_points_only=Fa
     p0 = mult_vector(v0, v1, x, y, points[0, :].astype(np.float128))
 
     interp_values = values[0] * x + values[1] * y + values[2] * z
-    """
-    if new_points_only : 
-        filter_arr = np.ones(p0.shape[0]).astype(bool)
-        dif = lambda x,y : np.abs(x-y)<0.0001
-        ex0= np.where( (dif(p0,points[0])).all(axis=1) )[0][0]
-        ex1= np.where( (dif(p0,points[1])).all(axis=1) )[0][0]
-        ex2 = np.where((dif(p0,points[2])).all(axis=1) )[0][0]
-        filter_arr[ ex0 ] = filter_arr[ex1] = filter_arr[ex2] = False
-
-        p0 = p0[filter_arr]
-        interp_values = interp_values[filter_arr]
-    """
+    
     return p0, interp_values, x, y
 
 

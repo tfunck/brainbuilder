@@ -31,7 +31,6 @@ def get_input_file(
 ):
     tfm_input_fn = seg_rsl_fn
     if not os.path.exists(seg_rsl_fn):
-        print('1')
         resample_to_resolution(
             seg_fn,
             [resolution_2d] * 2,
@@ -94,7 +93,7 @@ def resample_and_transform(
             tfm_ref_fn = tfm_input_fn
 
         # get initial rigid transform
-        tfm_fn = row["tfm"]
+        tfm_fn = row["2d_tfm"]
         print("\tTransforming", seg_rsl_fn, "to", seg_rsl_tfm_fn)
         if type(tfm_fn) == str:
             simple_ants_apply_tfm(

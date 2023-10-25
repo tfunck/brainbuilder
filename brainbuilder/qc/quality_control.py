@@ -1,18 +1,24 @@
-import nibabel as nib
+from brainbuilder.utils import utils 
+from brainbuilder.utils import ants_nibabel as nib
+
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import argparse
 import os
 from joblib import Parallel, delayed, cpu_count
-from brainbuilder.utils import utils 
 
 def get_min_max(fn):
+    print('qc read ', fn)
     ar = utils.load_image(fn)
-    return np.min(ar), np.max(ar)
+    if isinstance(ar, np.ndarray) :
+
+        return np.min(ar), np.max(ar)
+    else :
+        return np.nan, np.nan
 
 def get_min_max_parallel(df, column):
-
     n_jobs = int(cpu_count() )
 
     min_max = Parallel(n_jobs=n_jobs)(delayed(get_min_max)(row[column]) for i, (_, row) in enumerate(df.iterrows()))
@@ -30,13 +36,14 @@ def data_set_quality_control(
         clobber=False
         ):
 
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(base_output_dir, exist_ok=True)
 
     sect_info = pd.read_csv(sect_info_csv, index_col=False)
 
     for (sub, hemisphere, acquisition, chunk), df in sect_info.groupby(['sub','hemisphere','acquisition', 'chunk']):
+        output_dir = f'{base_output_dir}/sub-{sub}/hemi-{hemisphere}/'
+        os.makedirs(output_dir, exist_ok=True)
         out_png = f'{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_acq-{acquisition}_{column}.png'
-        output_dir = f'{base_output_dir}/sub-{sub}/'
         n = len(df) 
         
         if utils.check_run_stage([out_png]*n, df[column].values, clobber=clobber) :
@@ -59,6 +66,8 @@ def data_set_quality_control(
             plt.tight_layout()
             print('\tSaving figure to: ', out_png)
             plt.savefig(out_png)
+
+
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
