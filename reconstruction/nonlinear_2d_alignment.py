@@ -171,9 +171,9 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
         if float(resolution) >= 0.75 :
             max_cores=28
         elif float(resolution) >= 0.5 :
-            max_cores=14
-        else :
             max_cores=7
+        else :
+            max_cores=4
             
         num_cores = min(max_cores, multiprocessing.cpu_count() )
 
@@ -184,7 +184,7 @@ def receptor_2d_alignment( df, rec_fn, srv_fn, mv_dir, output_dir, resolution, r
     df['cls_rsl_2d_fn']=[None]*df.shape[0]
     df['fx_2d_fn']=[None]*df.shape[0]
     df['prefix_nl_2d']=[None]*df.shape[0]
-
+    print(df['slab_order'])
     for trial in range(n_trials) :
         print('\tNL 2D Align: Trial', trial)
     
@@ -233,8 +233,8 @@ def calculate_section_dice(df):
     return df
 
 def get_to_do_list(df, trial, tfm_dir):
-    to_do_df = pd.DataFrame([])
-    to_do_resample_df = pd.DataFrame([])
+    to_do_df = pd.DataFrame({},columns=df.columns)
+    to_do_resample_df = pd.DataFrame({},columns=df.columns)
   
 
     
@@ -256,11 +256,17 @@ def get_to_do_list(df, trial, tfm_dir):
     for i, row in df.iterrows() :
         if row['misaligned'] :
             if not os.path.exists(row['tfm']) or not os.path.exists(row['cls_rsl_2d_fn']):
-                to_do_df = to_do_df.append(row)
+                if to_do_df.shape[0] == 0 :
+                    to_do_df = row.to_frame().T
+                else :
+                    to_do_df = pd.concat([to_do_df, row.to_frame().T])
 
             out_fn = row['prefix_nl_2d'] +'_rsl.nii.gz'
             if not os.path.exists(out_fn)  :
-                to_do_resample_df = to_do_resample_df.append(row)
+                if to_do_df.shape == 0 :
+                    to_do_resample_df = row.to_frame().T
+                else :
+                    to_do_resample_df = pd.concat([to_do_resample_df, row.to_frame().T])
 
     return to_do_df, to_do_resample_df, df
 
@@ -283,7 +289,7 @@ def concatenate_sections_to_volume(df, rec_fn, output_dir, out_fn, target_str='_
 
     hires_img = nib.load(rec_fn)
     out_vol=np.zeros(hires_img.shape)
-    target_name = 'nl_2d_'+target_str
+    target_name = 'nl_2d'+target_str
 
     df[target_name] = [''] * df.shape[0]
 

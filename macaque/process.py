@@ -10,11 +10,11 @@ import nibabel
 import utils.ants_nibabel as nib
 import json
 from validation.validate_alignment import validate_alignment
-from reconstruction.surface_interpolation import  surface_interpolation, create_thickened_volumes
+from reconstruction.surface_interpolation import  surface_interpolation, create_thickened_volumes, get_thicken_parameters
 from copy import deepcopy
 from utils.reconstruction_classes import SlabReconstructionData
 from reconstruction.volumetric_interpolation import volumetric_interpolation
-from utils.utils import prefilter_and_downsample, resample_to_autoradiograph_sections, shell, create_file_dict_output_resolution
+from utils.utils import prefilter_and_downsample, resample_to_autoradiograph_sections, shell, create_file_dict_output_resolution, resample_to_resolution 
 from reconstruction.align_slab_to_mri import get_alignment_schedule, run_alignment
 from utils.utils import get_section_intervals
 from reconstruction.nonlinear_2d_alignment import create_2d_sections, receptor_2d_alignment, concatenate_sections_to_volume
@@ -320,23 +320,6 @@ def create_section_dataframe(brain, hemi, auto_dir, crop_dir, csv_fn, template_f
       
         print('Receptor volumen length (mm)', (float(df['order'].max()) - float(df['order'].min()))*0.02 )
 
-        '''
-        for hemisphere in ['left']:#,'right'] :
-            hist_list = glob(f'{hist_dir}/*{hemisphere}*nii.gz') #if not 'UB' in fn and not '#00' in fn ]
-            hist_list.sort()
-
-            df_prehist = df.loc[ df['ligand'].apply(lambda x : x in ['mk80', 'uk14', 'mk80_ub', 'uk14_ub'] ) ]
-            for i, (row_name,row) in enumerate(df_prehist.iterrows())  :
-                new_row = row.copy()
-                #brain, repeat, hemisphere = [fn_split[i] for i in [0,1,4]]
-                new_row['order'] = row['order'] + 1
-                new_row['repeat'] = row['repeat']
-                new_row['ligand'] = 'hist_cellbody'
-                new_row['crop'] = hist_list[i]
-                new_row['raw'] = hist_list[i]
-                new_row['hemisphere'] = hemisphere
-                df = df.append(new_row)
-        '''
         df.sort_values(['order'],inplace=True)
 
         print('Writing to', csv_fn)
@@ -455,7 +438,8 @@ def concat_section_to_volume(df, affine, volume_fn, file_var='crop'):
         xdim, zdim = np.rint(np.array(nib.load(example_fn).shape)).astype(int)
         
         order_min = df['order'].min()
-        ydim=int(df['order'].max() - order_min + 1)
+        ydim = int(df['order'].max() - order_min + 1)
+
         volume=np.zeros([xdim,ydim,zdim])
         for index, (i, row) in enumerate(df.iterrows()) :
             fn = row[file_var]
@@ -465,8 +449,13 @@ def concat_section_to_volume(df, affine, volume_fn, file_var='crop'):
                 #section = np.flipud(section)
                 #section = gaussian_filter(section, affine[0,0]/(2*0.02))
                 #section = resize(section, [xdim,zdim], order=0)
-                volume[:,y,:] = section
-                plt.title(fn)
+                print(fn)
+                if section.shape[0] == xdim and section.shape[1] == zdim :
+                    volume[:,y,:] = section
+                else :
+                    section = resize(section, [xdim,zdim], order=0)
+
+                #plt.title(fn)
                 #plt.imshow(section)
                 #print(f'/tmp/{y}.png')
                 #plt.savefig(f'/tmp/{y}.png')
@@ -506,7 +495,8 @@ def downsample(df, downsample_dir, resolution_2d):
         crop_fn = row['crop']
         crop_rsl_fn=f'{downsample_dir}/{os.path.basename(crop_fn)}'
         if not os.path.exists(crop_rsl_fn) :
-            prefilter_and_downsample(crop_fn, [resolution_2d]*2, crop_rsl_fn)
+            resample_to_resolution(crop_fn, [resolution_2d]*2, crop_rsl_fn)
+
 
         df['crop'].iloc[i] = crop_rsl_fn
         #print(df['crop'].iloc[i])
@@ -752,7 +742,7 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     #crop_to_do = [ (y, raw_fn, crop_fn, ligand) for y, raw_fn, crop_fn, ligand in zip(df['repeat'], df['raw'], df['crop'],df['ligand']) if not os.path.exists(crop_fn) ]
     num_cores = min(1, multiprocessing.cpu_count() )
     
-   
+  
     # Crop non-cellbody stains
     crop(crop_dir, mask_dir, df.loc[df['ligand'] != 'cellbody'], scale_factors_json_fn, resolution=[60,45], remote=False, pad=0, clobber=False, create_pseudo_cls=False, brain_str='brain', crop_str='crop', lin_str='raw', flip_axes_dict=flip_dict, pytorch_model=pytorch_model )
     
@@ -834,7 +824,7 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
         aligned_df = align_2d(aligned_df, align_2d_dir, volume_init_fn, template_rec_space_fn, seg_2d_dir, resolution_2d, itr, resolution_list, use_syn=True)
          
         aligned_df = concatenate_sections_to_volume( aligned_df, template_rec_space_fn, align_2d_dir, volume_align_2d_fn)
-        aligned_df = concatenate_sections_to_volume( aligned_df, template_rec_space_fn, align_2d_dir, volume_cls_align_2d_fn, target_str='cls_rsl')
+        aligned_df = concatenate_sections_to_volume( aligned_df, template_rec_space_fn, align_2d_dir, volume_cls_align_2d_fn, target_str='_cls_rsl')
 
     ### 8. Perform a final alignment to the template
     final_3d_dir = f'{subject_dir}/final_3d_dir/'
@@ -882,7 +872,7 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     slab_files_dict = create_file_dict_output_resolution(files, brain, hemi, resolution_list)
 
     final_recon_list=[]
-    for ligand, df_ligand in aligned_df.groupby(['ligand']):
+    for (ligand,), df_ligand in aligned_df.groupby(['ligand']):
         print('\t\tLigand:', ligand)
         ligandSlabData = deepcopy(slabData)
         ligandSlabData.volumes = slabData.volumes[ligand] 
@@ -891,6 +881,8 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
         ligandSlabData.values_interp = slabData.values_interp[ligand] 
         ligandSlabData.ligand = ligand
     
+        df_ligand = get_thicken_parameters(df_ligand, slab_files_dict, highest_resolution)
+        
         create_thickened_volumes(ligand_dir, slab_files_dict, df_ligand, slabData.n_depths, slabData.resolution) 
         final_ligand_fn = surface_interpolation(ligandSlabData, df_ligand, slab_dict, template_fn, files[brain][hemi], scale_factors_json,   tissue_type='', input_surf_dir=surf_dir, n_vertices = 0, gm_label=2, clobber=0)
         final_recon_list.append(final_ligand_fn)
@@ -900,7 +892,9 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     gm_rsl_fn=f'{qc_dir}/{gm_rsl_basename}'
     
     if not os.path.exists(gm_rsl_fn) or clobber or True:
-        img = nib.load(final_recon_list[0])
+        print(final_recon_list[0])
+        img = nib.load(final_recon_list[0][1])
+        
         dims = img.shape
         affine = img.affine
         gm_rsl_vol = resize( nib.load(gm_fn).get_fdata(), dims, order=0 )
@@ -924,8 +918,8 @@ def reconstruct(subject_id, auto_dir, template_fn, scale_factors_json_fn, out_di
     m0=4
     m1=4
 
-    gm = resize(gm, nib.load(final_recon_list[0]).shape, order=0 )
-    t1 = resize(t1, nib.load(final_recon_list[0]).shape, order=0 )
+    gm = resize(gm, nib.load(final_recon_list[0][1]).shape, order=0 )
+    t1 = resize(t1, nib.load(final_recon_list[0][1]).shape, order=0 )
     for i, ligand in enumerate(to_reconstruct):
         fn = [fn for fn in final_recon_list if ligand in fn][0]
         vol = nib.load(fn).get_fdata()

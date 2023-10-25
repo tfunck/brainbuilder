@@ -19,7 +19,6 @@ from re import sub
 from glob import glob
 from utils.mesh_io import  load_mesh, load_mesh_geometry, save_mesh, save_mesh_data, save_obj, read_obj
 from utils.utils import shell, w2v, v2w
-from upsample_gifti import save_gii, upsample_gifti,  obj_to_gii
 
 global surf_base_str
 surf_base_str = '{}/{}_{}_surface_{}_{}{}.{}'
@@ -274,10 +273,10 @@ def upsample_surfaces(surf_depth_mni_dict, thickened_dict, surf_dir, surf_gm_fn,
     surf_depth_mni_dict[depth_list[-1]]['depth_rsl_gii'] = upsample_1_fn
     
     #DEBUG put the next few lines incase want to try face upsampling instead of full surf upsampling
-    ref_gii_fn = surf_depth_mni_dict[0]['depth_surf_fn']
-    ref_rsl_gii_fn = surf_depth_mni_dict[0]['depth_rsl_gii']
-    ref_rsl_npy_fn = sub('.surf.gii', '', surf_depth_mni_dict[0]['depth_rsl_gii'])
-    ngh_npz_fn = sub('.nii.gz', '_ngh', surf_depth_mni_dict[0]['depth_rsl_gii'])
+    ref_gii_fn = surf_depth_mni_dict[depth_list[0]]['depth_surf_fn']
+    ref_rsl_gii_fn = surf_depth_mni_dict[depth_list[0]]['depth_rsl_gii']
+    ref_rsl_npy_fn = sub('.surf.gii', '', surf_depth_mni_dict[depth_list[0]]['depth_rsl_gii'])
+    ngh_npz_fn = sub('.nii.gz', '_ngh', surf_depth_mni_dict[depth_list[0]]['depth_rsl_gii'])
     coords, faces, volume_info = load_mesh(ref_gii_fn)
     
 

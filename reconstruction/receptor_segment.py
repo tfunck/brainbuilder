@@ -177,8 +177,10 @@ def classifyReceptorSlices(df, in_fn, in_dir, out_dir, out_fn, resolution_3d, re
         print('Example', example_2d_list[0]) ; 
         #Example image should be at maximum 2D resolution 
         example_2d_img = nib.load(example_2d_list[0])
-
-        data = np.zeros([example_2d_img.shape[0], ref_vol.shape[1], example_2d_img.shape[1]],dtype=np.float32)
+        
+        ymax = df['slab_order'].max() + 1
+        
+        data = np.zeros([example_2d_img.shape[0], ymax, example_2d_img.shape[1]],dtype=np.float32)
 
         #TODO this works well for macaque but less so for human
         if interpolation=='linear' :

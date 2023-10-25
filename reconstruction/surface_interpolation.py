@@ -3,6 +3,7 @@ import argparse
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+import seaborn as sns
 import utils.ants_nibabel as nib
 import nibabel as nb_surf
 import h5py as h5
@@ -57,9 +58,10 @@ def update_df_with_correction_params(df: typeDataFrame, params: typeDataFrame, l
         slab = df['slab'].loc[idx].values[0]
         print('slab', slab, 'label', row['label'], 'offset', row['offset'])
     
-    for slab, slab_df in  df.groupby('slab'):
+    for (slab,), slab_df in  df.groupby(['slab']):
         print(slab)
         print(slab_df['batch_offset'])
+
     return df 
 
 def get_valid_coords( coords, iw):
@@ -149,7 +151,7 @@ def get_thicken_parameters(hemi_ligand, slab_dict, resolution):
     
     print('\t\tThickening sections to', 0.02*width*2)
 
-
+    print(hemi_ligand); 
     out_list = []
 
     for (ligand,slab), slab_df in hemi_ligand.groupby(['ligand','slab']) :
@@ -182,7 +184,6 @@ def get_thicken_parameters(hemi_ligand, slab_dict, resolution):
         out_list.append(slab_df)
 
     hemi_ligand = pd.concat(out_list)
-
     return hemi_ligand
 
 def thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn, cls_image_fn, ligand, slab_df, resolution, tissue_type='',  use_batch_correction=False):
@@ -238,13 +239,13 @@ def thicken_sections_within_slab(thickened_fn, cls_thickened_fn, source_image_fn
 def create_thickened_volumes(interp_dir, slab_dict, hemi_ligand, n_depths, resolution, tissue_type='',  use_batch_correction=False ):
     
     rec_thickened_dict = {} 
-    for ligand, df0 in hemi_ligand.groupby(['ligand']) :
+    for (ligand,), df0 in hemi_ligand.groupby(['ligand']) :
         rec_thickened_dict[ligand]={} 
-        for slab, _ in df0.groupby(['slab']) :
+        for (slab,), _ in df0.groupby(['slab']) :
             print(ligand, slab)
             rec_thickened_dict[ligand][int(slab)]={}
     
-    target_file=f'nl_2d_vol{tissue_type}_fn'
+    target_file = f'nl_2d_vol{tissue_type}_fn'
 
     for (ligand,slab), df_ligand_slab in hemi_ligand.groupby(['ligand','slab']) :
 
@@ -334,7 +335,8 @@ def project_volume_to_depth(surf_fn_list, slab_dict, thickened_dict, thickened_c
                 all_values = coords[:,2]
                 break
 
-
+            print('Volume fn', vol_fn)
+            print('Surf fn', surf_fn)
             # read slab volume
             img = nib.load(vol_fn)
             vol = img.get_fdata()
@@ -398,22 +400,19 @@ def project_volume_to_depth(surf_fn_list, slab_dict, thickened_dict, thickened_c
                     cls_values = cls_padded_vol[x,y,z]
                     #Remove any values that are measured from areas outside of the cortex, as represented by the cls_vol
                     #Also remove vertices that are equal to background from the receptor volume
-                    idx = (cls_values == cls_min) | (values == rec_min)
+                    #idx = (cls_values == cls_min) | (values == rec_min)
+                    idx = (values == rec_min)
                     values[ idx ] = 0 
 
-                    assert np.sum(values>0) > 0, f'Error: empty vol[x,z] in project_volume_to_surfaces for {y0}'
-
-                    assert np.sum(np.isnan(values)) == 0 , f'Error: nan found in values from {vol_fn}'
-        
-                    #n[valid_coords_idx] += 1
-                    if debug.DEBUG in [2,3] : all_values[valid_coords_idx]  = i+1 
-                    else:
-                        all_values[valid_coords_idx] += values 
+                    all_values[valid_coords_idx] += values 
                     
                     n[valid_coords_idx] += 1
 
                     if np.max(n) >= 2: print(f'Warning: multiple slabs (beyond just adjacent slabs) are overlapped, {np.max(n)} ')
         
+        assert np.sum(all_values>0) > 0, f'Error: empty values in project_volume_to_surfaces'
+
+        assert np.sum(np.isnan(values)) == 0 , f'Error: nan found in values from {vol_fn}'
         #idx = all_values>null_value
 
         all_values[n>1] = np.min(all_values)
@@ -584,7 +583,7 @@ def combine_interpolated_sections(df, slab_fn, interp_vol, ystep_lo, ystart_lo) 
 
 
 def create_reconstructed_volume(interp_fn_list, ligandSlabData, profiles_fn, surf_depth_mni_dict, files,  df_ligand, scale_factors_json, use_mapper=True, clobber=False, origin=[0,0,0],gm_label = 2. ):
-    ref_fn=surf_depth_mni_dict[0.0]['depth_surf_fn']
+    ref_fn = list(surf_depth_mni_dict.values())[0]['depth_surf_fn']
     
     profiles = None
     
@@ -609,8 +608,7 @@ def create_reconstructed_volume(interp_fn_list, ligandSlabData, profiles_fn, sur
                 print(files.keys())
                 files_resolution = files[int(slab)]
 
-            resolution_list = list(files_resolution.keys())
-            max_resolution = resolution_list[-1]
+            max_resolution = resolution
             slab_fn = files_resolution[ max_resolution ]['nl_2d_vol_fn'] 
             srv_space_rec_fn = files_resolution[ max_resolution ]['srv_space_rec_fn']
             srv_iso_space_rec_fn = files_resolution[ max_resolution ]['cortex_fn']
@@ -763,7 +761,7 @@ def interpolate_between_slabs(combined_slab_vol, surf_depth_mni_dict, depth_list
     steps = np.array(img.affine[[0,1,2],[0,1,2]])
     dimensions = img.shape
 
-    ref_fn=surf_depth_mni_dict[0.0]['depth_surf_fn']
+    ref_fn=list(surf_depth_mni_dict.values())[0]['depth_surf_fn']
 
     wm_upsample_fn = surf_depth_mni_dict[depth_list[0]]['depth_rsl_gii']
     gm_upsample_fn = surf_depth_mni_dict[depth_list[-1]]['depth_rsl_gii']
@@ -884,7 +882,7 @@ def create_surface_section_labels(ligand_df, values_filename, slabData, out_dir,
         
         max_slab = ligand_df['slab'].max() + 1
 
-        for slab, slab_df in ligand_df.groupby(['slab']) :
+        for (slab,), slab_df in ligand_df.groupby(['slab']) :
             surf_filename = slabData.surfaces[slab][slabData.middle_depth]
             coords = load_mesh_ext(surf_filename)[0]
             
@@ -917,11 +915,6 @@ def create_surface_section_labels(ligand_df, values_filename, slabData, out_dir,
         np.savez(out_fn, data=labels)
 
         visualization(slabData.stx_surfaces[slabData.middle_depth], labels, qc_fn)
-        #y = load_mesh_ext(slabData.stx_surfaces[slabData.middle_depth])[0]
-        #plt.scatter(y,labels)
-        #plt.savefig('/tmp/tmp.png')
-
-
    
     return out_fn, ligand_df, label_to_slab_dict
     
@@ -933,6 +926,7 @@ def surface_interpolation(ligandSlabData, df_ligand, slab_dict, orig_mni_fn, fil
     brain = ligandSlabData.brain
     hemi = ligandSlabData.hemi
     resolution = ligandSlabData.resolution
+    print(resolution, use_batch_correction) ;
     slabs = ligandSlabData.slabs
     n_depths = ligandSlabData.n_depths
 
@@ -966,7 +960,7 @@ def surface_interpolation(ligandSlabData, df_ligand, slab_dict, orig_mni_fn, fil
 
     required_outputs = [ final_mni_fn ] + interp_fn_list + interp_fn_mni_list
 
-    if  False in [ os.path.exists(out_fn) for out_fn in required_outputs]:
+    if  False in [ os.path.exists(out_fn) for out_fn in required_outputs] or use_batch_correction:
         
         print('\tReconstructing', ligand)
         profiles_fn = f'{recon_slab_prefix}_profiles.h5'
@@ -989,7 +983,7 @@ def surface_interpolation(ligandSlabData, df_ligand, slab_dict, orig_mni_fn, fil
         # Project autoradiograph densities onto surfaces
         # Extract profiles from the slabs using the surfaces 
         profiles_fn = project_volume_to_surfaces(profiles_fn, ligandSlabData, slab_dict, df_ligand, surf_depth_mni_dict, recon_slab_prefix,origin=origin, tissue_type=tissue_type)
-
+        print('use batch', use_batch_correction); 
         if use_batch_correction :
             '''
             local_dice_volume_dict={}
@@ -1009,25 +1003,21 @@ def surface_interpolation(ligandSlabData, df_ligand, slab_dict, orig_mni_fn, fil
    
             params, vtx_pairs = batch_correction_surf(surface_labels_filename, values_filename, sphere_rsl_fn, cortex_rsl_fn, interp_dir,  clobber=clobber)
             
-            coords = load_mesh_ext(cortex_rsl_fn)[0]
-            '''
+            # Check how well the paired values are aligned
+            plt.clf(); plt.cla()
+            fig = plt.figure(figsize=(10,10), dpi=100, facecolor='white')
+            ax = fig.add_subplot(111)
+            ax.set_facecolor('white')
             for i, row in vtx_pairs.iterrows() :
+                x=[row['curr_label'], row['next_label']]
+                y=[row['curr_values'], row['next_values']]
+                plt.scatter(row['curr_label'],row['curr_values'], color='blue')
+                plt.scatter(row['next_label'],row['next_values'], color='red')
+                plt.plot(x,y, color='black')
 
-                if i < 500 :continue
-                idx = np.hstack([row['curr_idx'], row['next_idx']]).astype(int)
-                val = np.hstack([row['curr_values'], row['next_values']])
-                
-                vtx_coords = coords[idx]
-                print(vtx_coords)
-                print(val)
+            plt.savefig(f'{interp_dir}/vtx_pairs_melt_{resolution}.png')
 
-                write_mesh_to_volume( coords[idx], val, mni_fn, '/tmp/tmp.nii.gz' )
-                
-                #val = np.hstack([vtx_pairs['curr_values'], vtx_pairs['next_values']])
-                #write_mesh_to_volume( coords[idx], val, mni_fn, '/tmp/tmp.nii.gz' )
-            '''
             df_ligand = update_df_with_correction_params(df_ligand, params, label_to_slab_dict)
-            return df_ligand
 
         # Interpolate a 3D receptor volume from the surface mesh profiles
         print('\tCreate Reconstructed Volume')
@@ -1041,7 +1031,7 @@ def surface_interpolation(ligandSlabData, df_ligand, slab_dict, orig_mni_fn, fil
         print('\tCreate final reconstructed volume')
         create_final_reconstructed_volume(final_mni_fn, mni_fn, resolution, surf_depth_mni_dict, depth_list, interp_dir, interp_fn_mni_list, recon_mni_prefix, profiles_fn, n_depths, origin=origin )
 
-    return final_mni_fn
+    return df_ligand, final_mni_fn
 
 if __name__ == '__main__':
 

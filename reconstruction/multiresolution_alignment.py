@@ -116,7 +116,7 @@ def multiresolution_alignment( slab_df,  hemi_df, brain, hemi, slab, slab_index,
         print('\t\tStep 2: Autoradiograph segmentation')
         stage_2_outputs=[seg_rsl_fn]
         if not os.path.exists(seg_rsl_fn) or args.clobber  :
-            print('\t\t\tResampling segemented sections')
+            print('\t\t\tResampling segemented sections', resolution_itr)
             resample_transform_segmented_images(slab_df, resolution_itr, resolution, resolution_3d, seg_dir+'/2d/' )
             #write 2d segmented sections at current resolution. apply initial transform
             print('\t\t\tInterpolating between segemented sections')
@@ -153,11 +153,10 @@ def multiresolution_alignment( slab_df,  hemi_df, brain, hemi, slab, slab_index,
         
         # Concatenate 2D nonlinear aligned sections into output volume
         slab_df = concatenate_sections_to_volume( slab_df, srv_space_rec_fn, nl_2d_dir, nl_2d_vol_fn)
-
         # Concatenate 2D nonlinear aligned cls sections into an output volume
         slab_df = concatenate_sections_to_volume( slab_df, srv_space_rec_fn, nl_2d_dir, nl_2d_cls_fn, target_str='_cls_rsl')
         kill_python_threads()
-
+        print(slab_df['nl_2d_rsl'])
         slab_df.to_csv(slab_info_fn)
         print('\t\tWriting', slab_info_fn)
     return slab_df

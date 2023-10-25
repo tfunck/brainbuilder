@@ -113,6 +113,7 @@ def gen_affine(row, scale, dims, global_order_min, xstep_from_size=False, brain_
     brain = row[brain_str]
     hemi = row['hemisphere']
     slab = row['slab']
+    print(brain, hemi, slab)
     direction = scale[str(brain)][hemi][str(slab)]["direction"]
 
     z_mm = scale[str(brain)][hemi][str(slab)]["size"]
@@ -474,7 +475,14 @@ def nnunet_gm_segmentation(crop_dir, df, res, crop_str, num_cores):
         for i, row in df.iterrows():
             crop_fn = row[crop_str] 
             seg_fn = row['seg_fn'] 
-            fn = glob(f'{nnunet_out_dir}/{os.path.basename(crop_fn)}')[0]
+            print(f'{nnunet_out_dir}/{os.path.basename(crop_fn)}')
+            try :
+                fn = glob(f'{nnunet_out_dir}/{os.path.basename(crop_fn)}')[0]
+
+            except IndexError:
+                print('Warning: could not find', f'{nnunet_out_dir}/{os.path.basename(crop_fn)}')
+                continue
+            
             if not os.path.exists(seg_fn) : 
                 to_do.append((fn,crop_fn,seg_fn))
 
@@ -486,7 +494,7 @@ def nnunet_gm_segmentation(crop_dir, df, res, crop_str, num_cores):
 
 def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='', remote=False, pad=1000, clobber=False, brain_str='mri', crop_str='crop_fn', lin_str='lin_fn', res=[20,20], flip_axes_dict={}, create_pseudo_cls=False):
     '''take raw linearized images and crop them'''
-
+    
     os_info = os.uname()
 
     if os_info[1] == 'imenb079':
@@ -527,7 +535,7 @@ def crop(crop_dir, mask_dir, df, scale_factors_json, resolution, pytorch_model='
     #create binary cortical segmentations
 
     #if pytorch_model != ''  :
-    #    nnunet_gm_segmentation(crop_dir, df, res, crop_str, num_cores)
+    nnunet_gm_segmentation(crop_dir, df, res, crop_str, num_cores)
      
     #histogram_gm_segmentation(df,crop_str,num_cores)
 

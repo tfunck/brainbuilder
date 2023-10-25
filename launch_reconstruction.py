@@ -8,7 +8,6 @@ import numpy as np
 import nibabel
 import utils.ants_nibabel as nib
 import matplotlib.pyplot as plt
-import seaborn as sns
 import debug; 
 from utils.mesh_utils import load_mesh_ext, visualization
 from utils.utils import get_edges_from_faces
@@ -31,7 +30,6 @@ from reconstruction.crop import crop, process_landmark_images
 from validation.validate_interpolation import validate_interpolation, plot_r2
 from validation.validate_reconstructed_sections import validate_reconstructed_sections
 from preprocessing.preprocessing import fill_regions_3d
-from reconstruction.batch_correction_surface import batch_correction_surf
 
 global file_dir
 base_file_dir, fn =os.path.split( os.path.abspath(__file__) )
@@ -163,7 +161,7 @@ def calculate_section_order(autoradiograph_info_fn,  out_dir, in_df_fn='section_
     for (brain,hemi), tdf in df.groupby(['mri', 'hemisphere']):
         tdf = tdf.sort_values(['slab'])
         prev_max = 0
-        for slab, sdf in tdf.groupby(['slab']):
+        for (slab,), sdf in tdf.groupby(['slab']):
             idx=(df['mri']==brain) & (df['hemisphere']==hemi) & (df['slab']==slab)
             df['global_order'].loc[ idx ] = sdf['slab_order'] + prev_max
             df['volume_order'].loc[ idx ] = sdf['slab_order'].max() - sdf['slab_order']
@@ -361,10 +359,17 @@ def create_srv_volumes_for_next_slab(args,files, slab_list, resolution_list, res
             #DEBUG create_new_srv_volumes(rec_3d_rsl_fn, crop_srv_rsl_fn, stage_3_5_outputs, resolution_list_3d)
             create_new_srv_volumes(rec_3d_rsl_fn, args.srv_cortex_fn, stage_3_5_outputs, resolution_list_3d)
 
-def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, batch_correction_resolution=0, norm_df_csv=None) :
+def surface_based_reconstruction(hemi_df, args, files, highest_resolution, interp_dir, brain, hemi, scale_factors, resolution_list, batch_correction_resolution=0, norm_df_csv=None) :
+
+    slab_files_dict = create_file_dict_output_resolution(files, brain, hemi, resolution_list[-1])
+    
 
     if batch_correction_resolution == 0 :
         batch_correction_resolution = highest_resolution
+
+    batch_slab_files_dict = create_file_dict_output_resolution(files, brain, hemi, batch_correction_resolution)
+
+
 
     hemi_df = hemi_df.loc[:, ~hemi_df.columns.str.contains('^Unnamed')]
     ###
@@ -377,11 +382,13 @@ def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_
     batch_correction_dir='/for_batch_correction/'
 
     
-    for ligand, df_ligand in hemi_df.groupby(['ligand']):
-        if ligand != 'cgp5' : continue
+    for (ligand,), df_ligand in hemi_df.groupby(['ligand']):
+        #if ligand != 'flum' : continue
+
+
         print('\t\tLigand:', ligand)
-        ligand_interp_dir = interp_dir + f'/for_batch_correction_{ligand}/'
-        slabData = SlabReconstructionData(brain, hemi, args.slabs, ligands, args.depth_list, ligand_interp_dir, interp_dir +'/surfaces/', batch_correction_resolution)
+        ligand_interp_dir = interp_dir + f'/for_batch_correction_{ligand}_{batch_correction_resolution}/'
+        slabData = SlabReconstructionData(brain, hemi, args.slabs, ligands, np.array([0.5]), ligand_interp_dir, interp_dir +'/surfaces/', batch_correction_resolution)
         
         ligandSlabData = deepcopy(slabData)
         ligandSlabData.volumes = slabData.volumes[ligand] 
@@ -392,8 +399,8 @@ def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_
 
         #perform surface interpolation. if batch correction factors have been defined
         #then they will be used.
-        batch_corr_df = surface_interpolation(ligandSlabData, df_ligand, slab_files_dict, args.srv_cortex_fn,  files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices, use_batch_correction=args.use_batch_correction)
-        
+        batch_corr_df,_ = surface_interpolation(ligandSlabData, df_ligand, batch_slab_files_dict, args.srv_cortex_fn,  files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices, use_batch_correction=args.use_batch_correction)
+
         '''
         print('\tValidate reconstructed sections:', ligand)
         final_ligand_fn = args.out_dir + f'/reference_{highest_resolution}mm.nii.gz' 
@@ -411,18 +418,18 @@ def surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_
         ligandSlabData.values_interp = slabData_corr.values_interp[ligand] 
         ligandSlabData.ligand = ligand
 
-        final_ligand_fn = surface_interpolation(ligandSlabData, batch_corr_df, slab_files_dict, args.srv_cortex_fn,  files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices)
+        _, final_ligand_fn = surface_interpolation(ligandSlabData, batch_corr_df, slab_files_dict, args.srv_cortex_fn,  files[brain][hemi], scale_factors, input_surf_dir=args.surf_dir, n_vertices=args.n_vertices)
         final_ligand_dict[ligand] = final_ligand_fn
 
     return slabData, final_ligand_dict
 
-def create_file_dict_output_resolution(files, brain, hemi, resolution_list):
+def create_file_dict_output_resolution(files, brain, hemi, resolution):
     slab_files_dict={} 
     for slab, temp_slab_files_dict in files[brain][hemi].items() :
-        nl_3d_tfm_exists = os.path.exists(temp_slab_files_dict[resolution_list[-1]]['nl_3d_tfm_fn'])
-        nl_2d_vol_exists = os.path.exists(temp_slab_files_dict[resolution_list[-1]]['nl_2d_vol_fn'])
+        nl_3d_tfm_exists = os.path.exists(temp_slab_files_dict[resolution]['nl_3d_tfm_fn'])
+        nl_2d_vol_exists = os.path.exists(temp_slab_files_dict[resolution]['nl_2d_vol_fn'])
         if nl_3d_tfm_exists and nl_2d_vol_exists :
-            slab_files_dict[int(slab)] = temp_slab_files_dict[resolution_list[-1]] 
+            slab_files_dict[int(slab)] = temp_slab_files_dict[resolution] 
         else : 
             print(f'Error: not including slab {slab} for interpolation (nl 3d tfm exists = {nl_3d_tfm_exists}, 2d nl vol exists = {nl_2d_vol_exists}) ')
 
@@ -451,17 +458,16 @@ def reconstruct_hemisphere(df, brain, hemi, args, files, resolution_list, max_re
    
     interp_dir=f'{args.out_dir}/5_surf_interp/'
 
-    slab_files_dict = create_file_dict_output_resolution(files, brain, hemi, resolution_list)
     
     hemi_df, _ = validate_alignment(f'{args.qc_dir}/validate_alignment/', args.srv_cortex_fn, files[brain][hemi], highest_resolution, clobber=False)
 
     hemi_df = hemi_df.loc[ hemi_df['align_dice'] > 0.5 ]
     #for (slab,align_dice), ddf in hemi_df.loc[hemi_df['ligand']=='cgp5'].groupby(['slab','align_dice']):
     #    print(ddf[['slab','align_dice']])
-
+    batch_correction_resolution=resolution_list[0]
     if not args.no_surf : 
         print('\tSurface-based reconstruction') 
-        slabData, final_ligand_dict = surface_based_reconstruction(hemi_df, args, files, highest_resolution, slab_files_dict, interp_dir, brain, hemi, scale_factors, batch_correction_resolution=3, norm_df_csv=args.norm_df_csv)
+        slabData, final_ligand_dict = surface_based_reconstruction(hemi_df, args, files, highest_resolution, interp_dir, brain, hemi, scale_factors, resolution_list, batch_correction_resolution=batch_correction_resolution, norm_df_csv=args.norm_df_csv)
     exit(0)
 
     ###

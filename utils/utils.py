@@ -651,6 +651,145 @@ def resample_to_output(vol, aff, resolution_list, order=1, dtype=None):
     aff[dim_range,dim_range] = resolution_list
     return nib.Nifti1Image(out_vol, aff, dtype=dtype )
 
+def get_params_from_affine(aff, ndim):
+    '''
+    Get the parameters from an affine
+    :param aff: np.ndarray, affine
+    :return: origin, spacing, direction
+    '''
+    spacing = aff[range(ndim), range(ndim)]
+    origin = aff[range(ndim), 3]
+    direction = [
+        [-1.0, 0.0, 0.0],
+        [0.0, -1.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ]  # FIXME: not sure if it's good idea to hardcord LPI direction
+    return origin, spacing, direction
+
+def parse_resample_arguments(input_arg, output_filename, aff, dtype) -> tuple:
+    """
+    Parse the arguments for resample_to_resolution
+    :param input_arg: input file or numpy array
+    :param output_filename: output filename
+    :param aff: np.ndarray, affine
+    :param dtype: data type
+    :return: vol, dtype, output_filename, aff
+    """
+
+    if isinstance(input_arg, str):
+        
+        assert os.path.exists(
+            input_arg
+        ), f"Error: input file does not exist {input_arg}"
+
+        if '.nii' in input_arg:
+
+            img = ants.image_read(input_arg)
+
+            vol = img.numpy()
+            origin = img.origin
+            spacing = img.spacing
+            direction = img.direction
+            aff = nib.load(input_arg).affine
+
+            if isinstance(dtype, type(None)):
+                dtype = img.dtype
+        else :
+            vol = load_image(input_arg)
+            origin, spacing, direction = get_params_from_affine(aff, len(vol.shape))
+
+    elif type(input_arg) == np.ndarray:
+        vol = input_arg
+        if type(dtype) == type(None):
+            dtype = vol.dtype
+
+        assert (
+            type(aff) == np.ndarray or type(aff) == list
+        ), f"Error: affine must be provided as a list or numpy array but got {type(aff)}"
+
+        origin, spacing, direction = get_params_from_affine(aff, len(vol.shape))
+    else:
+        print("Error: input_arg must be a string or numpy array")
+        exit(1)
+
+
+    if not isinstance(output_filename, type(None)):
+        assert (
+            isinstance(output_filename, str)
+        ), f"Error: output filename must be as string, got {type(output_filename)}"
+
+    return vol, origin, spacing, direction, dtype, output_filename, aff
+
+
+def resample_to_resolution(
+        input_arg,
+        new_resolution,
+        output_filename=None,
+        dtype=None,
+        aff=None,
+        direction_order="lpi",
+        order=1,
+    ) :
+    '''
+    Resample a volume to a new resolution
+
+    :param input_arg: input file or numpy array
+    :param new_resolution: new resolution
+    :param output_filename: output filename
+    :param dtype: data type
+    :param aff: np.ndarray, affine
+    :param order: order of interpolation
+    :return: img_out
+    '''
+    (
+        vol,
+        origin,
+        old_resolution,
+        direction,
+        dtype,
+        output_filename,
+        aff,
+    ) = parse_resample_arguments(input_arg, output_filename, aff, dtype)
+
+    assert np.sum(np.abs(vol)) > 0, (
+        "Error: empty input file for prefilter_and_downsample\n" + input_filename
+    )
+    ndim = len(vol.shape)
+
+    if ndim == 3:
+        # 2D images sometimes have dimensions (m,n,1).
+        # We resample them to (m,n)
+        if vol.shape[2] == 1:
+            vol = vol.reshape([vol.shape[0], vol.shape[1]])
+
+    scale = old_resolution / np.array(new_resolution)
+
+    new_dims = np.ceil(vol.shape * scale)
+
+    sigma = (new_resolution / np.array(old_resolution)) / 5
+
+    vol = resize(vol, new_dims, order=order, anti_aliasing=True, anti_aliasing_sigma=sigma)
+
+    assert np.sum(np.abs(vol)) > 0, (
+        "Error: empty output array for prefilter_and_downsample\n" + output_filename
+    )
+
+    affine = np.eye(4, 4)
+    dim_range = range(ndim)
+    affine[dim_range, dim_range] = new_resolution
+    affine[dim_range, 3] = origin
+
+    img_out = nib.Nifti1Image(vol, affine, dtype = dtype, direction_order = direction_order)
+
+    if type(output_filename) == str:
+        img_out.to_filename(output_filename)
+
+    return img_out
+
+
+
+
+
 
 class AntsParams():
     def __init__(self, resolution_list, resolution, base_itr, max_resolution=None, start_resolution=None, verbose=False):
