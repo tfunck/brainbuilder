@@ -12,7 +12,7 @@ from joblib import Parallel, delayed, cpu_count
 from scipy.ndimage.filters import gaussian_filter
 
 import brainbuilder.utils.ants_nibabel as nib
-from brainbuilder.align.validate_alignment import calculate_volume_accuracy, get_section_metric
+from brainbuilder.align.validate_alignment import get_section_metric
 from brainbuilder.utils import utils
 from brainbuilder.utils.utils import (
     AntsParams,
@@ -67,7 +67,7 @@ def resample_reference_to_sections(
         img_iso = resample_to_resolution(
             vol,
             [float(resolution)] * 3,
-            order=0,
+            order=3,
             affine=aff,
             dtype=np.uint16,
         )
@@ -101,40 +101,42 @@ def ants_registeration_2d_section(
     bins: int = 32,
     sampling: float = 0.9,
     step: float = 0.5,
-    init_str=None,
+    init_tfm=None,
     verbose=False,
 ):
     """
     Use ANTs to register 2d sections
     """
     last_transform = None
+    last_metric = None
 
     for transform, metric, f_str, s_str, itr_str in zip(transforms, metrics, f_list, s_list, itr_list):
 
-        mv_rsl_fn = f'{prefix}_{transform}_cls_rsl.nii.gz'
+        mv_rsl_fn = f'{prefix}_{transform}_{metric}_cls_rsl.nii.gz'
 
-        if type(last_transform) != type(None):
+        if not isinstance(last_transform, type(None)) :
             init_str = (
-                f"--initial-moving-transform {prefix}_{last_transform}_Composite.h5"
+                f"--initial-moving-transform {prefix}_{last_transform}_{last_metric}_Composite.h5"
             )
-        elif type(init_str) == str and os.path.exists(init_str) :
-            init_str=f"--initial-moving-transform {init_str}"
+        elif type(init_tfm) == str and os.path.exists(init_tfm) :
+            init_str = f"--initial-moving-transform {init_tfm}"
         else:
             init_str = f"--initial-moving-transform [{fx_fn},{mv_fn},1]"
 
-        command_str = f"antsRegistration -v {int(verbose)} -d 2    --write-composite-transform 1 {init_str} -o [{prefix}_{transform}_,{mv_rsl_fn},/tmp/out_inv.nii.gz] -t {transform}[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} "
+        command_str = f"antsRegistration -v {int(verbose)} -d 2    --write-composite-transform 1 {init_str} -o [{prefix}_{transform}_{metric}_,{mv_rsl_fn},/tmp/out_inv.nii.gz] -t {transform}[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} "
 
         last_transform = transform
+        last_metric = metric
 
         if verbose:
             print(command_str)
 
-        with open(prefix + f"{transform}_command.txt", "w") as f:
+        with open(prefix + f"{transform}_{metric}_command.txt", "w") as f:
             f.write(command_str)
 
         shell(command_str)
 
-    final_tfm = f"{prefix}_{transforms[-1]}_Composite.h5"
+    final_tfm = f"{prefix}_{transforms[-1]}_{metrics[-1]}_Composite.h5"
 
     return final_tfm, mv_rsl_fn
 
@@ -169,11 +171,13 @@ def affine_trials(
             f_list = f_list, 
             prefix=trial_prefix,
             transforms=lin_transforms,
-            sampling=0.9,
+            sampling=0.8,
             metrics=["Mattes"] * len(lin_transforms),
             verbose=verbose,
         )
+
         trial_dice, _, _ = get_section_metric(fx_fn, mv_rsl_fn, trial_prefix+'_dice.png', 0, verbose=False)
+
         max_dice = trial_dice if trial_dice > max_dice else max_dice
         best_trial = trial if trial_dice > max_dice else best_trial
         affine_tfm_trials[trial] = affine_tfm
@@ -202,7 +206,7 @@ def align_2d_parallel(
     base_lin_itr: int = 100,
     base_nl_itr: int = 30,
     base_cc_itr: int = 5,
-    n_affine_trials=1,
+    n_affine_trials=5,
     verbose=False,
 ):
     """ """
@@ -217,14 +221,16 @@ def align_2d_parallel(
 
     prefix = f"{tfm_dir}/y-{y}"
     fx_fn = gen_2d_fn(prefix, "_fx")
-    mv_fn = get_seg_fn(mv_dir, int(y), resolution, row[file_to_align], suffix="_rsl")
 
-    #verbose = True
+    mv_fn = get_seg_fn(mv_dir, int(y), resolution, row[file_to_align], suffix="")
+    mv_fn = row[file_to_align]
+
+    verbose = False
     affine_tfm = affine_trials(
         fx_fn, mv_fn, linParams, prefix, n_trials=n_affine_trials, verbose=verbose
     )
 
-    syn_tfm, _ = ants_registeration_2d_section(
+    syn_tfm, syn_vol = ants_registeration_2d_section(
         fx_fn = fx_fn,
         mv_fn = mv_fn,
         itr_list = [nlParams.itr_str, 20],
@@ -233,12 +239,18 @@ def align_2d_parallel(
         prefix = prefix,
         transforms = ["SyN", "SyN"],
         metrics = ["Mattes", "CC"],
-        init_str=affine_tfm,
+        init_tfm = affine_tfm,
         step=0.1,
         verbose=verbose,
     )
 
-    shutil.copy(f"{prefix}_SyN_cls_rsl.nii.gz", row['2d_align_cls'])
+    cmd = f"antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {mv_fn} -r {fx_fn} -t {syn_tfm} -o {row['2d_align_cls']} "
+    
+    shell(
+        cmd, 
+        True
+    )
+
     shutil.copy(syn_tfm, row['2d_tfm'])
 
     # assert np.sum(nib.load(prefix+'_cls_rsl.nii.gz').dataobj) > 0, 'Error: 2d affine transfromation failed'
@@ -256,7 +268,6 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     out_fn = prefix + "_rsl.nii.gz"
     fx_fn = gen_2d_fn(prefix, "_fx")
 
-
     img_fn = row["img"]  
 
     img = nib.load(img_fn)
@@ -270,10 +281,11 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     aff = img.affine
     nib.Nifti1Image(vol, aff, direction_order="lpi").to_filename(img_rsl_fn)
 
-
-    # fix_affine(fx_fn)
+    cmd = f"antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} "
+    
     shell(
-        f"antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} "
+        cmd, 
+        True
     )
 
     assert os.path.exists(f"{out_fn}"), "Error apply nl 2d tfm to img autoradiograph"
@@ -296,11 +308,7 @@ def get_align_2d_to_do(sect_info, clobber=False ) :
 
     return to_do_sect_info, to_do_resample_sect_info
 
-def outlier_detection(df, cutoff=0.8):
-    dice_values = df['dice']
 
-    print('\t\tDice of Aligned Sections:', np.round(df['dice'].mean(),2) )
-    return df
 
 def get_align_filenames(tfm_dir, sect_info) :
     '''
@@ -408,10 +416,6 @@ def align_sections(
             for row in to_do_resample_sect_info
         )
     
-    sect_info = calculate_volume_accuracy(sect_info, output_dir)
-    sect_info = outlier_detection(sect_info)
-
-
     return sect_info
 
 
@@ -440,7 +444,6 @@ def concatenate_sections_to_volume(
             y = int(row["sample"])
 
             try:
-                # sec = nib.load(fn).get_fdata()
                 sec = nibabel.load(fn).get_fdata()
 
                 # DEBUG add this back in once the macaque img data is fixed
@@ -531,6 +534,7 @@ def align_2d(
         clobber=clobber,
     )
 
+
     # Concatenate 2D nonlinear aligned sections into output volume
     sect_info = concatenate_sections_to_volume(
         sect_info, ref_space_nat_fn, nl_2d_dir, nl_2d_vol_fn
@@ -541,4 +545,4 @@ def align_2d(
         sect_info, ref_space_nat_fn, nl_2d_dir, nl_2d_cls_fn, target_str="cls_rsl"
     )
 
-    return sect_info
+    return sect_info, ref_space_nat_fn

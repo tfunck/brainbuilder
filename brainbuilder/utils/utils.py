@@ -9,6 +9,7 @@ import imageio
 import matplotlib
 import nibabel as nb
 import pandas as pd
+import psutil
 
 import brainbuilder.utils.ants_nibabel as nib
 
@@ -34,6 +35,34 @@ from scipy.ndimage import shift
 from brainbuilder.utils.mesh_io import load_mesh, save_mesh
 
 os_info = os.uname()
+
+def get_available_memory():
+    return psutil.virtual_memory()[1]
+
+def estimate_memory_usage(n_elements, n_bytes_per_element):
+    return n_elements * n_bytes_per_element
+
+def get_maximum_cores(n_elemnts_list, n_bytes_per_element_list, max_memory=0.8):
+    '''
+    Get the maximum number of cores to use for a given memory limit.
+    :param n_elemnts: int, number of elements
+    :param n_bytes_per_element: int, number of bytes per element
+    :param max_memory: float, maximum memory to use
+    :return: int
+    '''
+    available_memory = get_available_memory()
+    estimated_memory = 0
+    for n_elemnts, n_bytes_per_element in zip(n_elemnts_list, n_bytes_per_element_list):
+        estimated_memory += estimate_memory_usage(n_elemnts, n_bytes_per_element)
+    max_cores = int(available_memory / estimated_memory * max_memory)
+    available_memory_gb = np.round(available_memory / 1024 / 1024 / 1024, 3)
+    estimated_memory_gb = np.round(estimated_memory / 1024 / 1024 / 1024, 3)
+
+    total_cores = multiprocessing.cpu_count()
+    max_cores = max([0, min([max_cores, total_cores])])
+
+    print('\tAvailable memory (Gb): ', available_memory_gb , 'Estimated memory: ', estimated_memory_gb, 'Max cores: ', max_cores)
+    return max_cores
 
 
 def load_image(fn):
@@ -160,7 +189,10 @@ def get_thicken_width(resolution, section_thickness=0.02):
     return np.round(1 * (1 + float(resolution) / (section_thickness * 2))).astype(int)
 
 
-def get_section_intervals(vol):
+def get_section_intervals(vol:np.array):
+    '''
+    Get the intervals of sections within a volume across y-axis of volume
+    '''
     section_sums = np.sum(vol, axis=(0, 2))
     valid_sections = section_sums > np.min(section_sums)
     labeled_sections, nlabels = label(valid_sections)
@@ -293,7 +325,7 @@ def simple_ants_apply_tfm(
     empty_ok:bool=False
 ):
     if not os.path.exists(out_fn):
-        str0 = f"antsApplyTransforms -v 1 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}"
+        str0 = f"antsApplyTransforms -v 0 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}"
         shell(str0, verbose=True)
         check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn, empty_ok=empty_ok)
 
@@ -335,7 +367,9 @@ def save_sections(file_list, vol, aff, dtype=None):
             # we find the closest y segement in vol with brain tissue
             while np.sum(vol[:, int(y - i), :]) == 0:
                 i += (ystep / np.abs(ystep)) * 1
+
         sec = vol[:, int(y - i), :]
+
         nib.Nifti1Image(sec, affine, dtype=dtype, direction_order="lpi").to_filename(fn)
 
 
@@ -657,15 +691,21 @@ def check_run_stage(
     if isinstance(df_csv,str) and not os.path.exists(df_csv) or clobber:
         run_stage = True
     else :
+        # get the list of files in col1
         file_list_1 = get_file_list(df_csv, col1)
+        # get the list of files in col2
         file_list_2 = get_file_list(df_csv, col2)
 
+        # check if all outputs for col1 exist
         all_outputs_exist = file_check(file_list_1) 
 
         if not all_outputs_exist :
+            # if not all outputs exist, run stage
             run_stage = True
             print('Not all files exist for {}'.format(col1))
-
+        
+        # files in col1 should be newer than the ones in col2
+        # check if this is the case, if not run stage
         if not compare_timestamp_of_files(file_list_1, file_list_2) :
             print('All files exist but some are older than {}'.format(col2))
             run_stage = True

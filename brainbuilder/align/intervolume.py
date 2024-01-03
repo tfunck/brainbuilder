@@ -43,7 +43,6 @@ def get_input_file(
             output_dir, int(row["sample"]), resolution_3d, seg_fn, "_rsl"
         )
         if not os.path.exists(tfm_input_fn) or clobber:
-            print('2')
             resample_to_resolution(
                 seg_fn,
                 [resolution_3d] * 2,
@@ -155,18 +154,6 @@ def resample_transform_segmented_images(
             order=0,
         )
 
-    '''
-    for i, row in sect_info.iterrows():
-        resample_and_transform(
-            output_dir,
-            resolution_itr,
-            resolution_2d,
-            resolution_3d,
-            row,
-            tfm_ref_fn,
-            clobber=clobber,
-        )
-    '''
     Parallel(n_jobs=num_cores)(
         delayed(resample_and_transform)(
             output_dir,
@@ -261,8 +248,10 @@ def volumetric_interpolation(
         # Example image should be at maximum 2D resolution
         example_2d_img = nib.load(example_2d_list[0])
 
+        ymax = sect_info["sample"].max()  + 1
+
         data = np.zeros(
-            [example_2d_img.shape[0], ref_img.shape[1], example_2d_img.shape[1]],
+            [example_2d_img.shape[0], ymax, example_2d_img.shape[1]],
             dtype=np.float32,
         )
 
@@ -278,7 +267,6 @@ def volumetric_interpolation(
                     "_rsl_tfm",
                 )
                 img_2d = nib.load(fn).get_fdata()
-                # FIXME : Skipping frames that have been rotated
 
                 # FIXME This is not a good way to solve issue with rsl_tfm files being the wrong size. Problem is probably in the use of nibabel's resampling function in resample
                 if img_2d.shape[0] != data.shape[0] or img_2d.shape[1] != data.shape[2]:
@@ -290,7 +278,7 @@ def volumetric_interpolation(
         else:
             valid_slices = []
             for i, row in sect_info.iterrows():
-                s0 = int(row["sample"])
+                s0 = int(row["sample"] - sect_info["sample"].min() )
                 fn = get_seg_fn(
                     in_dir,
                     int(row["sample"]),
@@ -351,13 +339,19 @@ def volumetric_interpolation(
         ).astype(int)
         zdim = example_2d_img.shape[1]
 
-        data = resize(data, [xdim, ydim, zdim], order=5)
+        aff2 = aff.copy()
+        aff2[1,1] = 0.02
+        nib.Nifti1Image(data, aff2).to_filename('/tmp/tmp.nii.gz')
+
+        data = resample_to_resolution(data, [resolution_3d, resolution_3d, resolution_3d], dtype=np.float32, affine=aff).get_fdata()
 
         aff[[0, 1, 2], [0, 1, 2]] = resolution_3d
 
         data, aff = recenter(data, aff)
 
         print("\tWriting output to", out_fn)
+
+        data[ data < 0.5 * np.max(data) ] = 0
 
         img_out = nib.Nifti1Image(
             data,
@@ -380,6 +374,7 @@ def create_intermediate_volume(
     out_dir: str,
     seg_rsl_fn: str,
     init_align_fn: str,
+    interpolation: str = "nearest",
     num_cores: int = 0,
     clobber=False,
 ):
@@ -423,6 +418,7 @@ def create_intermediate_volume(
             resolution_3d,
             resolution,
             chunk_info["section_thickness"].values[0],
+            interpolation=interpolation,
             clobber=clobber,
         )
 

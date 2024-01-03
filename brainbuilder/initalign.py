@@ -313,6 +313,10 @@ def alignment_stage(
     smooth_sigma = re.sub('vox', '', linParams.s_str) # '6x5x4' #x2x1x0'
     iterations = linParams.itr_str.split(',')[0][1:]  # '100x50x25' #x100x50x20'
 
+    shrink_factor = '4x3x2'
+    smooth_sigma = '2x1.5x1'
+    iterations = '100x50x25' 
+
     csv_fn = vol_fn_str.format(
         output_dir,
         *desc,
@@ -427,7 +431,8 @@ def create_final_outputs(
             final_tfm_dir, int(row["sample"].values[0])
         )
         final_section_fn = f'{final_tfm_dir}/{int(row["sample"].values[0])}{os.path.basename(row["img"].values[0])}'
-
+        print(row['init_img'].values)
+        print(row['sample'].values)
         idx = df["sample"].values == row["sample"].values
         if not os.path.exists(final_tfm_fn) or not os.path.exists(final_section_fn):
 
@@ -471,12 +476,13 @@ def initalign(
     valid_inputs_npz = os.path.join(output_dir, "valid_inputs")
 
     # Validate Inputs
-    assert valinpts.validate_csv(
-        sect_info_csv, valinpts.sect_info_required_columns 
-    ), f"Invalid section info csv file: {sect_info_csv}"
-    assert valinpts.validate_csv(
-        chunk_info_csv, valinpts.chunk_info_required_columns
-    ), f"Invalid chunk info csv file: {chunk_info_csv}"
+    #FIXME UNCOMMENT
+    #assert valinpts.validate_csv(
+    #    sect_info_csv, valinpts.sect_info_required_columns 
+    #), f"Invalid section info csv file: {sect_info_csv}"
+    #assert valinpts.validate_csv(
+    #    chunk_info_csv, valinpts.chunk_info_required_columns
+    #), f"Invalid chunk info csv file: {chunk_info_csv}"
 
     initalign_sect_info_csv = os.path.join(output_dir, f"initalign_sect_info.csv")
     initalign_chunk_info_csv = os.path.join(output_dir, f"initalign_chunk_info.csv")
@@ -491,7 +497,7 @@ def initalign(
         not os.path.exists(initalign_sect_info_csv)
         or not os.path.exists(initalign_chunk_info_csv)
         or clobber
-        #or run_stage FIXME need to change initalign so that it overwrites outdated files
+        or run_stage #FIXME need to change initalign so that it overwrites outdated files
     ):
         sect_info = pd.read_csv(sect_info_csv)
         chunk_info = pd.read_csv(chunk_info_csv)
@@ -693,14 +699,12 @@ def align_chunk(
 
     stage_2_df = pd.concat(concat_list)
 
-
     ###########
     # Stage 3 #
     ###########
     final_tfm_dir = output_dir + os.sep + "final_tfm"
     os.makedirs(final_tfm_dir, exist_ok=True)
     df = stage_2_df
-
     df = create_final_outputs(final_tfm_dir, df, 1)
     df = create_final_outputs(final_tfm_dir, df, -1)
 

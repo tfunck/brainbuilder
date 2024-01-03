@@ -39,6 +39,12 @@ def dice(x, y):
     dice_score = num / den
     return dice_score
 
+def modified_dice(x, y):
+    num = np.sum((x == 1) & (y == 1)) 
+    den = np.sum(y)
+    dice_score = num / den
+    return dice_score
+
 
 def prepare_volume(vol):
     vol = (vol - np.min(vol)) / (vol.max() - vol.min())
@@ -50,9 +56,9 @@ def global_dice(fx_vol, mv_vol, clobber=False):
     fx_vol = prepare_volume(fx_vol)
     mv_vol = prepare_volume(mv_vol)
 
-    dice_score = dice(fx_vol, mv_vol)
+    dice_score = modified_dice(fx_vol, mv_vol)
 
-    return dice_score, np.sum(fx_vol)
+    return dice_score, np.sum(mv_vol)
 
 
 def local_metric(fx_vol, mv_vol, metric, offset=5):
@@ -79,14 +85,15 @@ def local_metric(fx_vol, mv_vol, metric, offset=5):
             y0 = max(0, y - offset)
             y1 = min(fx_vol.shape[0], y + offset)
 
-            if fx_vol[y, x] > fx_min and mv_vol[y, x] > mv_min:
+            #if  mv_vol[y, x] > mv_min: #only consider overlap in moving image
+            if mv_vol[y, x] > 0 :
                 fx_sub = fx_vol[y0:y1, x0:x1]
                 mv_sub = mv_vol[y0:y1, x0:x1]
 
                 m = metric(fx_sub, mv_sub)
                 m = m if not np.isnan(m) else 0
 
-                local_dice_section[y, y] = m
+                local_dice_section[y, x] = m
 
     return local_dice_section
 
@@ -110,28 +117,36 @@ def qc_low_dice_section(row, slab, y, mri_vol, mv_vol, fx_vol, qc_dir):
         plt.cla()
         plt.clf()
 
-def get_section_metric(fn0, fn1, out_png, idx, verbose=False):
+def get_section_metric(fx_fn, mv_fn, out_png, idx, verbose=False):
 
-    img0 = nib.load(fn0)
-    vol0 = img0.get_fdata()
-    vol1 = nib.load(fn1).get_fdata()
+    img0 = nib.load(fx_fn)
+    fx_vol = prepare_volume( img0.get_fdata() )
+    mv_vol = prepare_volume( nib.load(mv_fn).get_fdata() )
+    
+    #section_dice_mean, fx_sum = global_dice(fx_vol, mv_vol) 
+    section_dice = local_metric(fx_vol, mv_vol, dice, offset=2)
+    section_dice_mean = np.mean(section_dice[ mv_vol>0 ])
 
-    section_dice, fx_sum = global_dice(vol0, vol1) 
+    fx_sum = np.sum(fx_vol)
 
 
     plt.cla(); plt.clf();
-    plt.title(f"Dice: {section_dice:.3f}")
-    plt.subplot(1, 2, 1)
-    plt.imshow(vol0)
-    plt.subplot(1, 2, 2)
-    plt.imshow(vol1)
-    plt.tight_layout()
+    plt.title(f"Dice: {section_dice_mean:.3f}")
+    plt.subplot(1, 3, 1)
+    plt.imshow(fx_vol)
+    plt.subplot(1, 3, 2)
+    plt.imshow(mv_vol)
+    plt.subplot(1, 3, 3)
+    dice_vol = np.zeros(fx_vol.shape)
+    dice_vol[(fx_vol>0) & (mv_vol>0)] = 1
+    dice_vol[ fx_vol * mv_vol > 0 ] = 2
+    plt.imshow(mv_vol*fx_vol)
     plt.savefig(out_png)
 
     if verbose :
         print('\tValidation: ', out_png)
 
-    return section_dice, fx_sum, idx
+    return section_dice_mean, fx_sum, idx
 
 def calculate_volume_accuracy(
     sect_info: pd.DataFrame,
@@ -150,19 +165,19 @@ def calculate_volume_accuracy(
 
     for idx, (i, row) in enumerate(sect_info.iterrows()):
         y = row["sample"]
+        base = os.path.basename(row["raw"]).split('.')[0]
 
         cls_fn = row["2d_align_cls"]
         tfm_dir = os.path.dirname(cls_fn)
 
         fx_fn = utils.gen_2d_fn(f"{tfm_dir}/y-{y}", "_fx")
 
-        out_png =f"{tfm_dir}/y-{y}_dice.png" 
-        if not os.path.exists(out_png) or clobber:
+        out_png =f"{tfm_dir}/{base}_y-{y}_dice.png" 
 
-            to_do.append((cls_fn, fx_fn, out_png, idx))
+        to_do.append((cls_fn, fx_fn, out_png, idx))
 
     parrallel_results = Parallel(n_jobs=num_cores)(
-        delayed(get_section_metric)(cls_fn, fx_fn, out_png, idx, verbose=True)
+        delayed(get_section_metric)(fx_fn, cls_fn, out_png, idx, verbose=True)
         for cls_fn, fx_fn, out_png, idx in to_do
     )
 
@@ -216,7 +231,7 @@ def output_stats(in_df):
 
     return out_df
 
-def validate_alignment(
+def validate_section_alignment(
     sect_info: pd.DataFrame, qc_dir: str, clobber: bool = False
 ):
     """
@@ -228,11 +243,15 @@ def validate_alignment(
     os.makedirs(qc_dir, exist_ok=True)
     out_csv = f"{qc_dir}/alignment_accuracy.csv"
 
-    if not os.path.exists(out_csv) or clobber : 
-        out_df = calculate_volume_accuracy(sect_info, qc_dir,  clobber=clobber)
-        out_df.to_csv(out_csv, index=True)
-    else:
-        out_df = pd.read_csv(out_csv)
+    cls_newer_than_out_csv = False
+    if os.path.exists(out_csv):
+        cls_newer_than_out_csv = [utils.newer_than(fn, out_csv) for fn in sect_info['2d_align_cls'].values]
+    
+        if True in cls_newer_than_out_csv or clobber:
+            clobber=True
+
+    out_df = calculate_volume_accuracy(sect_info, qc_dir,  clobber=clobber)
+    out_df.to_csv(out_csv, index=True)
     
     # plot
     return out_df

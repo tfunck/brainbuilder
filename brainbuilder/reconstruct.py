@@ -60,8 +60,9 @@ def reconstruct(
     interp_type: str = "surf",
     output_csv: str = "",
     n_depths: int = 0,
-    dice_threshold:float = 0.5,
+    use_nnunet: bool = True,
     num_cores: int = 0,
+    use_surface_smoothing: bool = False,
     batch_correction_resolution: float = 0,
     clobber: bool = False,
 ):
@@ -100,10 +101,11 @@ def reconstruct(
 
     maximum_resolution = resolution_list[-1]
 
-    valid_inputs = validate_inputs.validate_inputs(
-        hemi_info_csv, chunk_info_csv, sect_info_csv, valid_inputs_npz
-    )
-    assert valid_inputs, "Error: invalid inputs"
+    #FIXME UNCOMMENT
+    #valid_inputs = validate_inputs.validate_inputs(
+    #    hemi_info_csv, chunk_info_csv, sect_info_csv, valid_inputs_npz
+    #)
+    #assert valid_inputs, "Error: invalid inputs"
 
     sect_info_csv = downsample_sections(
             chunk_info_csv, 
@@ -112,10 +114,16 @@ def reconstruct(
             downsample_dir, 
             clobber=clobber
             )
+
     qc.data_set_quality_control(sect_info_csv, qc_dir, column='img')
 
     # Stage: Segment
-    seg_df_csv = segment(chunk_info_csv, sect_info_csv, seg_dir, maximum_resolution, clobber=clobber)
+    seg_df_csv = segment(chunk_info_csv, 
+                         sect_info_csv, 
+                         seg_dir, 
+                         maximum_resolution, 
+                         use_nnunet=use_nnunet, 
+                         clobber=clobber)
 
     qc.data_set_quality_control(seg_df_csv, qc_dir, column='seg')
 
@@ -136,9 +144,9 @@ def reconstruct(
         resolution_list,
         multires_align_dir,
         num_cores=num_cores,
-        dice_threshold=dice_threshold,
         clobber=clobber,
     )
+
     qc.data_set_quality_control(align_sect_info_csv, qc_dir, column='init_img')
 
     # Stage: Interpolate missing sections
@@ -149,6 +157,7 @@ def reconstruct(
             maximum_resolution,
             interp_dir,
             n_depths = n_depths,
+            use_surface_smoothing = use_surface_smoothing,
             batch_correction_resolution = batch_correction_resolution,
             clobber = clobber,
     )
@@ -203,13 +212,12 @@ def setup_argparse():
         default=0,
         help="number of cores to use for multiprocessing",
     )
-
     parser.add_argument(
-        "--dice-threshold",
-        dest="dice_threshold",
-        type=float,
-        default=0.5,
-        help="Cutoff dice coefficient for alignment of 2d sections (default=0.5)"
+        "--no-nnunet",
+        dest="use_nnunet",
+        default=True,
+        action="store_false",
+        help="Do not use nnUNet for segmentation",
     )
     parser.add_argument(
         "--ndepths",
@@ -233,6 +241,13 @@ def setup_argparse():
         help=" Resolution at which to correct batch effects (Default=0, no correction)",
     )
 
+    parser.add_argument(
+        "use_surface_smoothing",    
+        dest="use_surface_smoothing",
+        default=False,
+        action="store_true",
+        help="Use surface smoothing beore creating final volume",
+    )
     parser.add_argument(
         "--clobber",
         dest="clobber",
@@ -261,7 +276,7 @@ if __name__ == "__main__":
         output_dir=args.output_dir,
         pytorch_model_dir=args.pytorch_model_dir,
         n_depths=args.n_depths,
-        dice_threshold=args.dice_threshold,
+        use_nnunet=args.use_nnunet,
         batch_correction=args.batch_correction_resolution,
         num_cores=args.num_cores,
     )

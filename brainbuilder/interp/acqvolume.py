@@ -9,14 +9,13 @@ import nibabel as nb_surf
 import numpy as np
 import pandas as pd
 import stripy as stripy
-import vast.surface_tools as surface_tools
+from scipy.ndimage import gaussian_filter
 from joblib import Parallel, delayed
 from brainbuilder.interp.prepare_surfaces import prepare_surfaces
 from scipy.interpolate import interp1d
 from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
-from brainbuilder.utils.mesh_utils import load_mesh_ext
 from brainbuilder.utils.utils import get_thicken_width 
 
 def setup_section_normalization(acquisition, sect_info, array_src):
@@ -29,14 +28,13 @@ def setup_section_normalization(acquisition, sect_info, array_src):
     group_mean = 0
     group_std = 0
     
-
-    sect_info = sect_info.sort_values(["chunk_sample"])
+    sect_info = sect_info.sort_values(["sample"])
     if acquisition in []:  # [ 'cellbody' , 'myelin' ] :
         print("Normalizing", acquisition)
 
         normalize_sections = True
         for row_i, row in sect_info.iterrows():
-            y = int(row["chunk_sample"])
+            y = int(row["sample"])
 
             # Conversion of radioactivity values to receptor density values
             section = array_src[:, y, :]
@@ -93,9 +91,15 @@ def thicken_sections_within_chunk(
     chunk_sect_info,
     resolution,
     tissue_type="",
+    gaussian_sd=0,
 ):
+    print(thickened_fn)
+    print(source_image_fn)
     array_img = nib.load(source_image_fn)
     array_src = array_img.get_fdata()
+    print(array_src.shape); 
+
+    ystart = array_img.affine[1,3]
 
     assert np.sum(array_src) != 0, (
         "Error: source volume for thickening sections is empty\n" + source_image_fn
@@ -111,18 +115,19 @@ def thicken_sections_within_chunk(
 
     dim = [array_src.shape[0], 1, array_src.shape[2]]
     rec_vol = np.zeros_like(array_src)
+    n = np.zeros_like(array_src)
 
     use_conversion_factor = False
     if 'conversion_factor' in chunk_sect_info.columns :
         use_conversion_factor = True
 
+    
     for row_i, row in chunk_sect_info.iterrows():
-        y = int(row["chunk_sample"])
+        y = int(row["sample"])
+
         # Conversion of radioactivity values to receptor density values
         nl_2d_rsl = row['nl_2d_rsl']
         section = nib.load(nl_2d_rsl).get_fdata().copy()
-
-        print(nl_2d_rsl)
 
         if use_conversion_factor :
             conversion_factor = row["conversion_factor"]
@@ -135,27 +140,39 @@ def thicken_sections_within_chunk(
         y0 = int(y) - width if int(y) - width > 0 else 0
         y1 = (
             1 + int(y) + width
-            if int(y) + width < array_src.shape[1]
+            if 1 + int(y) + width < array_src.shape[1]
             else array_src.shape[1]
         )
 
         # put acquisition sections into rec_vol
         yrange = list(range(y0, y1))
-        #section[section>np.min(section)] = np.float32(int(row['chunk']))
-
-        rep = np.repeat(section.reshape(dim), len(yrange), axis=1)
         
-        rec_vol[:, yrange, :] = rep
-    
+        print('y = ', y, y0, y1)
+        rep = np.repeat(section.reshape(dim), len(yrange), axis=1)
+
+        rec_vol[:, yrange, :] += rep
+        n[:, yrange, :] +=  1
+   
+    # normalize by number of sections within range
+
+    assert np.sum(rec_vol) != 0, "Error: thickened volume is empty"
+    rec_vol[ n>0 ] = rec_vol[n>0] / n[n>0]
+    rec_vol[n==0] = 0
+
+    if np.sum(gaussian_sd) > 0:
+        empty_voxels = rec_vol < np.max(rec_vol) * 0.05
+        rec_vol = gaussian_filter(rec_vol, gaussian_sd)
+        rec_vol[empty_voxels] = 0
+
     if 'batch_offset' in chunk_sect_info.columns:
         #conversion_factor = chunk_info["conversion_factor"].values[0]
         batch_offset = chunk_sect_info["batch_offset"].values[0]
         #rec_vol = rec_vol * conversion_factor + conversion_offset
         print("\t\t\tbatch_offset", batch_offset)
-        idx = rec_vol > np.min(rec_vol)
-        rec_vol[idx] = rec_vol[idx] + batch_offset
+        rec_vol = rec_vol + batch_offset
 
     assert np.sum(rec_vol) != 0, "Error: thickened volume is empty"
+    print('\t\t\tThickened volume:\t', np.min(rec_vol), np.mean(rec_vol[rec_vol > rec_vol.min()]), np.max(rec_vol) ) 
 
     print("\tthickened_fn", thickened_fn)
     nib.Nifti1Image(rec_vol, array_img.affine, direction_order='lpi').to_filename(thickened_fn)
@@ -171,7 +188,6 @@ def check_all_thickened_files_exist(output_csv:str)->bool:
     '''
     chunk_info = pd.read_csv(output_csv)
     for (chunk, acquisition), chunk_info_row in chunk_info.groupby([ "chunk","acquisition"]):
-        print(chunk_info_row['thickened'].values[0])
         if not os.path.exists(chunk_info_row['thickened'].values[0]) :
             return False
     return True 
@@ -182,6 +198,7 @@ def create_thickened_volumes(
         sect_info:pd.DataFrame,
         resolution:float, 
         tissue_type:str="",
+        gaussian_sd=0,
         clobber:bool=False
 ):
     '''
@@ -207,12 +224,18 @@ def create_thickened_volumes(
         
         chunk_info_out = pd.DataFrame({})
 
+        #sample_total = 0
+        #for chunk in np.unique(chunk_info['chunk']):
+        #    sect_info['sample'].loc[ sect_info['chunk'] == chunk ] += sample_total  
+        #    sample_total += np.max(sect_info['sample'].loc[ sect_info['chunk'] == chunk ])
+
         for (chunk, acquisition), chunk_sect_info in sect_info.groupby([ "chunk","acquisition"]):
             
-            chunk_sect_info["chunk_sample"] = chunk_sect_info['sample'] - chunk_sect_info['sample'].min()
+            #chunk_sect_info["chunk_sample"] = chunk_sect_info['sample'] - chunk_sect_info['sample'].min()
             
             idx = (chunk_info['chunk'] == chunk) 
-
+            print(chunk)
+            print(chunk_info)
             chunk_info_row = chunk_info[idx].iloc[0]
 
             thickened_fn = f"{output_dir}/thickened_{int(chunk)}_{acquisition}_{resolution}{tissue_type}.nii.gz"
@@ -228,6 +251,7 @@ def create_thickened_volumes(
                     acquisition,
                     chunk_sect_info,
                     resolution,
+                    gaussian_sd=gaussian_sd
                 )
 
             chunk_info_out = pd.concat([chunk_info_out, chunk_info_row.to_frame().T])

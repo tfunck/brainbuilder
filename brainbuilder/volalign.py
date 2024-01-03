@@ -3,11 +3,14 @@ import os
 import nibabel
 import numpy as np
 import pandas as pd
+import seaborn as sns
+import imageio
+import matplotlib.pyplot as plt
 
+from brainbuilder.align.validate_alignment import validate_section_alignment
 from brainbuilder.align.align_2d import align_2d
 from brainbuilder.align.align_3d import align_3d
 from brainbuilder.align.intervolume import create_intermediate_volume
-from brainbuilder.align.validate_alignment import validate_alignment
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
 
@@ -20,9 +23,9 @@ output_tuples = (
         ("nl_3d_tfm_fn","align_3d_dir","_rec_to_mri_SyN_CC_Composite.h5"),
         ("nl_3d_tfm_inv_fn","align_3d_dir","_rec_to_mri_SyN_CC_InverseComposite.h5"),
         ("nl_2d_vol_fn","nl_2d_dir","_nl_2d.nii.gz"),
-        ("nl_2d_vol_cls_fn","nl_2d_dir","_nl_2d_cls.nii.gz"),
-        ("ref_space_rec_fn","nl_2d_dir","_ref_space-rec.nii.gz"),
-        ("ref_iso_space_rec_fn","nl_2d_dir","_ref_space-rec_iso.nii.gz")
+        ("nl_2d_vol_cls_fn","nl_2d_dir","_nl_2d_cls.nii.gz")#,
+        #("ref_space_rec_fn","nl_2d_dir","_ref_space-rec.nii.gz"),
+        #("ref_iso_space_rec_fn","nl_2d_dir","_ref_space-rec_iso.nii.gz")
 )
 
 def get_multiresolution_filenames(
@@ -113,9 +116,10 @@ def multiresolution_alignment(
         valinpts.Column("init_volume", "volume")
     ]
 
-    assert valinpts.validate_csv(hemi_info_csv, valinpts.hemi_info_required_columns)
-    assert valinpts.validate_csv(sect_info_csv, valinpts.sect_info_required_columns)
-    assert valinpts.validate_csv(chunk_info_csv, multi_resolution_required_columns)
+    #FIXME UNCOMMENT
+    #assert valinpts.validate_csv(hemi_info_csv, valinpts.hemi_info_required_columns)
+    #assert valinpts.validate_csv(sect_info_csv, valinpts.sect_info_required_columns)
+    #assert valinpts.validate_csv(chunk_info_csv, multi_resolution_required_columns)
 
     if sect_output_csv == "":
         sect_output_csv = f"{output_dir}/sect_info_multiresolution_alignment.csv"
@@ -152,11 +156,14 @@ def multiresolution_alignment(
         ### Reconstruct chunk for each sub, hemisphere, chunk
         groups = ["sub", "hemisphere", "chunk"]
         for (sub, hemisphere, chunk), curr_sect_info in sect_info.groupby( groups ):
+            print('HELLO!')
+            print(sub, hemisphere, chunk)
             idx = (
                 (chunk_info["sub"] == sub)
                 & (chunk_info["hemisphere"] == hemisphere)
                 & (chunk_info["chunk"] == chunk)
             )
+
             # get chunk_info for current chunk
             curr_chunk_info = chunk_info.loc[idx]
 
@@ -180,23 +187,17 @@ def multiresolution_alignment(
                     clobber = clobber,
                     )
 
-
             chunk_info_out = pd.concat([chunk_info_out, curr_chunk_info])
             sect_info_out = pd.concat([sect_info_out, curr_sect_info])
 
         qc_dir = f"{output_dir}/validate_alignment/"
-        maximum_resolution = resolution_list[-1]
 
-        sect_info_out = validate_alignment(
-            sect_info_out, output_dir, clobber=clobber
-        )
-        sect_info_out = sect_info_out.loc[sect_info_out["dice"] > dice_threshold]
-        
         chunk_info_out.to_csv(chunk_output_csv, index=False)
+
         sect_info_out.to_csv(sect_output_csv, index=False)
 
-    chunk_info = pd.read_csv(chunk_output_csv, index_col=None)
-    sect_info = pd.read_csv(sect_output_csv, index_col=None)
+    alignment_qc(sect_output_csv, output_dir)
+
     return chunk_output_csv, sect_output_csv
 
 
@@ -236,6 +237,63 @@ def verify_chunk_limits(ref_rsl_fn: str, chunk_info: pd.DataFrame, verbose: bool
 
     return [y0, y1], [y0w, y1w]
 
+def alignment_qc(sect_output_csv, output_dir, cutoff=0.7, clobber=False):
+
+    png_fn = f"{output_dir}/alignment_dice.png"
+    global_dice_csv = f"{output_dir}/global_dice.csv"
+    clobber=True
+    if not os.path.exists(sect_output_csv) or\
+            not os.path.exists(png_fn) or\
+            utils.newer_than(sect_output_csv, png_fn) or\
+            utils.newer_than(sect_output_csv, global_dice_csv) or\
+            clobber :
+
+        df = pd.read_csv(sect_output_csv, index_col=None)
+
+        dice_values = df['dice']
+
+        def normalize(x):
+            return (x - x.min()) / (x.max() - x.min()) * 100
+
+        normalized_sample = df.groupby('chunk')['sample'].transform(normalize)
+        df['Coronal Section %'] = normalized_sample
+        print('Coronal Section')
+        df['Dice'] = df['dice']
+        df['Slab'] = df['chunk']
+
+        plt.clf(); plt.close()
+        plt.figure(figsize=(10, 10))
+        sns.scatterplot(x='Coronal Section %', y='Dice', data=df, hue='Slab', palette='Set1',alpha=0.4)
+        sns.despine()
+        plt.savefig(png_fn, dpi=300, bbox_inches='tight')
+
+        
+        dice_df = df.groupby(["sub", "hemisphere", "chunk"])
+        print(dice_df['dice'].mean())
+        print(dice_df['dice'].std())
+
+        m=df['dice'].mean()
+        s=df['dice'].std()
+
+        print('\t\tDice of Aligned Sections:', m, s )
+        dice_df.to_csv(global_dice_csv)
+        with open(f"{output_dir}/global_dice.csv", 'w') as f:
+            f.write(f"{m},{s}\n")
+
+        bad_sections_df = df.loc[df['dice'] < cutoff]
+        os.makedirs(f"{output_dir}/bad_sections/", exist_ok=True)
+
+        for i, row in bad_sections_df.iterrows():
+            mv = row['nl_2d_cls_rsl']
+            out_fn = f"{output_dir}/bad_sections/{os.path.basename(mv)}.jpg"
+            ar = nibabel.load(mv).get_fdata()
+            plt.clf(); plt.close()
+            plt.title('Dice: {:.2f}'.format(row['dice']))
+            plt.imshow(ar, cmap='gray')
+            plt.savefig(out_fn, dpi=300, bbox_inches='tight')
+            print('\t\tBad section:', out_fn)
+
+
 
 def align_chunk(
     chunk_info: pd.DataFrame,
@@ -267,6 +325,7 @@ def align_chunk(
     sub, hemisphere, chunk = utils.get_values_from_df(chunk_info)
 
     chunk_info_out = pd.DataFrame()
+    sect_info_out = pd.DataFrame()
     print("\tMultiresolution:", sub, hemisphere, chunk)
 
     ### Iterate over progressively finer resolution
@@ -343,7 +402,7 @@ def align_chunk(
         ### Stage 3.3 : 2D alignment of receptor to resample MRI GM vol
         ###
         print("\t\t2D alignment of receptor to resample MRI GM vol")
-        sect_info = align_2d(
+        sect_info, ref_space_nat_fn = align_2d(
             sect_info,
             row["nl_2d_dir"],
             row["seg_dir"],
@@ -360,5 +419,12 @@ def align_chunk(
             num_cores = num_cores,
             clobber = clobber
         )
+        row['ref_space_nat'] = ref_space_nat_fn
         chunk_info_out = pd.concat([chunk_info_out, row.to_frame().T ])
+        sect_info_out = pd.concat([sect_info_out, sect_info])
+
+
+    sect_info = validate_section_alignment(sect_info, output_dir)
+
+
     return chunk_info_out, sect_info

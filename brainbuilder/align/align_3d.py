@@ -54,6 +54,8 @@ def pad_volume(vol, max_factor, affine, min_voxel_size=29, direction=[1, 1, 1]):
     affine[0, 3] -= x_pad * abs(affine[0, 0]) * direction[0]
     affine[1, 3] -= y_pad * abs(affine[1, 1]) * direction[1]
     affine[2, 3] -= z_pad * abs(affine[2, 2]) * direction[2]
+    print(np.sum(vol), np.sum(vol_padded))
+    print(vol.dtype, vol_padded.dtype); 
 
     return vol_padded, affine
 
@@ -210,9 +212,9 @@ def write_ref_chunk(
             aff,
             direction=direction[[0, 1, 2], [0, 1, 2]],
         )
-
+        
         nib.Nifti1Image(
-            pad_ref_chunk.astype(np.float16),
+            pad_ref_chunk,
             pad_aff,
             direction=direction,
             dtype=np.uint8,
@@ -504,7 +506,7 @@ def align_3d(
             resolution,
             manual_affine_fn,
             use_masks=use_masks,
-            sampling=0.99,
+            sampling=0.95,
             metric="Mattes",
         )
 

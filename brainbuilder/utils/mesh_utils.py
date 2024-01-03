@@ -1,13 +1,16 @@
 import os
+import re
 
 import ants
 import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
-import nibabel as nb
 import pandas as pd
+from joblib import Parallel, delayed, cpu_count
+from sklearn.metrics import pairwise_distances
 
 import brainbuilder.utils.ants_nibabel as nib
+import brainbuilder.utils.utils as utils
 
 matplotlib.use("Agg")
 import multiprocessing
@@ -20,6 +23,295 @@ from brainbuilder.utils.mesh_io import load_mesh, save_mesh
 from brainbuilder.utils.utils import shell
 
 
+def interleve(x,step):
+    '''
+
+    '''
+    return np.concatenate([ x[i:x.shape[0]+1:step] for i in range(step) ] )
+
+def magnitude(V):
+    D = np.power(V, 2)
+    if  len(D.shape)==1:
+        D=np.sum(D)
+    else :
+        D=np.sum(D, axis=1)
+    return np.sqrt(D)
+
+def difference(V):
+    D = np.power(V, 2)
+    if  len(D.shape)==1:
+        D=np.sum(D)
+    else :
+        D=np.sum(D, axis=1)
+    return  D
+
+def pair_vectors(c0,c1):
+    X = np.repeat(c0, c1.shape[0], axis=0)
+    # create array with repeated columns of c0
+    Y = interleve(np.repeat(c1, c0.shape[0], axis=0), c0.shape[0])
+    return X,Y
+
+def diff(theta0,theta1,r):
+    # integrate_theta0^theta1 r d(theta)
+    # -> r(theta1 - theta0)
+    return 
+
+def get_average_magnitude(p0,p1):
+
+    r = np.mean([r0,r1])
+    return r
+    
+def spherical_distance(v0,v1):
+    #caclulate radius from points
+    #points may not be perfectly spherical so we take an average
+
+    r0 = magnitude(v0[:,0:2])  #radius of points in p0 on azithumal XY plane
+    r1 = magnitude(v1[:,0:2])  #radius of points in p1 on azithumal XY plane  
+
+    p0 = magnitude(v0) #magnitude of points in p0 in 3d
+    p1 = magnitude(v1) #magnitude of points in p0 in 3d
+
+    r = np.mean(np.array([r0,r1]))
+    p = np.mean(np.array([p0,p1]))
+
+    phi0 = np.arccos(v0[:,2]/p0)
+    phi1 = np.arccos(v1[:,2]/p1)
+
+    # x = ρ sinφ cosθ
+    # y = ρ sinφ sinθ
+    # z = ρ cosφ --> cosφ = z/ρ --> φ = arccos(z/ρ)
+    # θ = arccos(z/p)
+
+    theta0 = np.arccos(v0[:,0]/r0)
+    theta1 = np.arccos(v1[:,0]/r1)
+
+    theta0[ np.isnan(theta0) ] = 0
+    theta1[ np.isnan(theta1) ] = 0
+
+    X=np.column_stack([phi0,theta0])
+    Y=np.column_stack([phi1,theta1])
+    dist = pairwise_distances(X,Y,metric='haversine') * p 
+    return dist
+
+
+def pairwise_coord_distances(c0:np.ndarray, c1:np.ndarray,use_l2=True) -> np.ndarray:
+    '''
+    calculate the pairwise distance between
+        c0: 3d coordinates
+        c1: 3d coordinates
+        
+    '''
+    c0 = c0.astype(np.float16)
+    c1 = c1.astype(np.float16)
+    try :
+        X,Y = pair_vectors(c0,c1)
+
+        if method == 'l2' :
+            D = magnitude(X-Y)
+        elif method == 'diff' :
+            D = difference(X-Y)
+        elif method == 'spherical':
+            D = spherical_distance(X-Y)
+
+
+
+        D = D.reshape(c0.shape[0],c1.shape[0])
+    except MemoryError or np.core._exceptions.MemoryError:
+        print('Warning: OOM. Defaulting to slower pairwise distance calculator', end='...\n')
+        D=np.zeros([c0.shape[0],c1.shape[0]], dtype=np.float16)
+        for i in range(c0.shape[0]) : #iterate over rows of co
+            if i%100==0: print(f'Completion: {np.round(100*i/c0.shape[0],1)}',end='\r')
+            #calculate magnitude of point in row i of c0 versus all points in c1
+            D[i] = magnitude(c1-c0[i])
+
+    return D
+
+def smooth_surface(coords, values, sigma, sigma_n=5):
+
+    #precaculate the denominator and sigma squared for the normal distribution
+    den = 1/(sigma*np.sqrt(2*np.pi))
+    sigma_sq = np.power(sigma, 2)
+    
+    #define the normal distribution
+    normal_pdf = lambda dist : den * np.exp(-0.5 *  dist / sigma_sq)
+
+    #calculate the pairwise distance between all coordinates
+    #dist = pairwise_coord_distances(coords, coords, use_l2=False) 
+    dist = spherical_distance(coords, coords)
+    
+    wghts = normal_pdf(dist)
+    del dist
+
+    # normalize the weights
+    wghts = wghts / np.sum(wghts, axis=1)[..., np.newaxis]
+
+    wghts_sum = np.sum(wghts, axis=1)
+
+    assert np.sum( wghts_sum - 1 ) < 0.0001, f'Error: weights do not sum to 1 {wghts_sum}'
+
+    wghts[np.isnan(wghts)] = 0
+
+    # repeat the values for each coordinate so that it can be multiplied by weights matrix
+    #values = np.ones([coords.shape[0],1])
+    # multiply the values by the weights matrix and sum along rows
+    smoothed_values = np.matmul(wghts,values)
+    del wghts
+    
+    # replace any NaN values with the original values
+    idx = np.isnan(smoothed_values)
+    smoothed_values[idx] = values[idx]
+    del idx
+
+
+    return smoothed_values.reshape(-1,)
+
+def local_smooth_surf(
+    coords,
+    values,
+    sigma,
+    radius,
+    xparams,
+    yparams,
+    zparams,
+    x,
+    y,
+    z,
+):
+
+    xw = coords[:,0]
+    yw = coords[:,1]
+    zw = coords[:,2]
+
+    xmin, xmax, xstep = xparams
+    ymin, ymax, ystep = yparams
+    zmin, zmax, zstep = zparams
+
+    # .     |           |
+    # x0    |           | 
+    # .     x           x+step
+    x0, x1 = x - radius, x + xstep + radius
+    y0, y1 = y - radius, y + ystep + radius
+    z0, z1 = z - radius, z + zstep + radius
+
+    core_idx = np.where( (x <= xw) & (xw < x+xstep) &
+                         (y <= yw) & (yw < y+ystep) &
+                         (z <= zw) & (zw < z+zstep) 
+                        )[0]
+
+    search_idx = np.where( (x0 <= xw) & (xw < x1) &
+                           (y0 <= yw) & (yw < y1) &
+                           (z0 <= zw) & (zw < z1)
+                      )[0]
+
+    # identify which of the local coordiantes are within the core
+    local_coords = coords[search_idx,:]
+
+    local_core_idx = np.where((x <= local_coords[:,0]) & (local_coords[:,0] < x+xstep) &
+                              (y <= local_coords[:,1]) & (local_coords[:,1] < y+ystep) &
+                              (z <= local_coords[:,2]) & (local_coords[:,2] < z+zstep)
+                              )[0]
+    if core_idx.shape[0] > 0 :
+
+        local_values = values[search_idx].reshape(-1,1)
+
+        smoothed_local_values = smooth_surface(local_coords, local_values, sigma)
+    else : 
+        smoothed_local_values = values[core_idx]
+
+    
+    return core_idx, smoothed_local_values[local_core_idx]
+
+def smooth_surface_by_parts(coords, values, sigma, n_sigma=3, step=10):
+
+    smoothed_values = np.zeros_like(values)
+
+    assert step>0, f'Error: step must be greater than 0, {step}'
+
+    radius = n_sigma*sigma
+
+    xw = coords[:,0]
+    yw = coords[:,1]
+    zw = coords[:,2]
+
+    xmin, xmax = np.min(xw), np.max(xw)
+    ymin, ymax = np.min(yw), np.max(yw)
+    zmin, zmax = np.min(zw), np.max(zw)
+
+    xstep = (xmax-xmin)/step
+    ystep = (ymax-ymin)/step   
+    zstep = (zmax-zmin)/step
+
+    x_range = np.arange(xmin, xmax, xstep)
+    y_range = np.arange(ymin, ymax, ystep)
+    z_range = np.arange(zmin, zmax, zstep)
+
+    n_dist = 0 
+    n = 1
+    to_do=[]
+    for i, x in enumerate(x_range):
+        for j, y in enumerate(y_range):
+            for k, z in enumerate(z_range):
+                to_do.append(
+                        (
+                            (xmin,xmax,xstep),
+                            (ymin,ymax,ystep),
+                            (zmin,zmax,zstep),
+                            x,
+                            y,
+                            z,
+                        )
+                    )
+                x1, y1, z1 = x + xstep, y + ystep, z + zstep
+                idx = ( (coords[:,0] > x) & (coords[:,0] < x1) &\
+                        (coords[:,1] > y) & (coords[:,1] < y1) &\
+                        (coords[:,2] > z) & (coords[:,2] < z1) 
+                       )
+                n_dist += np.sum(idx) ** 2
+                n += 1
+                
+    n_elems = len(to_do)
+    n_vtx = (xstep*ystep*zstep)
+
+    avg_n_dist = n_dist / n
+
+    element_list = avg_n_dist * 2  + [values.shape[0] , coords.shape[0]*3]
+    print(avg_n_dist * values.dtype.itemsize / 1024 / 1024 / 1024 )
+    element_size_list = [ values.dtype.itemsize ] + [values.dtype.itemsize, coords.dtype.itemsize] 
+
+    n_cores = utils.get_maximum_cores(element_list, element_size_list)
+
+    results = Parallel(n_jobs=n_cores)(delayed(local_smooth_surf)(coords,values,sigma,radius,xparam,yparam,zparam,x,y,z) for xparam,yparam,zparam,x,y,z in to_do) 
+
+    for core_idx, smoothed_local_values in results:
+        smoothed_values[core_idx] =  smoothed_local_values
+    
+    return smoothed_values
+
+def smooth_surface_profiles(profiles_fn, surf_depth_mni_dict, sigma, clobber=False):
+
+    smoothed_profiles_fn = profiles_fn + '_smoothed'
+
+    if not os.path.exists(smoothed_profiles_fn) or clobber:
+        print('\tSmoothing surface profiles')
+
+        profiles = np.load(profiles_fn+'.npz')['data']
+        smoothed_profiles = np.zeros_like(profiles)
+
+        for i, (depth, surf_dict) in enumerate(surf_depth_mni_dict.items()):
+            print('\t\tDepth:', depth)
+            surf_fn = surf_dict['sphere_rsl_fn']
+            coords = load_mesh_ext(surf_fn)[0]
+            profile = profiles[:, i]
+
+            smoothed_profile = smooth_surface_by_parts(coords, profile, sigma)
+            #plt.scatter(profile, smoothed_profile); plt.savefig(f'/tmp/tmp_{i}.png')
+            #plt.clf(); plt.cla()
+
+            smoothed_profiles[:, i] = smoothed_profile
+
+        np.savez(smoothed_profiles_fn, data=smoothed_profiles)
+
+    return smoothed_profiles_fn
 
 def get_edges_from_faces(faces):
     # for convenience create vector for each set of faces
@@ -119,8 +411,32 @@ def volume_to_mesh(
     # get nearest neighbour voxel intensities at x and z coordinate locations
     values = vol[x[idx], y[idx], z[idx]]
 
-    return values, idx
 
+    return values, idx 
+
+def write_mesh_to_volume(profiles, surfaces, volume_fn, output_fn, resolution, clobber=False):
+   
+    if not os.path.exists(output_fn) or clobber:
+        img = nibabel.load(volume_fn)
+        starts = img.affine[0:3, 3]
+        steps = np.diag(img.affine)[0:3]
+        dimensions = img.shape
+
+        vol = multi_mesh_to_volume(
+            profiles,
+            surfaces,
+            dimensions,
+            starts,
+            steps,
+            resolution,
+        )
+
+        print(f"\tWriting mesh to volume {output_fn}")
+        nib.Nifti1Image(vol, nib.load(volume_fn).affine,direction_order='lpi').to_filename(output_fn)
+    else :
+        vol = nib.load(output_fn).get_fdata()
+
+    return vol
 
 def mesh_to_volume(
     coords,
@@ -128,7 +444,6 @@ def mesh_to_volume(
     dimensions,
     starts,
     steps,
-    origin=[0, 0, 0],
     interp_vol=None,
     n_vol=None,
     validate=True,
@@ -187,19 +502,17 @@ def mesh_to_volume(
 def multi_mesh_to_volume(
     profiles,
     surfaces,
-    depth_list,
     dimensions,
     starts,
     steps,
     resolution,
-    ref_fn=None,
 ):
     interp_vol = np.zeros(dimensions)
     n_vol = np.zeros_like(interp_vol)
 
     for ii in range(profiles.shape[1]):
         
-        surf_fn = surfaces[depth_list[ii]]['depth_rsl_fn']
+        surf_fn = surfaces[ii]
         
         if "npz" in os.path.splitext(surf_fn)[-1]:
             pass
@@ -594,11 +907,10 @@ def visualization(surf_coords_filename, values, output_filename):
     z = surf_coords[:,2]
     x_idx = get_valid_idx(x,5)
     z_idx = get_valid_idx(z,5)
-    sns.set(rc={'axes.facecolor':'black', 'figure.facecolor':'black'})
+    #sns.set(rc={'axes.facecolor':'black', 'figure.facecolor':'black'})
 
     plt.figure(figsize=(22,12))
     plt.subplot(1,2,1)
-    #sns.set_style("dark")
     ax1 = sns.scatterplot(x=y[x_idx], y=z[x_idx], hue=values[x_idx], palette='nipy_spectral',alpha=0.2)
 
     sns.despine(left=True, bottom=True)
@@ -618,6 +930,7 @@ def visualization(surf_coords_filename, values, output_filename):
     plt.savefig(output_filename)
     plt.clf()
     plt.cla()
+    plt.close()
 
 
 def apply_ants_transform_to_gii(
@@ -699,7 +1012,7 @@ def apply_ants_transform_to_gii(
 
     nii_fn = out_path + flip_label + ".nii.gz"
     if ref_vol_fn != None:
-        img = nb.load(ref_vol_fn)
+        img = nibabel.load(ref_vol_fn)
         steps = img.affine[[0, 1, 2], [0, 1, 2]]
         starts = img.affine[[0, 1, 2], 3]
         dimensions = img.shape

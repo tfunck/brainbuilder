@@ -10,7 +10,8 @@ import SimpleITK as sitk
 from joblib import Parallel, delayed
 from nibabel.processing import *
 from scipy.ndimage import gaussian_filter
-from skimage.filters import threshold_li
+from skimage.filters import threshold_yen, threshold_niblack, threshold_li, threshold_mean, threshold_triangle, threshold_otsu
+from skimage.morphology import disk
 from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
@@ -19,6 +20,26 @@ from brainbuilder.utils import utils
 base_file_dir, fn = os.path.split(os.path.abspath(__file__))
 repo_dir = f"{base_file_dir}/../"
 
+
+def apply_threshold(img, method):
+    thr = method(img)
+    im = np.zeros_like(img)
+    im[img>thr] = 1
+    return im
+
+def multi_threshold(img):
+    seg = np.zeros_like(img)
+    methods = [threshold_li, threshold_mean, threshold_triangle, 
+               threshold_otsu, threshold_niblack]
+    for method in methods:
+        im_thr = apply_threshold(img, method)
+        seg += im_thr
+
+    n = len(methods)
+    seg /= n
+    seg[seg<0.5] = 0
+    seg[seg>=0.5] = 1
+    return seg
 
 def histogram_threshold(raw_fn: str, seg_fn: str, sd: float = 1):
     """
@@ -33,17 +54,14 @@ def histogram_threshold(raw_fn: str, seg_fn: str, sd: float = 1):
 
     affine = img.affine
     dimensions = img.shape
+    step = np.mean(affine[[0,1], [0,1]])
 
     ar = img.get_fdata()
     assert np.sum(np.abs(ar)) > 0, "Error: empty input image with histogram thresholding " + raw_fn
-    ar = gaussian_filter(ar, sd).astype(np.float64)
-    out = np.zeros(ar.shape)
-    values = ar[ar > np.min(ar)]
-    idx = ar > threshold_li(values)
 
-    out[idx] = 1
+    out = multi_threshold(ar)
 
-    out = resize(ar, dimensions, order=0)
+    out = resize(out, dimensions, order=0)
     if len(out.shape) == 3:
        out = out.reshape([out.shape[0], out.shape[1]]) 
 
@@ -111,11 +129,11 @@ def convert_2d_array_to_nifti(
         print("Wrote:", output_filename)
 
 
-def assign_seg_filenames(df: typeDataFrame, output_dir: str):
+def assign_seg_filenames(df: typeDataFrame, resolution:float, output_dir: str):
     
 
     df["seg"] = df["raw"].apply(
-        lambda fn: utils.gen_new_filename(fn, output_dir, "_seg.nii.gz")
+        lambda fn: utils.gen_new_filename(fn, output_dir, f'_{resolution}mm_seg.nii.gz')
     )
     return df
 
@@ -133,34 +151,43 @@ def apply_histogram_threshold(sect_info: typeDataFrame, num_cores: int = 1) -> N
     return None
 
 
+def get_nnunet_filename(input_fn: str, nnunet_out_dir: str):
+
+    if '.nii.gz' in input_fn :
+        base = re.sub('.nii.gz', '', input_fn) 
+    else:
+        base = os.path.splitext(input_fn)[0]
+    base = os.path.basename( base )
+    
+    print(f"{nnunet_out_dir}/{base}*")
+
+    nnunet_list = glob(f"{nnunet_out_dir}/{base}*")
+
+    nnunet_fn = nnunet_list[0]
+    
+    return nnunet_fn
+
 def convert_from_nnunet_list(
     sect_info: typeDataFrame, 
     nnunet_out_dir: str, 
+    nnunet_input_str: str = 'img',
     warning_flag: bool = False,
-    clobber: bool = False
+    clobber: bool = False,
 ) -> list:
     """
     Convert the nnunet images to regular nifti images
     param: sect_info: dataframe with columns: img, seg_fn
     param: nnunet_out_dir: directory to save nnunet images
+    param: nnunet_input_str: column name for nnunet input
     param: clobber: overwrite existing files
     return: list of files to convert
     """
     to_do = []
     for i, row in sect_info.iterrows():
-        img_fn = row["img"]
-        raw_fn = row["raw"]
+        img_fn = row[nnunet_input_str]
         seg_fn = row["seg"]
-       
-        if '.nii.gz' in img_fn :
-            base = re.sub('.nii.gz', '', raw_fn) 
-        else:
-            base = os.path.splitext(raw_fn)[0]
-        base = os.path.basename( base )
-
-        nnunet_list = glob(f"{nnunet_out_dir}/{base}*")
-
-        nnunet_fn = nnunet_list[0]
+      
+        nnunet_fn = get_nnunet_filename(img_fn, nnunet_out_dir)
 
         if utils.check_run_stage([seg_fn], [nnunet_fn], clobber=clobber) :
             if warning_flag : 
@@ -173,6 +200,7 @@ def convert_to_nnunet_list(
     chunk_info: typeDataFrame,
     sect_info: typeDataFrame,
     nnunet_in_dir: str, 
+    nnunet_input_str: str = 'img',
     clobber: bool = False
     ) -> list:
     """
@@ -184,7 +212,7 @@ def convert_to_nnunet_list(
     """
     to_do = []
     for i, row in sect_info.iterrows():
-        f = row["raw"]
+        f = row[nnunet_input_str]
 
         idx =   (chunk_info['sub'] == row['sub']) &\
                 (chunk_info['hemisphere'] == row['hemisphere']) & \
@@ -194,7 +222,7 @@ def convert_to_nnunet_list(
             row["sub"], row["hemisphere"], row["chunk"], chunk_info
         )
 
-        fname = os.path.split(f)[1].split(".")[0]
+        fname = re.sub('.nii.gz', '', os.path.basename(f)) 
         output_filename_truncated = os.path.join(nnunet_in_dir, fname)
         output_filename = output_filename_truncated + "_0000.nii.gz"
         if not os.path.exists(output_filename) or not utils.newer_than(output_filename, f) or clobber:
@@ -203,13 +231,24 @@ def convert_to_nnunet_list(
     return to_do
 
 
-def check_seg_files(sect_info, warning_flag=False):
+def check_seg_files(sect_info, nnunet_out_dir, warning_flag=False, nnunet_input_str='img'):
+
+    all_files_valid = True
     for i, row in sect_info.iterrows():
-        if not os.path.exists(row["seg"]):
+        
+        # check if seg file is newer than raw file, if not the seg file must be removed
+        if not utils.newer_than(row["seg"], row["img"]) :
+
+            nnunet_filename = get_nnunet_filename(row[nnunet_input_str], nnunet_out_dir)
+            os.remove(row["seg"])
+            os.remove(nnunet_filename)
+            
+        if not os.path.exists(row["seg"]) :
+            all_files_valid = False
             if warning_flag:
                 print('\tWarning: Could not find file:', row["seg"])
-            return False
-    return True 
+            
+    return all_files_valid
 
 def segment(
     chunk_info_csv:str,
@@ -235,6 +274,8 @@ def segment(
     return: csv file with columns: raw, seg_fn
     """
 
+    nnunet_input_str = 'img'
+
     if output_csv == "":
         output_csv = (
             output_dir
@@ -245,7 +286,11 @@ def segment(
 
     # check it 'seg' files are all newer than 'img' files 
 
-    run_stage = utils.check_run_stage('seg', 'img',output_csv, clobber=clobber)
+    sect_info = pd.read_csv(sect_info_csv, index_col=False)
+    
+    sect_info = assign_seg_filenames(sect_info, resolution, output_dir)
+
+    run_stage = utils.check_run_stage(sect_info['seg'], sect_info['img'], output_csv, clobber=clobber)
 
     if run_stage :
         nnunet_in_dir = f"{output_dir}/nnunet/"
@@ -255,13 +300,10 @@ def segment(
 
         num_cores = utils.set_cores(num_cores)
 
-        sect_info = pd.read_csv(sect_info_csv, index_col=False)
         chunk_info = pd.read_csv(chunk_info_csv, index_col=False)
 
-        sect_info = assign_seg_filenames(sect_info, output_dir)
-
         nifti2nnunet_to_do = convert_to_nnunet_list(
-            chunk_info, sect_info, nnunet_in_dir, clobber=clobber
+            chunk_info, sect_info, nnunet_in_dir, nnunet_input_str=nnunet_input_str, clobber=clobber
         )
 
         Parallel(n_jobs=num_cores)(
@@ -269,36 +311,44 @@ def segment(
             for ii_fn, pixel_size_0, pixel_size_1, oo_fn in nifti2nnunet_to_do
         )
 
-        missing_segmentations = not check_seg_files(sect_info, True) 
+        missing_segmentations = not check_seg_files(sect_info, nnunet_out_dir, False, nnunet_input_str=nnunet_input_str) 
 
-        use_nnunet = False
         if missing_segmentations or clobber :
-            print("\tSegmenting with nnUNet")
-            try:
-                utils.shell(
-                    f"nnUNetv2_predict_from_modelfolder --c --verbose -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir} -f 0  -d Dataset501_Brain -device cpu"
-                )
-                use_nnunet = True
-            except:
-                apply_histogram_threshold(sect_info, num_cores=num_cores)
+            if use_nnunet :
+                print("\tSegmenting with nnUNet")
+                try:
+                    utils.shell(
+                        f"nnUNetv2_predict_from_modelfolder --c --verbose -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir} -f 0  -d Dataset501_Brain -device cpu"
+                    )
+                    use_nnunet = True
+                except:
+                    print("Warning: nnUNet failed to segment")
+                    use_nnunet = False
 
+        if not use_nnunet :
+            apply_histogram_threshold(sect_info, num_cores=num_cores)
 
-        nnunet2nifti_to_do = convert_from_nnunet_list(
-            sect_info, 
-            nnunet_out_dir,
-            warning_flag=False,
-            clobber=clobber
-        )
-
-        if use_nnunet and len(nnunet2nifti_to_do) > 0:
-            print("\tConvert Files from nnUNet to standard nifti files")
-
-            Parallel(n_jobs=num_cores)(
-                delayed(convert_from_nnunet)(nnunet_fn, raw_fn, seg_fn, output_dir)
-                for nnunet_fn, raw_fn, seg_fn in nnunet2nifti_to_do
+        if use_nnunet :
+            nnunet2nifti_to_do = convert_from_nnunet_list(
+                sect_info, 
+                nnunet_out_dir,
+                nnunet_input_str=nnunet_input_str,
+                warning_flag=False,
+                clobber=clobber
             )
 
-        assert check_seg_files(sect_info, warning_flag=True), "Missing segmentations"
+            if len(nnunet2nifti_to_do) > 0:
+                print("\tConvert Files from nnUNet to standard nifti files")
+
+                Parallel(n_jobs=num_cores)(
+                    delayed(convert_from_nnunet)(nnunet_fn, raw_fn, seg_fn, output_dir)
+                    for nnunet_fn, raw_fn, seg_fn in nnunet2nifti_to_do
+                )
+
+        assert check_seg_files(sect_info,
+                               nnunet_out_dir, 
+                               warning_flag=True, 
+                               nnunet_input_str=nnunet_input_str), "Missing segmentations"
 
         sect_info.to_csv(output_csv, index=False)
 

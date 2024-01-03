@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 import brainbuilder.utils.ants_nibabel as nib
+from brainbuilder.utils import utils
 from brainbuilder.utils.mesh_io import load_mesh, save_mesh
 from brainbuilder.utils.mesh_utils import (
     load_mesh_ext,
@@ -34,7 +35,7 @@ def transform_surface_to_chunks(
 
         surf_chunk_dict[chunk] = surf_chunk_space_fn
 
-        if not os.path.exists(surf_chunk_space_fn):
+        if not os.path.exists(surf_chunk_space_fn) or utils.newer_than(nl_3d_tfm_fn, surf_chunk_space_fn) :
 
             print("\tFROM:", surf_fn)
             print("\tTO:", surf_chunk_space_fn)
@@ -60,6 +61,7 @@ def prepare_surfaces(
         depth_list: list,
         output_dir: str,
         resolution: float,
+        verbose: bool = False,
         clobber: bool = False
 ):
     """
@@ -78,7 +80,7 @@ def prepare_surfaces(
 
     os.makedirs(output_dir, exist_ok=True)
 
-    print("\tGenerating surfaces across cortical depth.")
+    if verbose : print("\tGenerating surfaces across cortical depth.")
     surf_depth_mni_dict = generate_cortical_depth_surfaces(
         ref_vol_fn,
         depth_list,
@@ -88,12 +90,12 @@ def prepare_surfaces(
         output_dir,
     )
 
-    print("\tInflating surfaces.")
+    if verbose : print("\tInflating surfaces.")
     surf_depth_mni_dict = inflate_surfaces(
         surf_depth_mni_dict, output_dir, resolution, depth_list, clobber=clobber
     )
 
-    print("\tUpsampling surfaces.")
+    if verbose : print("\tUpsampling surfaces.")
     surf_depth_mni_dict = upsample_surfaces(
         surf_depth_mni_dict,
         output_dir,
@@ -105,7 +107,8 @@ def prepare_surfaces(
     )
 
     # For each chunk, transform the mesh surface to the receptor space
-    print("\tTransforming surfaces to chunk space.")
+    if verbose : print("\tTransforming surfaces to chunk space.")
+
 
     surf_depth_chunk_dict = transfrom_depth_surf_to_chunk_space(
         chunk_info, surf_depth_mni_dict, output_dir
@@ -242,8 +245,6 @@ def inflate_surfaces(
 
     for depth in depth_list:
         depth += 0.0
-        print("\tDepth", depth)
-        print(surf_depth_mni_dict[float(depth)])
         depth_surf_fn = surf_depth_mni_dict[float(depth)]["depth_surf_fn"]
         inflate_fn = "{}/surf_{}mm_{}.inflate".format(output_dir, resolution, depth)
         sphere_fn = "{}/surf_{}mm_{}.sphere".format(output_dir, resolution, depth)
