@@ -9,10 +9,9 @@ from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
-from brainbuilder.utils import validate_inputs as valinpts
 from brainbuilder.utils.ANTs import ANTs
-
 from brainbuilder.utils.utils import AntsParams
+
 
 def load2d(fn):
     ar = nib.load(fn).get_fdata()
@@ -181,7 +180,7 @@ def adjust_alignment(
     j = i
     len(y_idx)
     y_idx_tier1 = df["sample"].loc[df["tier"] == 1].values.astype(int)
-    
+
     y_idx_tier1.sort()
     i_max = step if step < 0 else df["sample"].values.max() + 1
 
@@ -209,7 +208,6 @@ def adjust_alignment(
             target_acquisition=target_acquisition,
             clobber=clobber,
         )
-
 
     # df.to_csv('{}/df_{}-0.csv'.format(output_dir,tfm_type))
     return transforms, df
@@ -253,8 +251,8 @@ def combine_sections_to_vol(df, y_mm, z_mm, direction, out_fn, target_tier=1):
     zstep = affine[1, 1]
     ystep = y_mm
 
-    xmax = int(shape[0] )
-    zmax = int(shape[1] )
+    xmax = int(shape[0])
+    zmax = int(shape[1])
     order_max = df["sample"].astype(int).max()
     df["sample"].astype(int).min()
     chunk_ymax = int(order_max + 1)  # -order_min + 1
@@ -303,19 +301,18 @@ def alignment_stage(
     acquisition_n=0,
     clobber=False,
 ):
-    """
-    Perform alignment of autoradiographs within a chunk. Alignment is calculated once from the middle section in the
+    """Perform alignment of autoradiographs within a chunk. Alignment is calculated once from the middle section in the
     posterior direction and a second time from the middle section in the anterior direction.
     """
     # Set parameters for rigid transform
     tfm_type = "Rigid"
-    shrink_factor = linParams.f_str #'12x10x8' #x4x2x1'
-    smooth_sigma = re.sub('vox', '', linParams.s_str) # '6x5x4' #x2x1x0'
-    iterations = linParams.itr_str.split(',')[0][1:]  # '100x50x25' #x100x50x20'
+    shrink_factor = linParams.f_str  #'12x10x8' #x4x2x1'
+    smooth_sigma = re.sub("vox", "", linParams.s_str)  # '6x5x4' #x2x1x0'
+    iterations = linParams.itr_str.split(",")[0][1:]  # '100x50x25' #x100x50x20'
 
-    shrink_factor = '4x3x2'
-    smooth_sigma = '2x1.5x1'
-    iterations = '10x5x2' 
+    shrink_factor = "4x3x2"
+    smooth_sigma = "2x1.5x1"
+    iterations = "10x5x2"
 
     csv_fn = vol_fn_str.format(
         output_dir,
@@ -326,7 +323,7 @@ def alignment_stage(
         ".csv",
     )
 
-    if not os.path.exists(csv_fn) or not os.path.exists(out_fn) :
+    if not os.path.exists(csv_fn) or not os.path.exists(out_fn):
         df.sort_values(["sample"], inplace=True, ascending=False)
 
         y_idx = df["sample"].values
@@ -338,7 +335,7 @@ def alignment_stage(
 
         df["img_new"] = df["img"]
         df["init_tfm"] = [None] * df.shape[0]
-        df["init_img"] = df['img_new'] 
+        df["init_img"] = df["img_new"]
         df["init_fixed"] = [None] * df.shape[0]
 
         # perform alignment in forward direction from middle section
@@ -395,17 +392,16 @@ def alignment_stage(
 
 
 def create_final_outputs(
-        final_tfm_dir:str,
-        df:pd.DataFrame, 
-        step:int,
-        )->pd.DataFrame:
-    '''
-    Create final outputs for the alignment stage
+    final_tfm_dir: str,
+    df: pd.DataFrame,
+    step: int,
+) -> pd.DataFrame:
+    """Create final outputs for the alignment stage
     :param final_tfm_dir: path to directory containing final transforms
     :param df: dataframe containing section information
     :param step: step size for iterating over sections
     :return: dataframe containing section information
-    '''
+    """
     y_idx_tier = df["sample"].values.astype(int)
     y_idx_tier.sort()
 
@@ -431,11 +427,10 @@ def create_final_outputs(
             final_tfm_dir, int(row["sample"].values[0])
         )
         final_section_fn = f'{final_tfm_dir}/{int(row["sample"].values[0])}{os.path.basename(row["img"].values[0])}'
-        print(row['init_img'].values)
-        print(row['sample'].values)
+        print(row["init_img"].values)
+        print(row["sample"].values)
         idx = df["sample"].values == row["sample"].values
         if not os.path.exists(final_tfm_fn) or not os.path.exists(final_section_fn):
-
             row["sample"].values[0].astype(int)
             if type(row["init_tfm"].values[0]) == str:
                 # standard rigid transformation for moving image
@@ -453,7 +448,7 @@ def create_final_outputs(
                 final_tfm_fn = np.nan
 
         df["init_tfm"].loc[idx] = final_tfm_fn
-        df['init_img'].loc[idx] = final_section_fn
+        df["init_img"].loc[idx] = final_section_fn
     return df
 
 
@@ -462,10 +457,9 @@ def initalign(
     chunk_info_csv: str,
     output_dir: str,
     resolution_list: list,
-    clobber: bool = True
+    clobber: bool = True,
 ) -> str:
-    """
-    Calulate initial rigid aligment between sections
+    """Calulate initial rigid aligment between sections
 
     param sect_info_csv: path to csv file containing section information
     param chunk_info_csv: path to csv file containing chunk information
@@ -476,28 +470,28 @@ def initalign(
     valid_inputs_npz = os.path.join(output_dir, "valid_inputs")
 
     # Validate Inputs
-    #FIXME UNCOMMENT
-    #assert valinpts.validate_csv(
-    #    sect_info_csv, valinpts.sect_info_required_columns 
-    #), f"Invalid section info csv file: {sect_info_csv}"
-    #assert valinpts.validate_csv(
+    # FIXME UNCOMMENT
+    # assert valinpts.validate_csv(
+    #    sect_info_csv, valinpts.sect_info_required_columns
+    # ), f"Invalid section info csv file: {sect_info_csv}"
+    # assert valinpts.validate_csv(
     #    chunk_info_csv, valinpts.chunk_info_required_columns
-    #), f"Invalid chunk info csv file: {chunk_info_csv}"
+    # ), f"Invalid chunk info csv file: {chunk_info_csv}"
 
-    initalign_sect_info_csv = os.path.join(output_dir, f"initalign_sect_info.csv")
-    initalign_chunk_info_csv = os.path.join(output_dir, f"initalign_chunk_info.csv")
+    initalign_sect_info_csv = os.path.join(output_dir, "initalign_sect_info.csv")
+    initalign_chunk_info_csv = os.path.join(output_dir, "initalign_chunk_info.csv")
     initalign_sect_info = pd.DataFrame({})
     initalign_chunk_info = pd.DataFrame({})
 
-    run_stage = utils.check_run_stage(initalign_sect_info_csv, 'init_tfm', 'seg')
+    run_stage = utils.check_run_stage(initalign_sect_info_csv, "init_tfm", "seg")
 
-    linParams = AntsParams(resolution_list, resolution_list[-1], 100)  
+    linParams = AntsParams(resolution_list, resolution_list[-1], 100)
 
     if (
         not os.path.exists(initalign_sect_info_csv)
         or not os.path.exists(initalign_chunk_info_csv)
         or clobber
-        or run_stage #FIXME need to change initalign so that it overwrites outdated files
+        or run_stage  # FIXME need to change initalign so that it overwrites outdated files
     ):
         sect_info = pd.read_csv(sect_info_csv)
         chunk_info = pd.read_csv(chunk_info_csv)
@@ -505,7 +499,11 @@ def initalign(
         initalign_sect_info = pd.DataFrame({})
 
         for (sub, hemisphere, chunk), curr_sect_info in sect_info.groupby(
-            ["sub", "hemisphere", "chunk"]
+            [
+                "sub",
+                "hemisphere",
+                "chunk",
+            ]
         ):
             idx = (
                 (chunk_info["sub"] == sub)
@@ -546,12 +544,14 @@ def get_acquisition_contrast_order(df):
 
             df_list.append(
                 pd.DataFrame(
-                    {"acquisition": [row["acquisition"]], "contrast": [contrast]}
+                    {
+                        "acquisition": [row["acquisition"]],
+                        "contrast": [contrast],
+                    }
                 )
             )
 
     df = pd.concat(df_list)
-
 
     df_mean = df.groupby(["acquisition"]).mean()
     df_mean.reset_index(inplace=True)
@@ -573,8 +573,7 @@ def align_chunk(
     chunk_info,
     clobber=False,
 ):
-    """
-    Calulate initial rigid aligment between sections for a given chunk
+    """Calulate initial rigid aligment between sections for a given chunk
     param sub: subject id
     param hemi: hemisphere
     param chunk: chunk
@@ -593,7 +592,7 @@ def align_chunk(
     df = sect_info.copy()
 
     df["original_img"] = df["img"]
-    
+
     acquisition_contrast_order = get_acquisition_contrast_order(sect_info)
     print("\tAcquistion contrast order: ", acquisition_contrast_order)
 
@@ -718,13 +717,13 @@ def align_chunk(
         combine_sections_to_vol(df, y_mm, z_mm, direction, init_align_fn)
 
     sect_info["init_tfm"] = df["init_tfm"]
-    sect_info['init_img'] = df['init_img']
+    sect_info["init_img"] = df["init_img"]
 
     chunk_info["init_volume"] = init_align_fn
 
     sect_info["2d_tfm"] = sect_info["init_tfm"]
 
-    assert not False in [
+    assert False not in [
         os.path.exists(x) for x in sect_info["init_tfm"].values if not pd.isnull(x)
     ]
 

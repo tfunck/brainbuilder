@@ -2,10 +2,9 @@ import os
 import re
 
 import ants
+import brainbuilder.utils.ants_nibabel as nib
 import nibabel
 import numpy as np
-
-import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils.utils import (
     AntsParams,
     shell,
@@ -22,9 +21,7 @@ def v2w(i, step, start):
 
 
 def find_vol_min_max(vol):
-    """
-    Finds the min and max spatial coordinate of the srv image
-    """
+    """Finds the min and max spatial coordinate of the srv image"""
     profile = np.max(vol, axis=(0, 2))
     if np.sum(profile) == 0:
         print("Error : empty srv file")
@@ -55,7 +52,7 @@ def pad_volume(vol, max_factor, affine, min_voxel_size=29, direction=[1, 1, 1]):
     affine[1, 3] -= y_pad * abs(affine[1, 1]) * direction[1]
     affine[2, 3] -= z_pad * abs(affine[2, 2]) * direction[2]
     print(np.sum(vol), np.sum(vol_padded))
-    print(vol.dtype, vol_padded.dtype); 
+    print(vol.dtype, vol_padded.dtype)
 
     return vol_padded, affine
 
@@ -140,18 +137,18 @@ def get_alignment_schedule(
     # nlParams = AntsParams(resolution_list, resolution, base_nl_itr, max_resolution=1.0)
     nlParams = AntsParams(resolution_list, resolution, base_nl_itr)
 
-    print("\t\t\t","Nonlinear")
-    print("\t\t\t\t",nlParams.itr_str)
-    print("\t\t\t\t",nlParams.s_str)
-    print("\t\t\t\t",nlParams.f_str)
+    print("\t\t\t", "Nonlinear")
+    print("\t\t\t\t", nlParams.itr_str)
+    print("\t\t\t\t", nlParams.s_str)
+    print("\t\t\t\t", nlParams.f_str)
 
     max(min(cc_resolution_list), resolution)
     ccParams = AntsParams(resolution_list, resolution, base_cc_itr)
 
-    print("\t\t\t","Nonlinear (CC)")
-    print("\t\t\t\t",ccParams.itr_str)
-    print("\t\t\t\t",ccParams.f_str)
-    print("\t\t\t\t",ccParams.s_str)
+    print("\t\t\t", "Nonlinear (CC)")
+    print("\t\t\t\t", ccParams.itr_str)
+    print("\t\t\t\t", ccParams.f_str)
+    print("\t\t\t\t", ccParams.s_str)
 
     max_downsample_level = linParams.max_downsample_factor
 
@@ -173,8 +170,7 @@ def write_ref_chunk(
     max_downsample_level: int,
     clobber: bool = False,
 ) -> None:
-    """
-    Write a chunk from the reference volume that corresponds to the tissue chunk from the section volume
+    """Write a chunk from the reference volume that corresponds to the tissue chunk from the section volume
     :param sub: subject id
     :param hemi: hemisphere
     :param chunk: chunk number
@@ -212,7 +208,7 @@ def write_ref_chunk(
             aff,
             direction=direction[[0, 1, 2], [0, 1, 2]],
         )
-        
+
         nib.Nifti1Image(
             pad_ref_chunk,
             pad_aff,
@@ -266,8 +262,7 @@ def run_alignment(
     sampling: float = 0.9,
     clobber: bool = False,
 ):
-    """
-    Run the alignment of the tissue chunk to the chunk from the reference volume
+    """Run the alignment of the tissue chunk to the chunk from the reference volume
     :param out_dir: output directory
     :param out_tfm_fn: output transformation filename
     :param out_inv_fn: output inverse transformation filename
@@ -288,7 +283,6 @@ def run_alignment(
     :param clobber: overwrite existing files
     :return: None
     """
-
     prefix = re.sub("_SyN_CC_Composite.h5", "", out_tfm_fn)  # FIXME this is bad coding
     f"{prefix}/log.txt"
 
@@ -323,7 +317,7 @@ def run_alignment(
 
     syn_rate = "0.1"
 
-    base = f"antsRegistration -v 1 -a 1 -d 3 "
+    base = "antsRegistration -v 1 -a 1 -d 3 "
     if use_masks:
         base = f"{base} --masks [{ref_mask_fn},{seg_mask_fn}] "
 
@@ -449,7 +443,6 @@ def align_3d(
     clobber=False,
     verbose=True,
 ):
-
     if not os.path.exists(out_tfm_fn) or not os.path.exists(out_tfm_inv_fn) or clobber:
         print("\t\t3D Volumetric Alignment")
         chunk = int(chunk)
@@ -465,7 +458,10 @@ def align_3d(
             nlParams,
             ccParams,
         ) = get_alignment_schedule(
-            resolution_list, resolution, base_nl_itr=base_nl_itr, base_lin_itr=base_lin_itr
+            resolution_list,
+            resolution,
+            base_nl_itr=base_nl_itr,
+            base_lin_itr=base_lin_itr,
         )
 
         # pad the segmented volume so that it can be downsampled by the

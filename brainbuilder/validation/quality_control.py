@@ -54,7 +54,7 @@ def quality_control():
     plot_r2(df, out_r2_fn)
 
 
-from utils.mesh_utils import load_mesh_ext, get_edges_from_faces
+from utils.mesh_utils import get_edges_from_faces, load_mesh_ext
 
 
 def calculate_dist_of_sphere_inflation(cortex_fn, sphere_fn):

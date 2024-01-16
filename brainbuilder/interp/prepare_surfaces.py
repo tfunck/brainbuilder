@@ -9,12 +9,13 @@ import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
 from brainbuilder.utils.mesh_io import load_mesh, save_mesh
 from brainbuilder.utils.mesh_utils import (
+    apply_ants_transform_to_gii,
     load_mesh_ext,
     mesh_to_volume,
     upsample_over_faces,
-    apply_ants_transform_to_gii
 )
 from brainbuilder.utils.utils import shell
+
 
 def transform_surface_to_chunks(
     chunk_info,
@@ -25,18 +26,24 @@ def transform_surface_to_chunks(
     faces_fn=None,
     ext=".surf.gii",
 ) -> dict:
-
     surf_chunk_dict = {}
 
-    for (sub, hemisphere, chunk), chunk_df in chunk_info.groupby(["sub", "hemisphere", "chunk"]):
+    for (sub, hemisphere, chunk), chunk_df in chunk_info.groupby(
+        [
+            "sub",
+            "hemisphere",
+            "chunk",
+        ]
+    ):
         thickened_fn = chunk_df["nl_2d_vol_fn"].values[0]
         nl_3d_tfm_fn = chunk_df["nl_3d_tfm_fn"].values[0]
         surf_chunk_space_fn = f"{out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{os.path.basename(surf_fn)}"
 
         surf_chunk_dict[chunk] = surf_chunk_space_fn
 
-        if not os.path.exists(surf_chunk_space_fn) or utils.newer_than(nl_3d_tfm_fn, surf_chunk_space_fn) :
-
+        if not os.path.exists(surf_chunk_space_fn) or utils.newer_than(
+            nl_3d_tfm_fn, surf_chunk_space_fn
+        ):
             print("\tFROM:", surf_fn)
             print("\tTO:", surf_chunk_space_fn)
             print("\tWITH:", nl_3d_tfm_fn)
@@ -53,19 +60,19 @@ def transform_surface_to_chunks(
             )
     return surf_chunk_dict
 
+
 def prepare_surfaces(
-        chunk_info: pd.DataFrame,
-        ref_vol_fn: str,
-        gm_surf_fn: str,
-        wm_surf_fn: str,
-        depth_list: list,
-        output_dir: str,
-        resolution: float,
-        verbose: bool = False,
-        clobber: bool = False
+    chunk_info: pd.DataFrame,
+    ref_vol_fn: str,
+    gm_surf_fn: str,
+    wm_surf_fn: str,
+    depth_list: list,
+    output_dir: str,
+    resolution: float,
+    verbose: bool = False,
+    clobber: bool = False,
 ):
-    """
-    Prepare surfaces for surface-based interpolation.
+    """Prepare surfaces for surface-based interpolation.
 
     :param chunk_info_csv: path to the chunk info csv
     :param ref_vol_fn: path to the structural reference volume
@@ -77,7 +84,6 @@ def prepare_surfaces(
     :param clobber: bool
     :return dict: surf_depth_mni_dict, surf_depth_chunk_dict
     """
-
     os.makedirs(output_dir, exist_ok=True)
 
     print("\tGenerating surfaces across cortical depth.")
@@ -116,19 +122,15 @@ def prepare_surfaces(
 
 
 def transfrom_depth_surf_to_chunk_space(
-        chunk_info:pd.DataFrame,
-        surf_depth_mni_dict:dict, 
-        surf_rsl_dir:str
-        ):
-    '''
-    For each chunk, transform the mesh surface to the histological space
+    chunk_info: pd.DataFrame, surf_depth_mni_dict: dict, surf_rsl_dir: str
+):
+    """For each chunk, transform the mesh surface to the histological space
 
     :param chunk_info: pd.DataFrame, chunk information
     :param surf_depth_mni_dict: dict, keys are cortical depths, values are dicts containing surfaces in reference space
     :param surf_rsl_dir: str, path to output directory
     :return surf_depth_chunk_dict : dict, keys are cortical depths, values are dicts containing surfaces in histological space of each chunk
-    '''
-
+    """
     surf_depth_chunk_dict = {}
 
     for depth, depth_dict in surf_depth_mni_dict.items():
@@ -152,19 +154,17 @@ def transfrom_depth_surf_to_chunk_space(
     return surf_depth_chunk_dict
 
 
-
-def get_surf_base(surf_fn:str)->str:
-    '''
-    Get the basename of a surface file
+def get_surf_base(surf_fn: str) -> str:
+    """Get the basename of a surface file
     :param surf_fn: str, path to surface file
     :return str: basename of surface file
-    '''
-
+    """
     surf_base = os.path.basename(surf_fn)
-    for string in ['.pial', '.smoothwm', '.gz', '.gii', '.surf']:
-        surf_base = sub(string, '', surf_base)
+    for string in [".pial", ".smoothwm", ".gz", ".gii", ".surf"]:
+        surf_base = sub(string, "", surf_base)
 
-    return surf_base 
+    return surf_base
+
 
 def generate_cortical_depth_surfaces(
     ref_vol_fn,
@@ -174,8 +174,7 @@ def generate_cortical_depth_surfaces(
     gm_surf_fn,
     output_dir,
 ) -> dict:
-    """
-    Generate cortical depth surfaces
+    """Generate cortical depth surfaces
     :param ref_vol_fn:
     :param depth_list:
     :param resolution:
@@ -184,7 +183,6 @@ def generate_cortical_depth_surfaces(
     :param output_dir:
     :return dict:
     """
-
     surf_depth_mni_dict = {}
 
     img = nb_surf.load(ref_vol_fn)
@@ -195,7 +193,7 @@ def generate_cortical_depth_surfaces(
     gm_coords, gm_faces, gm_info = load_mesh(gm_surf_fn, correct_offset=True)
     wm_coords, wm_faces, wm_info = load_mesh(wm_surf_fn, correct_offset=True)
 
-    if wm_surf_fn.endswith("white") :
+    if wm_surf_fn.endswith("white"):
         volume_info = gm_info
     else:
         volume_info = gm_surf_fn
@@ -208,7 +206,10 @@ def generate_cortical_depth_surfaces(
 
     for depth in depth_list:
         depth_surf_fn = "{}/{}_{}mm_{}.surf.gii".format(
-            output_dir, surf_base, resolution, depth,
+            output_dir,
+            surf_base,
+            resolution,
+            depth,
         )
         depth_vol_fn = "{}/{}_{}mm_{}.nii.gz".format(
             output_dir, surf_base, resolution, depth
@@ -234,14 +235,13 @@ def generate_cortical_depth_surfaces(
 
 
 def inflate_surfaces(
-        surf_depth_mni_dict:dict, 
-        output_dir:str, 
-        resolution:float, 
-        depth_list:list, 
-        clobber:bool=False
+    surf_depth_mni_dict: dict,
+    output_dir: str,
+    resolution: float,
+    depth_list: list,
+    clobber: bool = False,
 ) -> dict:
-    """
-     Upsampling of meshes at various depths across cortex produces meshes with different n vertices.
+    """Upsampling of meshes at various depths across cortex produces meshes with different n vertices.
      To create a set of meshes across the surfaces across the cortex that have the same number of
      vertices, we first upsample and inflate the wm mesh.
      Then, for each mesh across the cortex we resample that mesh so that it has the same polygons
@@ -251,21 +251,23 @@ def inflate_surfaces(
 
     :param surf_depth_mni_dict: dict, keys are cortical depths, values are dicts containing surfaces in stereotaxic space
     :param output_dir: str, path to output directory
-    :param resolution: float, maximum resolution of the reconstruction 
+    :param resolution: float, maximum resolution of the reconstruction
     :param depth_list: list, cortical depths
     :param clobber: bool, whether to overwrite existing files
     :return dict: surf_depth_mni_dict
     """
-
-
     for depth in depth_list:
         depth += 0.0
         depth_surf_fn = surf_depth_mni_dict[float(depth)]["depth_surf_fn"]
 
-        base_surf = sub('.surf.gii', '', os.path.basename(depth_surf_fn))
+        base_surf = sub(".surf.gii", "", os.path.basename(depth_surf_fn))
 
-        inflate_fn = "{}/{}_{}mm_{}.inflate".format(output_dir, base_surf, resolution, depth)
-        sphere_fn = "{}/{}_{}mm_{}.sphere".format(output_dir, base_surf, resolution, depth)
+        inflate_fn = "{}/{}_{}mm_{}.inflate".format(
+            output_dir, base_surf, resolution, depth
+        )
+        sphere_fn = "{}/{}_{}mm_{}.sphere".format(
+            output_dir, base_surf, resolution, depth
+        )
         sphere_rsl_fn = "{}/{}_{}mm_{}_sphere_rsl.npz".format(
             output_dir, base_surf, resolution, depth
         )
@@ -328,8 +330,7 @@ def upsample_surfaces(
     ref_vol_fn,
     clobber=False,
 ):
-    """
-    Upsample surfaces across cortical depth.
+    """Upsample surfaces across cortical depth.
     :param surf_depth_mni_dict: dict, keys are cortical depths, values are dicts containing surfaces in stereotaxic space
     :param output_dir: str, path to output directory
     :param gm_surf_fn: str, path to gray matter surface
@@ -355,7 +356,9 @@ def upsample_surfaces(
         depth_rsl_gii = "{}/{}_{}mm_{}_rsl.surf.gii".format(
             output_dir, surf_base, resolution, depth
         )
-        depth_rsl_fn = "{}/{}_{}mm_{}_rsl.npz".format(output_dir, surf_base, resolution, depth)
+        depth_rsl_fn = "{}/{}_{}mm_{}_rsl.npz".format(
+            output_dir, surf_base, resolution, depth
+        )
 
         surf_depth_mni_dict[depth]["depth_rsl_fn"] = depth_rsl_fn
         surf_depth_mni_dict[depth]["depth_rsl_gii"] = depth_rsl_gii

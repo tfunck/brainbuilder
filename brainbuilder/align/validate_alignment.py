@@ -1,10 +1,11 @@
 import os
+
 import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
 import pandas as pd
-from joblib import Parallel, delayed
 from brainbuilder.utils import utils
+from joblib import Parallel, delayed
 
 global ligand_receptor_dict
 ligand_receptor_dict = {
@@ -39,8 +40,9 @@ def dice(x, y):
     dice_score = num / den
     return dice_score
 
+
 def modified_dice(x, y):
-    num = np.sum((x == 1) & (y == 1)) 
+    num = np.sum((x == 1) & (y == 1))
     den = np.sum(y)
     dice_score = num / den
     return dice_score
@@ -62,14 +64,13 @@ def global_dice(fx_vol, mv_vol, clobber=False):
 
 
 def local_metric(fx_vol, mv_vol, metric, offset=5):
-    '''
-    Calculate the local metric between two volumes with kernel windows of size <offset>.
+    """Calculate the local metric between two volumes with kernel windows of size <offset>.
     :param: fx_vol: np.ndarray
     :param: mv_vol: np.ndarray
     :param: metric: function
     :param: offset: int
     :return: local_dice_volume: np.ndarray
-    '''
+    """
     fx_vol = prepare_volume(fx_vol)
     mv_vol = prepare_volume(mv_vol)
 
@@ -85,8 +86,8 @@ def local_metric(fx_vol, mv_vol, metric, offset=5):
             y0 = max(0, y - offset)
             y1 = min(fx_vol.shape[0], y + offset)
 
-            #if  mv_vol[y, x] > mv_min: #only consider overlap in moving image
-            if mv_vol[y, x] > 0 :
+            # if  mv_vol[y, x] > mv_min: #only consider overlap in moving image
+            if mv_vol[y, x] > 0:
                 fx_sub = fx_vol[y0:y1, x0:x1]
                 mv_sub = mv_vol[y0:y1, x0:x1]
 
@@ -117,20 +118,20 @@ def qc_low_dice_section(row, slab, y, mri_vol, mv_vol, fx_vol, qc_dir):
         plt.cla()
         plt.clf()
 
-def get_section_metric(fx_fn, mv_fn, out_png, idx, verbose=False):
 
+def get_section_metric(fx_fn, mv_fn, out_png, idx, verbose=False):
     img0 = nib.load(fx_fn)
-    fx_vol = prepare_volume( img0.get_fdata() )
-    mv_vol = prepare_volume( nib.load(mv_fn).get_fdata() )
-    
-    #section_dice_mean, fx_sum = global_dice(fx_vol, mv_vol) 
+    fx_vol = prepare_volume(img0.get_fdata())
+    mv_vol = prepare_volume(nib.load(mv_fn).get_fdata())
+
+    # section_dice_mean, fx_sum = global_dice(fx_vol, mv_vol)
     section_dice = local_metric(fx_vol, mv_vol, dice, offset=2)
-    section_dice_mean = np.mean(section_dice[ mv_vol>0 ])
+    section_dice_mean = np.mean(section_dice[mv_vol > 0])
 
     fx_sum = np.sum(fx_vol)
 
-
-    plt.cla(); plt.clf();
+    plt.cla()
+    plt.clf()
     plt.title(f"Dice: {section_dice_mean:.3f}")
     plt.subplot(1, 3, 1)
     plt.imshow(fx_vol)
@@ -138,25 +139,24 @@ def get_section_metric(fx_fn, mv_fn, out_png, idx, verbose=False):
     plt.imshow(mv_vol)
     plt.subplot(1, 3, 3)
     dice_vol = np.zeros(fx_vol.shape)
-    dice_vol[(fx_vol>0) & (mv_vol>0)] = 1
-    dice_vol[ fx_vol * mv_vol > 0 ] = 2
-    plt.imshow(mv_vol*fx_vol)
+    dice_vol[(fx_vol > 0) & (mv_vol > 0)] = 1
+    dice_vol[fx_vol * mv_vol > 0] = 2
+    plt.imshow(mv_vol * fx_vol)
     plt.savefig(out_png)
 
-    if verbose :
-        print('\tValidation: ', out_png)
+    if verbose:
+        print("\tValidation: ", out_png)
 
     return section_dice_mean, fx_sum, idx
 
+
 def calculate_volume_accuracy(
     sect_info: pd.DataFrame,
-    tfm_dir:str,
+    tfm_dir: str,
     num_cores: int = 0,
     clobber: bool = False,
 ):
-    """
-    Calculate the accuracy of the alignment of histological sections to the structural reference volume
-    """
+    """Calculate the accuracy of the alignment of histological sections to the structural reference volume"""
     pd.DataFrame({})
 
     num_cores = int(num_cores) if num_cores > 0 else int(os.cpu_count() / 2)
@@ -165,14 +165,14 @@ def calculate_volume_accuracy(
 
     for idx, (i, row) in enumerate(sect_info.iterrows()):
         y = row["sample"]
-        base = os.path.basename(row["raw"]).split('.')[0]
+        base = os.path.basename(row["raw"]).split(".")[0]
 
         cls_fn = row["2d_align_cls"]
         tfm_dir = os.path.dirname(cls_fn)
 
         fx_fn = utils.gen_2d_fn(f"{tfm_dir}/y-{y}", "_fx")
 
-        out_png =f"{tfm_dir}/{base}_y-{y}_dice.png" 
+        out_png = f"{tfm_dir}/{base}_y-{y}_dice.png"
 
         to_do.append((cls_fn, fx_fn, out_png, idx))
 
@@ -231,13 +231,11 @@ def output_stats(in_df):
 
     return out_df
 
+
 def validate_section_alignment(
     sect_info: pd.DataFrame, qc_dir: str, clobber: bool = False
 ):
-    """
-    Validate alignment of histological sections to structural reference volume
-    """
-
+    """Validate alignment of histological sections to structural reference volume"""
     print("\n\t\tValidate Alignment\n")
 
     os.makedirs(qc_dir, exist_ok=True)
@@ -245,13 +243,15 @@ def validate_section_alignment(
 
     cls_newer_than_out_csv = False
     if os.path.exists(out_csv):
-        cls_newer_than_out_csv = [utils.newer_than(fn, out_csv) for fn in sect_info['2d_align_cls'].values]
-    
-        if True in cls_newer_than_out_csv or clobber:
-            clobber=True
+        cls_newer_than_out_csv = [
+            utils.newer_than(fn, out_csv) for fn in sect_info["2d_align_cls"].values
+        ]
 
-    out_df = calculate_volume_accuracy(sect_info, qc_dir,  clobber=clobber)
+        if True in cls_newer_than_out_csv or clobber:
+            clobber = True
+
+    out_df = calculate_volume_accuracy(sect_info, qc_dir, clobber=clobber)
     out_df.to_csv(out_csv, index=True)
-    
+
     # plot
     return out_df

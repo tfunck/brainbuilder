@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 # import nibabel as nib
 import numpy as np
 import pandas as pd
-
 import utils.ants_nibabel as nib
 
 newlines = ["\n", "\r\n", "\r"]

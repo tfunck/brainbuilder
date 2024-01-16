@@ -3,39 +3,30 @@ import os
 import re
 from re import sub
 
-import h5py as h5
-import matplotlib
-import matplotlib.pyplot as plt
 import nibabel as nb_surf
 import numpy as np
 import pandas as pd
 import stripy as stripy
-
 import vast.surface_tools as surface_tools
 from joblib import Parallel, delayed
-from scipy.interpolate import interp1d
-from skimage.transform import resize
-
-from brainbuilder.interp.acqvolume import create_thickened_volumes
 
 import brainbuilder.utils.ants_nibabel as nib
 import brainbuilder.utils.utils as utils
-from brainbuilder.utils.mesh_utils import load_mesh_ext, multi_mesh_to_volume, volume_to_mesh, mesh_to_volume, write_mesh_to_volume
-from brainbuilder.utils.utils import (get_section_intervals, get_thicken_width )
+from brainbuilder.interp.acqvolume import create_thickened_volumes
+from brainbuilder.utils.mesh_utils import (
+    load_mesh_ext,
+    volume_to_mesh,
+    write_mesh_to_volume,
+)
+from brainbuilder.utils.utils import get_section_intervals
 
 
-
-def get_valid_coords(
-        coords:np.ndarray,
-        iw:list
-        ):
-    '''
-    Get valid surface coordinates within a given interval
+def get_valid_coords(coords: np.ndarray, iw: list):
+    """Get valid surface coordinates within a given interval
     :param coords: surface coordinates
     :param iw: interval
     :return: valid surface coordinates
-    '''
-
+    """
     lower = min(iw)
     upper = max(iw)
 
@@ -58,63 +49,69 @@ def get_profiles(
     surf_depth_chunk_dict,
     surf_depth_mni_dict,
     surf_raw_values_dict,
-    interp_order:int=1,
-    clobber:bool=False,
-)->str:
-    '''
-    Get raw surface values and interpoalte over surface to fill in missing pixel intensities
+    interp_order: int = 1,
+    clobber: bool = False,
+) -> str:
+    """Get raw surface values and interpoalte over surface to fill in missing pixel intensities
     :param profiles_fn: path to profiles file
     :param surf_depth_chunk_dict: dictionary with surface information for each chunk
     :param surf_depth_mni_dict: dictionary with surface information for each depth
     :param surf_raw_values_dict: dictionary with raw surface values for each depth
     :param clobber: boolean indicating whether to overwrite existing files
     :return: path to profiles file
-    '''
-    
+    """
     print("\tGetting profiles")
     # 3. Interpolate missing densities over surface
-    if not os.path.exists(profiles_fn+'.npz') or clobber:
+    if not os.path.exists(profiles_fn + ".npz") or clobber:
         depth_list = sorted(surf_depth_mni_dict.keys())
         example_depth_fn = surf_raw_values_dict[depth_list[0]]
 
-        nrows = pd.read_csv(example_depth_fn, header=None ).shape[0]
+        nrows = pd.read_csv(example_depth_fn, header=None).shape[0]
         ncols = len(depth_list)
-        
-        profiles = np.zeros([nrows,ncols])
-        
+
+        profiles = np.zeros([nrows, ncols])
+
         to_do = []
         n_elements_list = []
         element_size_list = []
 
-        coords_dtype_itemsize = load_mesh_ext(surf_depth_mni_dict[depth_list[0]]["depth_rsl_fn"])[0].dtype.itemsize
+        coords_dtype_itemsize = load_mesh_ext(
+            surf_depth_mni_dict[depth_list[0]]["depth_rsl_fn"]
+        )[0].dtype.itemsize
 
         # get sorted list of depths
         for depth, raw_values_fn in surf_raw_values_dict.items():
             depth_index = depth_list.index(depth)
 
             profiles_raw = pd.read_csv(raw_values_fn, header=None, index_col=None)
-            
+
             sphere_rsl_fn = surf_depth_mni_dict[depth]["sphere_rsl_fn"]
 
-            surface_val = profiles_raw.values.reshape(-1,)
-            assert np.sum(np.abs(surface_val)) >= 1, f'Assert: empty file {raw_values_fn}' 
+            surface_val = profiles_raw.values.reshape(
+                -1,
+            )
+            assert (
+                np.sum(np.abs(surface_val)) >= 1
+            ), f"Assert: empty file {raw_values_fn}"
 
-            to_do.append( (sphere_rsl_fn, surface_val, depth_index) )
+            to_do.append((sphere_rsl_fn, surface_val, depth_index))
 
-            n_elements_list += [ surface_val.shape[0], surface_val.shape[0] * 3 ]
-            element_size_list += [ surface_val.dtype.itemsize, coords_dtype_itemsize ]
+            n_elements_list += [surface_val.shape[0], surface_val.shape[0] * 3]
+            element_size_list += [surface_val.dtype.itemsize, coords_dtype_itemsize]
 
-        
-        interpolate_over_surface_ = lambda sphere_rsl_fn, surface_val, depth_index : (
-                depth_index, 
-                interpolate_over_surface( sphere_rsl_fn, surface_val, threshold=0.02, order=interp_order )
-                )
-        
+        interpolate_over_surface_ = lambda sphere_rsl_fn, surface_val, depth_index: (
+            depth_index,
+            interpolate_over_surface(
+                sphere_rsl_fn, surface_val, threshold=0.02, order=interp_order
+            ),
+        )
+
         num_cores = utils.get_maximum_cores(n_elements_list, element_size_list)
 
-        results = Parallel(n_jobs=num_cores)(delayed(interpolate_over_surface_)(
-            sphere_rsl_fn, surface_val, depth_index
-            ) for sphere_rsl_fn, surface_val, depth_index in to_do)
+        results = Parallel(n_jobs=num_cores)(
+            delayed(interpolate_over_surface_)(sphere_rsl_fn, surface_val, depth_index)
+            for sphere_rsl_fn, surface_val, depth_index in to_do
+        )
 
         for depth_index, profile_vector in results:
             profiles[:, depth_index] = profile_vector
@@ -125,22 +122,21 @@ def get_profiles(
 
 
 def project_values_over_section_intervals(
-        coords:np.ndarray,
-        vol:np.ndarray,
-        starts:np.ndarray,
-        steps:np.ndarray,
-        dimensions:np.ndarray,
-        clobber:bool=False
-        ):
-
+    coords: np.ndarray,
+    vol: np.ndarray,
+    starts: np.ndarray,
+    steps: np.ndarray,
+    dimensions: np.ndarray,
+    clobber: bool = False,
+):
     all_values = np.zeros(coords.shape[0])
     n = np.zeros(coords.shape[0])
-   
+
     # get the voxel intervals along the y-axis the volume
     intervals_voxel = get_section_intervals(vol)
-    
+
     vol_min = np.min(vol)
-    assert (len(intervals_voxel) > 0), "Error: the length of intervals_voxels == 0 "
+    assert len(intervals_voxel) > 0, "Error: the length of intervals_voxels == 0 "
 
     idx_range = np.arange(coords.shape[0])
 
@@ -154,10 +150,11 @@ def project_values_over_section_intervals(
         valid_coords_world, valid_coords_idx = get_valid_coords(coords, [y0w, y1w])
 
         if valid_coords_world.shape[0] != 0:
+            values, valid_idx = volume_to_mesh(
+                valid_coords_world, vol, starts, steps, dimensions
+            )
 
-            values, valid_idx = volume_to_mesh(valid_coords_world, vol, starts, steps, dimensions)
-            
-            section_range = idx_range[valid_coords_idx] 
+            section_range = idx_range[valid_coords_idx]
 
             valid_range = section_range[valid_idx]
 
@@ -165,7 +162,7 @@ def project_values_over_section_intervals(
 
             n[valid_range] += 1
 
-            # Also remove vertices that are less than 0 
+            # Also remove vertices that are less than 0
 
             if np.sum(np.abs(values)) > 0:
                 f"Error: empty vol[x,z] in project_volume_to_surfaces for {y0}"
@@ -173,58 +170,52 @@ def project_values_over_section_intervals(
             assert (
                 np.sum(np.isnan(values)) == 0
             ), f"Error: nan found in values from {vol_fn}"
-        else :
-            print('\t\t\t\tWarning: no valid coordinates found in interval', y0, y1 )
-    
+        else:
+            print("\t\t\t\tWarning: no valid coordinates found in interval", y0, y1)
 
     return all_values, n
 
-    
-
 
 def volume_to_surface_over_chunks(
-        surf_chunk_dict:dict,
-        volumes_df:dict,
-        interp_csv:str,
-        depth:float,
-        clobber=False,
-        verbose=False,
-    )->None:
-    """
-    Project a volume onto a surface
+    surf_chunk_dict: dict,
+    volumes_df: dict,
+    interp_csv: str,
+    depth: float,
+    clobber=False,
+    verbose=False,
+) -> None:
+    """Project a volume onto a surface
     :param surf_chunk_dict: dictionary with surface information for each chunk
     :param volumes_df: dataframe with volume information
     :param interp_csv: path to csv file containing interpolated values
     :param clobber: boolean indicating whether to overwrite existing files
     :return: None
     """
-
     # Get surfaces transformed into chunk space
-    if not os.path.exists(interp_csv) or clobber :
+    if not os.path.exists(interp_csv) or clobber:
         surf_fn = list(surf_chunk_dict.values())[0]
         nvertices = load_mesh_ext(surf_fn)[0].shape[0]
         # the default value of the vertices is set to -100 to make it easy to distinguish
         # between vertices where a acquisition density of 0 is measured versus the default value
-        all_values = np.zeros(nvertices) 
+        all_values = np.zeros(nvertices)
         n = np.zeros(nvertices)
-    
+
         n_elems_list = []
         elem_size_list = []
         to_do = []
 
         # Iterate over chunks within a given
         for chunk, surf_fn in surf_chunk_dict.items():
+            print("\t\t\tChunk:", chunk)
 
-            print('\t\t\tChunk:', chunk)
-            
-            vol_fn = volumes_df['thickened'].loc[ volumes_df['chunk']  == chunk].values[0]
+            vol_fn = volumes_df["thickened"].loc[volumes_df["chunk"] == chunk].values[0]
 
             coords, _ = load_mesh_ext(surf_fn)
             n_vtx = coords.shape[0]
-            
-            if verbose or True :
-                print('surf_fn:\n', surf_fn)
-                print('vol_fn:\n', vol_fn)
+
+            if verbose or True:
+                print("surf_fn:\n", surf_fn)
+                print("vol_fn:\n", vol_fn)
 
             # read chunk volume
             img = nib.load(vol_fn)
@@ -234,41 +225,49 @@ def volume_to_surface_over_chunks(
 
             affine = nb_surf.load(vol_fn).affine
 
-            assert np.max(vol) != np.min(vol), f"Error: empty volume {vol_fn}; {np.max(vol) != np.min(vol)} "
+            assert np.max(vol) != np.min(
+                vol
+            ), f"Error: empty volume {vol_fn}; {np.max(vol) != np.min(vol)} "
 
             # set variable names for coordinate system
-            starts = affine[[0,1,2], [3,3,3]]
-            steps = affine[[0,1,2], [0,1,2]]
+            starts = affine[[0, 1, 2], [3, 3, 3]]
+            steps = affine[[0, 1, 2], [0, 1, 2]]
 
             dimensions = vol.shape
             # get the intervals along the y-axis of the volume where
             # we have voxel intensities that should be interpolated onto the surfaces
-           
-            to_do.append( (coords, vol, starts, steps, dimensions) )
 
-            n_elems_list += [ n_vtx, n_vtx * 3, n_vox ]
-            elem_size_list += [ all_values.dtype.itemsize, coords.dtype.itemsize, vol.dtype.itemsize ]
+            to_do.append((coords, vol, starts, steps, dimensions))
+
+            n_elems_list += [n_vtx, n_vtx * 3, n_vox]
+            elem_size_list += [
+                all_values.dtype.itemsize,
+                coords.dtype.itemsize,
+                vol.dtype.itemsize,
+            ]
 
         num_cores = utils.get_maximum_cores(n_elems_list, elem_size_list)
 
-        results = Parallel(n_jobs=num_cores)(delayed(volume_to_mesh)(coords, vol, starts, steps, dimensions) for coords, vol, starts, steps, dimensions in to_do )
-        
+        results = Parallel(n_jobs=num_cores)(
+            delayed(volume_to_mesh)(coords, vol, starts, steps, dimensions)
+            for coords, vol, starts, steps, dimensions in to_do
+        )
+
         for chunk_values, chunk_n in results:
-            if len(np.unique(vol)) > 1 :
+            if len(np.unique(vol)) > 1:
                 idx = chunk_values == np.min(vol)
                 chunk_values[idx] = 0
 
             all_values[chunk_n] += chunk_values
             n += chunk_n
 
-        all_values[n>1] = np.min(all_values) # set overlap vertices to 0 
-        all_values[n>0] = all_values[n>0] / n[n>0]
+        all_values[n > 1] = np.min(all_values)  # set overlap vertices to 0
+        all_values[n > 0] = all_values[n > 0] / n[n > 0]
 
-        #x=np.zeros(coords.shape[0])
-                    #x[chunk_n] = chunk_values
-                    #vol, _ = mesh_to_volume(coords, x, dimensions, starts, steps)
-                    #nib.Nifti1Image(vol, img.affine, direction_order='lpi').to_filename(f'{os.path.dirname(interp_csv)}/chunk_{chunk}_{depth}.nii.gz')
-
+        # x=np.zeros(coords.shape[0])
+        # x[chunk_n] = chunk_values
+        # vol, _ = mesh_to_volume(coords, x, dimensions, starts, steps)
+        # nib.Nifti1Image(vol, img.affine, direction_order='lpi').to_filename(f'{os.path.dirname(interp_csv)}/chunk_{chunk}_{depth}.nii.gz')
 
         assert (
             np.sum(np.abs(all_values)) > 0
@@ -281,21 +280,20 @@ def volume_to_surface_over_chunks(
 
 
 def generate_surface_profiles(
-        chunk_info: pd.DataFrame,
-        sect_info: pd.DataFrame,
-        surf_depth_chunk_dict:dict,
-        surf_depth_mni_dict:dict,
-        resolution: float,
-        depth_list: list,
-        struct_vol_rsl_fn: str,
-        output_dir: str,
-        tissue_type: str = "",
-        gaussian_sd:float=0,
-        interp_order:int=1,
-        clobber: bool = False
-    ) -> str:
-    '''
-    Create surface profiles over a set of brain chunks and over multiple cortical depths
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    surf_depth_chunk_dict: dict,
+    surf_depth_mni_dict: dict,
+    resolution: float,
+    depth_list: list,
+    struct_vol_rsl_fn: str,
+    output_dir: str,
+    tissue_type: str = "",
+    gaussian_sd: float = 0,
+    interp_order: int = 1,
+    clobber: bool = False,
+) -> str:
+    """Create surface profiles over a set of brain chunks and over multiple cortical depths
     :param chunk_info: dataframe with chunk information
     :param sect_info: dataframe with section information
     :param resolution: resolution of the volume
@@ -303,11 +301,16 @@ def generate_surface_profiles(
     :param output_dir: output directory where results will be put
     :param clobber: if True, overwrite existing files
     :return: path to profiles file
-    '''
+    """
     os.makedirs(output_dir, exist_ok=True)
 
     chunk_info_thickened_csv = create_thickened_volumes(
-        output_dir, chunk_info, sect_info, resolution, gaussian_sd=gaussian_sd, clobber=clobber
+        output_dir,
+        chunk_info,
+        sect_info,
+        resolution,
+        gaussian_sd=gaussian_sd,
+        clobber=clobber,
     )
 
     sub = sect_info["sub"].values[0]
@@ -315,8 +318,7 @@ def generate_surface_profiles(
     acquisition = sect_info["acquisition"].values[0]
 
     n_depths = len(depth_list)
-    chunks = np.unique(sect_info['chunk'])
-
+    chunks = np.unique(sect_info["chunk"])
 
     chunk_info_thickened = pd.read_csv(chunk_info_thickened_csv, index_col=None)
 
@@ -331,63 +333,72 @@ def generate_surface_profiles(
         surf_depth_mni_dict,
         chunk_info_thickened,
         output_prefix,
-        interp_order=interp_order
+        interp_order=interp_order,
     )
 
     return profiles_fn, surf_raw_values_dict, chunk_info_thickened_csv
 
+
 def write_raw_profiles_to_volume(
-        surf_raw_values_dict:dict,
-        surf_depth_mni_dict:dict,
-        raw_profile_volume_fn:str,
-        ref_volume_fn:str,
-        resolution:float,
-        clobber:bool=False
-    ):
-    '''
-    Write raw profiles to a volume
-    '''
-
-    if not os.path.exists(raw_profile_volume_fn) or clobber :
+    surf_raw_values_dict: dict,
+    surf_depth_mni_dict: dict,
+    raw_profile_volume_fn: str,
+    ref_volume_fn: str,
+    resolution: float,
+    clobber: bool = False,
+):
+    """Write raw profiles to a volume"""
+    if not os.path.exists(raw_profile_volume_fn) or clobber:
         depth_list = sorted(surf_depth_mni_dict.keys())
-        surfaces = [ surf_depth_mni_dict[depth]["depth_rsl_fn"] for depth in depth_list ]  
-        ncols=len(depth_list)
-        nrows = pd.read_csv(list(surf_raw_values_dict.values())[0], header=None ).shape[0]
+        surfaces = [surf_depth_mni_dict[depth]["depth_rsl_fn"] for depth in depth_list]
+        ncols = len(depth_list)
+        nrows = pd.read_csv(list(surf_raw_values_dict.values())[0], header=None).shape[
+            0
+        ]
 
-        profiles = np.zeros([nrows,ncols])
+        profiles = np.zeros([nrows, ncols])
 
         for depth, raw_values_fn in surf_raw_values_dict.items():
             depth_index = depth_list.index(depth)
 
             profiles_raw = pd.read_csv(raw_values_fn, header=None, index_col=None)
-            
-            surface_val = profiles_raw.values.reshape(-1,)
-            assert np.sum(np.abs(surface_val)) >= 1, f'Assert: empty file {raw_values_fn}' 
+
+            surface_val = profiles_raw.values.reshape(
+                -1,
+            )
+            assert (
+                np.sum(np.abs(surface_val)) >= 1
+            ), f"Assert: empty file {raw_values_fn}"
 
             profiles[:, depth_index] = surface_val
 
-        write_mesh_to_volume(profiles, surfaces, ref_volume_fn, raw_profile_volume_fn, resolution, clobber=clobber)
+        write_mesh_to_volume(
+            profiles,
+            surfaces,
+            ref_volume_fn,
+            raw_profile_volume_fn,
+            resolution,
+            clobber=clobber,
+        )
 
 
 def project_volume_to_surfaces(
-        surf_depth_chunk_dict:dict,
-        surf_depth_mni_dict:dict,
-        chunk_info_thickened:dict,
-        output_prefix:str,
-        tissue_type='',
-        interp_order:int=1,
-        clobber=False
-    )->str:
-    '''
-    Project the voxel values of a volume onto a mesh
+    surf_depth_chunk_dict: dict,
+    surf_depth_mni_dict: dict,
+    chunk_info_thickened: dict,
+    output_prefix: str,
+    tissue_type="",
+    interp_order: int = 1,
+    clobber=False,
+) -> str:
+    """Project the voxel values of a volume onto a mesh
     :param profiles_fn: path to profiles file
     :param surf_depth_chunk_dict: dictionary with surface information for each chunk
     :param output_prefix: prefix for output files
     :param tissue_type: tissue type of the interpolated volumes
     :param clobber: boolean indicating whether to overwrite existing files
-    :return: path to profiles file 
-    '''
-
+    :return: path to profiles file
+    """
     profiles_fn = f"{output_prefix}_profiles"
     surf_raw_values_dict = {}
 
@@ -395,7 +406,7 @@ def project_volume_to_surfaces(
     for depth, surf_depth_dict in surf_depth_chunk_dict.items():
         print("\t\tDepth", depth)
 
-        interp_csv = f'{output_prefix}{tissue_type}_{depth}_interp.csv'
+        interp_csv = f"{output_prefix}{tissue_type}_{depth}_interp.csv"
 
         if not os.path.exists(interp_csv) or clobber:
             volume_to_surface_over_chunks(
@@ -403,32 +414,28 @@ def project_volume_to_surfaces(
                 chunk_info_thickened,
                 interp_csv,
                 depth,
-                clobber=clobber
+                clobber=clobber,
             )
 
         surf_raw_values_dict[depth] = interp_csv
 
-    if not os.path.exists(profiles_fn+'.npz') or clobber :
-
-        profiles_fn = get_profiles( 
-                            profiles_fn, 
-                            surf_depth_chunk_dict, 
-                            surf_depth_mni_dict,
-                            surf_raw_values_dict,
-                            interp_order=interp_order,       
-                            clobber=clobber)
+    if not os.path.exists(profiles_fn + ".npz") or clobber:
+        profiles_fn = get_profiles(
+            profiles_fn,
+            surf_depth_chunk_dict,
+            surf_depth_mni_dict,
+            surf_raw_values_dict,
+            interp_order=interp_order,
+            clobber=clobber,
+        )
 
     return profiles_fn, surf_raw_values_dict
 
 
 def interpolate_over_surface(
-        sphere_obj_fn:str, 
-        surface_val:np.array,
-        threshold:float=0, 
-        order:int=1
-        ):
-    """
-    Interpolate over a surface sphere
+    sphere_obj_fn: str, surface_val: np.array, threshold: float = 0, order: int = 1
+):
+    """Interpolate over a surface sphere
 
     :param sphere_obj_fn: path to sphere object
     :param surface_val: vector of surface values
@@ -436,7 +443,6 @@ def interpolate_over_surface(
     :param order: order of interpolation
     :return: interpolated values
     """
-
     print("\tInterpolating Over Surface")
     print("\t\t\tSphere fn:", sphere_obj_fn)
     # get coordinates from dicitonary with mesh info
@@ -484,7 +490,7 @@ def interpolate_over_surface(
     mesh = stripy.sTriangulation(lons_src, lats_src)
 
     lats, lons = spherical_coords[:, 1] - np.pi / 2, spherical_coords[:, 2]
-    
+
     interp_val, interp_type = mesh.interpolate(
         lons, lats, zdata=surface_val[surface_mask], order=order
     )
@@ -493,15 +499,14 @@ def interpolate_over_surface(
 
 
 def fill_in_missing_voxels(
-        interp_vol:np.array,
-        mask_vol:np.array,
-        chunk_start:float,
-        chunk_end:float,
-        start:float, 
-        step:float
-        ):
-    """
-    Fill in missing voxels in a volume
+    interp_vol: np.array,
+    mask_vol: np.array,
+    chunk_start: float,
+    chunk_end: float,
+    start: float,
+    step: float,
+):
+    """Fill in missing voxels in a volume
 
     :param interp_vol: volume with interpolated values
     :param mask_vol: volume with mask
@@ -511,7 +516,6 @@ def fill_in_missing_voxels(
     :param step: step size of volume
     :return: volume with filled in missing voxels
     """
-
     mask_vol = np.rint(mask_vol)
     mask_vol = np.pad(mask_vol, ((1, 1), (1, 1), (1, 1)))
     interp_vol = np.pad(interp_vol, ((1, 1), (1, 1), (1, 1)))
@@ -591,7 +595,7 @@ def fill_in_missing_voxels(
             & voxels_within_chunk
         )
 
-        #print("\t\t\t\tmissing", np.sum(missing_voxels), np.sum(interp_vol == 10000))
+        # print("\t\t\t\tmissing", np.sum(missing_voxels), np.sum(interp_vol == 10000))
         counter += 1
 
     interp_vol = interp_vol[1:-1, 1:-1, 1:-1]
@@ -604,10 +608,9 @@ def create_final_reconstructed_volume(
     resolution,
     surf_depth_mni_dict,
     profiles_fn,
-    clobber:bool=False
-    ):
-    """
-    Create final reconstructed volume from interpolated profiles and cortical surfaces
+    clobber: bool = False,
+):
+    """Create final reconstructed volume from interpolated profiles and cortical surfaces
     :param reconstructed_cortex_fn: path to reconstructed cortex
     :param cortex_mask_fn: path to cortex mask
     :param resolution: resolution of the reconstructed volume
@@ -616,25 +619,27 @@ def create_final_reconstructed_volume(
     :param clobber: boolean indicating whether to overwrite existing files
     :return: None
     """
-
-    print('\t Creating final reconstructed volume')
-    if not os.path.exists(reconstructed_cortex_fn) or clobber :
-    
+    print("\t Creating final reconstructed volume")
+    if not os.path.exists(reconstructed_cortex_fn) or clobber:
         mask_vol = nib.load(cortex_mask_fn).get_fdata()
 
         depth_list = sorted(surf_depth_mni_dict.keys())
 
-        profiles = np.load(profiles_fn+'.npz')["data"]
+        profiles = np.load(profiles_fn + ".npz")["data"]
 
         affine = nb_surf.load(cortex_mask_fn).affine
         starts = np.array(affine[[0, 1, 2], 3])
         steps = np.array(affine[[0, 1, 2], [0, 1, 2]])
         dimensions = mask_vol.shape
-        
-        print('\t\tMulti-mesh to volume')
-        surface_list = [ surf_depth_mni_dict[depth]['depth_rsl_fn'] for depth in depth_list ]  
 
-        unfilled_volume_fn = re.sub('.nii.gz', '_unfilled.nii.gz', reconstructed_cortex_fn)
+        print("\t\tMulti-mesh to volume")
+        surface_list = [
+            surf_depth_mni_dict[depth]["depth_rsl_fn"] for depth in depth_list
+        ]
+
+        unfilled_volume_fn = re.sub(
+            ".nii.gz", "_unfilled.nii.gz", reconstructed_cortex_fn
+        )
 
         out_vol = write_mesh_to_volume(
             profiles,
@@ -642,28 +647,28 @@ def create_final_reconstructed_volume(
             cortex_mask_fn,
             unfilled_volume_fn,
             resolution,
-            clobber = clobber
-            )
+            clobber=clobber,
+        )
 
-        print('\t\tFilling in missing voxels') 
+        print("\t\tFilling in missing voxels")
         out_vol = fill_in_missing_voxels(
             out_vol,
             mask_vol,
             starts[1],
-            dimensions[1]*steps[1]+starts[1],
+            dimensions[1] * steps[1] + starts[1],
             starts[1],
             steps[1],
         )
 
         affine = nib.load(cortex_mask_fn).affine
-        affine[[0,1,2],[0,1,2]] = resolution
+        affine[[0, 1, 2], [0, 1, 2]] = resolution
 
-
-        print('\tWriting', reconstructed_cortex_fn )
+        print("\tWriting", reconstructed_cortex_fn)
 
         nib.Nifti1Image(out_vol, affine, direction_order="lpi").to_filename(
             reconstructed_cortex_fn
         )
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process some integers.")
@@ -676,7 +681,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--lin-df-fn", dest="lin_df_fn", type=str, help="Clobber results"
     )
-    parser.add_argument("--chunk-str", dest="chunk_str", type=str, help="Clobber results")
+    parser.add_argument(
+        "--chunk-str", dest="chunk_str", type=str, help="Clobber results"
+    )
     parser.add_argument(
         "--n-depths", dest="n_depths", type=int, default=8, help="Clobber results"
     )

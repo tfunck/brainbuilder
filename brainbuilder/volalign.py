@@ -1,43 +1,42 @@
 import os
 
+import matplotlib.pyplot as plt
 import nibabel
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import imageio
-import matplotlib.pyplot as plt
 
-from brainbuilder.align.validate_alignment import validate_section_alignment
 from brainbuilder.align.align_2d import align_2d
 from brainbuilder.align.align_3d import align_3d
 from brainbuilder.align.intervolume import create_intermediate_volume
+from brainbuilder.align.validate_alignment import validate_section_alignment
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
 
 global output_tuples
 
-output_tuples = (   
-        ("seg_rsl_fn", "seg_dir", "_seg.nii.gz"),
-        ("rec_3d_rsl_fn","align_3d_dir","_rec_space-mri.nii.gz"),
-        ("ref_3d_rsl_fn","align_3d_dir","_mri_gm_space-rec.nii.gz"),
-        ("nl_3d_tfm_fn","align_3d_dir","_rec_to_mri_SyN_CC_Composite.h5"),
-        ("nl_3d_tfm_inv_fn","align_3d_dir","_rec_to_mri_SyN_CC_InverseComposite.h5"),
-        ("nl_2d_vol_fn","nl_2d_dir","_nl_2d.nii.gz"),
-        ("nl_2d_vol_cls_fn","nl_2d_dir","_nl_2d_cls.nii.gz")#,
-        #("ref_space_rec_fn","nl_2d_dir","_ref_space-rec.nii.gz"),
-        #("ref_iso_space_rec_fn","nl_2d_dir","_ref_space-rec_iso.nii.gz")
+output_tuples = (
+    ("seg_rsl_fn", "seg_dir", "_seg.nii.gz"),
+    ("rec_3d_rsl_fn", "align_3d_dir", "_rec_space-mri.nii.gz"),
+    ("ref_3d_rsl_fn", "align_3d_dir", "_mri_gm_space-rec.nii.gz"),
+    ("nl_3d_tfm_fn", "align_3d_dir", "_rec_to_mri_SyN_CC_Composite.h5"),
+    ("nl_3d_tfm_inv_fn", "align_3d_dir", "_rec_to_mri_SyN_CC_InverseComposite.h5"),
+    ("nl_2d_vol_fn", "nl_2d_dir", "_nl_2d.nii.gz"),
+    ("nl_2d_vol_cls_fn", "nl_2d_dir", "_nl_2d_cls.nii.gz"),  # ,
+    # ("ref_space_rec_fn","nl_2d_dir","_ref_space-rec.nii.gz"),
+    # ("ref_iso_space_rec_fn","nl_2d_dir","_ref_space-rec_iso.nii.gz")
 )
 
+
 def get_multiresolution_filenames(
-    row : pd.DataFrame,
-    sub : str,
-    hemisphere : str,
-    chunk : int,
-    resolution : float,
-    out_dir : str,
+    row: pd.DataFrame,
+    sub: str,
+    hemisphere: str,
+    chunk: int,
+    resolution: float,
+    out_dir: str,
 ) -> pd.DataFrame:
-    """
-    Set filenames for each stage of multiresolution stages
+    """Set filenames for each stage of multiresolution stages
 
     :param row: row of dataframe
     :param sub: subject name
@@ -47,10 +46,9 @@ def get_multiresolution_filenames(
     :param out_dir: output directory
     :return row: row of dataframe with filenames
     """
-
     # Set directory names for multi-resolution alignment
     cur_out_dir = f"{out_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/{resolution}mm/"
-    prefix = f'sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm'
+    prefix = f"sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm"
 
     row["cur_out_dir"] = cur_out_dir
     row["seg_dir"] = "{}/3.1_intermediate_volume/".format(row["cur_out_dir"])
@@ -59,30 +57,26 @@ def get_multiresolution_filenames(
 
     output_list = []
 
-    for output in output_tuples :
-        out_fn = f'{row[output[1]]}/{prefix}{output[2]}'
-        row[output[0]] =  out_fn
+    for output in output_tuples:
+        out_fn = f"{row[output[1]]}/{prefix}{output[2]}"
+        row[output[0]] = out_fn
         output_list.append(out_fn)
-    
 
     return row
 
 
 def check_chunk_outputs(chunk_csv: str):
-    """
-    Check if chunk outputs exist, if not remove the chunk output csv and the chunk output directory
+    """Check if chunk outputs exist, if not remove the chunk output csv and the chunk output directory
     :param chunk_output_csv: path to chunk output csv
     """
-
     chunk_info = pd.read_csv(chunk_csv, index_col=None)
 
     for output, _, _ in output_tuples:
         for fn in chunk_info[output]:
             if not os.path.exists(fn):
-                print('\t\tMissing', fn)
+                print("\t\tMissing", fn)
                 os.remove(chunk_csv)
                 return None
-
 
 
 def multiresolution_alignment(
@@ -97,9 +91,8 @@ def multiresolution_alignment(
     dice_threshold: float = 0.5,
     num_cores: int = 0,
     clobber: bool = False,
-    ) -> str:
-    """
-    Multiresolution alignment of chunks
+) -> str:
+    """Multiresolution alignment of chunks
 
     params: df: dataframe containing chunk information
     params: sub: subject name
@@ -108,7 +101,6 @@ def multiresolution_alignment(
     params: max_resolution_3d: maximum resolution to align in 3d
     returns: csv file containing chunk information
     """
-
     num_cores = utils.set_cores(num_cores)
 
     # Validate Inputs for <align_chunk>
@@ -116,10 +108,10 @@ def multiresolution_alignment(
         valinpts.Column("init_volume", "volume")
     ]
 
-    #FIXME UNCOMMENT
-    #assert valinpts.validate_csv(hemi_info_csv, valinpts.hemi_info_required_columns)
-    #assert valinpts.validate_csv(sect_info_csv, valinpts.sect_info_required_columns)
-    #assert valinpts.validate_csv(chunk_info_csv, multi_resolution_required_columns)
+    # FIXME UNCOMMENT
+    # assert valinpts.validate_csv(hemi_info_csv, valinpts.hemi_info_required_columns)
+    # assert valinpts.validate_csv(sect_info_csv, valinpts.sect_info_required_columns)
+    # assert valinpts.validate_csv(chunk_info_csv, multi_resolution_required_columns)
 
     if sect_output_csv == "":
         sect_output_csv = f"{output_dir}/sect_info_multiresolution_alignment.csv"
@@ -127,11 +119,15 @@ def multiresolution_alignment(
     if chunk_output_csv == "":
         chunk_output_csv = f"{output_dir}/chunk_info_multiresolution_alignment.csv"
 
-    if os.path.exists(chunk_output_csv) :
-        #Check if the outputs in chunk_info exist, if not delete current <chunk_output_csv>
+    if os.path.exists(chunk_output_csv):
+        # Check if the outputs in chunk_info exist, if not delete current <chunk_output_csv>
         check_chunk_outputs(chunk_output_csv)
 
-    if not os.path.exists(sect_output_csv) or not os.path.exists(chunk_output_csv) or clobber:
+    if (
+        not os.path.exists(sect_output_csv)
+        or not os.path.exists(chunk_output_csv)
+        or clobber
+    ):
         hemi_info = pd.read_csv(hemi_info_csv, index_col=None)
 
         sect_info = pd.read_csv(sect_info_csv, index_col=None)
@@ -155,8 +151,8 @@ def multiresolution_alignment(
 
         ### Reconstruct chunk for each sub, hemisphere, chunk
         groups = ["sub", "hemisphere", "chunk"]
-        for (sub, hemisphere, chunk), curr_sect_info in sect_info.groupby( groups ):
-            print('HELLO!')
+        for (sub, hemisphere, chunk), curr_sect_info in sect_info.groupby(groups):
+            print("HELLO!")
             print(sub, hemisphere, chunk)
             idx = (
                 (chunk_info["sub"] == sub)
@@ -177,15 +173,15 @@ def multiresolution_alignment(
             )
 
             curr_chunk_info, curr_sect_info = align_chunk(
-                    curr_chunk_info,
-                    curr_sect_info,
-                    resolution_list,
-                    resolution_list_3d,
-                    ref_vol_fn,
-                    output_dir,
-                    num_cores = num_cores,
-                    clobber = clobber,
-                    )
+                curr_chunk_info,
+                curr_sect_info,
+                resolution_list,
+                resolution_list_3d,
+                ref_vol_fn,
+                output_dir,
+                num_cores=num_cores,
+                clobber=clobber,
+            )
 
             chunk_info_out = pd.concat([chunk_info_out, curr_chunk_info])
             sect_info_out = pd.concat([sect_info_out, curr_sect_info])
@@ -201,9 +197,10 @@ def multiresolution_alignment(
     return chunk_output_csv, sect_output_csv
 
 
-def verify_chunk_limits(ref_rsl_fn: str, chunk_info: pd.DataFrame, verbose: bool = False):
-    """
-    Get the start and end of the chunk in the reference space
+def verify_chunk_limits(
+    ref_rsl_fn: str, chunk_info: pd.DataFrame, verbose: bool = False
+):
+    """Get the start and end of the chunk in the reference space
     :param ref_rsl_fn: reference space file name
     :param verbose: verbose
     :return: (y0w, y1w) --> world coordinates; (y0, y1) --> voxel coordinates
@@ -237,64 +234,72 @@ def verify_chunk_limits(ref_rsl_fn: str, chunk_info: pd.DataFrame, verbose: bool
 
     return [y0, y1], [y0w, y1w]
 
-def alignment_qc(sect_output_csv, output_dir, cutoff=0.7, clobber=False):
 
+def alignment_qc(sect_output_csv, output_dir, cutoff=0.7, clobber=False):
     png_fn = f"{output_dir}/alignment_dice.png"
     global_dice_csv = f"{output_dir}/global_dice.csv"
 
-    if not os.path.exists(sect_output_csv) or\
-            not os.path.exists(png_fn) or\
-            not os.path.exists(global_dice_csv) or\
-            not os.path.exists(png_fn) or\
-            utils.newer_than(sect_output_csv, png_fn) or\
-            utils.newer_than(sect_output_csv, global_dice_csv) or\
-            clobber :
-
+    if (
+        not os.path.exists(sect_output_csv)
+        or not os.path.exists(png_fn)
+        or not os.path.exists(global_dice_csv)
+        or not os.path.exists(png_fn)
+        or utils.newer_than(sect_output_csv, png_fn)
+        or utils.newer_than(sect_output_csv, global_dice_csv)
+        or clobber
+    ):
         df = pd.read_csv(sect_output_csv, index_col=None)
 
-        dice_values = df['dice']
+        dice_values = df["dice"]
 
         def normalize(x):
             return (x - x.min()) / (x.max() - x.min()) * 100
 
-        normalized_sample = df.groupby('chunk')['sample'].transform(normalize)
-        df['Coronal Section %'] = normalized_sample
-        print('Coronal Section')
-        df['Dice'] = df['dice']
-        df['Slab'] = df['chunk']
+        normalized_sample = df.groupby("chunk")["sample"].transform(normalize)
+        df["Coronal Section %"] = normalized_sample
+        print("Coronal Section")
+        df["Dice"] = df["dice"]
+        df["Slab"] = df["chunk"]
 
-        plt.clf(); plt.close()
+        plt.clf()
+        plt.close()
         plt.figure(figsize=(10, 10))
-        sns.scatterplot(x='Coronal Section %', y='Dice', data=df, hue='Slab', palette='Set1',alpha=0.4)
+        sns.scatterplot(
+            x="Coronal Section %",
+            y="Dice",
+            data=df,
+            hue="Slab",
+            palette="Set1",
+            alpha=0.4,
+        )
         sns.despine()
-        plt.savefig(png_fn, dpi=300, bbox_inches='tight')
+        plt.savefig(png_fn, dpi=300, bbox_inches="tight")
 
-        
         dice_df = df.groupby(["sub", "hemisphere", "chunk"])
-        print(dice_df['dice'].mean())
-        print(dice_df['dice'].std())
+        print(dice_df["dice"].mean())
+        print(dice_df["dice"].std())
 
-        m=df['dice'].mean()
-        s=df['dice'].std()
+        m = df["dice"].mean()
+        s = df["dice"].std()
 
-        print('\t\tDice of Aligned Sections:', m, s )
-        dice_df['dice'].mean().to_csv(global_dice_csv)
-        with open(f"{output_dir}/global_dice.csv", 'w') as f:
+        print("\t\tDice of Aligned Sections:", m, s)
+        dice_df["dice"].mean().to_csv(global_dice_csv)
+        with open(f"{output_dir}/global_dice.csv", "w") as f:
             f.write(f"{m},{s}\n")
 
-        bad_sections_df = df.loc[df['dice'] < cutoff]
+        bad_sections_df = df.loc[df["dice"] < cutoff]
         os.makedirs(f"{output_dir}/bad_sections/", exist_ok=True)
 
         for i, row in bad_sections_df.iterrows():
-            mv = row['nl_2d_cls_rsl']
+            mv = row["nl_2d_cls_rsl"]
             out_fn = f"{output_dir}/bad_sections/{os.path.basename(mv)}.jpg"
             ar = nibabel.load(mv).get_fdata()
-            plt.clf(); plt.close()
-            plt.title('Dice: {:.2f}'.format(row['dice']))
-            plt.imshow(ar, cmap='gray')
-            plt.savefig(out_fn, dpi=300, bbox_inches='tight')
-            print('\t\tBad section:', out_fn)
-
+            plt.clf()
+            plt.close()
+            plt.title("Dice: {:.2f}".format(row["dice"]))
+            plt.imshow(ar, cmap="gray")
+            plt.savefig(out_fn, dpi=300, bbox_inches="tight")
+            print("\t\tBad section:", out_fn)
 
 
 def align_chunk(
@@ -306,9 +311,8 @@ def align_chunk(
     output_dir: str,
     num_cores: int = 1,
     clobber: bool = False,
-)->tuple:
-    """
-    About:
+) -> tuple:
+    """About:
         Mutliresolution scheme that a. segments autoradiographs, b. aligns these to the donor mri in 3D,
         and c. aligns autoradiograph sections to donor MRI in 2d. This schema is repeated for each
         resolution in the resolution heiarchy.
@@ -342,17 +346,23 @@ def align_chunk(
             row, sub, hemisphere, chunk, resolution, output_dir
         )
 
-        dirs_to_create = [ row["cur_out_dir"], row["align_3d_dir"], row["seg_dir"], row["nl_2d_dir"]  ]
+        dirs_to_create = [
+            row["cur_out_dir"],
+            row["align_3d_dir"],
+            row["seg_dir"],
+            row["nl_2d_dir"],
+        ]
         for dir_name in dirs_to_create:
             os.makedirs(dir_name, exist_ok=True)
 
         # downsample the original ref gm mask to current 3d resolution
         ref_rsl_fn = (
-            row["seg_dir"] + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_mri_gm.nii.gz"
+            row["seg_dir"]
+            + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_mri_gm.nii.gz"
         )
 
         if not os.path.exists(ref_rsl_fn):
-            utils.resample_to_resolution( ref_vol_fn, [ resolution_3d ] * 3, ref_rsl_fn )
+            utils.resample_to_resolution(ref_vol_fn, [resolution_3d] * 3, ref_rsl_fn)
 
         world_chunk_limits, vox_chunk_limits = verify_chunk_limits(
             ref_rsl_fn, chunk_info
@@ -361,7 +371,7 @@ def align_chunk(
         ###
         ### Stage 3.1 : Create intermediate 3d volume
         ###
-        print('\t\tCreate intermediate 3d volume')
+        print("\t\tCreate intermediate 3d volume")
         [row["init_volume"]]
         create_intermediate_volume(
             chunk_info,
@@ -372,8 +382,8 @@ def align_chunk(
             row["seg_dir"],
             row["seg_rsl_fn"],
             row["init_volume"],
-            num_cores = num_cores,
-            clobber = clobber,
+            num_cores=num_cores,
+            clobber=clobber,
         )
 
         ###
@@ -397,7 +407,7 @@ def align_chunk(
             world_chunk_limits,
             vox_chunk_limits,
             use_masks=False,
-            clobber=clobber
+            clobber=clobber,
         )
 
         ###
@@ -417,16 +427,14 @@ def align_chunk(
             row["nl_2d_vol_fn"],
             row["nl_2d_vol_cls_fn"],
             row["section_thickness"],
-            file_to_align = "seg",
-            num_cores = num_cores,
-            clobber = clobber
+            file_to_align="seg",
+            num_cores=num_cores,
+            clobber=clobber,
         )
-        row['ref_space_nat'] = ref_space_nat_fn
-        chunk_info_out = pd.concat([chunk_info_out, row.to_frame().T ])
+        row["ref_space_nat"] = ref_space_nat_fn
+        chunk_info_out = pd.concat([chunk_info_out, row.to_frame().T])
         sect_info_out = pd.concat([sect_info_out, sect_info])
 
-
     sect_info = validate_section_alignment(sect_info, output_dir)
-
 
     return chunk_info_out, sect_info

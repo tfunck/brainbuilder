@@ -7,7 +7,7 @@ def save_gii(coords, triangles, reference_fn, out_fn):
     assert len(coords) > 0, f"Empty coords when trying to create {out_fn} "
     assert len(triangles) > 0, f"Empty triangles when trying to create {out_fn} "
     # coords, faces, volume_info = load_mesh(reference_fn)
-    #img = nb.load(reference_fn)
+    # img = nb.load(reference_fn)
     img = nb.gifti.gifti.GiftiImage()
 
     ar_pointset = nb.gifti.gifti.GiftiDataArray(
@@ -44,18 +44,28 @@ def save_mesh(out_fn, coords, faces, volume_info=None):
     else:
         print("Error: filetype not recognized for file", out_fn)
 
+
 global freesurfer_ext
 
 
-from itertools import product
-freesurfer_ext =[".orig", ".pial", ".white", ".sphere", ".inflated", ".curv", ".sulc", ".thickness", ".annot", ".label"]
+freesurfer_ext = [
+    ".orig",
+    ".pial",
+    ".white",
+    ".sphere",
+    ".inflated",
+    ".curv",
+    ".sulc",
+    ".thickness",
+    ".annot",
+    ".label",
+]
+
 
 def load_mesh(surf_mesh, correct_offset=False):
     volume_info = None
     if isinstance(surf_mesh, str):
-        if (
-            True in [ surf_mesh.endswith(x) for x in freesurfer_ext ]
-        ):
+        if True in [surf_mesh.endswith(x) for x in freesurfer_ext]:
             coords, faces, volume_info = nb.freesurfer.io.read_geometry(
                 surf_mesh, read_metadata=True
             )
@@ -84,34 +94,34 @@ def load_mesh(surf_mesh, correct_offset=False):
 
         elif surf_mesh.endswith("gii"):
             coords_class, faces_class = (
-                nb.load(surf_mesh)
-                .get_arrays_from_intent(
+                nb.load(surf_mesh).get_arrays_from_intent(
                     nb.nifti1.intent_codes["NIFTI_INTENT_POINTSET"]
                 )[0],
-                nb.load(surf_mesh)
-                .get_arrays_from_intent(
+                nb.load(surf_mesh).get_arrays_from_intent(
                     nb.nifti1.intent_codes["NIFTI_INTENT_TRIANGLE"]
                 )[0],
             )
             coords = coords_class.data
             faces = faces_class.data
             print(correct_offset, volume_info)
-            if correct_offset :
+            if correct_offset:
                 try:
-                    string_list = [ 'VolGeomC_R', 'VolGeomC_A', 'VolGeomC_S' ]
-                    origin = [ float(coords_class.meta[string]) for string in string_list ]
+                    string_list = ["VolGeomC_R", "VolGeomC_A", "VolGeomC_S"]
+                    origin = [
+                        float(coords_class.meta[string]) for string in string_list
+                    ]
 
                     get_sign = lambda ar: np.sign(ar[np.argmax(np.abs(ar))])
 
-                    #xdir = get_sign(xras), ydir = get_sign(yras), zdir = get_sign(zras)
-                    #xdir = ydir = -1 ; zdir = 1
+                    # xdir = get_sign(xras), ydir = get_sign(yras), zdir = get_sign(zras)
+                    # xdir = ydir = -1 ; zdir = 1
                     xdir = ydir = zdir = 1
                     print("Adding origin to surface", origin)
                     print("\tDirections:", xdir, ydir, zdir)
                     coords[:, 0] = coords[:, 0] + xdir * origin[0]
                     coords[:, 1] = coords[:, 1] + ydir * origin[1]
                     coords[:, 2] = coords[:, 2] + zdir * origin[2]
-                    
+
                 except KeyError:
                     pass
         elif surf_mesh.endswith("vtk"):
@@ -241,8 +251,7 @@ def save_mesh_data(fname, surf_data):
 # function to read vtk files
 # ideally use pyvtk, but it didn't work for our data, look into why
 def read_vtk(file):
-    """
-    Reads ASCII coded vtk files using pandas,
+    """Reads ASCII coded vtk files using pandas,
     returning vertices, faces and data as three numpy arrays.
     """
     import csv
@@ -312,8 +321,8 @@ def read_vtk(file):
     # read data into df and array if exists
     if vtk_df[vtk_df[0].str.contains("POINT_DATA")].index.tolist() != []:
         start_data = (
-            vtk_df[vtk_df[0].str.contains("POINT_DATA")].index.tolist()[0]
-        ) + 3
+            (vtk_df[vtk_df[0].str.contains("POINT_DATA")].index.tolist()[0]) + 3
+        )
         number_data = number_vertices
         data_df = pd.read_csv(
             file,
@@ -517,8 +526,7 @@ def save_obj(surf_mesh, coords, faces):
 
 
 def write_vtk(filename, vertices, faces, data=None, comment=None):
-    """
-    Creates ASCII coded vtk file from numpy arrays using pandas.
+    """Creates ASCII coded vtk file from numpy arrays using pandas.
     Inputs:
     -------
     (mandatory)
@@ -533,7 +541,6 @@ def write_vtk(filename, vertices, faces, data=None, comment=None):
     ---------------------
     write_vtk('/path/to/vtk/file.vtk', v_array, f_array)
     """
-
     import pandas as pd
 
     # infer number of vertices and faces

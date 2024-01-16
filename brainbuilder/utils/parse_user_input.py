@@ -2,15 +2,13 @@ import json
 
 
 def get_filenames(section_info, out_dir: str, resolution_list: list) -> dict:
-    """
-    create a dictionary with all of the filenames that will be used in the reconstruction
+    """Create a dictionary with all of the filenames that will be used in the reconstruction
 
     param: section_info: dataframe with all of the section information
     param: out_dir: directory where the output will be saved
     param: resolution_list: list of resolutions that will be used in the reconstruction
     return files: return dictionary with all filenames
     """
-
     files = {}
     for brain, bdf in section_info.groupby(["brain"]):
         files[brain] = {}

@@ -111,5 +111,5 @@ def write_nifti(vol, affine, out_fn, direction=[]):
     ants_image = ants.from_numpy(
         vol, origin=origin, spacing=spacing, direction=direction
     )
-    assert not True in np.isnan(affine.ravel()), "Bad affine matrix. NaN detected"
+    assert True not in np.isnan(affine.ravel()), "Bad affine matrix. NaN detected"
     ants.image_write(ants_image, out_fn)

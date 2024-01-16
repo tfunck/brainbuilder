@@ -1,17 +1,13 @@
-import multiprocessing
+import glob
+import json
 import os
 import shutil
 import tempfile
-import json
-import glob
 
+import brainbuilder.utils.ants_nibabel as nib
 import nibabel
 import numpy as np
 import pandas as pd
-from joblib import Parallel, delayed, cpu_count
-from scipy.ndimage.filters import gaussian_filter
-
-import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.validate_alignment import get_section_metric
 from brainbuilder.utils import utils
 from brainbuilder.utils.utils import (
@@ -21,6 +17,8 @@ from brainbuilder.utils.utils import (
     resample_to_resolution,
     shell,
 )
+from joblib import Parallel, cpu_count, delayed
+from scipy.ndimage.filters import gaussian_filter
 
 
 def resample_reference_to_sections(
@@ -32,8 +30,7 @@ def resample_reference_to_sections(
     output_dir: str,
     clobber: bool = False,
 ):
-    """
-    About:
+    """About:
         Apply 3d transformation and resample volume into the same coordinate space as 3d receptor volume.
 
     Inputs:
@@ -44,7 +41,6 @@ def resample_reference_to_sections(
         :return iso_output_fn:   gm srv volume in receptor coordinate space with isotropic voxels at <resolution>mm
         :return output_fn:  gm srv volume in receptor coordinate space with <section_thickness> dimension size along the y axis
     """
-
     basename = os.path.basename(input_fn).split(".")[0]
 
     iso_output_fn = f"{output_dir}/{basename}_{resolution}mm_iso.nii.gz"
@@ -104,21 +100,18 @@ def ants_registeration_2d_section(
     init_tfm=None,
     verbose=False,
 ):
-    """
-    Use ANTs to register 2d sections
-    """
+    """Use ANTs to register 2d sections"""
     last_transform = None
     last_metric = None
 
-    for transform, metric, f_str, s_str, itr_str in zip(transforms, metrics, f_list, s_list, itr_list):
+    for transform, metric, f_str, s_str, itr_str in zip(
+        transforms, metrics, f_list, s_list, itr_list
+    ):
+        mv_rsl_fn = f"{prefix}_{transform}_{metric}_cls_rsl.nii.gz"
 
-        mv_rsl_fn = f'{prefix}_{transform}_{metric}_cls_rsl.nii.gz'
-
-        if not isinstance(last_transform, type(None)) :
-            init_str = (
-                f"--initial-moving-transform {prefix}_{last_transform}_{last_metric}_Composite.h5"
-            )
-        elif type(init_tfm) == str and os.path.exists(init_tfm) :
+        if not isinstance(last_transform, type(None)):
+            init_str = f"--initial-moving-transform {prefix}_{last_transform}_{last_metric}_Composite.h5"
+        elif type(init_tfm) == str and os.path.exists(init_tfm):
             init_str = f"--initial-moving-transform {init_tfm}"
         else:
             init_str = f"--initial-moving-transform [{fx_fn},{mv_fn},1]"
@@ -140,35 +133,27 @@ def ants_registeration_2d_section(
 
     return final_tfm, mv_rsl_fn
 
-def affine_trials(
-        fx_fn, 
-        mv_fn, 
-        linParams,  
-        prefix, 
-        n_trials=5, 
-        verbose=False
-        ) -> str :
-    '''
 
-    '''
+def affine_trials(fx_fn, mv_fn, linParams, prefix, n_trials=5, verbose=False) -> str:
+    """ """
     lin_transforms = ["Rigid", "Similarity", "Affine"]
     max_dice = 0
-    best_trial=0
+    best_trial = 0
     affine_tfm_trials = {}
 
-    for trial in range(n_trials) :
-        n= len(lin_transforms)
-        itr_list = [linParams.itr_str] * n 
+    for trial in range(n_trials):
+        n = len(lin_transforms)
+        itr_list = [linParams.itr_str] * n
         s_list = [linParams.s_str] * n
         f_list = [linParams.f_str] * n
 
-        trial_prefix = prefix + f'_trial-{trial}' 
+        trial_prefix = prefix + f"_trial-{trial}"
         affine_tfm, mv_rsl_fn = ants_registeration_2d_section(
             fx_fn=fx_fn,
             mv_fn=mv_fn,
-            itr_list = itr_list,
-            s_list = s_list,  
-            f_list = f_list, 
+            itr_list=itr_list,
+            s_list=s_list,
+            f_list=f_list,
             prefix=trial_prefix,
             transforms=lin_transforms,
             sampling=0.8,
@@ -176,21 +161,24 @@ def affine_trials(
             verbose=verbose,
         )
 
-        trial_dice, _, _ = get_section_metric(fx_fn, mv_rsl_fn, trial_prefix+'_dice.png', 0, verbose=False)
+        trial_dice, _, _ = get_section_metric(
+            fx_fn, mv_rsl_fn, trial_prefix + "_dice.png", 0, verbose=False
+        )
 
         max_dice = trial_dice if trial_dice > max_dice else max_dice
         best_trial = trial if trial_dice > max_dice else best_trial
         affine_tfm_trials[trial] = affine_tfm
 
-    json.dump(affine_tfm_trials, open(f'{prefix}_affine_tfm_trials.json', 'w'))
+    json.dump(affine_tfm_trials, open(f"{prefix}_affine_tfm_trials.json", "w"))
 
-    for fn in glob.glob(f'{prefix}/*trial-*') :
-        if not '_trial-{best_trial}' in fn :
+    for fn in glob.glob(f"{prefix}/*trial-*"):
+        if "_trial-{best_trial}" not in fn:
             os.remove(fn)
 
-    affine_tfm = affine_tfm_trials[best_trial] 
+    affine_tfm = affine_tfm_trials[best_trial]
 
     return affine_tfm
+
 
 def align_2d_parallel(
     tfm_dir,
@@ -211,7 +199,7 @@ def align_2d_parallel(
 ):
     """ """
     # Set strings for alignment parameters
-    base_nl_itr=30
+    base_nl_itr = 30
 
     linParams = AntsParams(resolution_list, resolution, base_lin_itr)
 
@@ -231,27 +219,24 @@ def align_2d_parallel(
     )
 
     syn_tfm, syn_vol = ants_registeration_2d_section(
-        fx_fn = fx_fn,
-        mv_fn = mv_fn,
-        itr_list = [nlParams.itr_str, 20],
-        s_list = [ nlParams.s_str, 0 ],
-        f_list = [ nlParams.f_str, 1 ],
-        prefix = prefix,
-        transforms = ["SyN", "SyN"],
-        metrics = ["Mattes", "CC"],
-        init_tfm = affine_tfm,
+        fx_fn=fx_fn,
+        mv_fn=mv_fn,
+        itr_list=[nlParams.itr_str, 20],
+        s_list=[nlParams.s_str, 0],
+        f_list=[nlParams.f_str, 1],
+        prefix=prefix,
+        transforms=["SyN", "SyN"],
+        metrics=["Mattes", "CC"],
+        init_tfm=affine_tfm,
         step=0.1,
         verbose=verbose,
     )
 
     cmd = f"antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {mv_fn} -r {fx_fn} -t {syn_tfm} -o {row['2d_align_cls']} "
-    
-    shell(
-        cmd, 
-        True
-    )
 
-    shutil.copy(syn_tfm, row['2d_tfm'])
+    shell(cmd, True)
+
+    shutil.copy(syn_tfm, row["2d_tfm"])
 
     # assert np.sum(nib.load(prefix+'_cls_rsl.nii.gz').dataobj) > 0, 'Error: 2d affine transfromation failed'
     assert os.path.exists(
@@ -268,7 +253,7 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     out_fn = prefix + "_rsl.nii.gz"
     fx_fn = gen_2d_fn(prefix, "_fx")
 
-    img_fn = row["img"]  
+    img_fn = row["img"]
 
     img = nib.load(img_fn)
     img_res = np.array([img.affine[0, 0], img.affine[1, 1]])
@@ -282,23 +267,21 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     nib.Nifti1Image(vol, aff, direction_order="lpi").to_filename(img_rsl_fn)
 
     cmd = f"antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} "
-    
-    shell(
-        cmd, 
-        True
-    )
+
+    shell(cmd, True)
 
     assert os.path.exists(f"{out_fn}"), "Error apply nl 2d tfm to img autoradiograph"
     return 0
 
-def get_align_2d_to_do(sect_info, clobber=False ) :
+
+def get_align_2d_to_do(sect_info, clobber=False):
     to_do_sect_info = []
     to_do_resample_sect_info = []
 
     for idx, (i, row) in enumerate(sect_info.iterrows()):
-        cls_fn = row['2d_align_cls']
-        tfm_fn = row['2d_tfm']
-        out_fn = row['2d_align']
+        cls_fn = row["2d_align_cls"]
+        tfm_fn = row["2d_tfm"]
+        out_fn = row["2d_align"]
 
         if not os.path.exists(tfm_fn) or not os.path.exists(cls_fn) or clobber:
             to_do_sect_info.append(row)
@@ -309,17 +292,15 @@ def get_align_2d_to_do(sect_info, clobber=False ) :
     return to_do_sect_info, to_do_resample_sect_info
 
 
-
-def get_align_filenames(tfm_dir, sect_info) :
-    '''
-    '''
+def get_align_filenames(tfm_dir, sect_info):
+    """ """
 
     os.makedirs(tfm_dir, exist_ok=True)
 
     sect_info["2d_tfm_affine"] = [""] * sect_info.shape[0]
-    sect_info['2d_tfm'] = [""] * sect_info.shape[0]
-    sect_info['2d_align'] = [""] * sect_info.shape[0]
-    sect_info['2d_align_cls'] = [""] * sect_info.shape[0]
+    sect_info["2d_tfm"] = [""] * sect_info.shape[0]
+    sect_info["2d_align"] = [""] * sect_info.shape[0]
+    sect_info["2d_align_cls"] = [""] * sect_info.shape[0]
 
     for idx, (i, row) in enumerate(sect_info.iterrows()):
         y = int(row["sample"])
@@ -329,11 +310,11 @@ def get_align_filenames(tfm_dir, sect_info) :
         tfm_fn = prefix + "_Composite.h5"
         tfm_affine_fn = prefix + "_Affine_Composite.h5"
 
-        sect_info["2d_tfm"].iloc[ idx ] = tfm_fn
-        sect_info["2d_tfm_affine"].iloc[ idx ] = tfm_affine_fn
+        sect_info["2d_tfm"].iloc[idx] = tfm_fn
+        sect_info["2d_tfm_affine"].iloc[idx] = tfm_affine_fn
 
-        sect_info["2d_align_cls"].iloc[ idx ] = cls_fn
-        sect_info["2d_align"].iloc[ idx ]  = out_fn
+        sect_info["2d_align_cls"].iloc[idx] = cls_fn
+        sect_info["2d_align"].iloc[idx] = out_fn
 
     return sect_info
 
@@ -353,14 +334,12 @@ def align_sections(
     file_to_align: str = "seg",
     use_syn: bool = True,
     batch_processing: bool = False,
-    num_cores:int=0,
+    num_cores: int = 0,
     n_tries=5,
     verbose: bool = False,
     clobber: bool = False,
 ) -> None:
-    """
-
-    :param sect_info: dataframe containing information about sections
+    """:param sect_info: dataframe containing information about sections
     :param rec_fn: filename of volume with 2d sections
     :param ref_fn: filename of reference volume transformed into acquisition space
     :param mv_dir: directory to store intermediate files
@@ -415,7 +394,7 @@ def align_sections(
             )
             for row in to_do_resample_sect_info
         )
-    
+
     return sect_info
 
 
@@ -490,9 +469,8 @@ def align_2d(
     file_to_align="seg",
     num_cores: int = 1,
     clobber: bool = False,
-    )->pd.DataFrame:
-    """
-    Align 2D sections to sections from reference volume using ANTs
+) -> pd.DataFrame:
+    """Align 2D sections to sections from reference volume using ANTs
 
     :param sect_info: dataframe containing section information
     :param chunk_info: dataframe containing chunk information
@@ -533,7 +511,6 @@ def align_2d(
         num_cores=num_cores,
         clobber=clobber,
     )
-
 
     # Concatenate 2D nonlinear aligned sections into output volume
     sect_info = concatenate_sections_to_volume(

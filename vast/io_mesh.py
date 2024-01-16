@@ -97,7 +97,7 @@ def load_mgh(filename):
     mgh_file=nb.load(filename)
     mmap_data=mgh_file.get_data()
     array_data=np.ndarray.flatten(mmap_data)
-    return array_data;
+    return array_data
 
    
 
@@ -227,7 +227,7 @@ def read_obj(file):
                 polys.extend(line.split())
     polys = list(map(int,polys))
     tris = list(chunks(polys,3))
-    return coords, np.array(tris), n_vert, norms;
+    return coords, np.array(tris), n_vert, norms
 
 
 # function to save mesh geometry

@@ -5,21 +5,13 @@ import numpy as np
 import h5py
 import gzip
 #import vast.volume_tools as vt #Removing bc libminc not installed
-import vast.surface_tools as st
 from functools import partial
 from glob import glob
-import matplotlib
-from re import sub
 #matplotlib.use("TkAgg")
-import matplotlib.pyplot as plt
 import concurrent.futures
 import os
-import vast.math_helpers as mh
-import tracemalloc
-from sys import getsizeof
 import time
 import psutil
-import multiprocessing 
 
 global NPZSTRING
 NPZSTRING='temp_tri_coords_subset'
@@ -289,7 +281,7 @@ class SurfaceVolumeMapper(object):
             """return triangles with all vertices in block only"""
             vertex_indices = np.unique(triangles_to_include).astype(int)
             print(self.max_dimension)
-            print(self.origin); 
+            print(self.origin) 
             print(np.min(self.gray_surface['coords'],axis=0) , np.max(self.gray_surface['coords'],axis=0))
             #check if vertices inside block.+1 if above max, -1 if below origin
             g_include=(self.gray_surface['coords'][vertex_indices] > self.max_dimension).astype(int) - (self.gray_surface['coords'][vertex_indices] < self.origin).astype(int)
@@ -336,7 +328,6 @@ class SurfaceVolumeMapper(object):
     def calculate_volume_surf_coordinates_parallel(self):
         """calculate depths and barycentric coordinates for voxels and triangles in volume
         in parallel"""
-        from multiprocessing import cpu_count
         num_process = 8 #cpu_count()
         #print('Number of Processes', num_process)
         volume_surf_coordinates={'voxel_coordinates':[],

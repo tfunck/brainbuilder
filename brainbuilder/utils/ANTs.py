@@ -290,9 +290,7 @@ def ANTs(
             for attempt in range(n_tries):
                 try:
                     # Run command line
-                    stdout, stderr, errorcode = shell(
-                        cmdline,  exit_on_failure=False
-                    )
+                    stdout, stderr, errorcode = shell(cmdline, exit_on_failure=False)
                     print("Attempt:", attempt, errorcode)
                     if verbose == 1:
                         print(stdout)

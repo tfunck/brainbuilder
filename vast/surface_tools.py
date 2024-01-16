@@ -50,7 +50,7 @@ def get_neighbours_from_tris(tris, label=None):
             neighbours[k] = set(neighbours[k]).intersection(label)
         else :
             neighbours[k]=f7(neighbours[k])
-    return np.array(neighbours);
+    return np.array(neighbours)
 
 
 def get_neighbours(surfname):
@@ -65,7 +65,7 @@ def f7(seq):
     #returns uniques but in order to retain neighbour triangle relationship
     seen = set()
     seen_add = seen.add
-    return [x for x in seq if not (x in seen or seen_add(x))];
+    return [x for x in seq if not (x in seen or seen_add(x))]
 
 def compute_islands(area_txtfile,neighbours):
     """calculates islands with same label value"""
@@ -235,7 +235,7 @@ def create_weighted_midsurface(gray, white, surfdir):
         return m['coords']
     else:
         try:
-            subprocess.call('{} {} {}'.format(os.path.join(civet_path,'average_objects'),os.path.join(tmpdir, 'mid.obj') , gray ,white), shell=True)
+            subprocess.call('{} {} {}'.format(os.path.join(civet_path,'average_objects'),os.path.join(tmpdir, 'mid.obj') , gray ,), shell=True)
             subprocess.call('{} -mean_curvature -alpha 0.05 {} {}'.format(os.path.join(civet_path,'depth_potential'),os.path.join(tmpdir, 'mid.obj '), os.path.join(tmpdir,'curvature.txt')), shell=True)
             subprocess.call('{} -smooth 3 {} {} {}'.format(os.path.join(civet_path,'depth_potential'), os.path.join(tmpdir,'curvature.txt '), os.path.join(tmpdir, 'mid.obj '), os.path.join(tmpdir,'smcurvature.txt')), shell=True)
 #normalise values between 0 and 1
@@ -288,7 +288,7 @@ def get_nearest_indices(surf1,surf2):
         RealIndices[k]=indices[Index]
         if k % 50000 ==0:
             print(str(100.0*k/float(len(surf1))) + '% done')
-    return RealIndices;
+    return RealIndices
 
 
 

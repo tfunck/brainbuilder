@@ -23,5 +23,5 @@ pykrige
 torch
 torchvision
 antspyx
-#pandas==0.24.2
+pre-commit
 webcolors

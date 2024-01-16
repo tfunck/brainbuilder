@@ -4,12 +4,12 @@ import os
 import pandas as pd
 
 import brainbuilder.qc.quality_control as qc
-from brainbuilder.initalign import initalign
-from brainbuilder.segment import segment
-from brainbuilder.utils import utils, validate_inputs
-from brainbuilder.volalign import multiresolution_alignment
-from brainbuilder.interpsections import interpolate_missing_sections
 from brainbuilder.downsample import downsample_sections
+from brainbuilder.initalign import initalign
+from brainbuilder.interpsections import interpolate_missing_sections
+from brainbuilder.segment import segment
+from brainbuilder.utils import utils
+from brainbuilder.volalign import multiresolution_alignment
 
 base_file_dir, fn = os.path.split(os.path.abspath(__file__))
 repo_dir = f"{base_file_dir}/../"
@@ -21,8 +21,7 @@ manual_dir = base_file_dir + os.sep + "manual_points" + os.sep
 
 
 def setup_args(args):
-    """
-    About:
+    """About:
         Setup the parameters and filenames that will be used in the reconstruction
     Inputs:
         args:   user input arguments
@@ -67,8 +66,7 @@ def reconstruct(
     skip_interp: bool = False,
     clobber: bool = False,
 ):
-    """
-    Reconstruct 2D histological sections to 3D volume using a structural reference volume (e.g., T1w MRI from brain donor, stereotaxic template)
+    """Reconstruct 2D histological sections to 3D volume using a structural reference volume (e.g., T1w MRI from brain donor, stereotaxic template)
 
      Processing Steps
         1. Segment
@@ -88,7 +86,6 @@ def reconstruct(
 
     :return sect_info : pandas dataframe, contains updated information about sections with new fields for files produced
     """
-
     downsample_dir = f"{output_dir}/0_downsample/"
     seg_dir = f"{output_dir}/1_seg/"
     initalign_dir = f"{output_dir}/2_init_align/"
@@ -102,39 +99,37 @@ def reconstruct(
 
     maximum_resolution = resolution_list[-1]
 
-    #FIXME UNCOMMENT
-    #valid_inputs = validate_inputs.validate_inputs(
+    # FIXME UNCOMMENT
+    # valid_inputs = validate_inputs.validate_inputs(
     #    hemi_info_csv, chunk_info_csv, sect_info_csv, valid_inputs_npz
-    #)
-    #assert valid_inputs, "Error: invalid inputs"
+    # )
+    # assert valid_inputs, "Error: invalid inputs"
 
     sect_info_csv = downsample_sections(
-            chunk_info_csv, 
-            sect_info_csv, 
-            min(resolution_list), 
-            downsample_dir, 
-            clobber=clobber
-            )
+        chunk_info_csv,
+        sect_info_csv,
+        min(resolution_list),
+        downsample_dir,
+        clobber=clobber,
+    )
 
-    qc.data_set_quality_control(sect_info_csv, qc_dir, column='img')
+    qc.data_set_quality_control(sect_info_csv, qc_dir, column="img")
 
     # Stage: Segment
-    seg_df_csv = segment(chunk_info_csv, 
-                         sect_info_csv, 
-                         seg_dir, 
-                         maximum_resolution, 
-                         use_nnunet=use_nnunet, 
-                         clobber=clobber)
+    seg_df_csv = segment(
+        chunk_info_csv,
+        sect_info_csv,
+        seg_dir,
+        maximum_resolution,
+        use_nnunet=use_nnunet,
+        clobber=clobber,
+    )
 
-    qc.data_set_quality_control(seg_df_csv, qc_dir, column='seg')
+    qc.data_set_quality_control(seg_df_csv, qc_dir, column="seg")
 
     # Stage: Initial rigid aligment of sections
     init_sect_csv, init_chunk_csv = initalign(
-        seg_df_csv, 
-        chunk_info_csv, 
-        initalign_dir, 
-        resolution_list,
-        clobber=clobber
+        seg_df_csv, chunk_info_csv, initalign_dir, resolution_list, clobber=clobber
     )
 
     # Stage: Multiresolution alignment of sections to structural reference volume
@@ -148,32 +143,29 @@ def reconstruct(
         clobber=clobber,
     )
 
-    qc.data_set_quality_control(align_sect_info_csv, qc_dir, column='init_img')
+    qc.data_set_quality_control(align_sect_info_csv, qc_dir, column="init_img")
 
     # Stage: Interpolate missing sections
     if not skip_interp:
         interpolate_missing_sections(
-                hemi_info_csv,
-                align_chunk_info_csv,
-                align_sect_info_csv,
-                maximum_resolution,
-                interp_dir,
-                n_depths = n_depths,
-                use_surface_smoothing = use_surface_smoothing,
-                batch_correction_resolution = batch_correction_resolution,
-                clobber = clobber,
+            hemi_info_csv,
+            align_chunk_info_csv,
+            align_sect_info_csv,
+            maximum_resolution,
+            interp_dir,
+            n_depths=n_depths,
+            use_surface_smoothing=use_surface_smoothing,
+            batch_correction_resolution=batch_correction_resolution,
+            clobber=clobber,
         )
 
     return output_csv
 
 
 def setup_argparse():
-    """
-    Get user input arguments
-    """
+    """Get user input arguments"""
     parser = argparse.ArgumentParser(description="Process some integers.")
 
-    
     parser.add_argument(
         dest="hemi_info_csv",
         type=str,
@@ -232,7 +224,7 @@ def setup_argparse():
         "--pytorch-model",
         "-m",
         dest="pytorch_model_dir",
-        default = f"{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/",
+        default=f"{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/",
         help="Numer of cores to use for segmentation (Default=0; This is will set the number of cores to use to the maximum number of cores availale)",
     )
 
@@ -244,7 +236,7 @@ def setup_argparse():
     )
 
     parser.add_argument(
-        "use_surface_smoothing",    
+        "use_surface_smoothing",
         dest="use_surface_smoothing",
         default=False,
         action="store_true",

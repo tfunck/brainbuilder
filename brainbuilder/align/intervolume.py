@@ -3,14 +3,9 @@ import os
 import shutil
 from glob import glob
 
+import brainbuilder.utils.ants_nibabel as nib
 import numpy as np
 import pandas as pd
-from joblib import Parallel, delayed
-from scipy.ndimage.morphology import binary_dilation, binary_erosion
-from skimage.transform import resize
-
-from skimage.filters import threshold_yen, threshold_niblack, threshold_li, threshold_mean, threshold_triangle, threshold_otsu
-import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils.utils import (
     get_section_intervals,
     get_seg_fn,
@@ -18,7 +13,9 @@ from brainbuilder.utils.utils import (
     resample_to_resolution,
     simple_ants_apply_tfm,
 )
-
+from joblib import Parallel, delayed
+from scipy.ndimage.morphology import binary_dilation, binary_erosion
+from skimage.transform import resize
 
 
 def get_input_file(
@@ -63,8 +60,7 @@ def resample_and_transform(
     recenter_image=False,
     clobber: bool = False,
 ) -> None:
-    """
-    Resamples and transforms the segmented images to the current resolution
+    """Resamples and transforms the segmented images to the current resolution
     :param output_dir: output directory
     :param resolution_itr: current resolution iteration
     :param resolution_2d: current 2D resolution
@@ -120,8 +116,7 @@ def resample_transform_segmented_images(
     num_cores: int = 0,
     clobber: bool = False,
 ) -> None:
-    """
-    Resample and transform segmented images to 3D create a 3D GM classification volume.
+    """Resample and transform segmented images to 3D create a 3D GM classification volume.
     param sect_info: dataframe with information about the section
     param chunk_info: dataframe with information about the chunk
     param resolution_itr: resolution iteration
@@ -130,7 +125,6 @@ def resample_transform_segmented_images(
     param output_dir: output directory
     return: None
     """
-
     os.makedirs(output_dir, exist_ok=True)
     os.uname()
 
@@ -214,8 +208,7 @@ def volumetric_interpolation(
     clobber=False,
     interpolation="nearest",
 ) -> None:
-    """
-    Interpolate missing sections in the volume.
+    """Interpolate missing sections in the volume.
     param sect_info: dataframe with information about the section
     param in_fn: input filename
     param in_dir: input directory
@@ -228,7 +221,6 @@ def volumetric_interpolation(
     param interpolation: interpolation method
     return: None
     """
-
     if not os.path.exists(out_fn) or clobber:
         #
         # Check Inputs
@@ -249,7 +241,7 @@ def volumetric_interpolation(
         # Example image should be at maximum 2D resolution
         example_2d_img = nib.load(example_2d_list[0])
 
-        ymax = sect_info["sample"].max()  + 1
+        ymax = sect_info["sample"].max() + 1
 
         data = np.zeros(
             [example_2d_img.shape[0], ymax, example_2d_img.shape[1]],
@@ -279,7 +271,7 @@ def volumetric_interpolation(
         else:
             valid_slices = []
             for i, row in sect_info.iterrows():
-                s0 = int(row["sample"] - sect_info["sample"].min() )
+                s0 = int(row["sample"] - sect_info["sample"].min())
                 fn = get_seg_fn(
                     in_dir,
                     int(row["sample"]),
@@ -298,7 +290,7 @@ def volumetric_interpolation(
             invalid_slices = [
                 i
                 for i in range(1 + int(sect_info["sample"].max()))
-                if not i in valid_slices
+                if i not in valid_slices
             ]
 
             #
@@ -341,10 +333,15 @@ def volumetric_interpolation(
         zdim = example_2d_img.shape[1]
 
         aff2 = aff.copy()
-        aff2[1,1] = 0.02
-        nib.Nifti1Image(data, aff2).to_filename('/tmp/tmp.nii.gz')
+        aff2[1, 1] = 0.02
+        nib.Nifti1Image(data, aff2).to_filename("/tmp/tmp.nii.gz")
 
-        data = resample_to_resolution(data, [resolution_3d, resolution_3d, resolution_3d], dtype=np.float32, affine=aff).get_fdata()
+        data = resample_to_resolution(
+            data,
+            [resolution_3d, resolution_3d, resolution_3d],
+            dtype=np.float32,
+            affine=aff,
+        ).get_fdata()
 
         aff[[0, 1, 2], [0, 1, 2]] = resolution_3d
 
@@ -352,9 +349,9 @@ def volumetric_interpolation(
 
         print("\tWriting output to", out_fn)
 
-        #threshold =  threshold_otsu(data)
-        #data[ data < threshold ] = 0
-        #data[ data > 0 ] = 1
+        # threshold =  threshold_otsu(data)
+        # data[ data < threshold ] = 0
+        # data[ data > 0 ] = 1
 
         img_out = nib.Nifti1Image(
             data,
@@ -381,8 +378,7 @@ def create_intermediate_volume(
     num_cores: int = 0,
     clobber=False,
 ):
-    """
-    Create intermediate volume for use in registration to the structural reference volume
+    """Create intermediate volume for use in registration to the structural reference volume
 
     param: sect_info: dataframe containing information about each section
     param: chunk_info: dataframe containing information about each chunk
@@ -394,7 +390,6 @@ def create_intermediate_volume(
     param: init_align_fn: filename of the initial alignment volume
     return: None
     """
-
     print("\t\tStep 2: Autoradiograph segmentation")
     if not os.path.exists(seg_rsl_fn) or clobber:
         print("\t\t\tResampling segemented sections")
