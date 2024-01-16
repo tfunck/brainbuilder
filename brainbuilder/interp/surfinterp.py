@@ -319,7 +319,7 @@ def project_volume_to_surfaces(
     return profiles_fn
 
 
-def interpolate_over_surface(sphere_obj_fn, surface_val, threshold=0, order=1):
+def interpolate_over_surface(sphere_obj_fn, surface_val, threshold=0, surface_mask=None, order=1):
     print("\tInterpolating Over Surface")
     print("\t\t\tSphere fn:", sphere_obj_fn)
     # get coordinates from dicitonary with mesh info
@@ -330,8 +330,9 @@ def interpolate_over_surface(sphere_obj_fn, surface_val, threshold=0, order=1):
 
     spherical_coords = surface_tools.spherical_np(coords)
 
-    # define a mask of verticies where we have receptor densitiies
-    surface_mask = surface_val > threshold * np.max(surface_val)
+    if not isinstance(surface_mask, np.ndarray):
+        # define a mask of verticies where we have receptor densitiies
+        surface_mask = surface_val > threshold * np.max(surface_val)
 
     assert np.sum(surface_mask) != 0, "Error, empty profiles {}".format(
         np.sum(surface_mask)
