@@ -306,7 +306,6 @@ def generate_surface_profiles(
     '''
     os.makedirs(output_dir, exist_ok=True)
 
-    print(chunk_info) ; exit(0)
     chunk_info_thickened_csv = create_thickened_volumes(
         output_dir, chunk_info, sect_info, resolution, gaussian_sd=gaussian_sd, clobber=clobber
     )

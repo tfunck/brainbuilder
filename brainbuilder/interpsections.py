@@ -568,12 +568,15 @@ def interpolate_missing_sections(
         os.makedirs(curr_output_dir, exist_ok=True)
 
         curr_chunk_info = chunk_info.loc[
-            (chunk_info["sub"] == sub) & (chunk_info["hemisphere"] == hemisphere) & (chunk_info["resolution"] == resolution)
-        ]
+            (chunk_info["sub"] == sub) & (chunk_info["hemisphere"] == hemisphere) ]  
+        
+        assert len(curr_chunk_info) > 0, f"Error: no chunk info found, sub: {sub}, hemisphere: {hemisphere}, resolution: {resolution}, \n{chunk_info}"
 
         curr_hemi_info = hemi_info.loc[
             (hemi_info["sub"] == sub) & (hemi_info["hemisphere"] == hemisphere) 
         ]
+        assert len(curr_hemi_info) > 0, "Error: no hemisphere info found"
+
         gm_surf_fn = curr_hemi_info['gm_surf'].values[0]
         wm_surf_fn = curr_hemi_info['wm_surf'].values[0] 
         ref_vol_fn = curr_hemi_info['struct_ref_vol'].values[0]

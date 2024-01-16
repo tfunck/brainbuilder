@@ -226,16 +226,8 @@ def create_thickened_volumes(
 
         for (chunk, acquisition), chunk_sect_info in sect_info.groupby([ "chunk","acquisition"]):
             
-            print(chunk_info['chunk'])
-            print(sect_info['chunk'])
-            print(type(chunk))
-            print('unique', np.unique(chunk_info['chunk']))
-            print('chunk', chunk)
             idx = (chunk_info['chunk'] == chunk) 
-            print(chunk)
-            print(chunk_info)
             chunk_info_row = chunk_info[idx].iloc[0]
-            exit(0)
 
             thickened_fn = f"{output_dir}/thickened_{int(chunk)}_{acquisition}_{resolution}{tissue_type}.nii.gz"
 
