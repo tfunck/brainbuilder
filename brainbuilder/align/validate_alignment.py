@@ -1,4 +1,6 @@
+"""Validate alignment of histological sections to structural reference volume."""
 import os
+from typing import Callable
 
 import matplotlib.pyplot as plt
 import nibabel as nib
@@ -34,27 +36,60 @@ ligand_receptor_dict = {
 }
 
 
-def dice(x, y):
+def dice(x:float, y:float) -> float:
+    """Calculate the Dice coefficient between two binary arrays.
+    
+    Args:
+        x (np.ndarray): Binary array.
+        y (np.ndarray): Binary array.
+    
+    Returns:
+        float: Dice coefficient.
+    """
     num = np.sum((x == 1) & (y == 1)) * 2
     den = np.sum(x) + np.sum(y)
     dice_score = num / den
     return dice_score
 
 
-def modified_dice(x, y):
+def modified_dice(x:float, y:float) -> float:
+    """Calculate the modified Dice coefficient between two binary arrays.
+    
+    Args:
+        x (np.ndarray): Binary array.
+        y (np.ndarray): Binary array.
+    
+    Returns:
+        float: Modified Dice coefficient.
+    """
     num = np.sum((x == 1) & (y == 1))
     den = np.sum(y)
     dice_score = num / den
     return dice_score
 
 
-def prepare_volume(vol):
+def prepare_volume(vol: np.ndarray) -> np.ndarray:
+    """Prepare the volume by normalizing and rounding it.
+    
+    :param vol (np.ndarray): Input volume.
+    :return np.ndarray: Prepared volume.
+    """
     vol = (vol - np.min(vol)) / (vol.max() - vol.min())
     vol = np.round(vol).astype(int)
     return vol
 
 
-def global_dice(fx_vol, mv_vol, clobber=False):
+def global_dice(fx_vol: np.ndarray, mv_vol: np.ndarray, clobber: bool = False) -> tuple[float, int]:
+    """Calculate the global dice score between two volumes.
+    
+    Args:
+        fx_vol (np.ndarray): Fixed volume.
+        mv_vol (np.ndarray): Moving volume.
+        clobber (bool, optional): Whether to clobber existing results. Defaults to False.
+    
+    Returns:
+        Tuple[float, int]: Global dice score and sum of moving volume.
+    """
     fx_vol = prepare_volume(fx_vol)
     mv_vol = prepare_volume(mv_vol)
 
@@ -63,8 +98,9 @@ def global_dice(fx_vol, mv_vol, clobber=False):
     return dice_score, np.sum(mv_vol)
 
 
-def local_metric(fx_vol, mv_vol, metric, offset=5):
+def local_metric(fx_vol: np.ndarray, mv_vol: np.ndarray, metric: Callable, offset: int = 5) -> np.ndarray:
     """Calculate the local metric between two volumes with kernel windows of size <offset>.
+
     :param: fx_vol: np.ndarray
     :param: mv_vol: np.ndarray
     :param: metric: function
@@ -73,9 +109,6 @@ def local_metric(fx_vol, mv_vol, metric, offset=5):
     """
     fx_vol = prepare_volume(fx_vol)
     mv_vol = prepare_volume(mv_vol)
-
-    fx_min = np.min(fx_vol)
-    mv_min = np.min(mv_vol)
 
     local_dice_section = np.zeros(fx_vol.shape)
 
@@ -99,7 +132,20 @@ def local_metric(fx_vol, mv_vol, metric, offset=5):
     return local_dice_section
 
 
-def qc_low_dice_section(row, slab, y, mri_vol, mv_vol, fx_vol, qc_dir):
+def qc_low_dice_section(row: pd.DataFrame, slab: int, y: int, mri_vol: np.array, mv_vol: np.array, fx_vol: np.array, qc_dir: str) -> None:
+    """Perform quality control on low dice section.
+
+    :param row: The row.
+    :param slab: The slab.
+    :param y: The y-coordinate.
+    :param mri_vol: The MRI volume.
+    :param mv_vol: The moving volume.
+    :param fx_vol: The fixed volume.
+    :param qc_dir: The directory for quality control.
+    :return: None
+    """
+    # Add your code here
+
     temp_fn = f"{qc_dir}/{slab}_{y}_example.png"
     if not os.path.exists(temp_fn):
         plt.cla()
@@ -119,7 +165,17 @@ def qc_low_dice_section(row, slab, y, mri_vol, mv_vol, fx_vol, qc_dir):
         plt.clf()
 
 
-def get_section_metric(fx_fn, mv_fn, out_png, idx, verbose=False):
+def get_section_metric(fx_fn: str, mv_fn: str, out_png: str, idx: int, verbose: bool = False) -> None:
+    """Calculate the section metric for given input files and parameters.
+
+    :param fx_fn: The filename of the fixed volume.
+    :param mv_fn: The filename of the moving volume.
+    :param out_png: The filename for the output PNG.
+    :param idx: The index.
+    :param verbose: Whether to enable verbose mode.
+    :return: None
+    """
+    # Add your code here
     img0 = nib.load(fx_fn)
     fx_vol = prepare_volume(img0.get_fdata())
     mv_vol = prepare_volume(nib.load(mv_fn).get_fdata())
@@ -155,8 +211,15 @@ def calculate_volume_accuracy(
     tfm_dir: str,
     num_cores: int = 0,
     clobber: bool = False,
-):
-    """Calculate the accuracy of the alignment of histological sections to the structural reference volume"""
+)-> pd.DataFrame:
+    """Calculate the accuracy of the alignment of histological sections to the structural reference volume.
+    
+    :param sect_info: pd.DataFrame
+    :param tfm_dir: str
+    :param num_cores: int
+    :param clobber: bool
+    :return: pd.DataFrame
+    """
     pd.DataFrame({})
 
     num_cores = int(num_cores) if num_cores > 0 else int(os.cpu_count() / 2)
@@ -189,7 +252,12 @@ def calculate_volume_accuracy(
     return sect_info
 
 
-def output_stats(in_df):
+def output_stats(in_df: pd.DataFrame)-> pd.DataFrame:
+    """Output stats for alignment accuracy.
+    
+    :param in_df: pd.DataFrame
+    :return: pd.DataFrame
+    """
     out_df = pd.DataFrame({})
     for (slab, resolution), temp_df in in_df.groupby(["slab", "resolution"]):
         w = temp_df["weight"].values
@@ -234,8 +302,14 @@ def output_stats(in_df):
 
 def validate_section_alignment(
     sect_info: pd.DataFrame, qc_dir: str, clobber: bool = False
-):
-    """Validate alignment of histological sections to structural reference volume"""
+)-> pd.DataFrame:
+    """Validate alignment of histological sections to structural reference volume.
+    
+    :param sect_info: pd.DataFrame
+    :param qc_dir: str
+    :param clobber: bool
+    :return: pd.DataFrame
+    """
     print("\n\t\tValidate Alignment\n")
 
     os.makedirs(qc_dir, exist_ok=True)

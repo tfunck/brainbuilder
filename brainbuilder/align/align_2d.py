@@ -387,6 +387,7 @@ def get_align_filenames(
     sect_info: pd.DataFrame,
 ) -> pd.DataFrame:
     """Get filenames for alignment.
+
     :param tfm_dir: directory to store intermediate files
     :param sect_info: dataframe containing section information
     :return: sect_info
@@ -397,6 +398,7 @@ def get_align_filenames(
     sect_info["2d_tfm"] = [""] * sect_info.shape[0]
     sect_info["2d_align"] = [""] * sect_info.shape[0]
     sect_info["2d_align_cls"] = [""] * sect_info.shape[0]
+
 
     for idx, (i, row) in enumerate(sect_info.iterrows()):
         y = int(row["sample"])
@@ -431,7 +433,7 @@ def align_sections(
     use_syn: bool = True,
     batch_processing: bool = False,
     num_cores: int = 0,
-    n_tries=5,
+    n_tries: int = 5,
     verbose: bool = False,
     clobber: bool = False,
 ) -> None:

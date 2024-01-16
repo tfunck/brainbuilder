@@ -1,4 +1,4 @@
-import argparse
+"""Functions to create intermediate GM volumes for use in registration to the structural reference volume."""
 import os
 import shutil
 from glob import glob
@@ -9,24 +9,36 @@ import pandas as pd
 from brainbuilder.utils.utils import (
     get_section_intervals,
     get_seg_fn,
-    recenter,
     resample_to_resolution,
     simple_ants_apply_tfm,
 )
 from joblib import Parallel, delayed
+from scipy.ndimage import shift
 from scipy.ndimage.morphology import binary_dilation, binary_erosion
+from skimage.measure import center_of_mass
 from skimage.transform import resize
 
 
 def get_input_file(
-    seg_fn,
-    seg_rsl_fn,
-    row,
-    output_dir,
-    resolution_2d,
-    resolution_3d,
+    seg_fn: str,
+    seg_rsl_fn: str,
+    row: pd.Series,
+    output_dir: str,
+    resolution_2d: float,
+    resolution_3d: float,
     clobber: bool = False,
-):
+) -> str:
+    """Get the input file for resampling and transformation.
+    
+    :param seg_fn: the segmented file name
+    :param seg_rsl_fn: the resampled segmented file name
+    :param row: the row of the dataframe
+    :param output_dir: the output directory
+    :param resolution_2d: the 2D resolution
+    :param resolution_3d: the 3D resolution
+    :param clobber: whether to overwrite existing files
+    :return: the input file for resampling and transformation
+    """
     tfm_input_fn = seg_rsl_fn
     if not os.path.exists(seg_rsl_fn):
         resample_to_resolution(
@@ -51,16 +63,17 @@ def get_input_file(
 
 
 def resample_and_transform(
-    output_dir,
-    resolution_itr,
-    resolution_2d,
-    resolution_3d,
-    row,
-    tfm_ref_fn,
-    recenter_image=False,
+    output_dir: str,
+    resolution_itr: int,
+    resolution_2d: float,
+    resolution_3d: float,
+    row: pd.Series,
+    tfm_ref_fn: str,
+    recenter_image: bool = False,
     clobber: bool = False,
 ) -> None:
-    """Resamples and transforms the segmented images to the current resolution
+    """Resamples and transforms the segmented images to the current resolution.
+
     :param output_dir: output directory
     :param resolution_itr: current resolution iteration
     :param resolution_2d: current 2D resolution
@@ -91,7 +104,7 @@ def resample_and_transform(
         # get initial rigid transform
         tfm_fn = row["2d_tfm"]
         print("\tTransforming", seg_rsl_fn, "to", seg_rsl_tfm_fn)
-        if type(tfm_fn) == str:
+        if isinstance(tfm_fn, str):
             simple_ants_apply_tfm(
                 tfm_input_fn,
                 tfm_ref_fn,
@@ -117,12 +130,13 @@ def resample_transform_segmented_images(
     clobber: bool = False,
 ) -> None:
     """Resample and transform segmented images to 3D create a 3D GM classification volume.
-    param sect_info: dataframe with information about the section
-    param chunk_info: dataframe with information about the chunk
-    param resolution_itr: resolution iteration
-    param resolution_2d: 2D resolution
-    param resolution_3d: 3D resolution
-    param output_dir: output directory
+
+    :param sect_info: dataframe with information about the section
+    :param chunk_info: dataframe with information about the chunk
+    :param resolution_itr: resolution iteration
+    :param resolution_2d: 2D resolution
+    :param resolution_3d: 3D resolution
+    :param output_dir: output directory
     return: None
     """
     os.makedirs(output_dir, exist_ok=True)
@@ -133,14 +147,6 @@ def resample_transform_segmented_images(
     if not os.path.exists(tfm_ref_fn) and resolution_itr != 0:
         ref_img = nib.load(sect_info["nl_2d_rsl"].values[0])
         xstart, zstart = ref_img.affine[[0, 1], 3]
-        affine = np.array(
-            [
-                [resolution_3d, 0, 0, xstart],
-                [0, resolution_3d, 0, zstart],
-                [0, 0, 0, 1],
-                [0, 0, 0, 1],
-            ]
-        ).astype(float)
 
         resample_to_resolution(
             sect_info["nl_2d_rsl"].values[0],
@@ -164,7 +170,13 @@ def resample_transform_segmented_images(
     return None
 
 
-def interpolate_missing_sections(vol, dilate_volume=False):
+def interpolate_missing_sections(vol:np.array, dilate_volume:bool=False)->np.array:
+    """Interpolates missing sections in a volume.
+
+    :param vol (ndarray): The input volume.
+    :dilate_volume (bool, optional): Whether to dilate the volume before interpolation. Defaults to False.
+    :return ndarray: The volume with missing sections interpolated.
+    """
     if dilate_volume:
         vol_dil = binary_erosion(
             binary_dilation(vol, iterations=4), iterations=4
@@ -195,20 +207,50 @@ def interpolate_missing_sections(vol, dilate_volume=False):
     return out_vol
 
 
+def recenter(vol:np.array, affine:np.array, direction:np.array=np.array([1, 1, -1]))->tuple:
+    """Recenter the volume.
+    
+    :param vol: the volume
+    :param affine: the affine
+    :param direction: the direction
+    :return: the recentered volume and affine
+    """
+    affine = np.array(affine)
+
+    vol_sum_1 = np.sum(np.abs(vol))
+    assert vol_sum_1 > 0, "Error: input volume sum is 0 in recenter"
+
+    ndim = len(vol.shape)
+    vol[pd.isnull(vol)] = 0
+    coi = np.array(vol.shape) / 2
+    com = center_of_mass(vol)
+    d_vox = np.rint(coi - com)
+    d_vox[1] = 0
+    d_world = d_vox * affine[range(ndim), range(ndim)]
+    d_world *= direction
+    affine[range(ndim), 3] -= d_world
+
+    print("\tShift in Segmented Volume by:", d_vox)
+    vol = shift(vol, d_vox, order=0)
+
+    affine[range(ndim), range(ndim)]
+    return vol, affine
+
 def volumetric_interpolation(
-    sect_info,
-    in_fn,
-    in_dir,
-    out_dir,
-    out_fn,
-    resolution_3d,
-    resolution_2d,
-    section_thickness,
-    flip_axes=(),
-    clobber=False,
-    interpolation="nearest",
+    sect_info: pd.DataFrame,
+    in_fn: str,
+    in_dir: str,
+    out_dir: str,
+    out_fn: str,
+    resolution_3d: float,
+    resolution_2d: float,
+    section_thickness: float,
+    flip_axes: tuple[int, ...] = (),
+    clobber: bool = False,
+    interpolation: str = "nearest",
 ) -> None:
     """Interpolate missing sections in the volume.
+    
     param sect_info: dataframe with information about the section
     param in_fn: input filename
     param in_dir: input directory
@@ -326,12 +368,6 @@ def volumetric_interpolation(
         if flip_axes != ():
             data = np.flip(data, axis=flip_axes)
 
-        xdim = example_2d_img.shape[0]
-        ydim = np.ceil(
-            (ref_img.affine[1, 1] * ref_img.shape[1]) / resolution_3d
-        ).astype(int)
-        zdim = example_2d_img.shape[1]
-
         aff2 = aff.copy()
         aff2[1, 1] = 0.02
         nib.Nifti1Image(data, aff2).to_filename("/tmp/tmp.nii.gz")
@@ -349,20 +385,15 @@ def volumetric_interpolation(
 
         print("\tWriting output to", out_fn)
 
-        # threshold =  threshold_otsu(data)
-        # data[ data < threshold ] = 0
-        # data[ data > 0 ] = 1
-
         img_out = nib.Nifti1Image(
             data,
             aff,
-            # direction=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]],
             dtype=np.uint8,
             direction_order="lpi",
         )
         img_out.to_filename(out_fn)
 
-        return 0
+    return 0
 
 
 def create_intermediate_volume(
@@ -376,9 +407,9 @@ def create_intermediate_volume(
     init_align_fn: str,
     interpolation: str = "nearest",
     num_cores: int = 0,
-    clobber=False,
-):
-    """Create intermediate volume for use in registration to the structural reference volume
+    clobber:bool=False,
+)->None:
+    """Create intermediate volume for use in registration to the structural reference volume.
 
     param: sect_info: dataframe containing information about each section
     param: chunk_info: dataframe containing information about each chunk
@@ -421,42 +452,3 @@ def create_intermediate_volume(
         )
 
     return None
-
-
-if __name__ == "__main__":
-    #
-    # Set Inputs
-    #
-
-    parser = argparse.ArgumentParser(description="Process some integers.")
-    parser.add_argument(
-        "--input-file", "-i", dest="input_file", help="Input MINC filename"
-    )
-    parser.add_argument(
-        "--output-file", "-o", dest="output_file", help="Output MINC filename"
-    )
-    parser.add_argument(
-        "--output-dir", "-d", dest="output_dir", help="Output MINC filename"
-    )
-    parser.add_argument(
-        "--morph-iterations",
-        dest="morph_iterations",
-        type=int,
-        default=5,
-        help="Number of iterations to use for morphological erosion and then dilation across the Y axis",
-    )
-    parser.add_argument(
-        "--clobber",
-        dest="clobber",
-        action="store_true",
-        default=False,
-        help="Clobber results",
-    )
-    args = parser.parse_args()
-    classifyReceptorSlices(
-        args.input_file,
-        args.output_dir,
-        args.output_file,
-        args.morph_iterations,
-        args.clobber,
-    )

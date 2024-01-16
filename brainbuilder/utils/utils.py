@@ -1,3 +1,5 @@
+"""Utility functions for brainbuilder."""
+
 import contextlib
 import os
 import re
@@ -23,16 +25,27 @@ from skimage.transform import resize
 os_info = os.uname()
 
 
-def get_available_memory():
+def get_available_memory()->int:
+    """Get the available memory in bytes.
+    
+    :return: int
+    """
     return psutil.virtual_memory()[1]
 
 
-def estimate_memory_usage(n_elements, n_bytes_per_element):
+def estimate_memory_usage(n_elements:int, n_bytes_per_element:int)->int:
+    """Estimate the memory usage for a given number of elements and bytes per element.
+    
+    :param n_elements: int, number of elements
+    :param n_bytes_per_element: int, number of bytes per element
+    :return: int
+    """
     return n_elements * n_bytes_per_element
 
 
 def get_maximum_cores(n_elemnts_list, n_bytes_per_element_list, max_memory=0.8):
     """Get the maximum number of cores to use for a given memory limit.
+
     :param n_elemnts: int, number of elements
     :param n_bytes_per_element: int, number of bytes per element
     :param max_memory: float, maximum memory to use
@@ -60,8 +73,9 @@ def get_maximum_cores(n_elemnts_list, n_bytes_per_element_list, max_memory=0.8):
     return max_cores
 
 
-def load_image(fn):
+def load_image(fn:str)->np.ndarray:
     """Load an image from a file.
+
     :param fn: str, filename
     :return: np.ndarray
     """
@@ -74,13 +88,14 @@ def load_image(fn):
         return None
 
 
-def get_chunk_pixel_size(sub, hemi, chunk, chunk_info):
+def get_chunk_pixel_size(sub, hemi, chunk, chunk_info)->tuple:
     """Get the pixel size of a chunk.
+
     :param sub: str, name of the subject
     :param hemi: str, hemisphere
     :param chunk: int, chunk number
     :param chunk_info: pd.DataFrame, chunk info dataframe
-    :return: float
+    :return: tuple
     """
     idx = (
         (chunk_info["sub"] == sub)
@@ -472,8 +487,9 @@ def world_center_of_mass(vol, affine):
     return wcom
 
 
-def get_values_from_df(df, fields=["sub", "hemisphere", "chunk"]):
-    """Get the unique values from a dataframe for a list of fields
+def get_values_from_df(df:pd.DataFrame, fields=["sub", "hemisphere", "chunk"])->list:
+    """Get the unique values from a dataframe for a list of fields.
+
     :param df: dataframe
     :param fields: list of fields
     :return: list of unique values
@@ -487,31 +503,9 @@ def get_values_from_df(df, fields=["sub", "hemisphere", "chunk"]):
     return out_list
 
 
-def recenter(vol, affine, direction=np.array([1, 1, -1])):
-    affine = np.array(affine)
+def get_params_from_affine(aff:np.array, ndim:int)->tuple:
+    """Get the parameters from an affine.
 
-    vol_sum_1 = np.sum(np.abs(vol))
-    assert vol_sum_1 > 0, "Error: input volume sum is 0 in recenter"
-
-    ndim = len(vol.shape)
-    vol[pd.isnull(vol)] = 0
-    coi = np.array(vol.shape) / 2
-    com = center_of_mass(vol)
-    d_vox = np.rint(coi - com)
-    d_vox[1] = 0
-    d_world = d_vox * affine[range(ndim), range(ndim)]
-    d_world *= direction
-    affine[range(ndim), 3] -= d_world
-
-    print("\tShift in Segmented Volume by:", d_vox)
-    vol = shift(vol, d_vox, order=0)
-
-    affine[range(ndim), range(ndim)]
-    return vol, affine
-
-
-def get_params_from_affine(aff, ndim):
-    """Get the parameters from an affine
     :param aff: np.ndarray, affine
     :return: origin, spacing, direction
     """
@@ -526,7 +520,8 @@ def get_params_from_affine(aff, ndim):
 
 
 def parse_resample_arguments(input_arg, output_filename, aff, dtype) -> tuple:
-    """Parse the arguments for resample_to_resolution
+    """Parse the arguments for resample_to_resolution.
+
     :param input_arg: input file or numpy array
     :param output_filename: output filename
     :param aff: np.ndarray, affine
@@ -588,8 +583,9 @@ def parse_resample_arguments(input_arg, output_filename, aff, dtype) -> tuple:
     return vol, origin, spacing, direction, dtype, output_filename, aff, ndim
 
 
-def newer_than(fn1: str, fn2: str):
-    """Check if fn1 is newer than fn2
+def newer_than(fn1: str, fn2: str)->bool:
+    """Check if fn1 is newer than fn2.
+
     :param fn1: str, filename
     :param fn2: str, filename
     :return: bool
@@ -603,7 +599,8 @@ def newer_than(fn1: str, fn2: str):
 
 
 def compare_timestamp_of_files(x, y) -> bool:
-    """Compare the timestamps of two files. If x is newer than y, return True, otherwise return False
+    """Compare the timestamps of two files. If x is newer than y, return True, otherwise return False.
+
     :param x: str or list
     :param y: str or list
     :return: bool
@@ -631,6 +628,7 @@ def check_run_stage(
     col1: Iterable, col2: Iterable, df_csv: str = None, clobber=False
 ) -> bool:
     """Check if a stage should be run. If the output files exist, check if they are newer than the input files.
+
     :param col1: column name
     :param col2: column name
     :param df_csv: path to dataframe
@@ -704,7 +702,7 @@ def resample_to_resolution(
     direction_order="lpi",
     order=1,
 ):
-    """Resample a volume to a new resolution
+    """Resample a volume to a new resolution.
 
     :param input_arg: input file or numpy array
     :param new_resolution: new resolution

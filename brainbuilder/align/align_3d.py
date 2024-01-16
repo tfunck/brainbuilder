@@ -1,3 +1,4 @@
+"""Functions to perform 3D volumetric alignment of the inital GM volume to the reference volume."""
 import os
 import re
 
@@ -12,16 +13,23 @@ from brainbuilder.utils.utils import (
 )
 
 
-def w2v(c, step, start):
-    return np.round((c - start) / step).astype(int)
+def v2w(i:int, step:float, start:float)->float:
+    """Converts voxel coordinate to world coordinate.
 
-
-def v2w(i, step, start):
+    :param i: voxel coordinate
+    :param step: step size
+    :param start: start coordinate
+    :return: world coordinate.
+    """
     return start + i * step
 
 
-def find_vol_min_max(vol):
-    """Finds the min and max spatial coordinate of the srv image"""
+def find_vol_min_max(vol: np.ndarray)->tuple:
+    """Finds the min and max spatial coordinate of the srv image.
+
+    :param vol:  image volume
+    :return: srvMin, srvMax
+    """
     profile = np.max(vol, axis=(0, 2))
     if np.sum(profile) == 0:
         print("Error : empty srv file")
@@ -31,33 +39,48 @@ def find_vol_min_max(vol):
     return srvMin, srvMax
 
 
-def pad_volume(vol, max_factor, affine, min_voxel_size=29, direction=[1, 1, 1]):
+def pad_volume(
+    vol: np.ndarray,
+    max_factor: int,
+    affine: np.ndarray,
+    min_voxel_size: int = 29,
+    direction: list[int] = [1, 1, 1]
+) -> tuple[np.ndarray, np.ndarray]:
+    """Pad the volume so that it can be downsampled by the maximum downsample factor.
+    
+    :param vol: volume to pad
+    :param max_factor: maximum downsample factor
+    :param affine: affine matrix
+    :param min_voxel_size: minimum voxel size
+    :param direction: direction of the affine matrix
+    :return: padded volume, padded affine matrix.
+    """
     xdim, ydim, zdim = vol.shape
 
-    def padded_dim(dim, max_factor, min_voxel_size):
-        # min_voxel_size < dim / 2 ** (max_factor-1)
-        # min_voxel_size * 2 ** (max_factor-1) < dim
-        downsampled_dim = np.ceil(dim / 2 ** (max_factor - 1))
-        if downsampled_dim < min_voxel_size:
-            return np.ceil((min_voxel_size - downsampled_dim) / 2).astype(int)
-        else:
-            return 0
+    def padded_dim(dim: int, max_factor: int, min_voxel_size: int) -> int:
 
-    x_pad = padded_dim(xdim, max_factor, min_voxel_size)
-    y_pad = padded_dim(ydim, max_factor, min_voxel_size)
-    z_pad = padded_dim(zdim, max_factor, min_voxel_size)
+        x_pad = padded_dim(xdim, max_factor, min_voxel_size)
+        y_pad = padded_dim(ydim, max_factor, min_voxel_size)
+        z_pad = padded_dim(zdim, max_factor, min_voxel_size)
 
-    vol_padded = np.pad(vol, ((x_pad, x_pad), (y_pad, y_pad), (z_pad, z_pad)))
-    affine[0, 3] -= x_pad * abs(affine[0, 0]) * direction[0]
-    affine[1, 3] -= y_pad * abs(affine[1, 1]) * direction[1]
-    affine[2, 3] -= z_pad * abs(affine[2, 2]) * direction[2]
-    print(np.sum(vol), np.sum(vol_padded))
-    print(vol.dtype, vol_padded.dtype)
+        vol_padded = np.pad(vol, ((x_pad, x_pad), (y_pad, y_pad), (z_pad, z_pad)))
+        affine[0, 3] -= x_pad * abs(affine[0, 0]) * direction[0]
+        affine[1, 3] -= y_pad * abs(affine[1, 1]) * direction[1]
+        affine[2, 3] -= z_pad * abs(affine[2, 2]) * direction[2]
+        print(np.sum(vol), np.sum(vol_padded))
+        print(vol.dtype, vol_padded.dtype)
 
-    return vol_padded, affine
+        return vol_padded, affine
 
 
-def get_ref_info(ref_rsl_fn):
+def get_ref_info(ref_rsl_fn:str) -> tuple:
+    """Get reference volume information.
+
+    Description: Get the width, min, max, ystep, and ystart of the reference volume
+
+    :param ref_rsl_fn: reference volume filename
+    :return: ref_width, ref_min, ref_max, ref_ystep, ref_ystart.
+    """
     ref_img = nib.load(ref_rsl_fn)
     ref_vol = ref_img.get_fdata()
     ref_vol.shape[1]
@@ -72,7 +95,13 @@ def get_ref_info(ref_rsl_fn):
     return ref_width, ref_min, ref_max, ref_ystep, ref_ystart
 
 
-def pad_seg_vol(seg_rsl_fn, max_downsample_level):
+def pad_seg_vol(seg_rsl_fn:str, max_downsample_level:str)->str:
+    """Pad a volume to center it while keeping it centered in the world coordinates.
+    
+    :param seg_rsl_fn: segmentation volume filename
+    :param max_downsample_level: maximum downsample level
+    :return: padded segmentation volume filename
+    """
     seg_img = nib.load(seg_rsl_fn)
     seg_vol = seg_img.get_fdata()
 
@@ -104,12 +133,21 @@ def pad_seg_vol(seg_rsl_fn, max_downsample_level):
 
 
 def get_alignment_schedule(
-    resolution_list,
-    resolution,
-    resolution_cutoff_for_cc=0.3,
-    base_nl_itr=200,
-    base_lin_itr=500,
-):
+    resolution_list: list[int],
+    resolution: int,
+    resolution_cutoff_for_cc:float=0.3,
+    base_nl_itr:int=200,
+    base_lin_itr:int=500,
+)->tuple:
+    """Get the alignment schedule for the linear and nonlinear portions of the ants alignment.
+    
+    :param resolution_list: list of resolutions
+    :param resolution: resolution of the section volume
+    :param resolution_cutoff_for_cc: resolution cutoff for cross correlation
+    :param base_nl_itr: base number of iterations for nonlinear alignment
+    :param base_lin_itr: base number of iterations for linear alignment
+    :return: max_downsample_level, linParams, nlParams, ccParams.
+    """
     # cur_res/res = 2^(f-1) --> f = 1+ log2(cur_res/res)
     # min_nl_itr = len( [ resolution for resolution in resolution_list[0:resolution_itr] if  float(resolution) <= .1 ] ) # I gues this is to limit nl alignment above 0.1mm
     base_cc_itr = np.rint(base_nl_itr / 2)
@@ -170,7 +208,8 @@ def write_ref_chunk(
     max_downsample_level: int,
     clobber: bool = False,
 ) -> None:
-    """Write a chunk from the reference volume that corresponds to the tissue chunk from the section volume
+    """Write a chunk from the reference volume that corresponds to the tissue chunk from the section volume.
+
     :param sub: subject id
     :param hemi: hemisphere
     :param chunk: chunk number
@@ -218,30 +257,6 @@ def write_ref_chunk(
 
     return ref_chunk_fn
 
-
-def gen_mask(fn, clobber=False):
-    out_fn = re.sub(".nii", "_mask.nii", fn)
-
-    if not os.path.exists(out_fn) or clobber:
-        from scipy.ndimage import binary_dilation
-
-        img = nib.load(fn)
-        vol = img.get_fdata()
-        vol[vol > 0.00001] = 1
-        vol[vol < 1] = 0
-
-        average_resolution = np.mean(img.affine[[0, 1, 2], [0, 1, 2]])
-        iterations = np.ceil(5 / average_resolution).astype(int)
-
-        vol = binary_dilation(vol, iterations=iterations).astype(np.uint8)
-
-        nib.Nifti1Image(
-            vol, img.affine, direction=img.direction, dtype=np.uint8
-        ).to_filename(out_fn)
-
-    return out_fn
-
-
 def run_alignment(
     out_dir: str,
     out_tfm_fn: str,
@@ -261,8 +276,9 @@ def run_alignment(
     use_masks: bool = True,
     sampling: float = 0.9,
     clobber: bool = False,
-):
-    """Run the alignment of the tissue chunk to the chunk from the reference volume
+) -> None:
+    """Run the alignment of the tissue chunk to the chunk from the reference volume.
+
     :param out_dir: output directory
     :param out_tfm_fn: output transformation filename
     :param out_inv_fn: output inverse transformation filename
@@ -281,7 +297,7 @@ def run_alignment(
     :param use_masks: use masks for registration
     :param sampling: sampling for registration
     :param clobber: overwrite existing files
-    :return: None
+    :return: None.
     """
     prefix = re.sub("_SyN_CC_Composite.h5", "", out_tfm_fn)  # FIXME this is bad coding
     f"{prefix}/log.txt"
@@ -296,21 +312,10 @@ def run_alignment(
     affine_inv_fn = f"{prefix_affine}volume_inverse.nii.gz"
     f"{prefix_manual}Composite.nii.gz"
 
-    seg_mask_fn = gen_mask(seg_rsl_fn, clobber=True)
-
     ref_tgt_fn = ref_chunk_fn
-    step = 0.5
-    # Parameters that worked well for chunk 1 at 0.25mm, testing them out...
-    step = 0.5  # DEBUG
-    nbins = 32  # DEBUG
-    sampling = 0.9  # DEBUG
-
-    # calculate SyN
-
-    nl_metric = metric
-    # if float(resolution) <= 0.3 :
-    # if float(resolution) <= 0.5 :
-    #    nl_metric = 'Mattes'
+    step = 0.5 
+    nbins = 32  
+    sampling = 0.9
 
     nl_metric = f"Mattes[{ref_chunk_fn},{seg_rsl_fn},1,32,Random,{sampling}]"
     cc_metric = f"CC[{ref_chunk_fn},{seg_rsl_fn},1,3,Random,{sampling}]"
@@ -318,49 +323,30 @@ def run_alignment(
     syn_rate = "0.1"
 
     base = "antsRegistration -v 1 -a 1 -d 3 "
-    if use_masks:
-        base = f"{base} --masks [{ref_mask_fn},{seg_mask_fn}] "
 
-    def write_log(prefix, kind, cmd):
+    def write_log(prefix:str, kind:str, cmd:str)->None:
         with open(f"{prefix}/log_{kind}.txt", "w+") as F:
             F.write(cmd)
+        return None
 
     # set initial transform
     # calculate rigid registration
-    skip_manual = True
 
     init_str = f" --initial-moving-transform [{ref_chunk_fn},{seg_rsl_fn},1] "
-    if not skip_manual or type(manual_affine_fn) == str:
-        if os.path.exists(manual_affine_fn):
-            ### Create init tfm to adjust for subs of very differnt sizes
-            """
-            if use_init_tfm and not os.path.exists(f'{prefix_init}Composite.h5'):
-                s_str_0 = linParams.s_list[0] +'x'
-                f_str_0 = linParams.f_list[0]
-                #why does the similarity transform only have one iteration step?
-                #shell(f'{base}  --initial-moving-transform [{ref_chunk_fn},{seg_rsl_fn},1]   -t Similarity[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000   -t Affine[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000  -o [{prefix_init},{prefix_init}volume.nii.gz,{prefix_init}volume_inverse.nii.gz]  ', verbose=False)
-
-                shell(f'{base}  --initial-moving-transform [{ref_chunk_fn},{seg_rsl_fn},1]   -t Similarity[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}   -t Affine[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {s_str_0} -f {f_str_0}  -c 1000  -o [{prefix_init},{prefix_init}volume.nii.gz,{prefix_init}volume_inverse.nii.gz]  ', verbose=False)
-                init_str = f' --initial-moving-transform {prefix_init}Composite.h5 '
-            """
 
     # calculate rigid registration
     if not os.path.exists(f"{prefix_rigid}Composite.h5"):
         rigid_cmd = f"{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] "
         shell(rigid_cmd, verbose=True)
         write_log(out_dir, "rigid", rigid_cmd)
+    
     # calculate similarity registration
-
     if not os.path.exists(f"{prefix_similarity}Composite.h5"):
         similarity_cmd = f"{base}  --initial-moving-transform  {prefix_rigid}Composite.h5 -t Similarity[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] "
         shell(similarity_cmd, verbose=True)
         write_log(out_dir, "similarity", similarity_cmd)
 
     affine_init = f"--initial-moving-transform {prefix_similarity}Composite.h5"
-    # else :
-    #    print('\tApply manual transformation')
-    #    shell(f'antsApplyTransforms -v 1 -d 3 -i {seg_rsl_fn} -r {ref_tgt_fn} -t [{manual_affine_fn},0] -o {manual_out_fn}', verbose=False)
-    #    affine_init = f'--initial-moving-transform [{manual_affine_fn},0]'
 
     # calculate affine registration
     if not os.path.exists(f"{prefix_affine}Composite.h5"):
@@ -396,53 +382,52 @@ def run_alignment(
         ref_rsl_fn, seg_rsl_fn, prefix_syn + "InverseComposite.h5", out_inv_fn
     )
 
-
-def get_max_downsample_level(resolution_list, resolution_itr):
-    cur_resolution = float(resolution_list[resolution_itr])
-    max_resolution = float(resolution_list[0])
-    max_downsample_factor = np.floor(max_resolution / cur_resolution).astype(int)
-
-    # log2(max_downsample_factor) + 1 = L
-    max_downsample_level = np.int(np.log2(max_downsample_factor) + 1)
-
-    return max_downsample_level
-
-
-def get_manual_tfm(resolution_itr, manual_alignment_points, seg_rsl_fn, ref_rsl_fn):
-    if resolution_itr == 0:
-        assert os.path.exists(
-            manual_alignment_points
-        ), f"Need to manually create points to initialize registration between:\n\t1) {seg_rsl_fn}\n\t\2 {ref_rsl_fn}\n\tSave as:\n{manual_alignment_points}"
-        # shell('')
-    else:
-        manual_tfm_fn = None
-
-    return manual_tfm_fn
-
+    return None
 
 def align_3d(
-    sub,
-    hemi,
-    chunk,
-    seg_rsl_fn,
-    ref_rsl_fn,
-    out_dir,
-    out_tfm_fn,
-    out_tfm_inv_fn,
-    out_fn,
-    out_inv_fn,
-    resolution,
-    resolution_list,
-    world_chunk_limits,
-    vox_chunk_limits,
+    sub: str,
+    hemi: str,
+    chunk: int,
+    seg_rsl_fn: str,
+    ref_rsl_fn: str,
+    out_dir: str,
+    out_tfm_fn: str,
+    out_tfm_inv_fn: str,
+    out_fn: str,
+    out_inv_fn: str,
+    resolution: int,
+    resolution_list: list[int],
+    world_chunk_limits: tuple[float, float],
+    vox_chunk_limits: tuple[int, int],
     base_nl_itr: int = 200,
     base_lin_itr: int = 500,
-    manual_points_fn: str = "",
-    manual_affine_fn=None,
-    use_masks=False,
-    clobber=False,
-    verbose=True,
-):
+    use_masks: bool = False,
+    clobber: bool = False,
+    verbose: bool = True,
+) -> int:
+    """Align the tissue chunk to the reference volume.
+
+    :param sub: subject id
+    :param hemi: hemisphere
+    :param chunk: chunk number
+    :param seg_rsl_fn: segmentation volume filename
+    :param ref_rsl_fn: reference volume filename
+    :param out_dir: output directory
+    :param out_tfm_fn: output transformation filename
+    :param out_tfm_inv_fn: output inverse transformation filename
+    :param out_fn: output filename
+    :param out_inv_fn: output inverse filename
+    :param resolution: resolution of the section volume
+    :param resolution_list: list of resolutions
+    :param world_chunk_limits: world chunk limits
+    :param vox_chunk_limits: voxel chunk limits
+    :param base_nl_itr: base number of iterations for nonlinear alignment
+    :param base_lin_itr: base number of iterations for linear alignment
+    :param use_masks: use masks for registration
+    :param clobber: overwrite existing files
+    :param verbose: verbose output
+    :return: 0.
+    """
     if not os.path.exists(out_tfm_fn) or not os.path.exists(out_tfm_inv_fn) or clobber:
         print("\t\t3D Volumetric Alignment")
         chunk = int(chunk)
@@ -500,7 +485,6 @@ def align_3d(
             nlParams,
             ccParams,
             resolution,
-            manual_affine_fn,
             use_masks=use_masks,
             sampling=0.95,
             metric="Mattes",
@@ -509,46 +493,3 @@ def align_3d(
     return 0
 
 
-"""
-#this was for aligning really big chunks, block by block
-def write_block(fn, start, end, out_fn) :
-    img = nib.load(fn)
-    vol = img.get_fdata()
-    block = vol[start[0]:end[0],start[1]:end[1],start[2]:end[2]]
-    nib.Nifti1Image(block, affine).to_filename(out_fn)
-    return block
-def hi_res_align(moving_fn, fixed_fn, resolution, tfm_dir, init_tfm, prefix, out_fn, out_inv_fn):
-    kernel_dim = [10/resolution, 10/resolution, 10/resolution] 
-    step = [ int(kernel_dim[0]/3) ] * 3
-    out_tfm_fn = f'{prefix}Composite.h5'
-    img = nib.load(moving_fn)
-    image_dim = img.shape
-
-    f = h5.File('/tmp/deformation_field.h5', 'w')
-    dfield = f.create_dataset('field',(np.product(image_dim.shape[0])*3,),dtype=np.float64)
-
-    for x in range(0,image_dim.shape[0],step[0]) :
-        for y in range(0,image_dim.shape[1],step[1]) :
-            for z in range(0,image_dim.shape[2],step[2]) :
-                #
-                start=[x,y,z]
-                end=[x+step[0],y+step[1],z+step[2]]
-
-                block_fn = f'{out_dir}/block_{x}-{end[0]}_{y}-{end[1]}_{z}-end[2]'
-                # extract block from moving image, save to tmp directory 
-                write_block(moving_fn, start, end, '/tmp/moving.nii.gz')
-                # extract block from fixed image, save to tmp directory
-                write_block(fixed_fn, start, end, '/tmp/fixed.nii.gz')
-                
-                # non-linear alignment     
-                shell(f'/usr/bin/time -v antsRegistration -v 1 -a 1 -d 3  --initial-moving-transform {init_tfm}  -t SyN[.1] -c [500] -m GC[/tmp/fixed.nii.gz,/tmp/moving.nii.gz,1,20,Regular,1] -s 0vox -f 1  -o [/tmp/,/tmp/tfm.nii.gz, /tmp/tfm_inv.nii.gz ] ', verbose=True)
-            
-                # use h5 to load deformation field and save
-                block_dfield = ants.read_transform(block_tfm_fn)
-                dfield['field'][x:x+step,y:y+step,z:z+step] = block_dfield
-                
-
-    final_tfm = ants.transform_from_deformation_field(dfield['field'])
-    ants.write_transform(final_tfm, out_tfm_fn)
-
-"""
