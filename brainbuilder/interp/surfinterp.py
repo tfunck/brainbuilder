@@ -448,8 +448,9 @@ def interpolate_over_surface(
 
     spherical_coords = surface_tools.spherical_np(coords)
 
-    # define a mask of verticies where we have receptor densitiies
-    surface_mask = surface_val > threshold * np.max(surface_val)
+    if not isinstance(surface_mask, np.ndarray):
+        # define a mask of verticies where we have receptor densitiies
+        surface_mask = surface_val > threshold * np.max(surface_val)
 
     assert np.sum(np.abs(surface_mask)) != 0, "Error, empty profiles {}".format(
         np.sum(surface_mask)
