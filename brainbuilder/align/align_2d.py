@@ -1,3 +1,5 @@
+"""Performs 2D non-linear alignment of sections to sections from reference volume using ANTs."""
+
 import glob
 import json
 import os
@@ -29,9 +31,13 @@ def resample_reference_to_sections(
     section_thickeness: float,
     output_dir: str,
     clobber: bool = False,
-):
-    """About:
-        Apply 3d transformation and resample volume into the same coordinate space as 3d receptor volume.
+) -> tuple:
+    """Apply 3d transformation and resample volume into the same coordinate space as 3d receptor volume.
+
+        The steps of this function are:
+        1. Apply 3d transformation to the reference volume
+        2. Resample the transformed volume to the resolution of the reconstruction
+        3. Resample the transformed volume to the resolution of the section width on the y axis and the resolution of the reconstruction on the x and z axis
 
     Inputs:
         :param resolution:     current resolution level
@@ -47,6 +53,7 @@ def resample_reference_to_sections(
     output_fn = f"{output_dir}/{basename}_{resolution}mm_space-nat.nii.gz"
 
     if not os.path.exists(iso_output_fn) or not os.path.exists(output_fn) or clobber:
+        # Apply 3d transformation to the reference volume
         rand = tempfile.NamedTemporaryFile().name
         rand_fn = f"{rand}.nii.gz"
         utils.simple_ants_apply_tfm(input_fn, ref_fn, tfm_inv_fn, rand_fn, ndim=3)
@@ -60,6 +67,7 @@ def resample_reference_to_sections(
 
         vol = (255 * (vol - vol.min()) / (vol.max() - vol.min())).astype(np.uint8)
 
+        # Resample the transformed volume to the resolution of the reconstruction
         img_iso = resample_to_resolution(
             vol,
             [float(resolution)] * 3,
@@ -71,6 +79,8 @@ def resample_reference_to_sections(
         img_iso.to_filename(iso_output_fn)
 
         aff = img.affine.copy()
+
+        # Resample the transformed volume to the resolution of the section width on the y axis and the resolution of the reconstruction on the x and z axis
         img3 = resample_to_resolution(
             vol,
             [float(resolution), section_thickeness, float(resolution)],
@@ -97,10 +107,28 @@ def ants_registeration_2d_section(
     bins: int = 32,
     sampling: float = 0.9,
     step: float = 0.5,
-    init_tfm=None,
-    verbose=False,
-):
-    """Use ANTs to register 2d sections"""
+    init_tfm: str = None,
+    verbose: bool = False,
+) -> tuple:
+    """Use ANTs to register 2d sections.
+
+    Description: Calculate a series of transformations using ANTs to register 2d sections based on user provided parameters.
+
+    :param fx_fn: fixed image filename
+    :param mv_fn: moving image filename
+    :param itr_list: list of iterations
+    :param s_list: list of smoothing factors
+    :param f_list: list of downsample factor sizes
+    :param prefix: prefix for output files
+    :param transforms: list of transforms
+    :param metrics: list of metrics
+    :param bins: bins
+    :param sampling: sampling
+    :param step: step
+    :param init_tfm: initial transform
+    :param verbose: verbose
+    :return: final_tfm, mv_rsl_fn
+    """
     last_transform = None
     last_metric = None
 
@@ -111,7 +139,7 @@ def ants_registeration_2d_section(
 
         if not isinstance(last_transform, type(None)):
             init_str = f"--initial-moving-transform {prefix}_{last_transform}_{last_metric}_Composite.h5"
-        elif type(init_tfm) == str and os.path.exists(init_tfm):
+        elif isinstance(init_tfm, str) and os.path.exists(init_tfm):
             init_str = f"--initial-moving-transform {init_tfm}"
         else:
             init_str = f"--initial-moving-transform [{fx_fn},{mv_fn},1]"
@@ -134,8 +162,25 @@ def ants_registeration_2d_section(
     return final_tfm, mv_rsl_fn
 
 
-def affine_trials(fx_fn, mv_fn, linParams, prefix, n_trials=5, verbose=False) -> str:
-    """ """
+def affine_trials(
+    fx_fn: str,
+    mv_fn: str,
+    linParams: AntsParams,
+    prefix: str,
+    n_trials: int = 5,
+    verbose: bool = False,
+) -> str:
+    """About: Calculate affine transformation between volumes.
+
+    Description: Try multiple affine transformations and return the best one based on dice score.
+    :param fx_fn: fixed image filename
+    :param mv_fn: moving image filename
+    :param linParams: linear parameters
+    :param prefix: prefix
+    :param n_trials: number of trials
+    :param verbose: verbose
+    :return: affine_tfm
+    """
     lin_transforms = ["Rigid", "Similarity", "Affine"]
     max_dice = 0
     best_trial = 0
@@ -181,23 +226,43 @@ def affine_trials(fx_fn, mv_fn, linParams, prefix, n_trials=5, verbose=False) ->
 
 
 def align_2d_parallel(
-    tfm_dir,
-    mv_dir,
-    resolution_itr,
-    resolution,
-    resolution_list,
-    row,
-    file_to_align="seg",
-    use_syn=True,
-    step=0.5,
-    bins=32,
+    tfm_dir: str,
+    mv_dir: str,
+    resolution_itr: int,
+    resolution: float,
+    resolution_list: list,
+    row: pd.Series,
+    file_to_align: str = "seg",
+    use_syn: bool = True,
+    step: float = 0.5,
+    bins: int = 32,
     base_lin_itr: int = 100,
     base_nl_itr: int = 30,
     base_cc_itr: int = 5,
-    n_affine_trials=5,
-    verbose=False,
-):
-    """ """
+    n_affine_trials: int = 5,
+    verbose: bool = False,
+) -> int:
+    """Align 2d sections to sections.
+
+    Description: Calculate affine and non-linear transformations using ANTs to register 2d sections.
+
+    :param tfm_dir: directory to store intermediate files
+    :param mv_dir: directory to store intermediate files
+    :param resolution_itr: current iteration
+    :param resolution: resolution of the current iteration
+    :param resolution_list: list of resolutions
+    :param row: row
+    :param file_to_align: file to align
+    :param use_syn: use syn registration
+    :param step: step
+    :param bins: bins
+    :param base_lin_itr: number of iterations for linear alignment
+    :param base_nl_itr: number of iterations for nonlinear alignment
+    :param base_cc_itr: number of iterations for cross correlation
+    :param n_affine_trials: number of affine trials
+    :param verbose: verbose
+    :return: 0
+    """
     # Set strings for alignment parameters
     base_nl_itr = 30
 
@@ -246,7 +311,24 @@ def align_2d_parallel(
     return 0
 
 
-def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
+def apply_transforms_parallel(
+    tfm_dir: str,
+    mv_dir: str,
+    resolution_itr: int,
+    resolution: float,
+    row: pd.Series,
+) -> int:
+    """Apply transforms to 2d sections.
+
+    Description: Apply transforms to downsampled files to get the final 2d sections. A gaussian filter is used to pre-filter the images to avoid aliasing.
+
+    :param tfm_dir: directory to store intermediate files
+    :param mv_dir: directory to store intermediate files
+    :param resolution_itr: current iteration
+    :param resolution: resolution of the current iteration
+    :param row: row
+    :return: 0
+    """
     y = int(row["sample"])
     prefix = f"{tfm_dir}/y-{y}"
     img_rsl_fn = f"{prefix}_{resolution}mm.nii.gz"
@@ -274,7 +356,15 @@ def apply_transforms_parallel(tfm_dir, mv_dir, resolution_itr, resolution, row):
     return 0
 
 
-def get_align_2d_to_do(sect_info, clobber=False):
+def get_align_2d_to_do(sect_info: pd.DataFrame, clobber: bool = False) -> tuple:
+    """Get files that need to be aligned.
+
+    Description: Get list of files that need to be aligned and resampled based on whether tfm_fn and cls_fn exist.
+
+    :param sect_info: dataframe containing section information
+    :param clobber: clobber
+    :return: to_do_sect_info, to_do_resample_sect_info
+    """
     to_do_sect_info = []
     to_do_resample_sect_info = []
 
@@ -292,9 +382,15 @@ def get_align_2d_to_do(sect_info, clobber=False):
     return to_do_sect_info, to_do_resample_sect_info
 
 
-def get_align_filenames(tfm_dir, sect_info):
-    """ """
-
+def get_align_filenames(
+    tfm_dir: str,
+    sect_info: pd.DataFrame,
+) -> pd.DataFrame:
+    """Get filenames for alignment.
+    :param tfm_dir: directory to store intermediate files
+    :param sect_info: dataframe containing section information
+    :return: sect_info
+    """
     os.makedirs(tfm_dir, exist_ok=True)
 
     sect_info["2d_tfm_affine"] = [""] * sect_info.shape[0]
@@ -339,7 +435,9 @@ def align_sections(
     verbose: bool = False,
     clobber: bool = False,
 ) -> None:
-    """:param sect_info: dataframe containing information about sections
+    """Align sections to sections from reference volume using ANTs.
+
+    :param sect_info: dataframe containing information about sections
     :param rec_fn: filename of volume with 2d sections
     :param ref_fn: filename of reference volume transformed into acquisition space
     :param mv_dir: directory to store intermediate files
@@ -399,8 +497,23 @@ def align_sections(
 
 
 def concatenate_sections_to_volume(
-    sect_info, rec_fn, output_dir, out_fn, target_str="rsl"
-):
+    sect_info: pd.DataFrame,
+    rec_fn: str,
+    output_dir: str,
+    out_fn: str,
+    target_str: str = "rsl",
+) -> pd.DataFrame:
+    """Concatenate 2D sections into output volume.
+
+    Description: Concatenate 2D sections into output volume. The steps of this function are:
+
+    :param sect_info: dataframe containing section information
+    :param rec_fn: filename of volume with 2d sections
+    :param output_dir: directory to store output files
+    :param out_fn: output filename
+    :param target_str: target string
+    :return: sect_info
+    """
     exit_flag = False
     tfm_dir = output_dir + os.sep + "tfm"
 
@@ -425,8 +538,9 @@ def concatenate_sections_to_volume(
             try:
                 sec = nibabel.load(fn).get_fdata()
 
-                # DEBUG add this back in once the macaque img data is fixed
-                # assert np.max(sec) < 256 , 'Problem with file '+ fn + f'\n Max Value = {np.max(sec)}'
+                assert np.max(sec) < 256, (
+                    "Problem with file " + fn + f"\n Max Value = {np.max(sec)}"
+                )
                 out_vol[:, int(y), :] = sec
             except EOFError:
                 print("Error:", fn)
@@ -463,16 +577,28 @@ def align_2d(
     nl_2d_vol_fn: str,
     nl_2d_cls_fn: str,
     section_thickness: float,
-    base_lin_itr=100,
-    base_nl_itr=20,
-    base_cc_itr=5,
-    file_to_align="seg",
+    base_lin_itr: int = 100,
+    base_nl_itr: int = 20,
+    base_cc_itr: int = 5,
+    file_to_align: str = "seg",
     num_cores: int = 1,
     clobber: bool = False,
 ) -> pd.DataFrame:
-    """Align 2D sections to sections from reference volume using ANTs
+    """Align 2D sections to sections from reference volume using ANTs.
+
+    Description: Align 2D sections to sections from reference volume using ANTs. The steps of this function are:
+    1. Resample reference volume to the resolution of the reconstruction and to the section width along the y-axis
+    2. Create 2D sections from the resampled reference volume
+    3. Align 2D sections to sections from reference volume using ANTs
+    4. Concatenate 2D sections into output volumes
 
     :param sect_info: dataframe containing section information
+    :param nl_2d_dir: directory to store intermediate files
+    :param seg_dir: directory to store intermediate files
+    :param ref_rsl_fn: filename of volume with 2d sections
+    :param resolution: resolution of the current iteration
+    :param resolution_itr: current iteration
+    :param resolution_list: list of resolutions
     :param chunk_info: dataframe containing chunk information
     :param resolution: resolution of the current iteration
     :param resolution_itr: current iteration

@@ -7,7 +7,6 @@ import nibabel as nb_surf
 import numpy as np
 import pandas as pd
 import stripy as stripy
-import vast.surface_tools as surface_tools
 from joblib import Parallel, delayed
 
 import brainbuilder.utils.ants_nibabel as nib
@@ -432,6 +431,15 @@ def project_volume_to_surfaces(
     return profiles_fn, surf_raw_values_dict
 
 
+def spherical_np(xyz):
+    pts = np.zeros(xyz.shape)
+    xy = xyz[:, 0] ** 2 + xyz[:, 1] ** 2
+    pts[:, 0] = np.sqrt(xy + xyz[:, 2] ** 2)
+    pts[:, 1] = np.arctan2(np.sqrt(xy), xyz[:, 2])
+    pts[:, 2] = np.arctan2(xyz[:, 1], xyz[:, 0])
+    return pts
+
+
 def interpolate_over_surface(
     sphere_obj_fn: str, surface_val: np.array, threshold: float = 0, order: int = 1
 ):
@@ -452,7 +460,7 @@ def interpolate_over_surface(
         coords.shape[0] == surface_val.shape[0]
     ), f"Error: mismatch in shape of spherical mesh and surface values {coords.shape} and {surface_val.shape}"
 
-    spherical_coords = surface_tools.spherical_np(coords)
+    spherical_coords = spherical_np(coords)
 
     if not isinstance(surface_mask, np.ndarray):
         # define a mask of verticies where we have receptor densitiies
