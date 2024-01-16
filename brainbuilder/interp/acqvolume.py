@@ -97,7 +97,8 @@ def thicken_sections_within_chunk(
     print(source_image_fn)
     array_img = nib.load(source_image_fn)
     array_src = array_img.get_fdata()
-    print(array_src.shape); 
+
+    print(array_src.shape); exit(0)
 
     ystart = array_img.affine[1,3]
 
@@ -224,12 +225,12 @@ def create_thickened_volumes(
         
         chunk_info_out = pd.DataFrame({})
 
-        for (chunk, acquisition), chunk_sect_info in sect_info.groupby([ "chunk","acquisition"]):
+        for (sub, hemisphere, chunk, acquisition), chunk_sect_info in sect_info.groupby(["sub", "hemisphere", "chunk","acquisition"]):
             
             idx = (chunk_info['chunk'] == chunk) 
             chunk_info_row = chunk_info[idx].iloc[0]
 
-            thickened_fn = f"{output_dir}/thickened_{int(chunk)}_{acquisition}_{resolution}{tissue_type}.nii.gz"
+            thickened_fn = f"{output_dir}/sub-{sub}_hemi-{hemi}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_thickened.nii.gz"
 
             chunk_info_row['acquisition'] = acquisition
             chunk_info_row['thickened'] = thickened_fn

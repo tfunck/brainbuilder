@@ -31,8 +31,6 @@ class Nifti1Image:
             exit(0)
 
         self.direction = list(np.array(direction)[0:ndim, 0:ndim])
-        print('should not see this')
-        print('direction', self.direction, direction_order)
 
     def to_filename(self, filename):
         write_nifti(self.dataobj, self.affine, filename, direction=self.direction)
