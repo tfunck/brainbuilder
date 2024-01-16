@@ -1,6 +1,0 @@
-c_solve.c
-setup.py
-solve.egg-info/PKG-INFO
-solve.egg-info/SOURCES.txt
-solve.egg-info/dependency_links.txt
-solve.egg-info/top_level.txt
