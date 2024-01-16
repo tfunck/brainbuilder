@@ -25,7 +25,7 @@ class Nifti1Image:
         elif len(direction) != 0:
             pass
         else:
-            pirint(
+            print(
                 "Error: <direction_order> not supported, specify <direction> directly"
             )
             exit(0)

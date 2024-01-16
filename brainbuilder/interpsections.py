@@ -202,7 +202,7 @@ def volumes_to_surface_profiles(
             struct_vol_rsl_fn,
             output_dir, 
             interp_order = interp_order, 
-            gaussian_sd=gaussian_sd,
+            gaussian_sd = gaussian_sd,
             clobber = clobber 
             )
 

@@ -44,16 +44,17 @@ def save_mesh(out_fn, coords, faces, volume_info=None):
     else:
         print("Error: filetype not recognized for file", out_fn)
 
+global freesurfer_ext
+
+
+from itertools import product
+freesurfer_ext =[".orig", ".pial", ".white", ".sphere", ".inflated", ".curv", ".sulc", ".thickness", ".annot", ".label"]
 
 def load_mesh(surf_mesh, correct_offset=False):
     volume_info = None
     if isinstance(surf_mesh, str):
         if (
-            surf_mesh.endswith("orig")
-            or surf_mesh.endswith("pial")
-            or surf_mesh.endswith("white")
-            or surf_mesh.endswith("sphere")
-            or surf_mesh.endswith("inflated")
+            True in [ surf_mesh.endswith(x) for x in freesurfer_ext ]
         ):
             coords, faces, volume_info = nb.freesurfer.io.read_geometry(
                 surf_mesh, read_metadata=True
@@ -82,18 +83,37 @@ def load_mesh(surf_mesh, correct_offset=False):
                     pass
 
         elif surf_mesh.endswith("gii"):
-            coords, faces = (
+            coords_class, faces_class = (
                 nb.load(surf_mesh)
                 .get_arrays_from_intent(
                     nb.nifti1.intent_codes["NIFTI_INTENT_POINTSET"]
-                )[0]
-                .data,
+                )[0],
                 nb.load(surf_mesh)
                 .get_arrays_from_intent(
                     nb.nifti1.intent_codes["NIFTI_INTENT_TRIANGLE"]
-                )[0]
-                .data,
+                )[0],
             )
+            coords = coords_class.data
+            faces = faces_class.data
+            print(correct_offset, volume_info)
+            if correct_offset :
+                try:
+                    string_list = [ 'VolGeomC_R', 'VolGeomC_A', 'VolGeomC_S' ]
+                    origin = [ float(coords_class.meta[string]) for string in string_list ]
+
+                    get_sign = lambda ar: np.sign(ar[np.argmax(np.abs(ar))])
+
+                    #xdir = get_sign(xras), ydir = get_sign(yras), zdir = get_sign(zras)
+                    #xdir = ydir = -1 ; zdir = 1
+                    xdir = ydir = zdir = 1
+                    print("Adding origin to surface", origin)
+                    print("\tDirections:", xdir, ydir, zdir)
+                    coords[:, 0] = coords[:, 0] + xdir * origin[0]
+                    coords[:, 1] = coords[:, 1] + ydir * origin[1]
+                    coords[:, 2] = coords[:, 2] + zdir * origin[2]
+                    
+                except KeyError:
+                    pass
         elif surf_mesh.endswith("vtk"):
             coords, faces, _ = read_vtk(surf_mesh)
         elif surf_mesh.endswith("ply"):

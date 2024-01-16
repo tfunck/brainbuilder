@@ -275,7 +275,7 @@ def smooth_surface_by_parts(coords, values, sigma, n_sigma=3, step=10):
     avg_n_dist = n_dist / n
 
     element_list = avg_n_dist * 2  + [values.shape[0] , coords.shape[0]*3]
-    print(avg_n_dist * values.dtype.itemsize / 1024 / 1024 / 1024 )
+
     element_size_list = [ values.dtype.itemsize ] + [values.dtype.itemsize, coords.dtype.itemsize] 
 
     n_cores = utils.get_maximum_cores(element_list, element_size_list)
@@ -877,9 +877,9 @@ def load_mesh_ext(in_fn, faces_fn="", correct_offset=False):
     faces = None
     volume_info = None
 
-    if ext in [".pial", ".white", ".gii", ".sphere", ".inflated"]:
+    if ext in [".pial", ".white", ".gii", ".sphere", ".inflated"] :
         coords, faces, volume_info = load_mesh(in_fn, correct_offset=correct_offset)
-    elif ext == ".npz":
+    elif ext == ".npz" :
         coords = np.load(in_fn)["points"]
     else:
         coords = h5.File(in_fn)["data"][:]
@@ -951,12 +951,10 @@ def apply_ants_transform_to_gii(
 
     if os.path.splitext(ref_gii_fn)[1] in [".pial", ".white"]:
         _, _, volume_info = load_mesh(ref_gii_fn)
-        # origin = volume_info['cras']
     else:
         volume_info = ref_gii_fn
 
     coords, faces = load_mesh_ext(in_gii_fn)
-    ants.read_transform(tfm_list[0])
     # if np.sum(tfm.fixed_parameters) != 0 :
     #    print( '/MR1/' in os.path.dirname(in_gii_fn))
     #    if '/MR1/' in os.path.dirname(in_gii_fn):
@@ -1003,7 +1001,7 @@ def apply_ants_transform_to_gii(
     )
     df = pd.read_csv(temp_out_fn, index_col=False)
     df["x"] = flipx * (df["x"] - origin[0])
-    df["y"] = flipy * (df["y"] + origin[1])
+    df["y"] = flipy * (df["y"] + origin[1]) 
     df["z"] = flipz * (df["z"] - origin[2])
 
     new_coords = df[["x", "y", "z"]].values
@@ -1011,6 +1009,7 @@ def apply_ants_transform_to_gii(
     out_basename, out_ext = os.path.splitext(out_gii_fn)
 
     nii_fn = out_path + flip_label + ".nii.gz"
+
     if ref_vol_fn != None:
         img = nibabel.load(ref_vol_fn)
         steps = img.affine[[0, 1, 2], [0, 1, 2]]
@@ -1025,7 +1024,7 @@ def apply_ants_transform_to_gii(
             steps,
             validate=False,
         )
-
+        print('sum', np.sum(interp_vol))
         if np.sum(interp_vol) > 0:
             interp_vol[n > 0] = interp_vol[n > 0] / n[n > 0]
             print("\tWriting surface to volume file:", nii_fn)
@@ -1044,6 +1043,4 @@ def apply_ants_transform_to_gii(
     else:
         print("\tWriting Transformed Surface:", out_gii_fn, faces.shape)
         save_mesh(out_gii_fn, new_coords, faces, volume_info=volume_info)
-
-    # obj_fn = out_path +  '.obj'
-    # save_obj(obj_fn,coords, faces)
+    

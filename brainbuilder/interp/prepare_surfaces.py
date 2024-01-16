@@ -28,10 +28,10 @@ def transform_surface_to_chunks(
 
     surf_chunk_dict = {}
 
-    for (chunk,), chunk_df in chunk_info.groupby(["chunk"]):
+    for (sub, hemisphere, chunk), chunk_df in chunk_info.groupby(["sub", "hemisphere", "chunk"]):
         thickened_fn = chunk_df["nl_2d_vol_fn"].values[0]
         nl_3d_tfm_fn = chunk_df["nl_3d_tfm_fn"].values[0]
-        surf_chunk_space_fn = f"{out_dir}/chunk-{chunk}_{os.path.basename(surf_fn)}"
+        surf_chunk_space_fn = f"{out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{os.path.basename(surf_fn)}"
 
         surf_chunk_dict[chunk] = surf_chunk_space_fn
 
@@ -80,7 +80,7 @@ def prepare_surfaces(
 
     os.makedirs(output_dir, exist_ok=True)
 
-    if verbose : print("\tGenerating surfaces across cortical depth.")
+    print("\tGenerating surfaces across cortical depth.")
     surf_depth_mni_dict = generate_cortical_depth_surfaces(
         ref_vol_fn,
         depth_list,
@@ -90,12 +90,12 @@ def prepare_surfaces(
         output_dir,
     )
 
-    if verbose : print("\tInflating surfaces.")
+    print("\tInflating surfaces.")
     surf_depth_mni_dict = inflate_surfaces(
         surf_depth_mni_dict, output_dir, resolution, depth_list, clobber=clobber
     )
 
-    if verbose : print("\tUpsampling surfaces.")
+    print("\tUpsampling surfaces.")
     surf_depth_mni_dict = upsample_surfaces(
         surf_depth_mni_dict,
         output_dir,
@@ -107,9 +107,7 @@ def prepare_surfaces(
     )
 
     # For each chunk, transform the mesh surface to the receptor space
-    if verbose : print("\tTransforming surfaces to chunk space.")
-
-
+    print("\tTransforming surfaces to chunk space.")
     surf_depth_chunk_dict = transfrom_depth_surf_to_chunk_space(
         chunk_info, surf_depth_mni_dict, output_dir
     )
@@ -154,6 +152,20 @@ def transfrom_depth_surf_to_chunk_space(
     return surf_depth_chunk_dict
 
 
+
+def get_surf_base(surf_fn:str)->str:
+    '''
+    Get the basename of a surface file
+    :param surf_fn: str, path to surface file
+    :return str: basename of surface file
+    '''
+
+    surf_base = os.path.basename(surf_fn)
+    for string in ['.pial', '.smoothwm', '.gz', '.gii', '.surf']:
+        surf_base = sub(string, '', surf_base)
+
+    return surf_base 
+
 def generate_cortical_depth_surfaces(
     ref_vol_fn,
     depth_list,
@@ -192,13 +204,16 @@ def generate_cortical_depth_surfaces(
 
     del wm_coords
 
+    surf_base = get_surf_base(gm_surf_fn)
+
     for depth in depth_list:
-        depth_surf_fn = "{}/surf_{}mm_{}.surf.gii".format(
-            output_dir, resolution, depth,
+        depth_surf_fn = "{}/{}_{}mm_{}.surf.gii".format(
+            output_dir, surf_base, resolution, depth,
         )
-        depth_vol_fn = "{}/surf_{}mm_{}.nii.gz".format(
-            output_dir, resolution, depth
+        depth_vol_fn = "{}/{}_{}mm_{}.nii.gz".format(
+            output_dir, surf_base, resolution, depth
         )
+
         surf_depth_mni_dict[depth] = {"depth_surf_fn": depth_surf_fn}
 
         coords = gm_coords + depth * d_coords
@@ -246,10 +261,13 @@ def inflate_surfaces(
     for depth in depth_list:
         depth += 0.0
         depth_surf_fn = surf_depth_mni_dict[float(depth)]["depth_surf_fn"]
-        inflate_fn = "{}/surf_{}mm_{}.inflate".format(output_dir, resolution, depth)
-        sphere_fn = "{}/surf_{}mm_{}.sphere".format(output_dir, resolution, depth)
-        sphere_rsl_fn = "{}/surf_{}mm_{}_sphere_rsl.npz".format(
-            output_dir, resolution, depth
+
+        base_surf = sub('.surf.gii', '', os.path.basename(depth_surf_fn))
+
+        inflate_fn = "{}/{}_{}mm_{}.inflate".format(output_dir, base_surf, resolution, depth)
+        sphere_fn = "{}/{}_{}mm_{}.sphere".format(output_dir, base_surf, resolution, depth)
+        sphere_rsl_fn = "{}/{}_{}mm_{}_sphere_rsl.npz".format(
+            output_dir, base_surf, resolution, depth
         )
         surf_depth_mni_dict[depth]["sphere_rsl_fn"] = sphere_rsl_fn
         surf_depth_mni_dict[depth]["sphere_fn"] = sphere_fn
@@ -310,21 +328,34 @@ def upsample_surfaces(
     ref_vol_fn,
     clobber=False,
 ):
-    "{}/surf_{}mm_{}_rsl.obj".format(output_dir, resolution, 0)
+    """
+    Upsample surfaces across cortical depth.
+    :param surf_depth_mni_dict: dict, keys are cortical depths, values are dicts containing surfaces in stereotaxic space
+    :param output_dir: str, path to output directory
+    :param gm_surf_fn: str, path to gray matter surface
+    :param resolution: float, maximum resolution of the reconstruction
+    :param depth_list: list, cortical depths
+    :param ref_vol_fn: str, path to structural reference volume
+    :param clobber: bool, whether to overwrite existing files
+    :return dict: surf_depth_mni_dict
+    """
+    surf_base = get_surf_base(gm_surf_fn)
+
+    "{}/{}_{}mm_{}_rsl.obj".format(output_dir, surf_base, resolution, 0)
     upsample_0_fn = "{}/surf_{}mm_{}_rsl.surf.gii".format(
         output_dir, resolution, depth_list[0]
     )
-    upsample_1_fn = "{}/surf_{}mm_{}_rsl.surf.gii".format(
-        output_dir, resolution, depth_list[-1]
+    upsample_1_fn = "{}/{}_{}mm_{}_rsl.surf.gii".format(
+        output_dir, surf_base, resolution, depth_list[-1]
     )
     input_list = []
     output_list = []
 
     for depth in depth_list:
-        depth_rsl_gii = "{}/surf_{}mm_{}_rsl.surf.gii".format(
-            output_dir, resolution, depth
+        depth_rsl_gii = "{}/{}_{}mm_{}_rsl.surf.gii".format(
+            output_dir, surf_base, resolution, depth
         )
-        depth_rsl_fn = "{}/surf_{}mm_{}_rsl.npz".format(output_dir, resolution, depth)
+        depth_rsl_fn = "{}/{}_{}mm_{}_rsl.npz".format(output_dir, surf_base, resolution, depth)
 
         surf_depth_mni_dict[depth]["depth_rsl_fn"] = depth_rsl_fn
         surf_depth_mni_dict[depth]["depth_rsl_gii"] = depth_rsl_gii
@@ -374,9 +405,7 @@ def upsample_surfaces(
             assert (
                 n_points == points.shape[0]
             ), f"Error: mismatch in number of points in mesh between {n_points} and {points.shape[0]}"
-            interp_vol, _ = mesh_to_volume(
-                points, np.ones(points.shape[0]), dimensions, starts, steps
-            )
+
             nii_fn = os.path.splitext(out_fn)[0] + ".nii.gz"
             nib.Nifti1Image(
                 interp_vol, nib.load(ref_vol_fn).affine, direction_order="lpi"

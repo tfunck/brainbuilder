@@ -241,8 +241,10 @@ def alignment_qc(sect_output_csv, output_dir, cutoff=0.7, clobber=False):
 
     png_fn = f"{output_dir}/alignment_dice.png"
     global_dice_csv = f"{output_dir}/global_dice.csv"
-    clobber=True
+
     if not os.path.exists(sect_output_csv) or\
+            not os.path.exists(png_fn) or\
+            not os.path.exists(global_dice_csv) or\
             not os.path.exists(png_fn) or\
             utils.newer_than(sect_output_csv, png_fn) or\
             utils.newer_than(sect_output_csv, global_dice_csv) or\
@@ -276,7 +278,7 @@ def alignment_qc(sect_output_csv, output_dir, cutoff=0.7, clobber=False):
         s=df['dice'].std()
 
         print('\t\tDice of Aligned Sections:', m, s )
-        dice_df.to_csv(global_dice_csv)
+        dice_df['dice'].mean().to_csv(global_dice_csv)
         with open(f"{output_dir}/global_dice.csv", 'w') as f:
             f.write(f"{m},{s}\n")
 

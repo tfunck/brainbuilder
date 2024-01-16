@@ -29,8 +29,8 @@ def apply_threshold(img, method):
 
 def multi_threshold(img):
     seg = np.zeros_like(img)
-    methods = [threshold_li, threshold_mean, threshold_triangle, 
-               threshold_otsu, threshold_niblack]
+    #methods = [threshold_li, threshold_mean, threshold_triangle, threshold_otsu]
+    methods = [threshold_otsu]
     for method in methods:
         im_thr = apply_threshold(img, method)
         seg += im_thr
@@ -41,7 +41,7 @@ def multi_threshold(img):
     seg[seg>=0.5] = 1
     return seg
 
-def histogram_threshold(raw_fn: str, seg_fn: str, sd: float = 1):
+def histogram_threshold(raw_fn: str, seg_fn: str, sd: float = 1, ref: str = None):
     """
     Apply histogram thresholding to the cropped images
     param: raw_fn: raw image filename
@@ -61,11 +61,17 @@ def histogram_threshold(raw_fn: str, seg_fn: str, sd: float = 1):
 
     out = multi_threshold(ar)
 
-    out = resize(out, dimensions, order=0)
+    if not isinstance(ref, type(None)):
+        ref_hd = nib.load(ref)
+        dimensions = ref_hd.shape #resize to reference image
+        affine = ref_hd.affine
+
+    out = resize(out, dimensions, order=3)
     if len(out.shape) == 3:
        out = out.reshape([out.shape[0], out.shape[1]]) 
 
     assert np.sum(np.abs(out)) > 0, "Error: empty segmented image with histogram thresholding " + raw_fn
+
     nib.Nifti1Image(out, affine, direction_order="lpi").to_filename(seg_fn)
 
     return out
@@ -145,7 +151,7 @@ def apply_histogram_threshold(sect_info: typeDataFrame, num_cores: int = 1) -> N
     return: dataframe with columns: raw, seg_fn
     """
     Parallel(n_jobs=num_cores)(
-        delayed(histogram_threshold)(row["raw"], row["seg"])
+        delayed(histogram_threshold)(row["raw"], row["seg"], ref=row['img'])
         for i, row in sect_info.iterrows()
     )
     return None
@@ -162,8 +168,11 @@ def get_nnunet_filename(input_fn: str, nnunet_out_dir: str):
     print(f"{nnunet_out_dir}/{base}*")
 
     nnunet_list = glob(f"{nnunet_out_dir}/{base}*")
-
-    nnunet_fn = nnunet_list[0]
+    
+    if len(nnunet_list) > 0 :
+        nnunet_fn = nnunet_list[0]
+    else:
+        nnunet_fn = ''
     
     return nnunet_fn
 
@@ -232,16 +241,24 @@ def convert_to_nnunet_list(
 
 
 def check_seg_files(sect_info, nnunet_out_dir, warning_flag=False, nnunet_input_str='img'):
+    '''
+    Check if all the segmentation files exist
+    :param sect_info: dataframe with columns: raw, seg_fn
+    :param nnunet_out_dir: directory to save nnunet images
+    :param warning_flag: bool, optional, if True, print warning message if file is missing, default=False
+    :return: True if all files exist, False otherwise
+    '''
 
     all_files_valid = True
     for i, row in sect_info.iterrows():
         
         # check if seg file is newer than raw file, if not the seg file must be removed
-        if not utils.newer_than(row["seg"], row["img"]) :
+        if os.path.exists(row['seg']) and not utils.newer_than(row["seg"], row[nnunet_input_str]) :
 
             nnunet_filename = get_nnunet_filename(row[nnunet_input_str], nnunet_out_dir)
             os.remove(row["seg"])
-            os.remove(nnunet_filename)
+            if os.path.exists(nnunet_filename) :
+                os.remove(nnunet_filename)
             
         if not os.path.exists(row["seg"]) :
             all_files_valid = False

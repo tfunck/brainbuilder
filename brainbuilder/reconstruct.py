@@ -64,6 +64,7 @@ def reconstruct(
     num_cores: int = 0,
     use_surface_smoothing: bool = False,
     batch_correction_resolution: float = 0,
+    skip_interp: bool = False,
     clobber: bool = False,
 ):
     """
@@ -150,17 +151,18 @@ def reconstruct(
     qc.data_set_quality_control(align_sect_info_csv, qc_dir, column='init_img')
 
     # Stage: Interpolate missing sections
-    interpolate_missing_sections(
-            hemi_info_csv,
-            align_chunk_info_csv,
-            align_sect_info_csv,
-            maximum_resolution,
-            interp_dir,
-            n_depths = n_depths,
-            use_surface_smoothing = use_surface_smoothing,
-            batch_correction_resolution = batch_correction_resolution,
-            clobber = clobber,
-    )
+    if not skip_interp:
+        interpolate_missing_sections(
+                hemi_info_csv,
+                align_chunk_info_csv,
+                align_sect_info_csv,
+                maximum_resolution,
+                interp_dir,
+                n_depths = n_depths,
+                use_surface_smoothing = use_surface_smoothing,
+                batch_correction_resolution = batch_correction_resolution,
+                clobber = clobber,
+        )
 
     return output_csv
 
@@ -256,6 +258,13 @@ def setup_argparse():
         help="Overwrite existing results",
     )
     parser.add_argument(
+        "--skip-interp",
+        dest="skip_interp",
+        default=False,
+        action="store_true",
+        help="Skip interpolation step",
+    )
+    parser.add_argument(
         "--debug", dest="debug", default=False, action="store_true", help="DEBUG mode"
     )
 
@@ -279,6 +288,7 @@ if __name__ == "__main__":
         use_nnunet=args.use_nnunet,
         batch_correction=args.batch_correction_resolution,
         num_cores=args.num_cores,
+        skip_interp=args.skip_interp,
     )
 
     ### Step 0 : Crop downsampled autoradiographs

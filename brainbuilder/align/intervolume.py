@@ -9,6 +9,7 @@ from joblib import Parallel, delayed
 from scipy.ndimage.morphology import binary_dilation, binary_erosion
 from skimage.transform import resize
 
+from skimage.filters import threshold_yen, threshold_niblack, threshold_li, threshold_mean, threshold_triangle, threshold_otsu
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils.utils import (
     get_section_intervals,
@@ -351,7 +352,9 @@ def volumetric_interpolation(
 
         print("\tWriting output to", out_fn)
 
-        data[ data < 0.5 * np.max(data) ] = 0
+        #threshold =  threshold_otsu(data)
+        #data[ data < threshold ] = 0
+        #data[ data > 0 ] = 1
 
         img_out = nib.Nifti1Image(
             data,

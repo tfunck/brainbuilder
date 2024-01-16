@@ -315,7 +315,7 @@ def alignment_stage(
 
     shrink_factor = '4x3x2'
     smooth_sigma = '2x1.5x1'
-    iterations = '100x50x25' 
+    iterations = '10x5x2' 
 
     csv_fn = vol_fn_str.format(
         output_dir,
