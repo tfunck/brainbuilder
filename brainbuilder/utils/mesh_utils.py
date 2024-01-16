@@ -9,6 +9,7 @@ import pandas as pd
 from joblib import Parallel, delayed, cpu_count
 from sklearn.metrics import pairwise_distances
 
+import nibabel as nb
 import brainbuilder.utils.ants_nibabel as nib
 import brainbuilder.utils.utils as utils
 
@@ -16,8 +17,9 @@ matplotlib.use("Agg")
 import multiprocessing
 
 import h5py as h5
-import nibabel
 import numpy as np
+
+from scipy.ndimage import gaussian_filter
 
 from brainbuilder.utils.mesh_io import load_mesh, save_mesh
 from brainbuilder.utils.utils import shell
@@ -672,14 +674,35 @@ def get_triangle_vectors(points):
     return v0, v1
 
 
-def volume_to_surface(coords, volume_fn, values_fn=""):
-    print(volume_fn)
-    img = nibabel.load(volume_fn)
+def volume_to_surface(coords, volume_fn, values_fn="", use_ants_image_reader=True, gauss_sd=0):
+    if use_ants_image_reader :
+        nibabel_ = nib
+    else :
+        nibabel_ = nb 
+    
+    img = nibabel_.load(volume_fn)
     vol = img.get_fdata()
 
+    if gauss_sd > 0:
+        print('\tGaussian Smoothing, sd:', gauss_sd)
+        vol = gaussian_filter(vol, gauss_sd)
+
     starts = img.affine[[0, 1, 2], 3]
-    step = np.abs(img.affine[[0, 1, 2], [0, 1, 2]])
+
+    step = img.affine[[0, 1, 2], [0, 1, 2]]
     dimensions = vol.shape
+
+    interp_vol, _ = mesh_to_volume(
+        coords,
+        np.ones(coords.shape[0]),
+        dimensions,
+        starts,
+        img.affine[[0, 1, 2], [0, 1, 2]],
+    )
+
+    nibabel_.Nifti1Image(
+        interp_vol.astype(np.float32), nibabel_.load(volume_fn).affine
+    ).to_filename("tmp.nii.gz")
 
     coords_idx = np.rint((coords - starts) / step).astype(int)
 
@@ -691,7 +714,6 @@ def volume_to_surface(coords, volume_fn, values_fn=""):
     idx = idx_range[idx0 & idx1 & idx2]
 
     coords_idx = coords_idx[idx0 & idx1 & idx2]
-
 
     values = vol[coords_idx[:, 0], coords_idx[:, 1], coords_idx[:, 2]]
 
