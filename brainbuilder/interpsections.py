@@ -1,3 +1,4 @@
+"""Main function for performing interpolation between acquired 2D sections."""
 import os
 import re
 
@@ -5,7 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from brainbuilder.interp.acqvolume import create_thickened_volumes
 from brainbuilder.interp.batch_correction import apply_batch_correction
 from brainbuilder.interp.prepare_surfaces import prepare_surfaces
 from brainbuilder.interp.surfinterp import (
@@ -14,11 +14,12 @@ from brainbuilder.interp.surfinterp import (
     write_raw_profiles_to_volume,
 )
 from brainbuilder.utils import utils
-from brainbuilder.utils.mesh_utils import load_mesh_ext, smooth_surface_profiles
+from brainbuilder.utils.mesh_utils import smooth_surface_profiles
 
 
-def plot_paired_values(paired_values, mid_values, png_fn):
-    """Plot the paired values for the batch correction step
+def plot_paired_values(paired_values:np.array, mid_values:np.array, png_fn:str)->None:
+    """Plot the paired values for the batch correction step.
+
     :param paired_values: dataframe containing the paired values
     :param mid_values: array containing the values at the mid depth
     :param png_fn: filename to save the plot
@@ -41,96 +42,10 @@ def plot_paired_values(paired_values, mid_values, png_fn):
     plt.savefig(png_fn)
 
 
-def plot_paired_values_surf(paired_values, coords, png_fn):
-    """ """
-    curr_idx = paired_values["curr_idx"].astype(int)
-    next_idx = paired_values["next_idx"].astype(int)
-
-    curr_coords = coords[curr_idx]
-
-    next_coords = coords[next_idx]
-
-    x = coords[:, 0]
-    y = coords[:, 1]
-    z = coords[:, 2]
-
-    xr = np.max(x) - np.min(x)
-    yr = np.max(y) - np.min(y)
-    zr = np.max(z) - np.min(z)
-
-    dx0 = xr / 4
-    dy0 = yr / 4
-    dz0 = zr / 4
-
-    dx1 = xr / 6
-    dy1 = yr / 6
-    dz1 = zr / 20
-
-    for i, ((xc, yc, zc), (xn, yn, zn)) in enumerate(zip(curr_coords, next_coords)):
-        print(paired_values.iloc[i])
-        # plot x vs y
-
-        xmin = min([xc, xn])
-        xmax = max([xc, xn])
-        ymin = min([yc, yn])
-        ymax = max([yc, yn])
-        zmin = min([zc, zn])
-        zmax = max([zc, zn])
-
-        xidx0 = (x > xmin - dx0) & (x < xmax + dx0)
-        yidx0 = (y > ymin - dy0) & (y < ymax + dy0)
-        zidx0 = (z > zmin - dz1) & (z < zmax + dz1)
-
-        idx0 = xidx0 & yidx0 & zidx0
-
-        xi0 = x[idx0]
-        yi0 = y[idx0]
-        zi0 = z[idx0]
-
-        dist = np.sqrt((xc - xn) ** 2 + (yc - yn) ** 2 + (zc - zn) ** 2)
-        print(dist)
-
-        plt.figure(figsize=(10, 10))
-
-        plt.subplot(2, 1, 1)
-        plt.scatter([xc], [yc], c="b")
-        plt.scatter([xn], [yn], c="b")
-        plt.plot([xc, xn], [yc, yn], c="r", alpha=0.6)
-        plt.scatter(xi0, yi0, c="k", alpha=0.01)
-
-        # PLot y vs z
-
-        xidx1 = (x > xmin - dx1) & (x < xmax + dx1)
-        yidx1 = (y > ymin - dy0) & (y < ymax + dy0)
-        zidx1 = (z > zmin - dz0) & (z < zmax + dz0)
-
-        idx1 = xidx1 & yidx1 & zidx1
-
-        xi1 = x[idx1]
-        yi1 = y[idx1]
-        zi1 = z[idx1]
-
-        plt.subplot(2, 1, 2)
-        plt.title(f"Dist: {dist}")
-        plt.scatter([yc], [zc], c="b")
-        plt.scatter([yn], [zn], c="b")
-        plt.plot([yc, yn], [zc, zn], c="r", alpha=0.6)
-        plt.scatter(yi1, zi1, c="k", alpha=0.01)
-
-        point_fn = png_fn.replace(".png", f"_{i}.png")
-        print(point_fn)
-
-        plt.savefig(point_fn)
-        plt.clf()
-        plt.cla()
-        if i > 10:
-            break
-
-
 def resample_struct_reference_volume(
-    orig_struct_vol_fn, resolution, output_dir, clobber=False
-):
-    """Resample the structural reference volume to the desired resolution
+    orig_struct_vol_fn:str, resolution:float, output_dir:str, clobber:bool=False
+) -> str:
+    """Resample the structural reference volume to the desired resolution.
 
     :param orig_struct_vol_fn: path to the original structural reference volume
     :param hemisphere: hemisphere
@@ -151,7 +66,6 @@ def resample_struct_reference_volume(
 
     return struct_vol_rsl_fn
 
-
 def volumes_to_surface_profiles(
     chunk_info: pd.DataFrame,
     sect_info: pd.DataFrame,
@@ -165,9 +79,23 @@ def volumes_to_surface_profiles(
     interp_order: int = 1,
     gaussian_sd: float = 0,
     clobber: bool = False,
-):
-    n_depths = len(depth_list)
-
+)->tuple:
+    """Project volumes to surfaces and generate surface profiles.
+    
+    :param chunk_info: dataframe containing chunk information
+    :param sect_info: dataframe containing section information
+    :param resolution: resolution of the volume
+    :param output_dir: path to output directory
+    :param surf_dir: path to surfaces directory
+    :param ref_vol_fn: path to the structural reference volume
+    :param gm_surf_fn: path to the gray matter surface
+    :param wm_surf_fn: path to the white matter surface
+    :param depth_list: list of depths
+    :param interp_order: order of the interpolation
+    :param gaussian_sd: standard deviation of the gaussian filter
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: sect_info, profiles_fn
+    """
     surf_depth_mni_dict, surf_depth_chunk_dict = prepare_surfaces(
         chunk_info,
         ref_vol_fn,
@@ -231,9 +159,10 @@ def get_profiles_with_batch_correction(
     depth_list: np.ndarray,
     batch_correction_resolution: int = 0,
     clobber: bool = False,
-):
-    """Get the profiles with batch correction applied. Batch correction is calculated by
-    by comparing vertex values along mid depth between adjacent chunks. The difference
+) -> tuple:
+    """Get the profiles with batch correction applied.
+    
+    Batch correction is calculated by comparing vertex values along mid depth between adjacent chunks. The difference
     between the values is calculated and the mean difference is calculated.
 
     :param chunk_info: dataframe containing chunk information
@@ -330,9 +259,7 @@ def get_profiles_with_batch_correction(
         clobber=clobber,
     )
 
-    png_fn = f"{output_dir}/paired_values_corrected.png"
-    cortex_png_fn = f"{output_dir}/paired_values_cortex.png"
-    sphere_png_fn = f"{output_dir}/paired_values_sphere.png"
+    
 
     # recenter the corrected profiles
     print("\tCorrected profiles: ", profiles_fn)
@@ -343,15 +270,16 @@ def get_profiles_with_batch_correction(
     profiles[profiles < 0] = 0
     np.savez(profiles_fn, data=profiles)
 
-    mid_depth_index = int(np.rint(len(depth_list) / 2))
 
-    mid_values = profiles[:, mid_depth_index]
-    surf_fn = surf_depth_mni_dict[depth_list[mid_depth_index]]["depth_rsl_fn"]
-    sphere_fn = surf_depth_mni_dict[depth_list[mid_depth_index]]["sphere_rsl_fn"]
-
-    cortex_coords = load_mesh_ext(surf_fn)[0]
-    sphere_coords = load_mesh_ext(sphere_fn)[0]
-
+    #mid_depth_index = int(np.rint(len(depth_list) / 2))
+    #surf_fn = surf_depth_mni_dict[depth_list[mid_depth_index]]["depth_rsl_fn"]
+    #sphere_fn = surf_depth_mni_dict[depth_list[mid_depth_index]]["sphere_rsl_fn"]
+    #mid_values = profiles[:, mid_depth_index]
+    #cortex_coords = load_mesh_ext(surf_fn)[0]
+    #sphere_coords = load_mesh_ext(sphere_fn)[0]
+    #png_fn = f"{output_dir}/paired_values_corrected.png"
+    #cortex_png_fn = f"{output_dir}/paired_values_cortex.png"
+    #sphere_png_fn = f"{output_dir}/paired_values_sphere.png"
     # plot the paired values of the corrected values. useful for qc
     # plot_paired_values(paired_values, mid_values, png_fn)
     # plot_paired_values_surf(paired_values, cortex_coords, cortex_png_fn)
@@ -374,8 +302,10 @@ def surface_pipeline(
     batch_correction_resolution: int = 0,
     clobber: bool = False,
 ) -> None:
-    """Use surface-based interpolation to fill missing sections over the cortex. Volumetric interpolation
-    is used to fill missing sections in the subcortex.
+    """Use surface-based interpolation to fill missing sections over the cortex.
+
+    Volumetric interpolation is used to fill missing sections in the subcortex.
+    
     :param sect_info_csv: path to csv file containing section information
     :param chunk_info_csv: path to csv file containing chunk information
     :param resolution: resolution of the volume
@@ -531,14 +461,15 @@ def volumetric_pipeline(
     output_dir: str,
     clobber: bool = False,
 ) -> None:
-    """Use volumetric interpolation to fill missing sections over the entire brain"""
-    chunk_info_thickened_csv = create_thickened_volumes(
-        curr_output_dir, chunk_info, sect_info, resolution
-    )
+    """Use volumetric interpolation to fill missing sections over the entire brain."""
+    #chunk_info_thickened_csv = create_thickened_volumes(
+    #    curr_output_dir, chunk_info, sect_info, resolution
+    #)
     # do volumetric interpolation to fill missing sections through whole brain
-    final_interp_fn = volinterp.volumetric_interpolation(
-        sect_info, brain_mask_fn, clobber=clobber
-    )
+    #final_interp_fn = volinterp.volumetric_interpolation(
+    #    sect_info, brain_mask_fn, clobber=clobber
+    #)
+    raise NotImplementedError
 
     return None
 
@@ -553,8 +484,9 @@ def interpolate_missing_sections(
     use_surface_smoothing: bool = False,
     batch_correction_resolution: int = 0,
     clobber: bool = False,
-):
+)->None:
     """Interpolate missing sections in a volume.
+
     :param sect_info: a dataframe with the following columns:
     :param brain_mask_fn: path to the brain mask
     :param resolution: resolution of the volume
