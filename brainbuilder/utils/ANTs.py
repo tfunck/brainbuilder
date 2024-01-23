@@ -1,7 +1,9 @@
+"""Functions to run ANTs commands."""
 import os
 from os.path import basename
 from re import sub
 from shutil import copy
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import SimpleITK as sitk
@@ -11,10 +13,15 @@ from skimage.filters import threshold_otsu
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils.utils import shell, splitext
 
-# import nibabel as nib
 
-
-def generate_mask(fn, out_fn, sigma=8):
+def generate_mask(fn:str, out_fn:str, sigma:float=8)->None:
+    """Generate mask.
+    
+    :param fn: input file name
+    :param out_fn: output file name
+    :param sigma: sigma
+    :return: None
+    """
     if os.path.exists(out_fn):
         return None
     img = nib.load(fn)
@@ -31,37 +38,71 @@ def generate_mask(fn, out_fn, sigma=8):
 
 
 def ANTs(
-    tfm_prefix,
-    fixed_fn,
-    moving_fn,
-    moving_rsl_prefix,
-    iterations,
-    tolerance=1e-08,
-    metrics=None,
-    nbins=32,
-    tfm_type=["Rigid", "Affine", "SyN"],
-    rate=None,
-    shrink_factors=None,
-    smoothing_sigmas=None,
-    radius=3,
-    init_tfm=None,
-    init_inverse=False,
-    sampling_method="Regular",
-    sampling=1,
-    dim=3,
-    verbose=0,
-    clobber=0,
-    exit_on_failure=0,
-    fix_header=False,
-    generate_masks=True,
-    no_init_tfm=False,
-    mask_dir=None,
-    write_composite_transform=1,
-    collapse_output_transforms=0,
-    n_tries=5,
-    init_tfm_direction="moving",
-    interpolation="Linear",
-):
+    tfm_prefix: str,
+    fixed_fn: str,
+    moving_fn: str,
+    moving_rsl_prefix: str,
+    iterations: List[str],
+    tolerance: float = 1e-08,
+    metrics: Optional[List[str]] = None,
+    nbins: int = 32,
+    tfm_type: List[str] = ["Rigid", "Affine", "SyN"],
+    rate: Optional[List[float]] = None,
+    shrink_factors: Optional[List[str]] = None,
+    smoothing_sigmas: Optional[List[str]] = None,
+    radius: int = 3,
+    init_tfm: Optional[Union[str, List[str]]] = None,
+    init_inverse: bool = False,
+    sampling_method: str = "Regular",
+    sampling: int = 1,
+    dim: int = 3,
+    verbose: int = 0,
+    clobber: int = 0,
+    exit_on_failure: int = 0,
+    fix_header: bool = False,
+    generate_masks: bool = True,
+    no_init_tfm: bool = False,
+    mask_dir: Optional[str] = None,
+    write_composite_transform: int = 1,
+    collapse_output_transforms: int = 0,
+    n_tries: int = 5,
+    init_tfm_direction: str = "moving",
+    interpolation: str = "Linear",
+)->Tuple[str, str, str]:
+    """Run ANTs registration using user parameters.
+    
+    :param tfm_prefix: transform prefix
+    :param fixed_fn: fixed file name
+    :param moving_fn: moving file name
+    :param moving_rsl_prefix: moving reslice prefix
+    :param iterations: iterations
+    :param tolerance: tolerance
+    :param metrics: metrics
+    :param nbins: number of bins
+    :param tfm_type: transform type
+    :param rate: rate
+    :param shrink_factors: shrink factors
+    :param smoothing_sigmas: smoothing sigmas
+    :param radius: radius
+    :param init_tfm: initial transform
+    :param init_inverse: initial inverse
+    :param sampling_method: sampling method
+    :param sampling: sampling
+    :param dim: dimension
+    :param verbose: verbose
+    :param clobber: clobber
+    :param exit_on_failure: exit on failure
+    :param fix_header: fix header
+    :param generate_masks: generate masks
+    :param no_init_tfm: no initial transform
+    :param mask_dir: mask directory
+    :param write_composite_transform: write composite transform
+    :param collapse_output_transforms: collapse output transforms
+    :param n_tries: number of tries
+    :param init_tfm_direction: initial transform direction
+    :param interpolation: interpolation
+    :return: final transform file name, final inverse transform file name, final moving reslice file name
+    """
     nLevels = len(iterations)
     tfm_ext = "GenericAffine.mat"
     if "SyN" in tfm_type and write_composite_transform != 1:
@@ -101,19 +142,19 @@ def ANTs(
         print("Moving:", moving_fn)
         print("Fixed:", fixed_fn)
 
-    if rate == None:
+    if rate is None:
         rate = [0.1] * nLevels
-    if shrink_factors == None:
+    if shrink_factors is None:
         shrink_factors = ["4x2x1vox"] * nLevels
-    if smoothing_sigmas == None:
+    if smoothing_sigmas is None:
         smoothing_sigmas = ["4.0x2.0x1.0vox"] * nLevels
-    if metrics == None:
+    if metrics is None:
         metrics = ["Mattes"] * nLevels
 
     moving_mask_fn = None
     fixed_mask_fn = None
     if generate_masks:
-        if mask_dir != None:
+        if mask_dir is not None:
             moving_mask_fn = (
                 mask_dir + os.sep + basename(splitext(moving_fn)[0]) + "_mask.nii.gz"
             )
@@ -142,7 +183,7 @@ def ANTs(
         if r != 0:
             moving_mask_fn = moving_mask_fn = None
 
-    print(moving_fn)
+
     img_fx = nib.load(fixed_fn)
     img_mv = nib.load(moving_fn)
     # If image volume is empty, write identity matrix
@@ -192,7 +233,7 @@ def ANTs(
             cmdline = "antsRegistration --verbose " + str(verbose)
             cmdline += f" --write-composite-transform {write_composite_transform} --float --collapse-output-transforms {collapse_output_transforms} --dimensionality {dim} "
             if not no_init_tfm:
-                if init_tfm == None:
+                if init_tfm is None:
                     cmdline += (
                         f" --initial-{init_tfm_direction}-transform [ "
                         + fixed_fn
@@ -203,7 +244,7 @@ def ANTs(
                 elif init_tfm == "":
                     pass
                 else:
-                    if type(init_tfm) != list:
+                    if not isinstance(init_tfm, list):
                         init_tfm = [init_tfm]
 
                     if init_inverse:
@@ -231,7 +272,7 @@ def ANTs(
             shrink_factor = shrink_factors[level]
 
             # Add masks
-            if moving_mask_fn != None and moving_mask_fn != None:
+            if moving_mask_fn is not None and moving_mask_fn is not None:
                 cmdline += (
                     " --masks [ " + fixed_mask_fn + " , " + moving_mask_fn + " ] "
                 )
@@ -254,8 +295,7 @@ def ANTs(
             else:
                 cmdline += " " + str(radius) + ", "
             cmdline += sampling_method + " , " + str(sampling) + " ] "
-            print(iterations)
-            print(level)
+
             cmdline += (
                 " --convergence [ "
                 + iterations[level]
@@ -263,11 +303,11 @@ def ANTs(
                 + str(tolerance)
                 + " , 20 ] "
             )
-            if type(smooth_sigma) != list:
+            if not isinstance(smooth_sigma, list):
                 cmdline += f" --smoothing-sigmas {smooth_sigma}vox "
             else:
                 cmdline += f" --smoothing-sigmas {smooth_sigma[0]}vox "
-            if type(shrink_factor) == str:
+            if isinstance(shrink_factor, str):
                 cmdline += " --shrink-factors " + shrink_factor
             else:
                 cmdline += " --shrink-factors " + shrink_factor[0]
@@ -322,22 +362,31 @@ def ANTs(
     return final_tfm_fn, final_tfm_inv_fn, moving_rsl_fn
 
 
-def AverageImages(dimension, output_fn, image1, image2, normalize=0):
-    print(f"AverageImages  {dimension} {output_fn} {normalize} {image1} {image2}")
-    shell(f"AverageImages  {dimension} {output_fn} {normalize} {image1} {image2}")
-
-
 def antsApplyTransforms(
-    input_image,
-    reference_image,
-    transform_list,
-    output_image,
-    interpolation="Linear",
-    input_image_type=0,
-    dimensionality=3,
-    verbose=0,
-):
+    input_image: str,
+    reference_image: str,
+    transform_list: List[str],
+    output_image: str,
+    interpolation: str = "Linear",
+    input_image_type: int = 0,
+    dimensionality: int = 3,
+    verbose: int = 0,
+)->None:
+    """Apply ANTs transforms.
+    
+    :param input_image: input image
+    :param reference_image: reference image
+    :param transform_list: transform list
+    :param output_image: output image
+    :param interpolation: interpolation
+    :param input_image_type: input image type
+    :param dimensionality: dimensionality
+    :param verbose: verbose
+    :return: None
+    """
     transforms = " -t " + " -t ".join(transform_list)
     shell(
         f"antsApplyTransforms -v {verbose} -d {dimensionality} -e {input_image_type}  -n {interpolation} -i {input_image} -r {reference_image} {transforms} -o {output_image}"
     )
+
+    return None

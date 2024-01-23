@@ -13,9 +13,8 @@ from brainbuilder.utils.utils import (
     simple_ants_apply_tfm,
 )
 from joblib import Parallel, delayed
-from scipy.ndimage import shift
+from scipy.ndimage import center_of_mass, shift
 from scipy.ndimage.morphology import binary_dilation, binary_erosion
-from skimage.measure import center_of_mass
 from skimage.transform import resize
 
 

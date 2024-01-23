@@ -1,4 +1,6 @@
+"""Create thickened volumes for each acquisition and each chunk."""
 import os
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
@@ -10,15 +12,18 @@ import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils.utils import get_thicken_width
 
 
-def setup_section_normalization(acquisition, sect_info, array_src):
-    # this function is not for chunk normalization but for section normalization
-    # # based on surrounding sections
+def setup_section_normalization(acquisition: str, sect_info: pd.DataFrame, array_src: np.ndarray) -> Tuple[np.ndarray, bool]:
+    """This function is not for chunk normalization but for section normalization based on surrounding sections.
+
+    :param acquisition: acquisition type
+    :param sect_info: dataframe with section information
+    :param array_src: source array
+    :return: array_src, normalize_sections
+    """
     normalize_sections = False
     mean_list = []
     std_list = []
     y_list = []
-    group_mean = 0
-    group_std = 0
 
     sect_info = sect_info.sort_values(["sample"])
     if acquisition in []:  # [ 'cellbody' , 'myelin' ] :
@@ -66,34 +71,37 @@ def setup_section_normalization(acquisition, sect_info, array_src):
                 new_mean + section[section > 0] - np.mean(section[section > 0])
             )  # + new_mean
             array_src[:, y, :] = section
-        # plt.plot(mean_list,c='r')
-        # plt.plot(new_mean_list,c='b')
-        # plt.savefig('/tmp/tmp.png')
-        # group_mean=np.mean(mean_list)
-        # group_std = np.std(std_list)
+
 
     return array_src, normalize_sections
 
 
 def thicken_sections_within_chunk(
-    thickened_fn,
-    source_image_fn,
-    section_thickness,
-    acquisition,
-    chunk_sect_info,
-    resolution,
-    tissue_type="",
-    gaussian_sd=0,
-):
+    thickened_fn: str,
+    source_image_fn: str,
+    section_thickness: float,
+    acquisition: str,
+    chunk_sect_info: pd.DataFrame,
+    resolution: float,
+    tissue_type: str = "",
+    gaussian_sd: float = 0,
+)->None:
+    """Thicken sections within a chunk. A thickened section is simply a section that is expanded along the y axis to the resolution of the reconstruction.
+
+    :param thickened_fn: path to thickened volume
+    :param source_image_fn: path to source image
+    :param section_thickness: section thickness
+    :param acquisition: acquisition type
+    :param chunk_sect_info: dataframe with chunk information
+    :param resolution: resolution of the interpolated volumes
+    :param tissue_type: tissue type of the interpolated volumes
+    :param gaussian_sd: standard deviation of gaussian filter
+    :return: None
+    """
     print(thickened_fn)
     print(source_image_fn)
     array_img = nib.load(source_image_fn)
     array_src = array_img.get_fdata()
-
-    print(array_src.shape)
-    exit(0)
-
-    ystart = array_img.affine[1, 3]
 
     assert np.sum(array_src) != 0, (
         "Error: source volume for thickening sections is empty\n" + source_image_fn
@@ -187,7 +195,8 @@ def thicken_sections_within_chunk(
 
 
 def check_all_thickened_files_exist(output_csv: str) -> bool:
-    """Check if all thickened files exist
+    """Check if all thickened files exist.
+
     :param output_csv: path to csv file containing chunk information
     :return: True if all thickened files exist, False otherwise
     """
@@ -209,18 +218,21 @@ def create_thickened_volumes(
     sect_info: pd.DataFrame,
     resolution: float,
     tissue_type: str = "",
-    gaussian_sd=0,
+    gaussian_sd:float=0,
     clobber: bool = False,
-):
-    """Create thickened volumes for each acquisition and each chunk. A thickened volume is simply
-    a volume consisting of the sections for a particular acquisition that are expanded along the
-    y axis to the resolution of the reconstruction
+)->str:
+    """Create thickened volumes for each acquisition and each chunk.
+    
+    A thickened volume is simply a volume consisting of the sections for a particular acquisition that are expanded along the
+    y axis to the resolution of the reconstruction.
 
     :param output_dir: directory for interpolated volumes
     :param chunk_info_csv: dataframe with chunk information
     :param sect_info_csv: dataframe with section information
     :param resolution: resolution of the interpolated volumes
     :param tissue_type: tissue type of the interpolated volumes
+    :param gaussian_sd: standard deviation of gaussian filter
+    :param clobber: overwrite existing files
     :return: None
     """
     output_csv = f"{output_dir}/chunk_info_thickened_{resolution}mm.csv"
@@ -249,7 +261,7 @@ def create_thickened_volumes(
             idx = chunk_info["chunk"] == chunk
             chunk_info_row = chunk_info[idx].iloc[0]
 
-            thickened_fn = f"{output_dir}/sub-{sub}_hemi-{hemi}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_thickened.nii.gz"
+            thickened_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_thickened.nii.gz"
 
             chunk_info_row["acquisition"] = acquisition
             chunk_info_row["thickened"] = thickened_fn

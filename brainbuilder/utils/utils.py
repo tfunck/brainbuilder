@@ -1,26 +1,23 @@
 """Utility functions for brainbuilder."""
 
 import contextlib
+import multiprocessing
 import os
 import re
+from collections.abc import Iterable
+from subprocess import PIPE, STDOUT, Popen
+from typing import List, Optional, Tuple, Union
 
 import ants
 import imageio
-import matplotlib
-import pandas as pd
-import psutil
-
-import brainbuilder.utils.ants_nibabel as nib
-
-matplotlib.use("Agg")
-import multiprocessing
-from collections.abc import Iterable
-from subprocess import PIPE, STDOUT, Popen
-
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.ndimage import center_of_mass, label, shift
+import pandas as pd
+import psutil
+from scipy.ndimage import label
 from skimage.transform import resize
+
+import brainbuilder.utils.ants_nibabel as nib
 
 os_info = os.uname()
 
@@ -43,7 +40,7 @@ def estimate_memory_usage(n_elements:int, n_bytes_per_element:int)->int:
     return n_elements * n_bytes_per_element
 
 
-def get_maximum_cores(n_elemnts_list, n_bytes_per_element_list, max_memory=0.8):
+def get_maximum_cores(n_elemnts_list:list, n_bytes_per_element_list:list, max_memory:float=0.8)->int:
     """Get the maximum number of cores to use for a given memory limit.
 
     :param n_elemnts: int, number of elements
@@ -88,7 +85,7 @@ def load_image(fn:str)->np.ndarray:
         return None
 
 
-def get_chunk_pixel_size(sub, hemi, chunk, chunk_info)->tuple:
+def get_chunk_pixel_size(sub:str, hemi:str, chunk:str, chunk_info:str)->tuple:
     """Get the pixel size of a chunk.
 
     :param sub: str, name of the subject
@@ -109,7 +106,14 @@ def get_chunk_pixel_size(sub, hemi, chunk, chunk_info)->tuple:
     return pixel_size_0, pixel_size_1, section_thickeness
 
 
-def create_2d_affine(pixel_size_0, pixel_size_1, section_thickness):
+def create_2d_affine(pixel_size_0:float, pixel_size_1:float, section_thickness:float)->np.ndarray:
+    """Create a 2D affine.
+
+    :param pixel_size_0: float
+    :param pixel_size_1: float
+    :param section_thickness: float
+    :return: np.ndarray
+    """
     affine = np.eye(4)
     affine[0, 0] = pixel_size_0
     affine[1, 1] = pixel_size_1
@@ -117,8 +121,9 @@ def create_2d_affine(pixel_size_0, pixel_size_1, section_thickness):
     return affine
 
 
-def get_chunk_direction(sub, hemi, chunk, chunk_info):
+def get_chunk_direction(sub:str, hemi:str, chunk:int, chunk_info:pd.DataFrame)->list:
     """Get the direction of a chunk.
+
     :param sub: str, name of the subject
     :param hemi: str, hemisphere
     :param chunk: int, chunk number
@@ -136,8 +141,9 @@ def get_chunk_direction(sub, hemi, chunk, chunk_info):
     return direction
 
 
-def set_cores(num_cores):
+def set_cores(num_cores:int)->int:
     """Sets the number of cores to use for parallel processing.
+
     :param num_cores: int
     :return: int
     """
@@ -148,17 +154,31 @@ def set_cores(num_cores):
 
 
 def imshow_images(
-    out_fn,
-    images,
-    rows,
-    columns,
-    wspace=0.1,
-    hspace=0,
-    titles=[],
-    facecolor="black",
-    figsize=(10, 10),
-    rotn=0,
-):
+    out_fn:str,
+    images:list,
+    rows:int,
+    columns:int,
+    wspace:float=0.1,
+    hspace:float=0,
+    titles:list=[],
+    facecolor:str="black",
+    figsize:tuple=(10, 10),
+    rotn:int=0,
+)->None:
+    """Plot a list of images.
+
+    :param out_fn: str, output filename
+    :param images: list of images
+    :param rows: int, number of rows
+    :param columns: int, number of columns
+    :param wspace: float, horizontal space
+    :param hspace: float, vertical space
+    :param titles: list of titles
+    :param facecolor: str, facecolor
+    :param figsize: tuple, figure size
+    :param rotn: int, rotation
+    :return: None
+    """
     fig, axes = plt.subplots(rows, columns, figsize=figsize)
 
     if titles == []:
@@ -193,12 +213,22 @@ def imshow_images(
     plt.clf()
 
 
-def get_thicken_width(resolution, section_thickness=0.02):
+def get_thicken_width(resolution:float, section_thickness:float=0.02)->int:
+    """Get the thicken width.
+    
+    :param resolution: float, resolution
+    :param section_thickness: float, section thickness
+    :return: float
+    """
     return np.round(1 * (1 + float(resolution) / (section_thickness * 2))).astype(int)
 
 
-def get_section_intervals(vol: np.array):
-    """Get the intervals of sections within a volume across y-axis of volume"""
+def get_section_intervals(vol: np.ndarray)->list:
+    """Get the intervals of sections within a volume across y-axis of volume.
+    
+    :param vol: np.array, volume
+    :return: list
+    """
     section_sums = np.sum(vol, axis=(0, 2))
     valid_sections = section_sums > np.min(section_sums)
     labeled_sections, nlabels = label(valid_sections)
@@ -220,21 +250,33 @@ def get_section_intervals(vol: np.array):
 
 
 class AntsParams:
+    """Class representing Ants parameters. Parameters are calculated based on a multi-resolution alignment schedule."""
+    
     def __init__(
-        self,
-        resolution_list,
-        resolution,
-        base_itr,
-        max_resolution=None,
-        start_resolution=None,
-        verbose=False,
-    ):
+        self: object,
+        resolution_list: List[float],
+        resolution: float,
+        base_itr: int,
+        max_resolution: Optional[float] = None,
+        start_resolution: Optional[float] = None,
+        verbose: bool = False,
+    ) -> None:
+        """Initialize the AntsParams object.
+
+        :param resolution_list: List[float], list of resolutions
+        :param resolution: float, resolution
+        :param base_itr: int, base iteration
+        :param max_resolution: Optional[float], maximum resolution (default: None)
+        :param start_resolution: Optional[float], starting resolution (default: None)
+        :param verbose: bool, verbose flag (default: False)
+        :return: None
+        """
         if type(max_resolution) == type(None):
             self.max_resolution = resolution
         else:
             self.max_resolution = max_resolution
 
-        if start_resolution != None:
+        if start_resolution is not None:
             resolution_list = [
                 r for r in resolution_list if float(r) < float(start_resolution)
             ]
@@ -261,12 +303,23 @@ class AntsParams:
             len(self.f_list) == len(self.s_list) == len(self.itr_str.split("x"))
         ), f"Error: incorrect number of elements in: \n{self.f_list}\n{self.s_list}\n{self.itr_str}\n{resolution_list}"
 
-    def _print(self):
+    def print(self)->None:
+        """Print the AntsParams object.
+        
+        :return: None
+        """
         print("Iterations:\t", self.itr_str)
         print("Factors:\t", self.f_str)
         print("Smoothing:\t", self.s_str)
+        return None
 
-    def gen_itr_str(self, max_itr, step):
+    def gen_itr_str(self, max_itr:int, step:float)->str:
+        """Generate the iteration string.
+                
+        :param max_itr: int, maximum iteration
+        :param step: float, step size
+        :return: str
+        """
         itr_str = "x".join(
             [
                 str(int(max_itr - i * step))
@@ -277,13 +330,28 @@ class AntsParams:
         itr_str = "[" + itr_str + ",1e-7,20 ]"
         return itr_str
 
-    def gen_smoothing_factor_string(self, lst):
+    def gen_smoothing_factor_string(self, lst:List) -> str:
+        """Generate the smoothing factor string.
+        
+        :param lst: List[float], list of smoothing factors
+        :return: str, the generated smoothing factor string
+        """
         return "x".join([str(i) for i in lst]) + "vox"
 
-    def gen_smoothing_factor_list(self, resolution_list):
-        # smooth_f = lambda x, y:  np.round(float(float(x)/float(y))/np.pi,2)
-        smooth_f = lambda x, y: np.round(float(float(x) / float(y) - 1) * 0.2, 3)
-        # smooth_f = lambda x, y:  (float(x)/float(y))/2
+    def gen_smoothing_factor_list(self, resolution_list: List[float]) -> List[float]:
+        """Generate the list of smoothing factors.
+        
+        :param resolution_list: List[float], list of resolutions
+        :return: List[float]
+        """
+        def smooth_f(x: float, y: float) -> float:
+            """Calculate the smoothing factor.
+            
+            :param x: float, x
+            :param y: float, y
+            :return: float
+            """
+            return np.round(float(float(x) / float(y) - 1) * 0.2, 3)
         return [
             smooth_f(resolution_list[i], resolution_list[self.cur_n])
             if i != self.cur_n
@@ -292,17 +360,33 @@ class AntsParams:
             if self.resolution_list[i] >= self.max_resolution
         ]
 
-    def get_smoothing_params(self, resolution_list):
+    def get_smoothing_params(self, resolution_list: List[float]) -> str:
+        """Generate the smoothing factor string.
+        
+        :param resolution_list: List[float], list of resolutions
+        :return: str
+        """
         s_list = self.gen_smoothing_factor_list(resolution_list)
         return self.gen_smoothing_factor_string(s_list)
 
-    def calc_downsample_factor(self, cur_res, image_res):
+    def calc_downsample_factor(self, cur_res: float, image_res: float) -> str:
+        """Calculate the downsample factor.
+        
+        :param cur_res: float, current resolution
+        :param image_res: float, image resolution
+        :return: str
+        """
         return (
             np.rint(float(cur_res) / float(image_res)).astype(int).astype(str)
         )  # DEBUG
         # return np.floor(1+np.log2(float(cur_res)/float(image_res))).astype(int).astype(str)
 
-    def gen_downsample_factor_list(self, resolution_list):
+    def gen_downsample_factor_list(self, resolution_list: List[float]) -> List[str]:
+        """Generate the list of downsample factors.
+        
+        :param resolution_list: List[float], list of resolutions
+        :return: List[str]
+        """
         factors = [
             self.calc_downsample_factor(resolution_list[i], resolution_list[self.cur_n])
             for i in range(self.cur_n + 1)
@@ -310,11 +394,24 @@ class AntsParams:
         ]
         return factors
 
-    def get_downsample_params(self, resolution_list):
+    def get_downsample_params(self, resolution_list: List[float]) -> str:
+        """Generate the downsample factor string.
+        
+        :param resolution_list: List[float], list of resolutions
+        :return: str
+        """
         return "x".join(self.gen_downsample_factor_list(resolution_list))
 
-
-def check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn, empty_ok=False):
+def check_transformation_not_empty(in_fn: str, ref_fn: str, tfm_fn: str, out_fn: str, empty_ok: bool = False) -> None:
+    """Check if the transformed file is empty or does not exist.
+    
+    :param in_fn: str, input filename
+    :param ref_fn: str, reference filename
+    :param tfm_fn: str, transformation filename
+    :param out_fn: str, output filename
+    :param empty_ok: bool, whether empty files are allowed
+    :return: None
+    """
     assert os.path.exists(out_fn), f"Error: transformed file does not exist {out_fn}"
     assert (
         np.sum(np.abs(nib.load(out_fn).dataobj)) > 0 or empty_ok
@@ -322,29 +419,63 @@ def check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn, empty_ok=False
 
 
 def simple_ants_apply_tfm(
-    in_fn, ref_fn, tfm_fn, out_fn, ndim=3, n="Linear", empty_ok: bool = False
-):
+    in_fn: str, ref_fn: str, tfm_fn: str, out_fn: str, ndim: int = 3, n: str = "Linear", empty_ok: bool = False
+) -> None:
+    """Apply transformation using ANTs.
+    
+    :param in_fn: str, input filename
+    :param ref_fn: str, reference filename
+    :param tfm_fn: str, transformation filename
+    :param out_fn: str, output filename
+    :param ndim: int, number of dimensions
+    :param n: str, transformation type
+    :param empty_ok: bool, whether empty files are allowed
+    :return: None
+    """
     if not os.path.exists(out_fn):
         str0 = f"antsApplyTransforms -v 0 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}"
         shell(str0, verbose=True)
         check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn, empty_ok=empty_ok)
 
 
-def get_seg_fn(dirname, y, resolution, filename, suffix=""):
+def get_seg_fn(dirname: str, y: float, resolution: float, filename: str, suffix: str = "") -> str:
+    """Get the segmented filename.
+    
+    :param dirname: str, directory name
+    :param y: float, y value
+    :param resolution: float, resolution value
+    :param filename: str, original filename
+    :param suffix: str, suffix to add to the filename
+    :return: str, segmented filename
+    """
     filename = re.sub(
         ".nii.gz",
-        # f"_y-{int(y)}_{resolution}mm{suffix}.nii.gz",
         f"_{resolution}mm{suffix}.nii.gz",
         os.path.basename(filename),
     )
     return "{}/{}".format(dirname, filename)
 
 
-def gen_2d_fn(prefix, suffix, ext=".nii.gz"):
+def gen_2d_fn(prefix: str, suffix: str, ext: str = ".nii.gz") -> str:
+    """Generate the 2D filename.
+    
+    :param prefix: str, filename prefix
+    :param suffix: str, filename suffix
+    :param ext: str, filename extension
+    :return: str, generated filename
+    """
     return f"{prefix}{suffix}{ext}"
 
 
-def save_sections(file_list, vol, aff, dtype=None):
+def save_sections(file_list: List[Tuple[str, float]], vol: np.ndarray, aff: np.ndarray, dtype: int = None) -> None:
+    """Save sections of a volume.
+    
+    :param file_list: List[Tuple[str, float]], list of filenames and y values
+    :param vol: Any, volume data
+    :param aff: Any, affine transformation
+    :param dtype: Optional[Any], data type
+    :return: None
+    """
     xstep = aff[0, 0]
     ystep = aff[1, 1]
     zstep = aff[2, 2]
@@ -361,20 +492,30 @@ def save_sections(file_list, vol, aff, dtype=None):
                 [0, 0, 0, 1],
             ]
         )
-        i = 0
-        if np.sum(vol[:, int(y), :]) == 0:
-            # Create 2D srv section
-            # this little while loop thing is so that if we go beyond  brain tissue in vol,
-            # we find the closest y segement in vol with brain tissue
-            while np.sum(vol[:, int(y - i), :]) == 0:
-                i += (ystep / np.abs(ystep)) * 1
+    
+    i = 0
+    if np.sum(vol[:, int(y), :]) == 0:
+        # Create 2D srv section
+        # this little while loop thing is so that if we go beyond  brain tissue in vol,
+        # we find the closest y segement in vol with brain tissue
+        while np.sum(vol[:, int(y - i), :]) == 0:
+            i += (ystep / np.abs(ystep)) * 1
 
-        sec = vol[:, int(y - i), :]
+    sec = vol[:, int(y - i), :]
 
-        nib.Nifti1Image(sec, affine, dtype=dtype, direction_order="lpi").to_filename(fn)
+    nib.Nifti1Image(sec, affine, dtype=dtype, direction_order="lpi").to_filename(fn)
 
 
-def get_to_do_list(df, out_dir, str_var, ext=".nii.gz"):
+
+def get_to_do_list(df: pd.DataFrame, out_dir: str, str_var: str, ext: str = ".nii.gz") -> List[Tuple[str, int]]:
+    """Get the to-do list for processing.
+
+    :param df: DataFrame, input dataframe
+    :param out_dir: str, output directory
+    :param str_var: str, string variable
+    :param ext: str, filename extension
+    :return: List[Tuple[str, int]], to-do list
+    """
     to_do_list = []
     for idx, (i, row) in enumerate(df.iterrows()):
         y = int(row["sample"])
@@ -382,11 +523,21 @@ def get_to_do_list(df, out_dir, str_var, ext=".nii.gz"):
         prefix = f"{out_dir}/y-{y}"
         fn = gen_2d_fn(prefix, str_var, ext=ext)
         if not os.path.exists(fn):
-            to_do_list.append([fn, y])
+            to_do_list.append((fn, y))
     return to_do_list
 
 
-def create_2d_sections(df, srv_fn, resolution, output_dir, dtype=None, clobber=False):
+def create_2d_sections(df: pd.DataFrame, srv_fn:str, resolution:float, output_dir:str, dtype:int=None, clobber:bool=False)->None:
+    """Create 2D sections from a dataframe.
+    
+    :param df: pd.DataFrame, dataframe
+    :param srv_fn: str, filename of the srv
+    :param resolution: float, resolution
+    :param output_dir: str, output directory
+    :param dtype: Optional[int], data type
+    :param clobber: bool, whether to overwrite existing files
+    :return: None
+    """
     fx_to_do = []
 
     tfm_dir = output_dir + os.sep + "tfm"
@@ -401,9 +552,16 @@ def create_2d_sections(df, srv_fn, resolution, output_dir, dtype=None, clobber=F
         affine = srv_img.affine
         srv = srv_img.get_fdata()
         save_sections(fx_to_do, srv, affine, dtype=dtype)
+    
+    return None
 
 
-def splitext(s):
+def splitext(s:str)->List:
+    """Split a filename into basepath and extension.
+
+    :param s: str, filename
+    :return: List
+    """
     try:
         ssplit = os.path.basename(s).split(".")
         ext = "." + ".".join(ssplit[1:])
@@ -416,7 +574,13 @@ def splitext(s):
 newlines = ["\n", "\r\n", "\r"]
 
 
-def unbuffered(proc, stream="stdout"):
+def unbuffered(proc: Popen, stream:str="stdout")->str:
+    """Read unbuffered from a process.
+    
+    :param proc: process
+    :param stream: str, stream
+    :yield: str
+    """
     stream = getattr(proc, stream)
     with contextlib.closing(stream):
         while True:
@@ -436,8 +600,13 @@ def unbuffered(proc, stream="stdout"):
             yield out
 
 
-def shell(cmd, verbose=False, exit_on_failure=True):
-    """Run command in shell and read STDOUT, STDERR and the error code"""
+def shell(cmd:str, verbose:bool=False, exit_on_failure:bool=True)->tuple:
+    """Run command in shell and read STDOUT, STDERR and the error code.
+    
+    :param cmd: str, command
+    :param verbose: bool, optional, if True, print command, default=False
+    :param exit_on_failure: bool, optional, if True, exit on failure, default=True
+    """
     stdout = ""
     if verbose:
         print(cmd)
@@ -466,7 +635,13 @@ def shell(cmd, verbose=False, exit_on_failure=True):
     return stdout, stderr, errorcode
 
 
-def gen_new_filename(fn, output_dir, new_suffix):
+def gen_new_filename(fn:str, output_dir:str, new_suffix:str)->str:
+    """Generate a new filename.
+    
+    :param fn: str, filename
+    :param output_dir: str, output directory
+    :param new_suffix: str, new suffix
+    """
     if ".nii.gz" in fn:
         old_suffix = ".nii.gz"
     else:
@@ -475,19 +650,7 @@ def gen_new_filename(fn, output_dir, new_suffix):
     out_fn = output_dir + "/" + re.sub(old_suffix, new_suffix, os.path.basename(fn))
     return out_fn
 
-
-def world_center_of_mass(vol, affine):
-    affine = np.array(affine)
-    ndim = len(vol.shape)
-    r = np.arange(ndim).astype(int)
-    com = center_of_mass(vol)
-    steps = affine[r, r]
-    starts = affine[r, 3]
-    wcom = com * steps + starts
-    return wcom
-
-
-def get_values_from_df(df:pd.DataFrame, fields=["sub", "hemisphere", "chunk"])->list:
+def get_values_from_df(df:pd.DataFrame, fields:List=["sub", "hemisphere", "chunk"])->list:
     """Get the unique values from a dataframe for a list of fields.
 
     :param df: dataframe
@@ -519,7 +682,7 @@ def get_params_from_affine(aff:np.array, ndim:int)->tuple:
     return origin, spacing, direction
 
 
-def parse_resample_arguments(input_arg, output_filename, aff, dtype) -> tuple:
+def parse_resample_arguments(input_arg:Union[str, np.ndarray], output_filename:str, aff:np.ndarray, dtype:int) -> tuple:
     """Parse the arguments for resample_to_resolution.
 
     :param input_arg: input file or numpy array
@@ -548,13 +711,13 @@ def parse_resample_arguments(input_arg, output_filename, aff, dtype) -> tuple:
             vol = load_image(input_arg)
             origin, spacing, direction = get_params_from_affine(aff, len(vol.shape))
 
-    elif type(input_arg) == np.ndarray:
+    elif isinstance(input_arg, np.ndarray):
         vol = input_arg
-        if type(dtype) == type(None):
+        if isinstance(dtype, type(None)):
             dtype = vol.dtype
 
         assert (
-            type(aff) == np.ndarray or type(aff) == list
+            isinstance(aff, np.ndarray) or isinstance(aff, list)
         ), f"Error: affine must be provided as a list or numpy array but got {type(aff)}"
 
         origin, spacing, direction = get_params_from_affine(aff, len(vol.shape))
@@ -598,7 +761,7 @@ def newer_than(fn1: str, fn2: str)->bool:
         return os.path.getctime(fn1) > os.path.getctime(fn2)
 
 
-def compare_timestamp_of_files(x, y) -> bool:
+def compare_timestamp_of_files(x:Union[str, List] , y:Union[str, List]) -> bool:
     """Compare the timestamps of two files. If x is newer than y, return True, otherwise return False.
 
     :param x: str or list
@@ -625,7 +788,7 @@ def compare_timestamp_of_files(x, y) -> bool:
 
 
 def check_run_stage(
-    col1: Iterable, col2: Iterable, df_csv: str = None, clobber=False
+    col1: Iterable, col2: Iterable, df_csv: str = None, clobber:bool=False
 ) -> bool:
     """Check if a stage should be run. If the output files exist, check if they are newer than the input files.
 
@@ -637,8 +800,13 @@ def check_run_stage(
     """
     run_stage = False
 
-    def get_file_list(df_csv, col):
-        """Get the file list from a dataframe or a list"""
+    def get_file_list(df_csv:str, col:str)->List:
+        """Get the file list from a dataframe or a list.
+        
+        :param df_csv: str, dataframe
+        :param col: str, column name
+        :return: list
+        """
         if isinstance(col, str) and isinstance(df_csv, str) and os.path.exists(df_csv):
             df = pd.read_csv(df_csv, index_col=False)
             if col in df.columns:
@@ -651,8 +819,13 @@ def check_run_stage(
 
         return file_list
 
-    def file_check(file_list, nan_okay=True):
-        """Check if all files exist"""
+    def file_check(file_list:List, nan_okay:bool=True)->bool:
+        """Check if all files exist.
+        
+        :param file_list: list of files
+        :param nan_okay: bool, optional, if True, nan values are allowed, default=True
+        :return: bool
+        """
         for x in file_list:
             if nan_okay & pd.isnull(x):
                 continue
@@ -694,14 +867,14 @@ def check_run_stage(
 
 
 def resample_to_resolution(
-    input_arg,
-    new_resolution,
-    output_filename=None,
-    dtype=None,
-    affine=None,
-    direction_order="lpi",
-    order=1,
-):
+    input_arg: Union[str, np.ndarray],
+    new_resolution: Tuple[float, float, float],
+    output_filename: Optional[str] = None,
+    dtype: Optional[np.dtype] = None,
+    affine: Optional[np.ndarray] = None,
+    direction_order: str = "lpi",
+    order: int = 1,
+) -> nib.Nifti1Image:
     """Resample a volume to a new resolution.
 
     :param input_arg: input file or numpy array
@@ -746,6 +919,6 @@ def resample_to_resolution(
 
     img_out = nib.Nifti1Image(vol, affine, dtype=dtype, direction_order=direction_order)
 
-    if type(output_filename) == str:
+    if isinstance(output_filename,str):
         img_out.to_filename(output_filename)
     return img_out

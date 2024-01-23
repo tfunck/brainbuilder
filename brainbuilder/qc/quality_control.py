@@ -1,5 +1,7 @@
+"""Quality control for data set."""
 import argparse
 import os
+from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,7 +11,12 @@ from brainbuilder.utils import utils
 from joblib import Parallel, cpu_count, delayed
 
 
-def get_min_max(fn):
+def get_min_max(fn:str)->str:
+    """Get min and max values from image file.
+    
+    :param fn: image file name
+    :return: min, max
+    """
     print("qc read ", fn)
     ar = utils.load_image(fn)
     if isinstance(ar, np.ndarray):
@@ -18,7 +25,13 @@ def get_min_max(fn):
         return np.nan, np.nan
 
 
-def get_min_max_parallel(df, column):
+def get_min_max_parallel(df:pd.DataFrame, column:str)->Tuple[float, float]:
+    """Get min and max values from image file in parallel.
+    
+    :param df: dataframe
+    :param column: column name
+    :return: min, max
+    """
     n_jobs = int(cpu_count())
 
     min_max = Parallel(n_jobs=n_jobs)(
@@ -32,8 +45,16 @@ def get_min_max_parallel(df, column):
 
 
 def data_set_quality_control(
-    sect_info_csv: str, base_output_dir: str, column: str = "raw", clobber=False
-):
+    sect_info_csv: str, base_output_dir: str, column: str = "raw", clobber:bool=False
+)->None:
+    """Quality control for data set.
+
+    :param sect_info_csv: section information csv file
+    :param base_output_dir: base output directory
+    :param column: column name
+    :param clobber: clobber
+    :return: None
+    """
     os.makedirs(base_output_dir, exist_ok=True)
 
     sect_info = pd.read_csv(sect_info_csv, index_col=False)
@@ -83,7 +104,7 @@ if __name__ == "__main__":
     )
     args = argparser.parse_args()
 
-    section_quality_control(
+    data_set_quality_control(
         sect_info_csv=args.sect_info_csv,
         output_dir=args.output_dir,
         column=args.column,
