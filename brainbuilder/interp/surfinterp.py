@@ -441,7 +441,11 @@ def spherical_np(xyz):
 
 
 def interpolate_over_surface(
-    sphere_obj_fn: str, surface_val: np.array, threshold: float = 0, order: int = 1
+    sphere_obj_fn: str,
+    surface_val: np.array,
+    threshold: float = 0,
+    surface_mask: np.ndarray = None,
+    order: int = 1,
 ):
     """Interpolate over a surface sphere
 

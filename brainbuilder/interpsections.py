@@ -370,7 +370,7 @@ def surface_pipeline(
     gm_surf_fn: str,
     wm_surf_fn: str,
     n_depths: int = 0,
-    use_surface_smoothing: bool = False,
+    surface_smoothing: int = 0,
     batch_correction_resolution: int = 0,
     clobber: bool = False,
 ) -> None:
@@ -396,7 +396,7 @@ def surface_pipeline(
     if (
         not os.path.exists(reconstructed_cortex_fn)
         or (
-            use_surface_smoothing
+            surface_smoothing > 0
             and not os.path.exists(smoothed_reconstructed_cortex_fn)
         )
         or clobber
@@ -491,8 +491,8 @@ def surface_pipeline(
             clobber=clobber,
         )
 
-        if use_surface_smoothing:
-            sigma = 2 * resolution / 2.355
+        if surface_smoothing > 0:
+            sigma = surface_smoothing / 2.355
 
             smoothed_final_profiles_fn = smooth_surface_profiles(
                 final_profiles_fn, surf_depth_mni_dict, sigma, clobber=clobber
@@ -550,7 +550,7 @@ def interpolate_missing_sections(
     resolution: float,
     output_dir: str,
     n_depths: int = 0,
-    use_surface_smoothing: bool = False,
+    surface_smoothing: int = 0,
     batch_correction_resolution: int = 0,
     clobber: bool = False,
 ):
@@ -584,14 +584,14 @@ def interpolate_missing_sections(
             "acquisition",
         ]
     ):
-        # if acquisition != 'cgp5' : continue #FIXME delete this line
-
         curr_output_dir = f"{output_dir}/sub-{sub}/hemi-{hemisphere}/acq-{acquisition}/"
 
         os.makedirs(curr_output_dir, exist_ok=True)
 
         curr_chunk_info = chunk_info.loc[
-            (chunk_info["sub"] == sub) & (chunk_info["hemisphere"] == hemisphere)
+            (chunk_info["sub"] == sub)
+            & (chunk_info["hemisphere"] == hemisphere)
+            & (chunk_info["resolution"] == resolution)
         ]
 
         assert (
@@ -618,7 +618,7 @@ def interpolate_missing_sections(
                 gm_surf_fn,
                 wm_surf_fn,
                 n_depths,
-                use_surface_smoothing=use_surface_smoothing,
+                surface_smoothing=surface_smoothing,
                 batch_correction_resolution=batch_correction_resolution,
                 clobber=clobber,
             )

@@ -13,7 +13,7 @@ from brainbuilder.utils.utils import get_thicken_width
 def setup_section_normalization(acquisition, sect_info, array_src):
     # this function is not for chunk normalization but for section normalization
     # # based on surrounding sections
-    normalize_sections = False
+    normalize_sections = True
     mean_list = []
     std_list = []
     y_list = []
@@ -21,10 +21,9 @@ def setup_section_normalization(acquisition, sect_info, array_src):
     group_std = 0
 
     sect_info = sect_info.sort_values(["sample"])
-    if acquisition in []:  # [ 'cellbody' , 'myelin' ] :
+    if acquisition in [] or normalize_sections:
         print("Normalizing", acquisition)
 
-        normalize_sections = True
         for row_i, row in sect_info.iterrows():
             y = int(row["sample"])
 
@@ -64,7 +63,7 @@ def setup_section_normalization(acquisition, sect_info, array_src):
             section = array_src[:, y, :]
             section[section > 0] = (
                 new_mean + section[section > 0] - np.mean(section[section > 0])
-            )  # + new_mean
+            )
             array_src[:, y, :] = section
         # plt.plot(mean_list,c='r')
         # plt.plot(new_mean_list,c='b')
@@ -91,7 +90,6 @@ def thicken_sections_within_chunk(
     array_src = array_img.get_fdata()
 
     print(array_src.shape)
-    exit(0)
 
     ystart = array_img.affine[1, 3]
 
@@ -249,7 +247,7 @@ def create_thickened_volumes(
             idx = chunk_info["chunk"] == chunk
             chunk_info_row = chunk_info[idx].iloc[0]
 
-            thickened_fn = f"{output_dir}/sub-{sub}_hemi-{hemi}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_thickened.nii.gz"
+            thickened_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_thickened.nii.gz"
 
             chunk_info_row["acquisition"] = acquisition
             chunk_info_row["thickened"] = thickened_fn

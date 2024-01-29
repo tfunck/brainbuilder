@@ -61,7 +61,7 @@ def reconstruct(
     n_depths: int = 0,
     use_nnunet: bool = True,
     num_cores: int = 0,
-    use_surface_smoothing: bool = False,
+    surface_smoothing: int = 0,
     batch_correction_resolution: float = 0,
     skip_interp: bool = False,
     clobber: bool = False,
@@ -154,7 +154,7 @@ def reconstruct(
             maximum_resolution,
             interp_dir,
             n_depths=n_depths,
-            use_surface_smoothing=use_surface_smoothing,
+            surface_smoothing=surface_smoothing,
             batch_correction_resolution=batch_correction_resolution,
             clobber=clobber,
         )
@@ -236,10 +236,9 @@ def setup_argparse():
     )
 
     parser.add_argument(
-        "use_surface_smoothing",
-        dest="use_surface_smoothing",
-        default=False,
-        action="store_true",
+        "surface_smoothing",
+        dest="surface_smoothing",
+        default=0,
         help="Use surface smoothing beore creating final volume",
     )
     parser.add_argument(

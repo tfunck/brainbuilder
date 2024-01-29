@@ -431,7 +431,7 @@ def write_mesh_to_volume(
     profiles, surfaces, volume_fn, output_fn, resolution, clobber=False
 ):
     if not os.path.exists(output_fn) or clobber:
-        img = nibabel.load(volume_fn)
+        img = nb.load(volume_fn)
         starts = img.affine[0:3, 3]
         steps = np.diag(img.affine)[0:3]
         dimensions = img.shape
@@ -1055,7 +1055,7 @@ def apply_ants_transform_to_gii(
     nii_fn = out_path + flip_label + ".nii.gz"
 
     if ref_vol_fn != None:
-        img = nibabel.load(ref_vol_fn)
+        img = nb.load(ref_vol_fn)
         steps = img.affine[[0, 1, 2], [0, 1, 2]]
         starts = img.affine[[0, 1, 2], 3]
         dimensions = img.shape
