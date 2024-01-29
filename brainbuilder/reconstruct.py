@@ -1,3 +1,5 @@
+"""Main functions for launching 3D reconstruction with BrainBuilder."""
+
 import argparse
 import os
 
@@ -9,6 +11,7 @@ from brainbuilder.initalign import initalign
 from brainbuilder.interpsections import interpolate_missing_sections
 from brainbuilder.segment import segment
 from brainbuilder.utils import utils
+from brainbuilder.utils.validate_inputs import validate_inputs
 from brainbuilder.volalign import multiresolution_alignment
 
 base_file_dir, fn = os.path.split(os.path.abspath(__file__))
@@ -20,25 +23,22 @@ file_dir = base_file_dir + os.sep + "section_numbers" + os.sep
 manual_dir = base_file_dir + os.sep + "manual_points" + os.sep
 
 
-def setup_args(args):
-    """About:
-        Setup the parameters and filenames that will be used in the reconstruction
-    Inputs:
-        args:   user input arguments
-
-    Outputs:
-        args:   user input arguments with some additional parameters tacked on in this function
+def setup_args(args: argparse.Namespace) -> argparse.Namespace:
+    """Setup the parameters and filenames that will be used in the reconstruction.
+        
+    :param args:   user input arguments
+    :return args:   user input arguments with some additional parameters tacked on in this function
     """
     ###
     ### Parameters
     ###
 
-    if args.chunk_info_csv == None:
+    if args.chunk_info_csv is None:
         args.chunk_info_csv = base_file_dir + "/scale_factors.json"
 
     args.manual_tfm_dir = base_file_dir + "transforms/"
 
-    if args.sect_info_fn == None:
+    if args.sect_info_fn is None:
         args.sect_info_fn = args.out_dir + "/autoradiograph_info_volume_order.csv"
 
     args.qc_dir = f"{args.out_dir}/6_quality_control/"
@@ -65,8 +65,8 @@ def reconstruct(
     batch_correction_resolution: float = 0,
     skip_interp: bool = False,
     clobber: bool = False,
-):
-    """Reconstruct 2D histological sections to 3D volume using a structural reference volume (e.g., T1w MRI from brain donor, stereotaxic template)
+)->None:
+    """Reconstruct 2D histological sections to 3D volume using a structural reference volume (e.g., T1w MRI from brain donor, stereotaxic template).
 
      Processing Steps
         1. Segment
@@ -83,7 +83,6 @@ def reconstruct(
     :param output_dir : str, output directory where results will be put
     :param pytorch_model_dir : str, optional, path of directory of pytorch model to use for reconstruction
     :param num_cores : int, optional, number of cores to use for reconstruction, default=0 (use all cores)
-
     :return sect_info : pandas dataframe, contains updated information about sections with new fields for files produced
     """
     downsample_dir = f"{output_dir}/0_downsample/"
@@ -100,10 +99,10 @@ def reconstruct(
     maximum_resolution = resolution_list[-1]
 
     # FIXME UNCOMMENT
-    # valid_inputs = validate_inputs.validate_inputs(
-    #    hemi_info_csv, chunk_info_csv, sect_info_csv, valid_inputs_npz
-    # )
-    # assert valid_inputs, "Error: invalid inputs"
+    valid_inputs = validate_inputs.validate_inputs(
+        hemi_info_csv, chunk_info_csv, sect_info_csv, valid_inputs_npz
+     )
+    assert valid_inputs, "Error: invalid inputs"
 
     sect_info_csv = downsample_sections(
         chunk_info_csv,
@@ -162,8 +161,11 @@ def reconstruct(
     return output_csv
 
 
-def setup_argparse():
-    """Get user input arguments"""
+def setup_argparse()->argparse.ArgumentParser:
+    """Get user input arguments.
+
+    :return parser: argparse.ArgumentParser
+    """
     parser = argparse.ArgumentParser(description="Process some integers.")
 
     parser.add_argument(
@@ -269,7 +271,7 @@ if __name__ == "__main__":
 
     reconstruct(
         args.hemi_info_csv,
-        arg.chunk_info_csv,
+        args.chunk_info_csv,
         args.sect_info_csv,
         args.ref_vol_fn,
         resolution_list=args.resolution_list,
@@ -281,5 +283,3 @@ if __name__ == "__main__":
         num_cores=args.num_cores,
         skip_interp=args.skip_interp,
     )
-
-    ### Step 0 : Crop downsampled autoradiographs

@@ -1,3 +1,4 @@
+"""This module contains functions for multiresolution alignment of autoradiographs to MRI."""
 import os
 
 import matplotlib.pyplot as plt
@@ -36,7 +37,7 @@ def get_multiresolution_filenames(
     resolution: float,
     out_dir: str,
 ) -> pd.DataFrame:
-    """Set filenames for each stage of multiresolution stages
+    """Set filenames for each stage of multiresolution stages.
 
     :param row: row of dataframe
     :param sub: subject name
@@ -65,9 +66,11 @@ def get_multiresolution_filenames(
     return row
 
 
-def check_chunk_outputs(chunk_csv: str):
-    """Check if chunk outputs exist, if not remove the chunk output csv and the chunk output directory
+def check_chunk_outputs(chunk_csv: str)-> None:
+    """Check if chunk outputs exist, if not remove the chunk output csv and the chunk output directory.
+
     :param chunk_output_csv: path to chunk output csv
+    :return: None
     """
     chunk_info = pd.read_csv(chunk_csv, index_col=None)
 
@@ -77,7 +80,7 @@ def check_chunk_outputs(chunk_csv: str):
                 print("\t\tMissing", fn)
                 os.remove(chunk_csv)
                 return None
-
+    return None
 
 def multiresolution_alignment(
     hemi_info_csv: pd.DataFrame,
@@ -92,7 +95,7 @@ def multiresolution_alignment(
     num_cores: int = 0,
     clobber: bool = False,
 ) -> str:
-    """Multiresolution alignment of chunks
+    """Multiresolution alignment of chunks.
 
     params: df: dataframe containing chunk information
     params: sub: subject name
@@ -107,11 +110,10 @@ def multiresolution_alignment(
     multi_resolution_required_columns = valinpts.chunk_info_required_columns + [
         valinpts.Column("init_volume", "volume")
     ]
-
     # FIXME UNCOMMENT
-    # assert valinpts.validate_csv(hemi_info_csv, valinpts.hemi_info_required_columns)
-    # assert valinpts.validate_csv(sect_info_csv, valinpts.sect_info_required_columns)
-    # assert valinpts.validate_csv(chunk_info_csv, multi_resolution_required_columns)
+    assert valinpts.validate_csv(hemi_info_csv, valinpts.hemi_info_required_columns)
+    assert valinpts.validate_csv(sect_info_csv, valinpts.sect_info_required_columns)
+    assert valinpts.validate_csv(chunk_info_csv, multi_resolution_required_columns)
 
     if sect_output_csv == "":
         sect_output_csv = f"{output_dir}/sect_info_multiresolution_alignment.csv"
@@ -186,8 +188,6 @@ def multiresolution_alignment(
             chunk_info_out = pd.concat([chunk_info_out, curr_chunk_info])
             sect_info_out = pd.concat([sect_info_out, curr_sect_info])
 
-        qc_dir = f"{output_dir}/validate_alignment/"
-
         chunk_info_out.to_csv(chunk_output_csv, index=False)
 
         sect_info_out.to_csv(sect_output_csv, index=False)
@@ -199,8 +199,9 @@ def multiresolution_alignment(
 
 def verify_chunk_limits(
     ref_rsl_fn: str, chunk_info: pd.DataFrame, verbose: bool = False
-):
-    """Get the start and end of the chunk in the reference space
+)-> tuple:
+    """Get the start and end of the chunk in the reference space.
+    
     :param ref_rsl_fn: reference space file name
     :param verbose: verbose
     :return: (y0w, y1w) --> world coordinates; (y0, y1) --> voxel coordinates
@@ -235,7 +236,15 @@ def verify_chunk_limits(
     return [y0, y1], [y0w, y1w]
 
 
-def alignment_qc(sect_output_csv, output_dir, cutoff=0.7, clobber=False):
+def alignment_qc(sect_output_csv:str, output_dir:str, cutoff:float=0.7, clobber:bool=False)-> None:
+    """Create a scatter plot of dice values for each section and save the plot to <output_dir>/alignment_dice.png.
+    
+    :param sect_output_csv: path to section output csv
+    :param output_dir: output directory
+    :param cutoff: cutoff for bad sections
+    :param clobber: clobber
+    :return: None
+    """
     png_fn = f"{output_dir}/alignment_dice.png"
     global_dice_csv = f"{output_dir}/global_dice.csv"
 
@@ -250,9 +259,12 @@ def alignment_qc(sect_output_csv, output_dir, cutoff=0.7, clobber=False):
     ):
         df = pd.read_csv(sect_output_csv, index_col=None)
 
-        dice_values = df["dice"]
-
-        def normalize(x):
+        def normalize(x:float)->float:
+            """Normalize dice values to 0-100.
+            
+            :param x: dice values
+            :return: normalized dice values
+            """
             return (x - x.min()) / (x.max() - x.min()) * 100
 
         normalized_sample = df.groupby("chunk")["sample"].transform(normalize)
@@ -300,7 +312,7 @@ def alignment_qc(sect_output_csv, output_dir, cutoff=0.7, clobber=False):
             plt.imshow(ar, cmap="gray")
             plt.savefig(out_fn, dpi=300, bbox_inches="tight")
             print("\t\tBad section:", out_fn)
-
+    return None
 
 def align_chunk(
     chunk_info: pd.DataFrame,
@@ -312,21 +324,20 @@ def align_chunk(
     num_cores: int = 1,
     clobber: bool = False,
 ) -> tuple:
-    """About:
-        Mutliresolution scheme that a. segments autoradiographs, b. aligns these to the donor mri in 3D,
-        and c. aligns autoradiograph sections to donor MRI in 2d. This schema is repeated for each
-        resolution in the resolution heiarchy.
+    """3D-2D mutliresolution scheme.
+     
+      Steps: 
+      a) segments autoradiographs, 
+      b) aligns these to the donor mri in 3D, and then 2d. 
+      c) This schema is repeated for each resolution in the resolution heiarchy.
 
-    Inputs:
-        sect_info:    data frame with info for autoradiographs in current chunk
-        files:       dictionary with all the filenames used in reconstruction
-        resolution_list:    heirarchy of resolutions for 2d alignment
-        resolution_list_3d: heirarchy of resolutions for 3d alignment
-        output_dir:         output directory
-
-    Outputs:
-        sect_info: updated sect_info data frame with filenames for nonlinearly 2d aligned autoradiographs
-
+    :param chunk_info:  data frame with info for current chunk
+    :param sect_info:    data frame with info for autoradiographs in current chunk
+    :param files:       dictionary with all the filenames used in reconstruction
+    :param resolution_list:    heirarchy of resolutions for 2d alignment
+    :param resolution_list_3d: heirarchy of resolutions for 3d alignment
+    :param output_dir:         output directory
+    :return sect_info: updated sect_info data frame with filenames for nonlinearly 2d aligned autoradiographs
     """
     sub, hemisphere, chunk = utils.get_values_from_df(chunk_info)
 

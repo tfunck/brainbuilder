@@ -1,5 +1,7 @@
+"""Prepare surfaces for surface-based interpolation."""
 import os
-from re import sub
+import re
+from typing import Optional, Tuple
 
 import nibabel as nb_surf
 import numpy as np
@@ -7,10 +9,9 @@ import pandas as pd
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
-from brainbuilder.utils.mesh_io import load_mesh, save_mesh
+from brainbuilder.utils.mesh_io import load_mesh, load_mesh_ext, write_gifti
 from brainbuilder.utils.mesh_utils import (
     apply_ants_transform_to_gii,
-    load_mesh_ext,
     mesh_to_volume,
     upsample_over_faces,
 )
@@ -18,14 +19,25 @@ from brainbuilder.utils.utils import shell
 
 
 def transform_surface_to_chunks(
-    chunk_info,
-    depth,
-    out_dir,
-    surf_fn,
-    ref_gii_fn=None,
-    faces_fn=None,
-    ext=".surf.gii",
+    chunk_info: pd.DataFrame,
+    depth: float,
+    out_dir: str,
+    surf_fn: str,
+    ref_gii_fn: Optional[str] = None,
+    faces_fn: Optional[str] = None,
+    ext: str = ".surf.gii",
 ) -> dict:
+    """Transform a surface to the histological space of each chunk.
+    
+    :param chunk_info: pd.DataFrame, chunk information
+    :param depth: float, cortical depth
+    :param out_dir: str, path to output directory
+    :param surf_fn: str, path to surface file
+    :param ref_gii_fn: str, path to reference surface file
+    :param faces_fn: str, path to faces file
+    :param ext: str, extension of surface file
+    :return dict: surf_chunk_dict
+    """
     surf_chunk_dict = {}
 
     for (sub, hemisphere, chunk), chunk_df in chunk_info.groupby(
@@ -71,7 +83,7 @@ def prepare_surfaces(
     resolution: float,
     verbose: bool = False,
     clobber: bool = False,
-):
+)-> tuple:
     """Prepare surfaces for surface-based interpolation.
 
     :param chunk_info_csv: path to the chunk info csv
@@ -123,8 +135,8 @@ def prepare_surfaces(
 
 def transfrom_depth_surf_to_chunk_space(
     chunk_info: pd.DataFrame, surf_depth_mni_dict: dict, surf_rsl_dir: str
-):
-    """For each chunk, transform the mesh surface to the histological space
+)-> dict:
+    """For each chunk, transform the mesh surface to the histological space.
 
     :param chunk_info: pd.DataFrame, chunk information
     :param surf_depth_mni_dict: dict, keys are cortical depths, values are dicts containing surfaces in reference space
@@ -155,33 +167,35 @@ def transfrom_depth_surf_to_chunk_space(
 
 
 def get_surf_base(surf_fn: str) -> str:
-    """Get the basename of a surface file
+    """Get the basename of a surface file.
+
     :param surf_fn: str, path to surface file
     :return str: basename of surface file
     """
     surf_base = os.path.basename(surf_fn)
     for string in [".pial", ".smoothwm", ".gz", ".gii", ".surf"]:
-        surf_base = sub(string, "", surf_base)
+        surf_base = re.sub(string, "", surf_base)
 
     return surf_base
 
 
 def generate_cortical_depth_surfaces(
-    ref_vol_fn,
-    depth_list,
-    resolution,
-    wm_surf_fn,
-    gm_surf_fn,
-    output_dir,
+    ref_vol_fn: str,
+    depth_list: list,
+    resolution: float,
+    wm_surf_fn: str,
+    gm_surf_fn: str,
+    output_dir: str,
 ) -> dict:
-    """Generate cortical depth surfaces
-    :param ref_vol_fn:
-    :param depth_list:
-    :param resolution:
-    :param wm_surf_fn:
-    :param gm_surf_fn:
-    :param output_dir:
-    :return dict:
+    """Generate cortical depth surfaces.
+
+    :param ref_vol_fn: str, path to reference volume file
+    :param depth_list: list, cortical depths
+    :param resolution: float, maximum resolution of the reconstruction
+    :param wm_surf_fn: str, path to white matter surface file
+    :param gm_surf_fn: str, path to gray matter surface file
+    :param output_dir: str, path to output directory
+    :return dict: surf_depth_mni_dict
     """
     surf_depth_mni_dict = {}
 
@@ -192,11 +206,6 @@ def generate_cortical_depth_surfaces(
 
     gm_coords, gm_faces, gm_info = load_mesh(gm_surf_fn, correct_offset=True)
     wm_coords, wm_faces, wm_info = load_mesh(wm_surf_fn, correct_offset=True)
-
-    if wm_surf_fn.endswith("white"):
-        volume_info = gm_info
-    else:
-        volume_info = gm_surf_fn
 
     d_coords = wm_coords - gm_coords
 
@@ -220,7 +229,7 @@ def generate_cortical_depth_surfaces(
         coords = gm_coords + depth * d_coords
 
         if not os.path.exists(depth_surf_fn):
-            save_mesh(depth_surf_fn, coords, gm_faces, volume_info=volume_info)
+            write_gifti(depth_surf_fn, coords, gm_faces)
 
             # Create a volume of the cortical depth surface for QC purposes
             interp_vol, _ = mesh_to_volume(
@@ -242,6 +251,7 @@ def inflate_surfaces(
     clobber: bool = False,
 ) -> dict:
     """Upsampling of meshes at various depths across cortex produces meshes with different n vertices.
+
      To create a set of meshes across the surfaces across the cortex that have the same number of
      vertices, we first upsample and inflate the wm mesh.
      Then, for each mesh across the cortex we resample that mesh so that it has the same polygons
@@ -260,7 +270,7 @@ def inflate_surfaces(
         depth += 0.0
         depth_surf_fn = surf_depth_mni_dict[float(depth)]["depth_surf_fn"]
 
-        base_surf = sub(".surf.gii", "", os.path.basename(depth_surf_fn))
+        base_surf = re.sub(".surf.gii", "", os.path.basename(depth_surf_fn))
 
         inflate_fn = "{}/{}_{}mm_{}.inflate".format(
             output_dir, base_surf, resolution, depth
@@ -285,7 +295,19 @@ def inflate_surfaces(
     return surf_depth_mni_dict
 
 
-def generate_face_and_coord_mask(edge_mask_idx, faces, coords):
+def generate_face_and_coord_mask(
+        edge_mask_idx: np.ndarray,
+        faces: np.ndarray,
+        coords: np.ndarray
+        ) -> Tuple[np.ndarray, np.ndarray]:
+    """Generate face and coordinate masks.
+
+    :param edge_mask_idx: np.ndarray, indices of the edge mask
+    :param faces: np.ndarray, faces of the mesh
+    :param coords: np.ndarray, coordinates of the mesh
+    :return np.ndarray: face_mask
+    :return np.ndarray: coord_mask
+    """
     mask_idx_unique = np.unique(edge_mask_idx)
     n = max(faces.shape[0], coords.shape[0])
 
@@ -307,7 +329,17 @@ def generate_face_and_coord_mask(edge_mask_idx, faces, coords):
     return face_mask, coord_mask
 
 
-def resample_points(surf_fn, new_points_gen):
+def resample_points(surf_fn:str, new_points_gen: list)-> tuple:
+    """Resample points on a mesh surface using the new points generator class.
+
+    Basically the new points generator class generates new points on the surface of the mesh based on
+    the surface triangle around the point.
+    
+    :param surf_fn: str, path to surface file
+    :param new_points_gen: list, new points generator class
+    :return np.ndarray: new_points
+    :return np.ndarray: points
+    """
     points, faces = load_mesh_ext(surf_fn)
     n = len(new_points_gen)
 
@@ -322,15 +354,16 @@ def resample_points(surf_fn, new_points_gen):
 
 
 def upsample_surfaces(
-    surf_depth_mni_dict,
-    output_dir,
-    gm_surf_fn,
-    resolution,
-    depth_list,
-    ref_vol_fn,
-    clobber=False,
-):
+    surf_depth_mni_dict: dict,
+    output_dir: str,
+    gm_surf_fn: str,
+    resolution: float,
+    depth_list: list,
+    ref_vol_fn: str,
+    clobber: bool = False,
+) -> dict:
     """Upsample surfaces across cortical depth.
+
     :param surf_depth_mni_dict: dict, keys are cortical depths, values are dicts containing surfaces in stereotaxic space
     :param output_dir: str, path to output directory
     :param gm_surf_fn: str, path to gray matter surface
@@ -376,8 +409,8 @@ def upsample_surfaces(
     # DEBUG put the next few lines incase want to try face upsampling instead of full surf upsampling
     ref_gii_fn = surf_depth_mni_dict[0]["depth_surf_fn"]
     surf_depth_mni_dict[0]["depth_rsl_gii"]
-    ref_rsl_npy_fn = sub(".surf.gii", "", surf_depth_mni_dict[0]["depth_rsl_gii"])
-    sub(".nii.gz", "_ngh", surf_depth_mni_dict[0]["depth_rsl_gii"])
+    ref_rsl_npy_fn = re.sub(".surf.gii", "", surf_depth_mni_dict[0]["depth_rsl_gii"])
+    re.sub(".nii.gz", "_ngh", surf_depth_mni_dict[0]["depth_rsl_gii"])
     coords, faces, volume_info = load_mesh(ref_gii_fn)
 
     if False in [os.path.exists(fn) for fn in output_list + [ref_rsl_npy_fn + ".npz"]]:

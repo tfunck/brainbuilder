@@ -1,18 +1,23 @@
+"""Validate inputs to BrainBuilder."""
 import os
+from typing import Union
 
 import numpy as np
 import pandas as pd
 from joblib import Parallel, cpu_count, delayed
 
 import brainbuilder.utils.utils as utils
+from brainbuilder.utils.ants_nibabel import load_mesh_ext
 
 global chunk_info_required_columns
 global sect_info_required_columns
 
-
 class Column:
-    def __init__(self, name: str, kind: str, required: bool = True):
-        """:param name: name of the column
+    """Class to represent a column in a dataframe."""
+    def __init__(self, name: str, kind: str, required: bool = True) -> None:
+        """Initialize a column.
+        
+        :param name: name of the column
         :param kind: kind of column, either "volume" or "surface"
         :param required: boolean indicating whether the column is required
         """
@@ -20,24 +25,31 @@ class Column:
         self.kind = kind
         self.required = required
 
-    def validate_rows_in_column(self, rows) -> bool:
-        """Validate that the rows in a column based on whether they are volumes or surfaces
+    def validate_rows_in_column(self, rows:pd.DataFrame) -> bool:
+        """Validate that the rows in a column based on whether they are volumes or surfaces.
+
         :param rows: list of rows in the column
         :return: boolean indicating whether the inputs have been validated
         """
         valid_inputs = True
 
         if self.required:
-            val_func = lambda x: x
+            def val_func(x:Union[int,str,float,bool])->bool:
+                """Return inputs."""
+                return x
 
             if self.kind == "volume":
                 val_func = validate_volume
             elif self.kind == "surface":
                 pass
             elif self.kind == int:
-                val_func = lambda x: isinstance(x, np.integer)
+                def val_func(x: Union[int,float,str]) -> bool:
+                    """Validate entry by verifying that it is an integer."""
+                    return isinstance(x, np.integer)
             elif self.kind == float:
-                val_func = lambda x: isinstance(x, float)
+                def val_func(x: Union[int,float,str]) -> bool:
+                    """Validate entry by verifying that it is a float."""
+                    return isinstance(x, float)
             else:
                 return True
 
@@ -90,18 +102,13 @@ chunk_info_required_columns = [
 sect_info_required_columns = [acquisition, sub, hemisphere, chunk, raw, sample]
 hemi_info_required_columns = [sub, hemisphere, struct_ref_vol, gm_surf, wm_surf]
 
-
-def validate_raw(df: pd.DataFrame) -> bool:
-    pass  # TODO
-
-
 def validate_dataframe(df: pd.DataFrame, required_columns: list) -> bool:
-    """Validate that the dataframe has the required columns
+    """Validate that the dataframe has the required columns.
+    
     :param df: dataframe to validate
     :param required_columns: list of required columns
     :return: boolean indicating whether the inputs have been validated
     """
-    # TODO Update with BIDS fields
     valid_columns = []
     for column in required_columns:
         if column.name not in df.columns:
@@ -116,11 +123,11 @@ def validate_dataframe(df: pd.DataFrame, required_columns: list) -> bool:
 
 
 def validate_csv(df_csv: str, required_columns: list) -> bool:
-    """Inputs:
-        df_csv             Path to .csv file with information on sections to reconstruct
-        required_columns   List of column names that must be present in the .csv file
-    Outputs:
-        valid_inputs        boolean indicating whether the inputs have been validated
+    """Validate the entries of a .csv file.
+
+    :param df_csv:             Path to .csv file with information on sections to reconstruct
+    :param required_columns:   List of column names that must be present in the .csv file
+    :return valid_inputs:        boolean indicating whether the inputs have been validated
     """
     valid_inputs = True
 
@@ -136,44 +143,39 @@ def validate_csv(df_csv: str, required_columns: list) -> bool:
 
 
 def validate_surface(surface_filename: str) -> bool:
-    """Inputs:
-        surface_filename       Path to .nii.gz file that serves as structural reference volume to use for reconstruction
-        volume_filename       Path to .nii.gz file that corresponds to surface_filename
+    """Validate that a surface exists and that it is not empty.
 
-    Outputs:
-        valid_inputs        boolean indicating whether the inputs have been validated
+    :param surface_filename:       Path to .nii.gz file that serves as structural reference volume to use for reconstruction
+    :param volume_filename:       Path to .nii.gz file that corresponds to surface_filename
+    :param valid_inputs:        boolean indicating whether the inputs have been validated
     """
     valid_inputs = True
 
-    if type(surface_filename) != str:
+    if not isinstance(surface_filename, str):
         print(f"\tMissing input: surface_filename is not a string {surface_filename}")
         valid_inputs = False
         return valid_inputs
 
     if not os.path.exists(surface_filename):
-        print(f"\tMissing input: file does not exist {sect_info_csv}")
+        print(f"\tMissing input: file does not exist {surface_filename}")
         valid_inputs = False
     else:
         try:
             coords, faces = load_mesh_ext(surface_filename)
-        except:
+        except Exception as e:
             print(f"\tError: could not load surface file {surface_filename}")
+            print(e)
             valid_inputs = False
 
     return valid_inputs
 
 
 def validate_volume(fn: str) -> bool:
-    """Validate that a volume exists and that it is not empty
-    Inputs
-    ------
-        fn : str
-        Path to .nii.gz file that serves as structural reference volume to use for reconstruction
+    """Validate that a volume exists and that it is not empty.
 
-    Outputs
-    -------
-        valid_inputs : bool
-        boolean indicating whether the inputs have been validated
+    :param fn : str, Path to .nii.gz file that serves as structural reference volume to use for reconstruction
+    :return: valid_inputs bool
+    :return:     boolean indicating whether the inputs have been validated
     """
     valid_inputs = True
 
@@ -187,11 +189,12 @@ def validate_volume(fn: str) -> bool:
             if np.sum(np.abs(vol)) == 0:
                 valid_inputs = False
                 print(f"\tMissing input: empty template file {fn}")
-        except:
+        except Exception as e:
             valid_inputs = False
             print(
                 f"\tIncorrect format: incorrect format, expected path to volume, but got {fn}"
             )
+            print(e)
 
     return valid_inputs
 
@@ -203,7 +206,8 @@ def validate_inputs(
     valid_inputs_npz: str = "",
     clobber: bool = False,
 ) -> bool:
-    """Validate that the inputs to reconstruct are valid
+    """Validate that the inputs to reconstruct are valid.
+
     :param hemi_info_csv: str, path to csv file that contains information about hemispheres to reconstruct :param chunk_info_csv: str,
     :param: sect_info_csv             Path to .csv file with information on sections to reconstruct
     :param: template_fn       Path to .nii.gz file that serves as structural reference volume to use for reconstruction

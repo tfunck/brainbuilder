@@ -25,3 +25,5 @@ torchvision
 antspyx
 pre-commit
 webcolors
+ruff
+pre-commit

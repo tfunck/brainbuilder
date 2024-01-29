@@ -1,6 +1,9 @@
+"""Calculate initial rigid alignment between sections."""
+
 import os
 import re
 import shutil
+from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,31 +16,45 @@ from brainbuilder.utils.ANTs import ANTs
 from brainbuilder.utils.utils import AntsParams
 
 
-def load2d(fn):
+def load2d(fn:str)->np.arary:
+    """Load 2d image."""
     ar = nib.load(fn).get_fdata()
     ar = ar.reshape(ar.shape[0], ar.shape[1])
     return ar
 
 
 def align_neighbours_to_fixed(
-    i,
-    j_list,
-    df,
-    transforms,
-    iteration,
-    shrink_factor,
-    smooth_sigma,
-    output_dir,
-    tfm_type,
-    desc,
-    target_acquisition=None,
-    clobber=False,
-):
-    # For neighbours
+    i: int,
+    j_list: List[int],
+    df: pd.DataFrame,
+    transforms: Dict[int, List[str]],
+    iteration: int,
+    shrink_factor: float,
+    smooth_sigma: float,
+    output_dir: str,
+    tfm_type: str,
+    desc: Tuple[str, str, str, str, str, str],
+    target_acquisition: Optional[str] = None,
+    clobber: bool = False,
+) -> None:
+    """Aligns the neighbours to the fixed section.
 
-    # a single section is selected as fixed (ith section), then the subsequent sections are considred moving sections (jth section)
+    :param i: The index of the fixed section.
+    :param j_list: The list of indices of the moving sections.
+    :param df: The DataFrame containing the section information.
+    :param transforms: The dictionary of transformation files.
+    :param iteration: The number of iterations for the alignment.
+    :param shrink_factor: The shrink factor for the alignment.
+    :param smooth_sigma: The smoothing sigma for the alignment.
+    :param output_dir: The output directory for the alignment results.
+    :param tfm_type: The type of transformation.
+    :param desc: The description tuple.
+    :param target_acquisition: The target acquisition type (optional).
+    :param clobber: Whether to overwrite existing files (default: False).
+    """
+    # For neighbours  a single section is selected as fixed (ith section), 
+    #then the subsequent sections are considred moving sections (jth section)
     # and are registered to the fixed section.
-
     i_idx = df["sample"] == i
     fixed_fn = df["img"].loc[i_idx].values[0]
     for j in j_list:
@@ -63,15 +80,12 @@ def align_neighbours_to_fixed(
             print("\tQC:", qc_fn, os.path.exists(qc_fn))
             print("\tMoving RSL:", moving_rsl_fn)
 
-            if target_acquisition != None:
+            if target_acquisition is not None:
                 if df["acquisition"].loc[j_idx].values[0] != target_acquisition:
                     print("\tSkipping")
                     continue
 
             os.makedirs(outprefix, exist_ok=True)
-            inv_tfm_fn = outprefix + "level-0_Mattes_{}_InverseComposite.h5".format(
-                tfm_type
-            )
 
             ANTs(
                 tfm_prefix=outprefix,
@@ -130,17 +144,34 @@ def align_neighbours_to_fixed(
 
 
 def create_qc_image(
-    fixed,
-    moving,
-    rsl,
-    fixed_order,
-    moving_order,
-    tier_fixed,
-    tier_moving,
-    acquisition_fixed,
-    acquisition_moving,
-    qc_fn,
-):
+    fixed: np.array,
+    moving: np.array,
+    rsl: np.array,
+    fixed_order: str,
+    moving_order: str,
+    tier_fixed: str,
+    tier_moving: str,
+    acquisition_fixed: str,
+    acquisition_moving: str,
+    qc_fn: str,
+) -> None:
+    """Create a quality control image.
+
+    Args:
+        fixed: The fixed image.
+        moving: The moving image.
+        rsl: The registered image.
+        fixed_order: The order of the fixed image.
+        moving_order: The order of the moving image.
+        tier_fixed: The tier of the fixed image.
+        tier_moving: The tier of the moving image.
+        acquisition_fixed: The acquisition of the fixed image.
+        acquisition_moving: The acquisition of the moving image.
+        qc_fn: The filename of the quality control image.
+
+    Returns:
+        None
+    """
     plt.subplot(1, 2, 1)
     plt.title(
         "fixed (gray): {} {} {}".format(fixed_order, tier_fixed, acquisition_fixed)
@@ -159,22 +190,42 @@ def create_qc_image(
 
 
 def adjust_alignment(
-    df,
-    y_idx,
-    mid,
-    transforms,
-    step,
-    output_dir,
-    desc,
-    shrink_factor,
-    smooth_sigma,
-    iteration,
-    tfm_type,
-    target_acquisition=None,
-    target_tier=1,
-    clobber=False,
-):
-    """ """
+    df: pd.DataFrame,
+    y_idx: List[int],
+    mid: int,
+    transforms: Dict[int, List[str]],
+    step: int,
+    output_dir: str,
+    desc: str,
+    shrink_factor: float,
+    smooth_sigma: float,
+    iteration: int,
+    tfm_type: str,
+    target_acquisition: Optional[str] = None,
+    target_tier: int = 1,
+    clobber: bool = False,
+) -> None:
+    """Adjust the alignment of images.
+
+    Args:
+        df: The DataFrame containing image information.
+        y_idx: The list of indices along the y-axis.
+        mid: The middle index.
+        transforms: The dictionary of transforms.
+        step: The step size.
+        output_dir: The output directory.
+        desc: The description.
+        shrink_factor: The shrink factor.
+        smooth_sigma: The smooth sigma.
+        iteration: The number of iterations.
+        tfm_type: The transform type.
+        target_acquisition: The target acquisition.
+        target_tier: The target tier.
+        clobber: Whether to overwrite existing files.
+
+    Returns:
+        None
+    """
     os.makedirs(output_dir + "/qc/", exist_ok=True)
     i = mid
     j = i
@@ -214,10 +265,25 @@ def adjust_alignment(
 
 
 def apply_transforms_to_sections(
-    df, transforms, output_dir, tfm_type, target_acquisition=None, clobber=False
-):
+    df: pd.DataFrame, 
+    transforms:Dict[int, List[str]],
+    output_dir:str, 
+    tfm_type:str, 
+    target_acquisition:str=None, 
+    clobber:bool=False
+) -> pd.DataFrame:
+    """Apply the transforms to the sections.
+    
+    :param df: The DataFrame containing the section information.
+    :param transforms: The dictionary of transforms.
+    :param output_dir: The output directory.
+    :param tfm_type: The transform type.
+    :param target_acquisition: The target acquisition.
+    :param clobber: Whether to overwrite existing files.
+    :return: The DataFrame containing the section information.
+    """
     print("Applying Transforms")
-    if not target_acquisition == None:
+    if target_acquisition is not None:
         df = df.loc[df["acquisition"] == target_acquisition]
 
     for i, (rowi, row) in enumerate(df.iterrows()):
@@ -241,7 +307,24 @@ def apply_transforms_to_sections(
     return df
 
 
-def combine_sections_to_vol(df, y_mm, z_mm, direction, out_fn, target_tier=1):
+def combine_sections_to_vol(
+        df: pd.DataFrame,
+        y_mm: float,
+        z_mm: float,
+        direction: str, 
+        out_fn: str,
+        target_tier:int=1
+    )->None:
+    """Combine 2D aligned sections to volume.
+
+    :param df: The DataFrame containing the section information.
+    :param y_mm: The y-axis resolution.
+    :param z_mm: The z-axis resolution.
+    :param direction: The direction of the volume.
+    :param out_fn: The output filename.
+    :param target_tier: The target tier.
+    :return: None
+    """
     example_fn = df["img"].iloc[0]
     shape = nib.load(example_fn).shape
     affine = nib.load(example_fn).affine
@@ -287,28 +370,39 @@ def combine_sections_to_vol(df, y_mm, z_mm, direction, out_fn, target_tier=1):
 
 
 def alignment_stage(
-    sub,
-    hemisphere,
-    chunk,
-    df,
-    vol_fn_str,
-    output_dir,
-    transforms,
-    linParams,
-    desc=(0, 0, 0),
-    target_acquisition=None,
-    target_tier=1,
-    acquisition_n=0,
-    clobber=False,
-):
-    """Perform alignment of autoradiographs within a chunk. Alignment is calculated once from the middle section in the
-    posterior direction and a second time from the middle section in the anterior direction.
+        df: pd.DataFrame,
+        vol_fn_str: str,
+        output_dir: str,
+        transforms: list,  
+        linParams: str, 
+        desc: Tuple[int, int, int] = (0, 0, 0),
+        target_acquisition: Optional[str] = None,  
+        target_tier: int = 1,
+        acquisition_n: int = 0,
+        clobber: bool = False,
+    ) -> Tuple[pd.DataFrame, Dict[int, List[str]]]:
+    """Perform alignment of autoradiographs within a chunk.
+
+    Alignment is calculated once from the middle section in the posterior direction and a second time from the middle section in the anterior direction.
+
+    :param df: The DataFrame containing the section information.
+    :param vol_fn_str: The volume filename string.
+    :param output_dir: The output directory.
+    :param transforms: The transforms.
+    :param linParams: The linear parameters.
+    :param desc: The description.
+    :param target_acquisition: The target acquisition.
+    :param target_tier: The target tier.
+    :param acquisition_n: The acquisition number.
+    :param clobber: The clobber flag.
+    :return: A tuple containing the DataFrame and a dictionary.
     """
-    # Set parameters for rigid transform
     tfm_type = "Rigid"
-    shrink_factor = linParams.f_str  #'12x10x8' #x4x2x1'
-    smooth_sigma = re.sub("vox", "", linParams.s_str)  # '6x5x4' #x2x1x0'
-    iterations = linParams.itr_str.split(",")[0][1:]  # '100x50x25' #x100x50x20'
+
+    # Set parameters for rigid transform
+    shrink_factor = linParams.f_str  
+    smooth_sigma = re.sub("vox", "", linParams.s_str)  
+    iterations = linParams.itr_str.split(",")[0][1:]  
 
     shrink_factor = "4x3x2"
     smooth_sigma = "2x1.5x1"
@@ -322,6 +416,15 @@ def alignment_stage(
         tfm_type + "-" + str(0),
         ".csv",
     )
+
+    out_fn = vol_fn_str.format(
+            output_dir,
+            *desc,
+            target_acquisition,
+            acquisition_n,
+            tfm_type + "-" + str(0),
+            "nii.gz",
+        )
 
     if not os.path.exists(csv_fn) or not os.path.exists(out_fn):
         df.sort_values(["sample"], inplace=True, ascending=False)
@@ -376,17 +479,8 @@ def alignment_stage(
 
         # update the img so it has the new, resampled file names
         df["img"] = df["img_new"]
-
-        out_fn = vol_fn_str.format(
-            output_dir,
-            *desc,
-            target_acquisition,
-            acquisition_n,
-            tfm_type + "-" + str(0),
-            "nii.gz",
-        )
-    # else :
-    #    df = pd.read_csv(csv_fn)
+    else :
+        df = pd.read_csv(csv_fn)
 
     return df, transforms
 
@@ -396,7 +490,8 @@ def create_final_outputs(
     df: pd.DataFrame,
     step: int,
 ) -> pd.DataFrame:
-    """Create final outputs for the alignment stage
+    """Create final outputs for the alignment stage.
+
     :param final_tfm_dir: path to directory containing final transforms
     :param df: dataframe containing section information
     :param step: step size for iterating over sections
@@ -431,8 +526,7 @@ def create_final_outputs(
         print(row["sample"].values)
         idx = df["sample"].values == row["sample"].values
         if not os.path.exists(final_tfm_fn) or not os.path.exists(final_section_fn):
-            row["sample"].values[0].astype(int)
-            if type(row["init_tfm"].values[0]) == str:
+            if isinstance(row["init_tfm"].values[0], str):
                 # standard rigid transformation for moving image
                 shutil.copy(row["init_tfm"].values[0], final_tfm_fn)
 
@@ -459,7 +553,7 @@ def initalign(
     resolution_list: list,
     clobber: bool = True,
 ) -> str:
-    """Calulate initial rigid aligment between sections
+    """Calulate initial rigid aligment between sections.
 
     param sect_info_csv: path to csv file containing section information
     param chunk_info_csv: path to csv file containing chunk information
@@ -467,8 +561,6 @@ def initalign(
     param clobber: overwrite existing files
     return: path to csv file containing section information
     """
-    valid_inputs_npz = os.path.join(output_dir, "valid_inputs")
-
     # Validate Inputs
     # FIXME UNCOMMENT
     # assert valinpts.validate_csv(
@@ -533,7 +625,12 @@ def initalign(
     return initalign_sect_info_csv, initalign_chunk_info_csv
 
 
-def get_acquisition_contrast_order(df):
+def get_acquisition_contrast_order(df:pd.DataFrame)->list:
+    """Calculate the contrast order of the acquisitions.
+    
+    :param df: The DataFrame containing the section information.
+    :return: The list of acquisitions sorted by contrast.
+    """
     df_list = []
     for i, acquisition_df in df.groupby(["acquisition"]):
         for j, row in acquisition_df.iterrows():
@@ -564,16 +661,17 @@ def get_acquisition_contrast_order(df):
 
 
 def align_chunk(
-    sub,
-    hemisphere,
-    chunk,
-    output_dir,
-    sect_info,
-    linParams,
-    chunk_info,
-    clobber=False,
-):
-    """Calulate initial rigid aligment between sections for a given chunk
+    sub: str,
+    hemisphere: str,
+    chunk: str,
+    output_dir: str,
+    sect_info: pd.DataFrame,
+    linParams: str, 
+    chunk_info: pd.DataFrame,
+    clobber: bool = False,
+) -> pd.DataFrame:  
+    """Calulate initial rigid aligment between sections for a given chunk.
+
     param sub: subject id
     param hemi: hemisphere
     param chunk: chunk
@@ -582,7 +680,6 @@ def align_chunk(
     param chunk_info: dataframe containing chunk information
     param clobber: overwrite existing files
     return: dataframe containing section information
-
     """
     os.makedirs(output_dir, exist_ok=True)
 
@@ -728,17 +825,3 @@ def align_chunk(
     ]
 
     return sect_info, chunk_info
-
-
-if __name__ == "__main__":
-    if not os.path.exists(init_align_fn):
-        initalign(
-            sub,
-            hemisphere,
-            chunk,
-            init_align_fn,
-            source_dir,
-            output_dir,
-            receptor_df_fn,
-            clobber=False,
-        )

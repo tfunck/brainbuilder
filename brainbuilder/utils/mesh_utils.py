@@ -1,4 +1,6 @@
+"""Mesh utilities."""
 import os
+from typing import Dict, List, Optional, Tuple
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -17,16 +19,26 @@ import h5py as h5
 import numpy as np
 from scipy.ndimage import gaussian_filter
 
-from brainbuilder.utils.mesh_io import load_mesh, save_mesh
+from brainbuilder.utils.mesh_io import load_mesh_ext, write_gifti
 from brainbuilder.utils.utils import shell
 
 
-def interleve(x, step):
-    """ """
+def interleve(x:np.ndarray, step:float) -> np.ndarray:
+    """Interleve array.
+    
+    :param x: array
+    :param step: step
+    :return: interleved array
+    """
     return np.concatenate([x[i : x.shape[0] + 1 : step] for i in range(step)])
 
 
-def magnitude(V):
+def magnitude(V:np.ndarray) -> np.ndarray:
+    """Calculate the magnitude of a vector.
+    
+    :param V: vector
+    :return: magnitude
+    """
     D = np.power(V, 2)
     if len(D.shape) == 1:
         D = np.sum(D)
@@ -35,7 +47,12 @@ def magnitude(V):
     return np.sqrt(D)
 
 
-def difference(V):
+def difference(V:np.ndarray) -> np.ndarray:
+    """Calculate the difference of a vector.
+    
+    :param V: vector
+    :return: difference
+    """
     D = np.power(V, 2)
     if len(D.shape) == 1:
         D = np.sum(D)
@@ -44,26 +61,25 @@ def difference(V):
     return D
 
 
-def pair_vectors(c0, c1):
+def pair_vectors(c0:np.ndarray, c1:np.ndarray)->np.ndarray:
+    """Pair vectors between two sets of coordinates.
+    
+    :param c0: coordinates
+    :param c1: coordinates
+    :return: paired vectors
+    """
     X = np.repeat(c0, c1.shape[0], axis=0)
     # create array with repeated columns of c0
     Y = interleve(np.repeat(c1, c0.shape[0], axis=0), c0.shape[0])
     return X, Y
 
+def spherical_distance(v0:np.ndarray, v1:np.ndarray)->np.ndarray:
+    """Caclulate radius from points.
 
-def diff(theta0, theta1, r):
-    # integrate_theta0^theta1 r d(theta)
-    # -> r(theta1 - theta0)
-    return
-
-
-def get_average_magnitude(p0, p1):
-    r = np.mean([r0, r1])
-    return r
-
-
-def spherical_distance(v0, v1):
-    # caclulate radius from points
+    :param v0: points
+    :param v1: points
+    :return: distance
+    """
     # points may not be perfectly spherical so we take an average
 
     r0 = magnitude(v0[:, 0:2])  # radius of points in p0 on azithumal XY plane
@@ -72,7 +88,7 @@ def spherical_distance(v0, v1):
     p0 = magnitude(v0)  # magnitude of points in p0 in 3d
     p1 = magnitude(v1)  # magnitude of points in p0 in 3d
 
-    r = np.mean(np.array([r0, r1]))
+    #r = np.mean(np.array([r0, r1]))
     p = np.mean(np.array([p0, p1]))
 
     phi0 = np.arccos(v0[:, 2] / p0)
@@ -95,11 +111,13 @@ def spherical_distance(v0, v1):
     return dist
 
 
-def pairwise_coord_distances(c0: np.ndarray, c1: np.ndarray, use_l2=True) -> np.ndarray:
-    """Calculate the pairwise distance between
-    c0: 3d coordinates
-    c1: 3d coordinates
+def pairwise_coord_distances(c0: np.ndarray, c1: np.ndarray, method:str='l2') -> np.ndarray:
+    """Calculate the pairwise distance between two sets of coordinates.
 
+    :param c0: 3d coordinates
+    :param c1: 3d coordinates
+    :param method: method
+    :return: distance
     """
     c0 = c0.astype(np.float16)
     c1 = c1.astype(np.float16)
@@ -129,13 +147,26 @@ def pairwise_coord_distances(c0: np.ndarray, c1: np.ndarray, use_l2=True) -> np.
     return D
 
 
-def smooth_surface(coords, values, sigma, sigma_n=5):
-    # precaculate the denominator and sigma squared for the normal distribution
+def smooth_surface(coords: np.ndarray, values: np.ndarray, sigma: float, sigma_n:int=5) -> np.ndarray:
+    """Precaculate the denominator and sigma squared for the normal distribution.
+
+    :param coords: coordinates, xyz
+    :param values: values to smooth
+    :param sigma: smoothing sigma
+    :param sigma_n: sigma n
+    :return: smoothed values
+    """
     den = 1 / (sigma * np.sqrt(2 * np.pi))
     sigma_sq = np.power(sigma, 2)
 
     # define the normal distribution
-    normal_pdf = lambda dist: den * np.exp(-0.5 * dist / sigma_sq)
+    def normal_pdf(dist: np.ndarray)->np.ndarray:
+        """Calculate the normal pdf.
+        
+        :param dist: distance
+        :return: normal pdf
+        """
+        return den * np.exp(-0.5 * dist / sigma_sq)
 
     # calculate the pairwise distance between all coordinates
     # dist = pairwise_coord_distances(coords, coords, use_l2=False)
@@ -170,17 +201,31 @@ def smooth_surface(coords, values, sigma, sigma_n=5):
 
 
 def local_smooth_surf(
-    coords,
-    values,
-    sigma,
-    radius,
-    xparams,
-    yparams,
-    zparams,
-    x,
-    y,
-    z,
-):
+    coords: np.ndarray,
+    values: np.ndarray,
+    sigma: float,
+    radius: float,
+    xparams: Tuple[float, float, float],
+    yparams: Tuple[float, float, float],
+    zparams: Tuple[float, float, float],
+    x: float,
+    y: float,
+    z: float
+) -> np.ndarray:
+    """Smooth a local region of the surface.
+    
+    :param coords: coordinates, xyz
+    :param values: values to smooth
+    :param sigma: smoothing sigma
+    :param radius: radius of local region to smooth
+    :param xparams: x parameters (min, max, step)
+    :param yparams: y parameters (min, max, step)
+    :param zparams: z parameters (min, max, step)
+    :param x: x coordinate of local region
+    :param y: y coordinate of local region
+    :param z: z coordinate of local region
+    :return: smoothed values
+    """
     xw = coords[:, 0]
     yw = coords[:, 1]
     zw = coords[:, 2]
@@ -230,7 +275,16 @@ def local_smooth_surf(
     return core_idx, smoothed_local_values[local_core_idx]
 
 
-def smooth_surface_by_parts(coords, values, sigma, n_sigma=3, step=10):
+def smooth_surface_by_parts(coords: np.ndarray, values: np.ndarray, sigma: float, n_sigma: int = 3, step: int = 10) -> np.ndarray:
+    """Smooth the surface by parts.
+
+    :param coords: coordinates, xyz
+    :param values: values to smooth
+    :param sigma: smoothing sigma
+    :param n_sigma: number of sigma
+    :param step: step size
+    :return: None
+    """
     smoothed_values = np.zeros_like(values)
 
     assert step > 0, f"Error: step must be greater than 0, {step}"
@@ -281,9 +335,6 @@ def smooth_surface_by_parts(coords, values, sigma, n_sigma=3, step=10):
                 n_dist += np.sum(idx) ** 2
                 n += 1
 
-    n_elems = len(to_do)
-    n_vtx = xstep * ystep * zstep
-
     avg_n_dist = n_dist / n
 
     element_list = avg_n_dist * 2 + [values.shape[0], coords.shape[0] * 3]
@@ -308,7 +359,14 @@ def smooth_surface_by_parts(coords, values, sigma, n_sigma=3, step=10):
     return smoothed_values
 
 
-def smooth_surface_profiles(profiles_fn, surf_depth_mni_dict, sigma, clobber=False):
+def smooth_surface_profiles(profiles_fn:str, surf_depth_mni_dict:dict, sigma:float, clobber:bool=False)->str:
+    """Smooth surface profiles.
+    
+    :param profiles_fn: profiles filename
+    :param surf_depth_mni_dict: dictionary of surface depths in stereotaxic space 
+    :param sigma: smoothing sigma
+    :param clobber: clobber
+    """
     smoothed_profiles_fn = profiles_fn + "_smoothed"
 
     if not os.path.exists(smoothed_profiles_fn) or clobber:
@@ -334,7 +392,12 @@ def smooth_surface_profiles(profiles_fn, surf_depth_mni_dict, sigma, clobber=Fal
     return smoothed_profiles_fn
 
 
-def get_edges_from_faces(faces):
+def get_edges_from_faces(faces:np.ndarray)->np.ndarray:
+    """Get edges from faces.
+    
+    :param faces: faces
+    :return: edges
+    """
     # for convenience create vector for each set of faces
     f_i = faces[:, 0]
     f_j = faces[:, 1]
@@ -361,8 +424,6 @@ def get_edges_from_faces(faces):
     edges_sorted = edges_range_sorted[:, 0:2]
 
     # convert sorted indices to indices that correspond to face numbers
-    # DEBUG commented out following line because it isnt' used:
-    # sorted_indices = edges_range_sorted[:,2] % faces.shape[0]
 
     # the edges are reshuffled once by sorting them by row and then by extracting unique edges
     # we need to keep track of these transformations so that we can relate the shuffled edges to the
@@ -378,20 +439,6 @@ def get_edges_from_faces(faces):
     # edge_range = np.arange(edges_all.shape[0]).astype(int) % faces.shape[0]
     return edges
 
-
-def get_surf_from_dict(d):
-    keys = d.keys()
-    if "upsample_h5" in keys:
-        surf_fn = d["upsample_h5"]
-    elif "depth_rsl_fn" in keys:
-        surf_fn = d["depth_rsl_fn"]
-    elif "surf" in keys:
-        surf_fn = d["surf"]
-    else:
-        assert False, f"Error: could not find surface in keys, {keys}"
-    return surf_fn
-
-
 def volume_to_mesh(
     coords: np.ndarray,
     vol: np.ndarray,
@@ -399,14 +446,23 @@ def volume_to_mesh(
     steps: np.ndarray,
     dimensions: np.ndarray,
 ) -> np.ndarray:
-    """Interpolate volume values to mesh vertices"""
+    """Interpolate volume values to mesh vertices.
+    
+    :param coords: coordinates
+    :param vol: volume
+    :param starts: starts
+    :param steps: steps
+    :param dimensions: dimensions
+    :return: values, idx
+    """
     x = np.rint((coords[:, 0] - starts[0]) / steps[0]).astype(int)
     y = np.rint((coords[:, 1] - starts[1]) / steps[1]).astype(int)
     z = np.rint((coords[:, 2] - starts[2]) / steps[2]).astype(int)
 
     xmax = np.max(x)
     zmax = np.max(z)
-
+    print(zmax)
+    print(vol.shape)
     if zmax >= vol.shape[2]:
         print(f"\nWARNING: z index {zmax} is greater than dimension {vol.shape[2]}\n")
     if xmax >= vol.shape[0]:
@@ -428,8 +484,18 @@ def volume_to_mesh(
 
 
 def write_mesh_to_volume(
-    profiles, surfaces, volume_fn, output_fn, resolution, clobber=False
-):
+    profiles:np.ndarray, surfaces:np.ndarray, volume_fn:str, output_fn:str, resolution:float, clobber:bool=False
+)->np.ndarray:
+    """Write mesh to volume.
+    
+    :param profiles: profiles
+    :param surfaces: surfaces
+    :param volume_fn: volume filename
+    :param output_fn: output filename
+    :param resolution: resolution
+    :param clobber: clobber
+    :return: volume
+    """
     if not os.path.exists(output_fn) or clobber:
         img = nb.load(volume_fn)
         starts = img.affine[0:3, 3]
@@ -456,28 +522,26 @@ def write_mesh_to_volume(
 
 
 def mesh_to_volume(
-    coords,
-    vertex_values,
-    dimensions,
-    starts,
-    steps,
-    interp_vol=None,
-    n_vol=None,
-    validate=True,
-):
-    """About
-        Interpolate mesh values into a volume
-    Arguments
-        coords
-        vertex_values
-        dimensions
-        starts
-        steps
-        interp_vol
-        n_vol
-    Return
-        interp_vol
-        n_vol
+    coords: np.ndarray,
+    vertex_values: np.ndarray,
+    dimensions: np.ndarray,
+    starts: np.ndarray,
+    steps: np.ndarray,
+    interp_vol:np.ndarray=None,
+    n_vol:int=None,
+    validate:bool=True,
+)->np.ndarray:
+    """Interpolate mesh values into a volume.
+    
+    :param coords: coordinates
+    :param vertex_values: vertex values
+    :param dimensions: dimensions
+    :param starts: starts
+    :param steps: steps
+    :param interp_vol: interpolated volume
+    :param n_vol: number of volume
+    :param validate: validate
+    :return: interpolated volume, number of volume
     """
     if type(vertex_values) != np.ndarray or type(n_vol) != np.ndarray:
         interp_vol = np.zeros(dimensions)
@@ -516,13 +580,23 @@ def mesh_to_volume(
 
 
 def multi_mesh_to_volume(
-    profiles,
-    surfaces,
-    dimensions,
-    starts,
-    steps,
-    resolution,
-):
+    profiles:np.ndarray,
+    surfaces:np.ndarray,
+    dimensions:np.ndarray,
+    starts:np.ndarray,
+    steps:np.ndarray,
+    resolution:float,
+)->np.ndarray:
+    """Interpolate multiple meshes to volume.
+    
+    :param profiles: profiles
+    :param surfaces: surfaces
+    :param dimensions: dimensions
+    :param starts: starts
+    :param steps: steps
+    :param resolution: resolution
+    :return: interpolated volume
+    """
     interp_vol = np.zeros(dimensions)
     n_vol = np.zeros_like(interp_vol)
 
@@ -559,8 +633,13 @@ def multi_mesh_to_volume(
     return interp_vol
 
 
-def unique_points(points, scale=1000000000):
-    # rpoints = np.rint(points * scale).astype(np.int64)
+def unique_points(points:np.ndarray, scale:int=1000000000)->np.ndarray:
+    """Get unique points.
+    
+    :param points: points
+    :param scale: scale
+    :return: unique points
+    """
     upoints, unique_index, unique_inverse = np.unique(
         points.astype(np.float128).round(decimals=3),
         axis=0,
@@ -572,16 +651,27 @@ def unique_points(points, scale=1000000000):
 
 
 def upsample_over_faces(
-    surf_fn,
-    resolution,
-    out_fn,
-    face_mask=None,
-    profiles_vtr=None,
-    chunk_start=None,
-    chunk_end=None,
-    ref_faces=None,
-):
-    print(surf_fn)
+    surf_fn: str,
+    resolution: float,
+    out_fn: str,
+    face_mask: Optional[np.ndarray] = None,
+    profiles_vtr: Optional[np.ndarray] = None,
+    chunk_start: Optional[float] = None,
+    chunk_end: Optional[float] = None,
+    ref_faces: Optional[np.ndarray] = None,
+)->Tuple[np.ndarray, np.ndarray, dict]:
+    """Upsample surface mesh over faces.
+    
+    :param surf_fn: surface filename
+    :param resolution: resolution
+    :param out_fn: output filename
+    :param face_mask: face mask
+    :param profiles_vtr: profiles vtr
+    :param chunk_start: chunk start
+    :param chunk_end: chunk end
+    :param ref_faces: reference faces
+    :return: points, values, new points generator
+    """
     coords, faces = load_mesh_ext(surf_fn)
 
     if type(faces) == type(None):
@@ -599,10 +689,10 @@ def upsample_over_faces(
 
     # Choice 1: truncate vertices by volume boundaries OR by valid y sections where histological
     # sections have been acquired
-    if type(face_mask) == None:
-        if chunk_start == None:
+    if face_mask is None:
+        if chunk_start is None:
             chunk_start = min(coords[:, 1])
-        if chunk_end == None:
+        if chunk_end is None:
             chunk_end = max(coords[:, 1])
         # find the vertices that are inside of the chunk
         valid_idx = np.where(
@@ -613,7 +703,7 @@ def upsample_over_faces(
         new_coords = np.zeros_like(coords)
         new_coords[:] = np.NaN
         new_coords[valid_idx, :] = coords[valid_idx]
-        face_coords = face_coords[valid_faces_idx, :]
+        face_coords = coords[valid_idx, :]
         face_mask = np.where(~np.isnan(np.sum(face_coords, axis=(1, 2))))[0]
     else:
         faces[face_mask]
@@ -654,43 +744,33 @@ def upsample_over_faces(
 
     return points, values, new_points_gen
 
-
-def get_faces_from_neighbours(ngh):
-    face_dict = {}
-    print("\tCreate Faces")
-    for i in range(len(ngh.keys())):
-        if i % 1000:
-            print(f"2. {100*i/ngh.shape[0]} %", end="\r")
-        for ngh0 in ngh[i]:
-            for ngh1 in ngh[ngh0]:
-                print(i, ngh0, ngh1)
-                if ngh1 in ngh[i]:
-                    face = [i, ngh0, ngh1]
-                    face.sort()
-                    face_str = sorted_str(face)
-                    try:
-                        face_dict[face_str]
-                    except KeyError:
-                        face_dict[face_str] = face
-
-    n_faces = len(face_dict.keys())
-
-    faces = np.zeros(n_faces, 3)
-    for i, f in enumerate(faces.values()):
-        faces[i] = f
-
-    return faces
-
-
-def get_triangle_vectors(points):
+def get_triangle_vectors(points:np.ndarray)->np.ndarray:
+    """Get vectors that define a given triangle.
+    
+    :param points: points
+    :return: vectors
+    """
     v0 = points[1, :] - points[0, :]
     v1 = points[2, :] - points[0, :]
     return v0, v1
 
 
 def volume_to_surface(
-    coords, volume_fn, values_fn="", use_ants_image_reader=True, gauss_sd=0
-):
+    coords: np.ndarray,
+    volume_fn: str,
+    values_fn: str = "",
+    use_ants_image_reader: bool = True,
+    gauss_sd: float = 0
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Interpolate volume values to surface vertices.
+    
+    :param coords: coordinates
+    :param volume_fn: volume filename
+    :param values_fn: values filename
+    :param use_ants_image_reader: use ants image reader
+    :param gauss_sd: gaussian sd
+    :return: values, indices
+    """
     if use_ants_image_reader:
         nibabel_ = nib
     else:
@@ -739,16 +819,30 @@ def volume_to_surface(
     return values, idx
 
 
-def mult_vector(v0, v1, x, y, p):
+def mult_vector(v0:np.ndarray, v1:np.ndarray, x:np.ndarray, y:np.ndarray, p:np.ndarray)->np.ndarray:
+    """Scale vectors and them to a point, p.
+
+    :param v0: vector
+    :param v1: vector
+    :param x: x
+    :param y: y
+    :param p: point
+    :return: vector
+    """
     v0 = v0.astype(np.float128)
     v1 = v1.astype(np.float128)
     x = x.astype(np.float128)
     y = y.astype(np.float128)
     p = p.astype(np.float128)
 
-    mult = lambda a, b: np.multiply(
-        np.repeat(a.reshape(a.shape[0], 1), b.shape, axis=1), b
-    ).T
+    def mult(a:np.ndarray, b:np.ndarray)->np.ndarray:
+        """Multiply two vectors.
+        
+        :param a: vector
+        :param b: vector
+        :return: vector
+        """
+        return np.multiply(np.repeat(a.reshape(a.shape[0], 1), b.shape, axis=1), b).T
     w0 = mult(v0, x).astype(np.float128)
     w1 = mult(v1, y).astype(np.float128)
     # add the two vector components to create points within triangle
@@ -756,13 +850,32 @@ def mult_vector(v0, v1, x, y, p):
     return p0
 
 
-def interpolate_face(points, values, resolution, output=None, new_points_only=False):
+def interpolate_face(
+        points: np.ndarray, 
+        values: np.ndarray, 
+        resolution: float, 
+        new_points_only: bool = False
+        ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Interpolate values over a face.
+    
+    :param points: points
+    :param values: values
+    :param resolution: resolution
+    :param new_points_only: new points only
+    :return: points, values, x, y
+    """
     # calculate vector on triangle face
     v0, v1 = get_triangle_vectors(points.astype(np.float128))
 
     # calculate the magnitude of the vector and divide by the resolution to get number of
     # points along edge
-    calc_n = lambda v: np.ceil(np.sqrt(np.sum(np.power(v, 2))) / resolution).astype(int)
+    def calc_n(v:np.ndarray)->np.ndarray:
+        """Calculate magnitude, scaled by resolution. Gives you n points along edge.
+        
+        :param v: vector
+        :return: magnitude
+        """
+        return np.ceil(np.sqrt(np.sum(np.power(v, 2))) / resolution).astype(int)
     mag_0 = calc_n(v0)
     mag_1 = calc_n(v1)
 
@@ -797,13 +910,32 @@ def interpolate_face(points, values, resolution, output=None, new_points_only=Fa
 
 
 class NewPointGenerator:
-    def __init__(self, idx, face, x, y):
+    """New point generator."""
+    def __init__(self,
+                 idx:int,
+                 face:np.ndarray,
+                 x:np.ndarray,
+                 y:np.ndarray
+                 ) -> None:
+        """Initialize.
+        
+        :param idx: index
+        :param face: face
+        :param x: x
+        :param y: y
+        :return: None
+        """
         self.idx = idx
         self.face = face
         self.x = x.astype(np.float128)
         self.y = y.astype(np.float128)
 
-    def generate_point(self, points):
+    def generate_point(self, points:np.ndarray)->np.ndarray:
+        """Generate a point.
+        
+        :param points: points
+        :return: point
+        """
         cur_points = points[self.face].astype(np.float128)
 
         v0, v1 = get_triangle_vectors(cur_points)
@@ -818,8 +950,21 @@ class NewPointGenerator:
 
 
 def calculate_upsampled_points(
-    faces, face_coords, face_vertex_values, resolution, new_points_only=False
-):
+    faces: np.ndarray,
+    face_coords: np.ndarray,
+    face_vertex_values: np.ndarray,
+    resolution: float,
+    new_points_only: bool = False,
+) -> Tuple[np.ndarray, np.ndarray, Dict[int, NewPointGenerator]]:
+    """Calculate upsampled pointsfor a mesh.
+    
+    :param faces: faces
+    :param face_coords: face coordinates
+    :param face_vertex_values: face vertex values
+    :param resolution: resolution
+    :param new_points_only: new points only
+    :return: points, values, new points generator
+    """
     points = np.zeros([face_coords.shape[0] * 5, 3], dtype=np.float128)
     values = np.zeros([face_coords.shape[0] * 5])
     n_points = 0
@@ -860,14 +1005,25 @@ def calculate_upsampled_points(
 
 
 def transform_surface_to_chunks(
-    chunk_info,
-    depth,
-    out_dir,
-    surf_fn,
-    ref_gii_fn=None,
-    faces_fn=None,
-    ext=".surf.gii",
+    chunk_info: pd.DataFrame,
+    depth: int,
+    out_dir: str,
+    surf_fn: str,
+    ref_gii_fn: Optional[str] = None,
+    faces_fn: Optional[str] = None,
+    ext: str = ".surf.gii",
 ) -> dict:
+    """Transform surfaces to the coordinate space of the tissue chunks using ANTs transform.
+
+    :param chunk_info: chunk info
+    :param depth: depth
+    :param out_dir: output directory
+    :param surf_fn: surface filename
+    :param ref_gii_fn: reference gii filename
+    :param faces_fn: faces filename
+    :param ext: extension
+    :return: surface chunk dictionary
+    """
     surf_chunk_dict = {}
 
     for (chunk), chunk_df in chunk_info.groupby(["chunk"]):
@@ -894,42 +1050,21 @@ def transform_surface_to_chunks(
 
     return surf_chunk_dict
 
+def visualization(surf_coords_filename:str, values:np.ndarray, output_filename:str)->None:
+    """Visualize surface coordinates with values.
+    
+    :param surf_coords_filename: surface coordinates filename
+    :param values: values
+    :param output_filename: output filename
+    :return: None
+    """
+    def get_valid_idx(c:np.ndarray, r:float)->np.ndarray:
+        """Threshold array by mean and std.
 
-def load_values(in_fn, data_str="data"):
-    # TODO: move to mesh_io.py
-
-    if os.path.exists(in_fn + ".npz"):
-        values = np.load(in_fn + ".npz")[data_str]
-        return values
-
-    ext = os.path.splitext(in_fn)[1]
-    if ext == ".npz":
-        values = np.load(in_fn)[data_str]
-    else:
-        values = pd.read_csv(in_fn, header=None, index_col=None).values
-    return values
-
-
-def load_mesh_ext(in_fn, faces_fn="", correct_offset=False):
-    # TODO: move to mesh_io.py
-    ext = os.path.splitext(in_fn)[1]
-    faces = None
-    volume_info = None
-
-    if ext in [".pial", ".white", ".gii", ".sphere", ".inflated"]:
-        coords, faces, volume_info = load_mesh(in_fn, correct_offset=correct_offset)
-    elif ext == ".npz":
-        coords = np.load(in_fn)["points"]
-    else:
-        coords = h5.File(in_fn)["data"][:]
-        if os.path.splitext(faces_fn)[1] == ".h5":
-            faces_h5 = h5.File(faces_fn, "r")
-            faces = faces_h5["data"][:]
-    return coords, faces
-
-
-def visualization(surf_coords_filename, values, output_filename):
-    def get_valid_idx(c, r):
+        :param c: array
+        :param r: threshold
+        :return: indices
+        """
         cmean = np.mean(c)
         cr = np.std(c) / r
         idx = (c > cmean - cr) & (c < cmean + cr)
@@ -975,17 +1110,29 @@ def visualization(surf_coords_filename, values, output_filename):
     plt.clf()
     plt.cla()
     plt.close()
+    return None
 
 
 def apply_ants_transform_to_gii(
-    in_gii_fn,
-    tfm_list,
-    out_gii_fn,
-    invert,
-    ref_gii_fn=None,
-    faces_fn=None,
-    ref_vol_fn=None,
-):
+    in_gii_fn:str,
+    tfm_list:List[str],
+    out_gii_fn:str,
+    invert:int,
+    ref_gii_fn:str=None,
+    faces_fn:str=None,
+    ref_vol_fn:str=None,
+)->None:
+    """Apply ANTs transform to gii.
+    
+    :param in_gii_fn: input gii filename
+    :param tfm_list: transform list
+    :param out_gii_fn: output gii filename
+    :param invert: invert
+    :param ref_gii_fn: reference gii filename
+    :param faces_fn: faces filename
+    :param ref_vol_fn: reference volume filename
+    :return: None
+    """
     print("transforming", in_gii_fn)
     print("to", out_gii_fn)
 
@@ -993,19 +1140,7 @@ def apply_ants_transform_to_gii(
     if type(ref_gii_fn) == type(None):
         ref_gii_fn = in_gii_fn
 
-    if os.path.splitext(ref_gii_fn)[1] in [".pial", ".white"]:
-        _, _, volume_info = load_mesh(ref_gii_fn)
-    else:
-        volume_info = ref_gii_fn
-
     coords, faces = load_mesh_ext(in_gii_fn)
-    # if np.sum(tfm.fixed_parameters) != 0 :
-    #    print( '/MR1/' in os.path.dirname(in_gii_fn))
-    #    if '/MR1/' in os.path.dirname(in_gii_fn):
-    #        flipx=flipy=-1
-    #        flipz=1
-    #        flip_label='MR1'
-    #    else :
 
     flipx = flipy = -1  # HUMAN/gifti
     flipz = 1  # HUMAN/gifti
@@ -1054,7 +1189,7 @@ def apply_ants_transform_to_gii(
 
     nii_fn = out_path + flip_label + ".nii.gz"
 
-    if ref_vol_fn != None:
+    if ref_vol_fn is not None:
         img = nb.load(ref_vol_fn)
         steps = img.affine[[0, 1, 2], [0, 1, 2]]
         starts = img.affine[[0, 1, 2], 3]
@@ -1080,7 +1215,7 @@ def apply_ants_transform_to_gii(
         f_h5 = h5.File(out_gii_fn, "w")
         f_h5.create_dataset("data", data=new_coords)
         f_h5.close()
-        save_mesh(out_path + ".surf.gii", new_coords, faces, volume_info=volume_info)
+        write_gifti(out_path + ".surf.gii", new_coords, faces)
     elif out_ext == ".npz":
         assert new_coords.shape[1] == 3, (
             "Error: shape of points is incorrect " + new_coords.shape
@@ -1088,4 +1223,4 @@ def apply_ants_transform_to_gii(
         np.savez(out_basename, points=new_coords)
     else:
         print("\tWriting Transformed Surface:", out_gii_fn, faces.shape)
-        save_mesh(out_gii_fn, new_coords, faces, volume_info=volume_info)
+        write_gifti(out_gii_fn, new_coords, faces)
