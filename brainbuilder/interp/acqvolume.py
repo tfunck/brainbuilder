@@ -12,12 +12,6 @@ import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils.utils import get_thicken_width
 
 
-<<<<<<< HEAD
-def setup_section_normalization(acquisition, sect_info, array_src):
-    # this function is not for chunk normalization but for section normalization
-    # # based on surrounding sections
-    normalize_sections = True
-=======
 def setup_section_normalization(acquisition: str, sect_info: pd.DataFrame, array_src: np.ndarray) -> Tuple[np.ndarray, bool]:
     """This function is not for chunk normalization but for section normalization based on surrounding sections.
 
@@ -27,7 +21,6 @@ def setup_section_normalization(acquisition: str, sect_info: pd.DataFrame, array
     :return: array_src, normalize_sections
     """
     normalize_sections = False
->>>>>>> dda4be0a298ecde3ef30f4c125804122e8cf30da
     mean_list = []
     std_list = []
     y_list = []
@@ -109,13 +102,8 @@ def thicken_sections_within_chunk(
     array_img = nib.load(source_image_fn)
     array_src = array_img.get_fdata()
 
-<<<<<<< HEAD
     print(array_src.shape)
-
-    ystart = array_img.affine[1, 3]
-
-=======
->>>>>>> dda4be0a298ecde3ef30f4c125804122e8cf30da
+    
     assert np.sum(array_src) != 0, (
         "Error: source volume for thickening sections is empty\n" + source_image_fn
     )

@@ -10,7 +10,6 @@ from typing import List, Optional, Tuple, Union
 
 import ants
 import imageio
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import psutil
@@ -45,7 +44,7 @@ def get_maximum_cores(n_elemnts_list:list, n_bytes_per_element_list:list, max_me
 
     :param n_elemnts: int, number of elements
     :param n_bytes_per_element: int, number of bytes per element
-    :param max_memory: float, maximum memory to use
+    :param max_memory: float, maximum memory to us
     :return: int
     """
     available_memory = get_available_memory()
@@ -153,65 +152,6 @@ def set_cores(num_cores:int)->int:
     return num_cores
 
 
-def imshow_images(
-    out_fn:str,
-    images:list,
-    rows:int,
-    columns:int,
-    wspace:float=0.1,
-    hspace:float=0,
-    titles:list=[],
-    facecolor:str="black",
-    figsize:tuple=(10, 10),
-    rotn:int=0,
-)->None:
-    """Plot a list of images.
-
-    :param out_fn: str, output filename
-    :param images: list of images
-    :param rows: int, number of rows
-    :param columns: int, number of columns
-    :param wspace: float, horizontal space
-    :param hspace: float, vertical space
-    :param titles: list of titles
-    :param facecolor: str, facecolor
-    :param figsize: tuple, figure size
-    :param rotn: int, rotation
-    :return: None
-    """
-    fig, axes = plt.subplots(rows, columns, figsize=figsize)
-
-    if titles == []:
-        titles = [""] * len(images)
-
-    assert (
-        len(titles) == len(images)
-    ), "Error: images and titles dont have same number of elements, {len(images)} and {len(titles)}"
-
-    fig.patch.set_facecolor(facecolor)
-
-    for i, (img, title) in enumerate(zip(images, titles)):
-        ax = axes.ravel()[i]
-
-        img = np.rot90(img, rotn)
-        ax.imshow(img, cmap="gray_r")
-        if title != "" and type(title) != type(None):
-            ax.set_title(title)
-
-        ax.spines[["right", "top"]].set_visible(False)
-        ax.axis("off")
-        ax.set_facecolor("black")
-        ax.set_aspect("equal")
-
-    r = rows
-    c = columns
-
-    fig.subplots_adjust(wspace=wspace, hspace=hspace)
-    fig.set_figheight(fig.get_figwidth() * ax.get_data_ratio() * r / c)
-    plt.savefig(out_fn)
-    plt.cla()
-    plt.clf()
-
 
 def get_thicken_width(resolution:float, section_thickness:float=0.02)->int:
     """Get the thicken width.
@@ -258,7 +198,6 @@ class AntsParams:
         resolution: float,
         base_itr: int,
         max_resolution: Optional[float] = None,
-        start_resolution: Optional[float] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize the AntsParams object.
@@ -267,7 +206,6 @@ class AntsParams:
         :param resolution: float, resolution
         :param base_itr: int, base iteration
         :param max_resolution: Optional[float], maximum resolution (default: None)
-        :param start_resolution: Optional[float], starting resolution (default: None)
         :param verbose: bool, verbose flag (default: False)
         :return: None
         """
@@ -276,13 +214,9 @@ class AntsParams:
         else:
             self.max_resolution = max_resolution
 
-        if start_resolution is not None:
-            resolution_list = [
-                r for r in resolution_list if float(r) < float(start_resolution)
-            ]
         if len(resolution_list) == 0:
             return None
-
+        
         self.resolution_list = resolution_list
         self.max_n = len(resolution_list)
         self.cur_n = resolution_list.index(resolution)

@@ -470,19 +470,13 @@ def spherical_np(xyz: np.ndarray)->np.ndarray:
 
 
 def interpolate_over_surface(
-<<<<<<< HEAD
     sphere_obj_fn: str,
     surface_val: np.array,
     threshold: float = 0,
     surface_mask: np.ndarray = None,
     order: int = 1,
 ):
-    """Interpolate over a surface sphere
-=======
-    sphere_obj_fn: str, surface_val: np.array, threshold: float = 0, surface_mask:np.ndarray=None, order: int = 1
-)->np.ndarray :
     """Interpolate over a surface sphere.
->>>>>>> dda4be0a298ecde3ef30f4c125804122e8cf30da
 
     :param sphere_obj_fn: path to sphere object
     :param surface_val: vector of surface values
