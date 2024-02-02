@@ -9,10 +9,15 @@ from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter
 
 import brainbuilder.utils.ants_nibabel as nib
+from brainbuilder.interp.adjust_section_means import (
+    calculate_section_adjustment_factors,
+)
 from brainbuilder.utils.utils import get_thicken_width
 
 
-def setup_section_normalization(acquisition: str, sect_info: pd.DataFrame, array_src: np.ndarray) -> Tuple[np.ndarray, bool]:
+def setup_section_normalization(
+    acquisition: str, sect_info: pd.DataFrame, array_src: np.ndarray
+) -> Tuple[np.ndarray, bool]:
     """This function is not for chunk normalization but for section normalization based on surrounding sections.
 
     :param acquisition: acquisition type
@@ -71,7 +76,6 @@ def setup_section_normalization(acquisition: str, sect_info: pd.DataFrame, array
             )
             array_src[:, y, :] = section
 
-
     return array_src, normalize_sections
 
 
@@ -84,7 +88,8 @@ def thicken_sections_within_chunk(
     resolution: float,
     tissue_type: str = "",
     gaussian_sd: float = 0,
-)->None:
+    use_adjust_section_means: bool = True,
+) -> None:
     """Thicken sections within a chunk. A thickened section is simply a section that is expanded along the y axis to the resolution of the reconstruction.
 
     :param thickened_fn: path to thickened volume
@@ -103,14 +108,18 @@ def thicken_sections_within_chunk(
     array_src = array_img.get_fdata()
 
     print(array_src.shape)
-    
+
     assert np.sum(array_src) != 0, (
         "Error: source volume for thickening sections is empty\n" + source_image_fn
     )
 
-    array_src, normalize_sections = setup_section_normalization(
-        acquisition, chunk_sect_info, array_src
-    )
+    if use_adjust_section_means:
+        adj_factors_dict = calculate_section_adjustment_factors(
+            chunk_sect_info["nl_2d_rsl"].values,
+            chunk_sect_info["sample"].values,
+            os.path.dirname(thickened_fn),
+            chunk_sect_info["conversion_factor"].values,
+        )
 
     # get the thicken widith fot the section. The resolution is halfed because we are thickening in both directions
     width = get_thicken_width(resolution, section_thickness)
@@ -132,15 +141,10 @@ def thicken_sections_within_chunk(
         section = nib.load(nl_2d_rsl).get_fdata().copy()
 
         if use_conversion_factor:
-            conversion_factor = row["conversion_factor"]
-            print(
-                "\t\t\tRadio. to Dens.:\t",
-                y,
-                np.min(section),
-                np.max(section),
-                conversion_factor,
-            )
-            section *= conversion_factor
+            section *= row["conversion_factor"]
+
+        if use_adjust_section_means:
+            section += adj_factors_dict[y]
 
         if np.sum(section) == 0:
             print(f"Warning: empty frame {row_i} {row}\n")
@@ -152,18 +156,15 @@ def thicken_sections_within_chunk(
             else array_src.shape[1]
         )
 
-        # put acquisition sections into rec_vol
-        yrange = list(range(y0, y1))
+        rep = np.repeat(section.reshape(dim), y1 - y0, axis=1)
 
-        print("y = ", y, y0, y1)
-        rep = np.repeat(section.reshape(dim), len(yrange), axis=1)
-
-        rec_vol[:, yrange, :] += rep
-        n[:, yrange, :] += 1
+        rec_vol[:, y0:y1, :] += rep
+        n[:, y0:y1, :] += 1
 
     # normalize by number of sections within range
 
     assert np.sum(rec_vol) != 0, "Error: thickened volume is empty"
+
     rec_vol[n > 0] = rec_vol[n > 0] / n[n > 0]
     rec_vol[n == 0] = 0
 
@@ -173,10 +174,7 @@ def thicken_sections_within_chunk(
         rec_vol[empty_voxels] = 0
 
     if "batch_offset" in chunk_sect_info.columns:
-        # conversion_factor = chunk_info["conversion_factor"].values[0]
         batch_offset = chunk_sect_info["batch_offset"].values[0]
-        # rec_vol = rec_vol * conversion_factor + conversion_offset
-        print("\t\t\tbatch_offset", batch_offset)
         rec_vol = rec_vol + batch_offset
 
     assert np.sum(rec_vol) != 0, "Error: thickened volume is empty"
@@ -219,11 +217,11 @@ def create_thickened_volumes(
     sect_info: pd.DataFrame,
     resolution: float,
     tissue_type: str = "",
-    gaussian_sd:float=0,
+    gaussian_sd: float = 0,
     clobber: bool = False,
-)->str:
+) -> str:
     """Create thickened volumes for each acquisition and each chunk.
-    
+
     A thickened volume is simply a volume consisting of the sections for a particular acquisition that are expanded along the
     y axis to the resolution of the reconstruction.
 

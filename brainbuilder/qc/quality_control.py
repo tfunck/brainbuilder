@@ -11,9 +11,9 @@ from brainbuilder.utils import utils
 from joblib import Parallel, cpu_count, delayed
 
 
-def get_min_max(fn:str)->str:
+def get_min_max(fn: str) -> str:
     """Get min and max values from image file.
-    
+
     :param fn: image file name
     :return: min, max
     """
@@ -25,9 +25,9 @@ def get_min_max(fn:str)->str:
         return np.nan, np.nan
 
 
-def get_min_max_parallel(df:pd.DataFrame, column:str)->Tuple[float, float]:
+def get_min_max_parallel(df: pd.DataFrame, column: str) -> Tuple[float, float]:
     """Get min and max values from image file in parallel.
-    
+
     :param df: dataframe
     :param column: column name
     :return: min, max
@@ -45,8 +45,8 @@ def get_min_max_parallel(df:pd.DataFrame, column:str)->Tuple[float, float]:
 
 
 def data_set_quality_control(
-    sect_info_csv: str, base_output_dir: str, column: str = "raw", clobber:bool=False
-)->None:
+    sect_info_csv: str, base_output_dir: str, column: str = "raw", clobber: bool = False
+) -> None:
     """Quality control for data set.
 
     :param sect_info_csv: section information csv file
@@ -85,7 +85,7 @@ def data_set_quality_control(
             for i, (_, row) in enumerate(df.iterrows()):
                 plt.subplot(n_rows, n_cols, i + 1)
                 img = nib.load(row[column]).get_fdata()
-                plt.imshow(img, cmap="gray", vmin=vmin, vmax=vmax)
+                plt.imshow(img, cmap="nipy_spectral", vmin=vmin, vmax=vmax)
                 plt.axis("off")
                 plt.title(row["sample"])
 

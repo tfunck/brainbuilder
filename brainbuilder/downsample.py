@@ -17,7 +17,7 @@ def downsample_sections(
     resolution: str,
     output_dir: str,
     clobber: bool = False,
-)->str:
+) -> str:
     """Downsample sections to the lowest resolution in the resolution list.
 
     :param chunk_info_csv: path to chunk_info.csv
@@ -30,7 +30,7 @@ def downsample_sections(
     chunk_info = pd.read_csv(chunk_info_csv)
     sect_info = pd.read_csv(sect_info_csv)
 
-    def get_base(x:str)->str:
+    def get_base(x: str) -> str:
         """Get base filename."""
         if ".nii.gz" not in x:
             x = os.path.splitext(x)[0] + f"_{resolution}mm.nii.gz"
@@ -73,7 +73,11 @@ def downsample_sections(
         num_cores = cpu_count()
         Parallel(n_jobs=num_cores)(
             delayed(utils.resample_to_resolution)(
-                raw_file, [resolution, resolution], downsample_file, affine=affine
+                raw_file,
+                [resolution, resolution],
+                downsample_file,
+                affine=affine,
+                order=3,
             )
             for raw_file, downsample_file, affine, resolution in to_do
         )

@@ -7,16 +7,18 @@ import pandas as pd
 from joblib import Parallel, cpu_count, delayed
 
 import brainbuilder.utils.utils as utils
-from brainbuilder.utils.ants_nibabel import load_mesh_ext
+from brainbuilder.utils.mesh_io import load_mesh_ext
 
 global chunk_info_required_columns
 global sect_info_required_columns
 
+
 class Column:
     """Class to represent a column in a dataframe."""
+
     def __init__(self, name: str, kind: str, required: bool = True) -> None:
         """Initialize a column.
-        
+
         :param name: name of the column
         :param kind: kind of column, either "volume" or "surface"
         :param required: boolean indicating whether the column is required
@@ -25,7 +27,7 @@ class Column:
         self.kind = kind
         self.required = required
 
-    def validate_rows_in_column(self, rows:pd.DataFrame) -> bool:
+    def validate_rows_in_column(self, rows: pd.DataFrame) -> bool:
         """Validate that the rows in a column based on whether they are volumes or surfaces.
 
         :param rows: list of rows in the column
@@ -34,7 +36,8 @@ class Column:
         valid_inputs = True
 
         if self.required:
-            def val_func(x:Union[int,str,float,bool])->bool:
+
+            def val_func(x: Union[int, str, float, bool]) -> bool:
                 """Return inputs."""
                 return x
 
@@ -43,11 +46,13 @@ class Column:
             elif self.kind == "surface":
                 pass
             elif self.kind == int:
-                def val_func(x: Union[int,float,str]) -> bool:
+
+                def val_func(x: Union[int, float, str]) -> bool:
                     """Validate entry by verifying that it is an integer."""
                     return isinstance(x, np.integer)
             elif self.kind == float:
-                def val_func(x: Union[int,float,str]) -> bool:
+
+                def val_func(x: Union[int, float, str]) -> bool:
                     """Validate entry by verifying that it is a float."""
                     return isinstance(x, float)
             else:
@@ -102,9 +107,10 @@ chunk_info_required_columns = [
 sect_info_required_columns = [acquisition, sub, hemisphere, chunk, raw, sample]
 hemi_info_required_columns = [sub, hemisphere, struct_ref_vol, gm_surf, wm_surf]
 
+
 def validate_dataframe(df: pd.DataFrame, required_columns: list) -> bool:
     """Validate that the dataframe has the required columns.
-    
+
     :param df: dataframe to validate
     :param required_columns: list of required columns
     :return: boolean indicating whether the inputs have been validated

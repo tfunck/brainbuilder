@@ -25,7 +25,7 @@ manual_dir = base_file_dir + os.sep + "manual_points" + os.sep
 
 def setup_args(args: argparse.Namespace) -> argparse.Namespace:
     """Setup the parameters and filenames that will be used in the reconstruction.
-        
+
     :param args:   user input arguments
     :return args:   user input arguments with some additional parameters tacked on in this function
     """
@@ -65,7 +65,7 @@ def reconstruct(
     batch_correction_resolution: float = 0,
     skip_interp: bool = False,
     clobber: bool = False,
-)->None:
+) -> None:
     """Reconstruct 2D histological sections to 3D volume using a structural reference volume (e.g., T1w MRI from brain donor, stereotaxic template).
 
      Processing Steps
@@ -99,9 +99,9 @@ def reconstruct(
     maximum_resolution = resolution_list[-1]
 
     # FIXME UNCOMMENT
-    valid_inputs = validate_inputs.validate_inputs(
+    valid_inputs = validate_inputs(
         hemi_info_csv, chunk_info_csv, sect_info_csv, valid_inputs_npz
-     )
+    )
     assert valid_inputs, "Error: invalid inputs"
 
     sect_info_csv = downsample_sections(
@@ -161,7 +161,7 @@ def reconstruct(
     return output_csv
 
 
-def setup_argparse()->argparse.ArgumentParser:
+def setup_argparse() -> argparse.ArgumentParser:
     """Get user input arguments.
 
     :return parser: argparse.ArgumentParser

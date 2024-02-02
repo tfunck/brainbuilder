@@ -16,7 +16,7 @@ from brainbuilder.utils.ANTs import ANTs
 from brainbuilder.utils.utils import AntsParams
 
 
-def load2d(fn:str)->np.arary:
+def load2d(fn: str) -> np.array:
     """Load 2d image."""
     ar = nib.load(fn).get_fdata()
     ar = ar.reshape(ar.shape[0], ar.shape[1])
@@ -52,8 +52,8 @@ def align_neighbours_to_fixed(
     :param target_acquisition: The target acquisition type (optional).
     :param clobber: Whether to overwrite existing files (default: False).
     """
-    # For neighbours  a single section is selected as fixed (ith section), 
-    #then the subsequent sections are considred moving sections (jth section)
+    # For neighbours  a single section is selected as fixed (ith section),
+    # then the subsequent sections are considred moving sections (jth section)
     # and are registered to the fixed section.
     i_idx = df["sample"] == i
     fixed_fn = df["img"].loc[i_idx].values[0]
@@ -265,15 +265,15 @@ def adjust_alignment(
 
 
 def apply_transforms_to_sections(
-    df: pd.DataFrame, 
-    transforms:Dict[int, List[str]],
-    output_dir:str, 
-    tfm_type:str, 
-    target_acquisition:str=None, 
-    clobber:bool=False
+    df: pd.DataFrame,
+    transforms: Dict[int, List[str]],
+    output_dir: str,
+    tfm_type: str,
+    target_acquisition: str = None,
+    clobber: bool = False,
 ) -> pd.DataFrame:
     """Apply the transforms to the sections.
-    
+
     :param df: The DataFrame containing the section information.
     :param transforms: The dictionary of transforms.
     :param output_dir: The output directory.
@@ -308,13 +308,13 @@ def apply_transforms_to_sections(
 
 
 def combine_sections_to_vol(
-        df: pd.DataFrame,
-        y_mm: float,
-        z_mm: float,
-        direction: str, 
-        out_fn: str,
-        target_tier:int=1
-    )->None:
+    df: pd.DataFrame,
+    y_mm: float,
+    z_mm: float,
+    direction: str,
+    out_fn: str,
+    target_tier: int = 1,
+) -> None:
     """Combine 2D aligned sections to volume.
 
     :param df: The DataFrame containing the section information.
@@ -370,17 +370,17 @@ def combine_sections_to_vol(
 
 
 def alignment_stage(
-        df: pd.DataFrame,
-        vol_fn_str: str,
-        output_dir: str,
-        transforms: list,  
-        linParams: str, 
-        desc: Tuple[int, int, int] = (0, 0, 0),
-        target_acquisition: Optional[str] = None,  
-        target_tier: int = 1,
-        acquisition_n: int = 0,
-        clobber: bool = False,
-    ) -> Tuple[pd.DataFrame, Dict[int, List[str]]]:
+    df: pd.DataFrame,
+    vol_fn_str: str,
+    output_dir: str,
+    transforms: list,
+    linParams: str,
+    desc: Tuple[int, int, int] = (0, 0, 0),
+    target_acquisition: Optional[str] = None,
+    target_tier: int = 1,
+    acquisition_n: int = 0,
+    clobber: bool = False,
+) -> Tuple[pd.DataFrame, Dict[int, List[str]]]:
     """Perform alignment of autoradiographs within a chunk.
 
     Alignment is calculated once from the middle section in the posterior direction and a second time from the middle section in the anterior direction.
@@ -400,9 +400,9 @@ def alignment_stage(
     tfm_type = "Rigid"
 
     # Set parameters for rigid transform
-    shrink_factor = linParams.f_str  
-    smooth_sigma = re.sub("vox", "", linParams.s_str)  
-    iterations = linParams.itr_str.split(",")[0][1:]  
+    shrink_factor = linParams.f_str
+    smooth_sigma = re.sub("vox", "", linParams.s_str)
+    iterations = linParams.itr_str.split(",")[0][1:]
 
     shrink_factor = "4x3x2"
     smooth_sigma = "2x1.5x1"
@@ -418,13 +418,13 @@ def alignment_stage(
     )
 
     out_fn = vol_fn_str.format(
-            output_dir,
-            *desc,
-            target_acquisition,
-            acquisition_n,
-            tfm_type + "-" + str(0),
-            "nii.gz",
-        )
+        output_dir,
+        *desc,
+        target_acquisition,
+        acquisition_n,
+        tfm_type + "-" + str(0),
+        "nii.gz",
+    )
 
     if not os.path.exists(csv_fn) or not os.path.exists(out_fn):
         df.sort_values(["sample"], inplace=True, ascending=False)
@@ -479,7 +479,7 @@ def alignment_stage(
 
         # update the img so it has the new, resampled file names
         df["img"] = df["img_new"]
-    else :
+    else:
         df = pd.read_csv(csv_fn)
 
     return df, transforms
@@ -575,7 +575,8 @@ def initalign(
     initalign_sect_info = pd.DataFrame({})
     initalign_chunk_info = pd.DataFrame({})
 
-    run_stage = utils.check_run_stage(initalign_sect_info_csv, "init_tfm", "seg")
+    # run_stage = utils.check_run_stage(initalign_sect_info_csv, "init_tfm", "seg")
+    run_stage = False  # FIXME UNCOMMENT
 
     linParams = AntsParams(resolution_list, resolution_list[-1], 100)
 
@@ -625,9 +626,9 @@ def initalign(
     return initalign_sect_info_csv, initalign_chunk_info_csv
 
 
-def get_acquisition_contrast_order(df:pd.DataFrame)->list:
+def get_acquisition_contrast_order(df: pd.DataFrame) -> list:
     """Calculate the contrast order of the acquisitions.
-    
+
     :param df: The DataFrame containing the section information.
     :return: The list of acquisitions sorted by contrast.
     """
@@ -666,10 +667,10 @@ def align_chunk(
     chunk: str,
     output_dir: str,
     sect_info: pd.DataFrame,
-    linParams: str, 
+    linParams: str,
     chunk_info: pd.DataFrame,
     clobber: bool = False,
-) -> pd.DataFrame:  
+) -> pd.DataFrame:
     """Calulate initial rigid aligment between sections for a given chunk.
 
     param sub: subject id
@@ -718,9 +719,6 @@ def align_chunk(
         transforms_1[i] = []
 
     df_acquisition, transforms_1 = alignment_stage(
-        sub,
-        hemisphere,
-        chunk,
         df_acquisition,
         chunk_img_fn_str,
         output_dir_1,
@@ -768,9 +766,6 @@ def align_chunk(
             transforms[i] = []
 
         df_acquisition, transforms = alignment_stage(
-            sub,
-            hemisphere,
-            chunk,
             df_acquisition,
             chunk_img_fn_str,
             output_dir_2,

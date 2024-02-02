@@ -271,8 +271,9 @@ def align_2d_parallel(
     nlParams = AntsParams(resolution_list, resolution, base_nl_itr)
 
     y = int(row["sample"])
+    base = row["base"]
 
-    prefix = f"{tfm_dir}/y-{y}"
+    prefix = f"{tfm_dir}/{base}_y-{y}"
     fx_fn = gen_2d_fn(prefix, "_fx")
 
     mv_fn = get_seg_fn(mv_dir, int(y), resolution, row[file_to_align], suffix="")
@@ -297,7 +298,7 @@ def align_2d_parallel(
         verbose=verbose,
     )
 
-    cmd = f"antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {mv_fn} -r {fx_fn} -t {syn_tfm} -o {row['2d_align_cls']} "
+    cmd = f"antsApplyTransforms -v 0 -d 2 -n bSpline -i {mv_fn} -r {fx_fn} -t {syn_tfm} -o {row['2d_align_cls']} "
 
     shell(cmd, True)
 
@@ -330,7 +331,9 @@ def apply_transforms_parallel(
     :return: 0
     """
     y = int(row["sample"])
-    prefix = f"{tfm_dir}/y-{y}"
+    base = row["base"]
+
+    prefix = f"{tfm_dir}/{base}_y-{y}"
     img_rsl_fn = f"{prefix}_{resolution}mm.nii.gz"
     out_fn = prefix + "_rsl.nii.gz"
     fx_fn = gen_2d_fn(prefix, "_fx")
@@ -399,10 +402,10 @@ def get_align_filenames(
     sect_info["2d_align"] = [""] * sect_info.shape[0]
     sect_info["2d_align_cls"] = [""] * sect_info.shape[0]
 
-
     for idx, (i, row) in enumerate(sect_info.iterrows()):
         y = int(row["sample"])
-        prefix = f"{tfm_dir}/y-{y}"
+        base = row["base"]
+        prefix = f"{tfm_dir}/{base}_y-{y}"
         cls_fn = prefix + "_cls_rsl.nii.gz"
         out_fn = prefix + "_rsl.nii.gz"
         tfm_fn = prefix + "_Composite.h5"

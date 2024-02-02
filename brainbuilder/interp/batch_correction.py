@@ -8,9 +8,8 @@ import pandas as pd
 
 import brainbuilder.segment as segment
 import brainbuilder.utils.ants_nibabel as nib
-from brainbuilder.utils.mesh_io import load_mesh_ext
+from brainbuilder.utils.mesh_io import load_mesh_ext, load_values
 from brainbuilder.utils.mesh_utils import (
-    load_values,
     mesh_to_volume,
     pairwise_coord_distances,
     visualization,
@@ -113,9 +112,9 @@ def create_surface_section_labels(
     qc_surface_fn: str = "",
     ref_vol_fn: str = "",
     clobber: bool = False,
-)-> (str, pd.DataFrame, dict):
+) -> (str, pd.DataFrame, dict):
     """Create surface section labels.
-    
+
     :param chunk_info: dataframe containing chunk information
     :param sect_info: dataframe containing section information
     :param values: array containing values
@@ -276,9 +275,16 @@ def update_df_with_correction_params(
     return df
 
 
-def get_border_y(df: pd.DataFrame, chunk: int, thr: int, start: float, step: float, caudal: bool = True) -> list:
+def get_border_y(
+    df: pd.DataFrame,
+    chunk: int,
+    thr: int,
+    start: float,
+    step: float,
+    caudal: bool = True,
+) -> list:
     """Get the y coordinates for the border of the chunk.
-    
+
     :param df: dataframe containing chunk information
     :param chunk: chunk number
     :param thr: threshold
@@ -313,7 +319,7 @@ ROSTRAL_LABEL = 0.66
 
 if False:  # test to make sure that pairsewise_coord_distances works correctly
 
-    def calc2(c0:np.ndarray, c1:np.ndarray)->np.ndarray:
+    def calc2(c0: np.ndarray, c1: np.ndarray) -> np.ndarray:
         """Calculate pairwise distances between two sets of coordinates."""
         d = np.zeros([c0.shape[0], c1.shape[0]])
         for i, x in enumerate(c0):
@@ -334,10 +340,14 @@ if False:  # test to make sure that pairsewise_coord_distances works correctly
 
 
 def get_rostral_caudal_borders(
-    label_surf_values:np.ndarray, surfaces:np.ndarray, out_dir:str, perc:float=0.05, clobber:bool=False
-)->str:
+    label_surf_values: np.ndarray,
+    surfaces: np.ndarray,
+    out_dir: str,
+    perc: float = 0.05,
+    clobber: bool = False,
+) -> str:
     """Get the rostral and caudal borders for each chunk.
-    
+
     :param label_surf_values: array containing the labels for each vertex
     :param surfaces: array containing the surfaces
     :param out_dir: path to output directory
@@ -350,8 +360,8 @@ def get_rostral_caudal_borders(
     # WARNING the label volumes and surfaces must be in same coord space
     if not os.path.exists(border_fn) or clobber:
         labels = load_values(label_surf_values)
-        chunks = np.unique(labels[labels > 0])                                                                                                                                                               
-        n_chunks = len(chunks) 
+        chunks = np.unique(labels[labels > 0])
+        n_chunks = len(chunks)
 
         assert isinstance(surfaces, list), "Error: surfaces is not a list"
         if len(surfaces) == 1:
@@ -394,7 +404,9 @@ def get_rostral_caudal_borders(
     return border_fn
 
 
-def create_dataframe_for_pairs(dist: np.ndarray, avg_values: np.ndarray, next_range: np.ndarray, c_vtx: np.ndarray) -> pd.DataFrame:
+def create_dataframe_for_pairs(
+    dist: np.ndarray, avg_values: np.ndarray, next_range: np.ndarray, c_vtx: np.ndarray
+) -> pd.DataFrame:
     """Create a dataframe for the pairs.
 
     :param dist: array containing the distances between the vertices
@@ -443,10 +455,14 @@ def create_dataframe_for_pairs(dist: np.ndarray, avg_values: np.ndarray, next_ra
 
 
 def find_pairs_between_labels(
-    curr_label: float, next_label: float, stereo_sphere_coords: np.ndarray, labels: np.ndarray, avg_values: np.ndarray
+    curr_label: float,
+    next_label: float,
+    stereo_sphere_coords: np.ndarray,
+    labels: np.ndarray,
+    avg_values: np.ndarray,
 ) -> pd.DataFrame:
     """Find the pairs between the current and next label.
-    
+
     :param curr_label: current label
     :param next_label: next label
     :param stereo_sphere_coords: array containing the coordinates of the sphere
@@ -481,14 +497,14 @@ def find_pairs_between_labels(
 
 
 def simple_get_paired_values(
-    chunk_info:pd.DataFrame,
-    volumes_df:pd.DataFrame,
+    chunk_info: pd.DataFrame,
+    volumes_df: pd.DataFrame,
     paired_values_csv: str,
     unique_paired_values_csv: str,
     clobber: bool = False,
-)->pd.DataFrame:
+) -> pd.DataFrame:
     """Get the paired values between chunks.
-    
+
     :param chunk_info: dataframe containing chunk information
     :param volumes_df: dataframe containing volume information
     :param paired_values_csv: path to paired values csv
@@ -555,9 +571,9 @@ def get_paired_values(
     label_start: int = 1,
     label_offset: int = 2,
     clobber: bool = False,
-)-> pd.DataFrame:
+) -> pd.DataFrame:
     """Get paired values between labels regions.
-    
+
     :param paired_values_csv: path to paired values csv
     :param unique_paired_values_csv: path to unique paired values csv
     :param stereo_sphere_filename: path to stereo sphere
@@ -628,9 +644,11 @@ def get_paired_values(
     return unique_paired_values
 
 
-def get_unique_pairs(paired_values: pd.DataFrame, direction: str, n_points: int = 1) -> pd.DataFrame:
+def get_unique_pairs(
+    paired_values: pd.DataFrame, direction: str, n_points: int = 1
+) -> pd.DataFrame:
     """Get the unique pairs between sets of paired values.
-    
+
     :param paired_values: dataframe containing the paired values
     :param direction: direction of the pair
     :param n_points: number of points
@@ -647,7 +665,8 @@ def get_unique_pairs(paired_values: pd.DataFrame, direction: str, n_points: int 
 
     return unique_paired_values
 
-def simple_chunk_correction(paired_values: pd.DataFrame)->pd.DataFrame:
+
+def simple_chunk_correction(paired_values: pd.DataFrame) -> pd.DataFrame:
     """Perform batch correction by using chunk average intensities.
 
     :param paired_values: dataframe containing the paired values
@@ -698,8 +717,8 @@ def calc_batch_correction_params(
     out_dir: str,
     label_start: int = 1,
     label_offset: int = 2,
-    clobber:bool=False,
-)-> (pd.DataFrame, pd.DataFrame):
+    clobber: bool = False,
+) -> (pd.DataFrame, pd.DataFrame):
     """Identify the vertices within a given chunk and find the vertices that are part of the anterior and posterior border of that chunk.
 
     :param label_filename: file with a scalar for each vertx where chunks are labeled with discrete integer values.
@@ -722,7 +741,6 @@ def calc_batch_correction_params(
     if not os.path.exists(params_fn) or clobber:
         labels = np.unique(load_values(label_filename))[1:]
         print("\t\tNumber of labels", len(labels), labels)
-
 
         print("\t\tGet Paired Values")
         """
