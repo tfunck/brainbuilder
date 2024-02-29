@@ -75,6 +75,7 @@ This .csv file contains the information for each tissue chunk from which the ima
 
 #### Optional Info
 **caudal_limit** : float, the spatial coordinate of the caudal limit of the tissue on the reference template
+
 **rostral_limit** : float, the spatial coordinate of the rostral limit of the tissue on the reference template
 
 ### Section Info
