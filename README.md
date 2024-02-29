@@ -96,4 +96,4 @@ This .csv contains information specific to each image file that will be used in 
 **raw** : path to the raw section (.nii.gz)
 
 ## References
-Funck, T., et al. (2020). 3D reconstruction of ultra-high resolution neurotransmitter receptor atlases in human and non-human primate brains. bioRxiv. [https://doi.org/10.1101/2022.11.18.517039](https://www.biorxiv.org/content/10.1101/2022.11.18.517039v1).
+Funck, T., et al. (2020). 3D reconstruction of ultra-high resolution neurotransmitter receptor atlases in human and non-human primate brains. bioRxiv. [https://doi.org/10.1101/2022.11.18.517039](https://www.biorxiv.org/content/10.1101/2022.11.18.517039v1)
