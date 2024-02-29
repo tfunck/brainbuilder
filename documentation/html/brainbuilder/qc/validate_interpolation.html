@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>brainbuilder.qc.validate_interpolation API documentation</title>
+<meta name="description" content="Validate surface interpolation by applying it within-plane." />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>brainbuilder.qc.validate_interpolation</code></h1>
+</header>
+<section id="section-intro">
+<p>Validate surface interpolation by applying it within-plane.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;Validate surface interpolation by applying it within-plane.&#34;&#34;&#34;
+
+import argparse
+import os
+import re
+from glob import glob
+from typing import List
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import stripy
+from brainbuilder.interp.surfinterp import spherical_np
+from brainbuilder.utils.mesh_utils import load_mesh_ext
+
+
+def plot_r2(df:pd.DataFrame, out_fn:str)-&gt;None:
+    &#34;&#34;&#34;Plot r2 values.
+    
+    :param df: dataframe
+    :param out_fn: output filename
+    :return: None
+    &#34;&#34;&#34;
+    df.dropna(inplace=True)
+    plt.figure(figsize=(12,12)) 
+    nligands = len(np.unique(df[&#39;Ligand&#39;]))
+    col_wrap=4 if nligands &gt; 4 else nligands
+    sns.set(rc={&#39;figure.figsize&#39;:(12,12)})
+    df[&#39;True Density&#39;] = df[&#39;TrueDensity&#39;]
+    g = sns.lmplot(y=&#39;Estimated&#39;, x=&#39;True Density&#39;, data=df, hue=&#39;Ligand&#39;, col=&#39;Ligand&#39;, 
+                   scatter_kws={&#39;alpha&#39;:0.15}, col_wrap=col_wrap, sharex=False, sharey=False, fit_reg=True, legend=True)
+        
+    def annotate(
+            data:pd.DataFrame, 
+            **kws: dict 
+            )-&gt;None:
+        &#34;&#34;&#34;Annotate the plot with r2 and p-value.&#34;&#34;&#34;
+        import scipy as sp
+        r, p = sp.stats.pearsonr(data[&#39;True Density&#39;], data[&#39;Estimated&#39;])
+        ax = plt.gca()
+        ax.text(.05, .8, &#39;r={:.2f}, p&lt;{:.3f}&#39;.format(r, max(0.001,p)), transform=ax.transAxes)#{:.2g}
+        
+    g.map_dataframe(annotate)
+
+    print(&#39;Writing&#39;,out_fn)
+    plt.savefig(out_fn)
+
+def plot_validation(
+        filename:str=&#39;validation.csv&#39;,
+        out_fn:str=&#39;validation.png&#39;,
+        area_dict:dict=None)-&gt;None:
+    &#34;&#34;&#34;Plot true vs interpolated values for validation.
+
+    :param filename: filename
+    :param out_fn: output filename
+    :param area_dict: area dictionary
+    :return: None
+    &#34;&#34;&#34;
+    df = pd.read_csv(filename)
+    df_factor = df.copy()
+
+    df_factor.rename(columns = {&#39;Error&#39;:&#39;Error (%)&#39;, &#39;Distance&#39;:&#39;Distance of interpolated vertices (mm)&#39;, &#39;TotalArea&#39;:&#39;N. Vertices&#39;, &#39;StdDev&#39;:&#39;Receptor Density (Std. Dev.)&#39;, &#39;TrueDensity&#39;:&#39;Receptor Density (Mean)&#39;}, inplace = True)
+    factors_out_fn = re.sub(&#39;.png&#39;,&#39;_factors.png&#39;,out_fn)
+    out_regr_fn = re.sub(&#39;.png&#39;,&#39;_r2.png&#39;,out_fn)
+    plt.figure(figsize=(12,12))
+    plt.subplot(2,2,1)
+    sns.scatterplot(y =&#34;Error (%)&#34;, x =&#39;Distance of interpolated vertices (mm)&#39;, data=df_factor)
+
+    plt.subplot(2,2,2)
+    sns.scatterplot(y =&#34;Error (%)&#34;, x =&#39;N. Vertices&#39;, data=df_factor)
+
+    plt.subplot(2,2,3)
+    sns.scatterplot(y =&#34;Error (%)&#34;, x =&#39;Receptor Density (Std. Dev.)&#39;, data=df_factor)
+
+    plt.subplot(2,2,4)
+    sns.scatterplot(y =&#34;Error (%)&#34;, x =&#39;Receptor Density (Mean)&#39;, data=df_factor)
+
+    plt.savefig(factors_out_fn)
+
+
+    df[&#39;Error&#39;].loc[df[&#39;Error&#39;] &gt; 100 ] = 100
+    plt.figure(figsize=(9,9))
+    plt.title(&#39;Histogram of interpolation error when estimating receptor densities&#39;)
+    plt.hist(df[&#39;Error&#39;].values, bins=100)
+    plt.gca().spines[&#39;right&#39;].set_visible(False)
+    plt.gca().spines[&#39;top&#39;].set_visible(False)
+    plt.ylabel(&#39;Count&#39;)
+    plt.xlabel(&#39;Interpolation Error % (|Predicted-True Density|/True Density)&#39;)
+
+    xticks = np.arange(0,105,5).astype(int)
+    xticklabels = xticks.astype(str)
+    xticklabels[-1] = xticklabels[-1] + &#39;+&#39;
+    plt.gca().set_xticks(xticks)
+    plt.gca().set_xticklabels(xticklabels)
+
+    n5 = np.sum( df[&#39;Error&#39;] &lt;= 5 )
+    n10 = np.sum( df[&#39;Error&#39;] &lt;= 10 )
+
+    print(&#39;Percent below 5% error:&#39;, np.round(100. * n5 / df.shape[0],2))
+    print(&#39;Percent below 10% error:&#39;, np.round(100. * n10 / df.shape[0],2) )
+    
+    plt.savefig(out_fn)
+
+    plt.figure(figsize=(12,12)) 
+    sns.set(rc={&#39;figure.figsize&#39;:(18,18)})
+    sns.set(font_scale=2)
+    sns.lmplot(x=&#39;Estimated&#39;, y=&#39;TrueDensity&#39;, data=df, hue=&#39;Ligand&#39;, col=&#39;Ligand&#39;, col_wrap=4)
+
+    plt.savefig(out_regr_fn)
+
+
+def calc_dist(i: int, coords: np.ndarray, ngh: List[List[int]]) -&gt; float:
+    &#34;&#34;&#34;Calculate the mean distance between a point and its neighboring points.
+
+    :param i: Index of the point.
+    :param coords: Array of coordinates of all points.
+    :param ngh: List of neighboring points for each point.
+    :return: Mean distance between the point and its neighboring points.
+    &#34;&#34;&#34;
+    distList = []
+    for ngh_i in ngh[i]:
+        if ngh_i != i:
+            temp_dist = np.sqrt(np.sum(np.power(coords[i] - coords[ngh_i], 2)))
+            distList.append(temp_dist)
+    distListMean = np.mean(distList)
+    return distListMean
+
+
+def get_border(border: List[int], densities: List[float], ngh: List[List[int]], ngh_inner_all: List[int]) -&gt; List[int]:
+    &#34;&#34;&#34;Returns a list of neighboring points that are on the border and have non-zero densities.
+
+    :param border (list): List of points on the border.
+    :param densities (list): List of densities for each point.
+    :param ngh (list): List of neighboring points for each point.
+    :param ngh_inner_all (list): List of neighboring points that are not on the border.
+    :return new_border (list): List of neighboring points on the border with non-zero densities.
+    &#34;&#34;&#34;
+    new_border = []
+    for j in border:
+        if densities[j] &gt; 0:
+            new_border += [jj for jj in ngh[j] if jj not in ngh_inner_all and densities[jj] &gt; 0]
+    return new_border
+
+def get_core_vertices(
+        ngh: List[List[int]], 
+        densities: List[float], 
+        max_depth: int, 
+        core_depth: int, 
+        i: int
+        )-&gt;tuple:
+    &#34;&#34;&#34;Get the core vertices, inner vertices, and border vertices based on the given parameters.
+
+    Args:
+        ngh (list): List of neighbors for each vertex.
+        densities (list): List of densities for each vertex.
+        max_depth (int): Maximum depth to iterate.
+        core_depth (int): Depth at which to consider vertices as core vertices.
+        i (int): Index of the vertex to start from.
+
+    Returns:
+        tuple: A tuple containing three numpy arrays:
+            - ngh_inner_core: Array of core vertices.
+            - ngh_inner_all: Array of inner vertices.
+            - border: Array of border vertices.
+    &#34;&#34;&#34;
+    ngh_inner_core = list([i])
+    ngh_inner_all = list([i])
+    border = list(ngh[i])
+
+    for depth in range(max_depth):
+        new_border = get_border(border, densities, ngh, ngh_inner_all)
+
+        if depth &lt; core_depth:
+            ngh_inner_core += border
+
+        if depth &lt; max_depth:
+            ngh_inner_all += border 
+        
+        border = new_border
+
+        print(&#39;\t\t&#39;, depth, core_depth, max_depth, len(ngh_inner_core), len(ngh_inner_all), len(border))
+
+    border = get_border(border, densities, ngh, ngh_inner_all)
+    return np.array(ngh_inner_core), np.array(ngh_inner_all), np.array(border)
+
+def calculate_neighbours(i: int, sphere_coords: np.ndarray, cortex_coords: np.ndarray, core_depth: float, int_depth: float, max_depth: float) -&gt; tuple:
+    &#34;&#34;&#34;Calculate the neighbors of a vertex based on the given parameters.
+
+    Args:
+        i (int): Index of the vertex.
+        sphere_coords (numpy.ndarray): Array of coordinates of all vertices.
+        cortex_coords (numpy.ndarray): Array of coordinates of cortex vertices.
+        core_depth (float): Depth at which to consider vertices as core vertices.
+        int_depth (float): Depth at which to consider vertices as intermediate vertices.
+        max_depth (float): Maximum depth to consider for vertices.
+
+    Returns:
+        tuple: A tuple containing four numpy arrays:
+            - ngh_inner_core: Array of core vertices.
+            - ngh_inner_all: Array of all intermediate vertices.
+            - border: Array of border vertices.
+            - perimeter_dist: Average distance between the vertex and border vertices.
+    &#34;&#34;&#34;
+    idx_range = np.arange(sphere_coords.shape[0]).astype(int)
+
+    sphere_coords[i]
+    d = np.sqrt(np.sum(np.power(sphere_coords[i] - sphere_coords,2), axis=1))
+    core_ngh_idx = d &lt;= core_depth
+    all_ngh_idx = d &lt;= int_depth
+    border_idx = (d &lt;= max_depth) &amp; (d &gt; int_depth)
+
+    ngh_inner_core = idx_range[ core_ngh_idx ]
+    ngh_inner_all = idx_range[ all_ngh_idx ]
+    border = idx_range[ border_idx ]
+
+    perimeter_dist = np.mean(np.sqrt(np.sum(np.power(cortex_coords[i] - cortex_coords[border], 2), axis=1)))
+
+    assert len(set(ngh_inner_core) &amp; set(border)) == 0 , &#39;Error: border and core vertices overlap&#39;
+    return ngh_inner_core, ngh_inner_all, border,  perimeter_dist
+    
+    
+
+def interpolate_over_sphere(
+            densities: list,
+            coords_all: np.ndarray,
+            idx_inner_core: np.ndarray,
+            idx: np.ndarray,
+            border: np.ndarray,
+            i: int
+        ) -&gt; tuple:
+    &#34;&#34;&#34;Description of the function.
+
+    :param densities: List of densities.
+    :param coords_all: Array of coordinates.
+    :param idx_inner_core: Array of inner core indices.
+    :param idx: Array of indices.
+    :param border: Array of border indices.
+    :param i: Index of the vertex.
+    :return: A tuple containing the results.
+    &#34;&#34;&#34;
+    spherical_coords = spherical_np(coords_all)
+
+    spherical_coords += np.random.normal(0,.000001,spherical_coords.shape) 
+
+    coords_src = spherical_coords[border]
+    coords = spherical_coords[np.concatenate([idx,border])]
+
+    lats, lons = coords[:,1]-np.pi/2, coords[:,2]
+    lats_src, lons_src = coords_src[:,1]-np.pi/2, coords_src[:,2]
+
+    mesh = stripy.sTriangulation(lons_src, lats_src, permute=True)
+
+    # interpolate over the sphere
+    try :
+        interp_val, interp_type = mesh.interpolate(lons,lats, zdata=densities[border], order=1)
+    except ValueError :
+        print(&#39;Error in stripy interpolation&#39;)
+        return np.nan
+    
+    estimated = np.mean(interp_val[0:len(idx_inner_core)])
+    ground_truth = np.mean(densities[idx][0:len(idx_inner_core)])
+    error = 100. * np.abs(estimated - ground_truth ) /  ground_truth
+
+    return  error, estimated, ground_truth
+
+def iterate_over_vertices(
+        valid_idx_range: List[int],
+        idx: np.ndarray,
+        coords: np.ndarray,
+        cortex_coords: np.ndarray,
+        faces: np.ndarray,
+        densities: np.ndarray,
+        ligand: str,
+        resolution: float,
+        max_depth: int = 5,
+        n_samples: int = 10000
+        ) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Iterate over vertices and perform calculations.
+    
+    :param valid_idx_range: valid index range
+    :param idx: index
+    :param coords: coordinates
+    :param cortex_coords: cortex coordinates
+    :param faces: faces
+    :param densities: densities
+    :param ligand: ligand
+    :param resolution: resolution
+    :param max_depth: maximum depth
+    :param n_samples: number of samples
+    :return: dataframe
+    &#34;&#34;&#34;
+    resolution=float(resolution)
+    densities = densities.reshape(-1,)
+    min_densities = 0.01 * np.mean(densities[densities &gt; 0]) 
+    print(&#39;Min Densities:&#39;, min_densities)
+
+    output_df_list = []
+    counter = 0 
+    for i, (x,y,z) in zip(valid_idx_range, coords[valid_idx_range,:]): 
+        core_depth = np.random.uniform(resolution/2,resolution) 
+        int_depth = np.random.uniform(core_depth,resolution*2)
+        max_depth = np.random.uniform(int_depth,resolution*3)
+        if i % 10 == 0 : 
+            print(100*i/idx.shape[0],end=&#39;\r&#39;)
+
+        # calculate neighbours
+        core, inner_all, border, perimeter_dist = calculate_neighbours(i, coords, cortex_coords, core_depth, int_depth, max_depth)
+    
+        if True in [ len(idx_list) &lt; 4 for idx_list in [core, inner_all, border] ] : 
+            continue
+
+        core = core[densities[core] &gt; min_densities] 
+        inner_all = inner_all[densities[inner_all]&gt; min_densities] 
+
+        n = len(border)
+        border = border[densities[border]&gt; min_densities] 
+
+        if len(core) &lt; 1 or len(border) &lt; 4 : 
+            continue 
+        else : 
+            counter += 1
+        
+        # interpolate small patch
+        error, estimated, ground_truth = interpolate_over_sphere(densities, coords,   core, inner_all, border, i)
+        sd = np.std( densities[ np.concatenate([inner_all, border]) ].astype(np.float128) )
+        if np.isinf(sd) :
+            print(sd)
+            print(densities[ np.concatenate([inner_all, border])] )
+            exit(1)
+
+        #print(&#39;Error:&#39;, np.round(error,2), &#39;Est&#39;, estimated,&#39;True&#39;, ground_truth, &#39;sd&#39;, sd)
+        
+        total_area=len(core) 
+        
+        tdf= pd.DataFrame({&#39;Ligand&#39;:[ligand],
+                                            &#39;Distance&#39;:[perimeter_dist],
+                                            &#39;TotalArea&#39;:[total_area],
+                                            &#39;Error&#39;:[error],
+                                            &#39;n&#39;:[n],
+                                            &#39;StdDev&#39;:[sd],
+                                            &#39;Estimated&#39;:[estimated],
+                                            &#39;TrueDensity&#39;:[ground_truth] } ) 
+        output_df_list.append(tdf)
+
+        if counter &gt;= n_samples : 
+            break
+    output_df = pd.concat(output_df_list)
+
+    return output_df
+
+def validate_interpolation(
+        ligand_densities_fn: str,
+        sphere_mesh_fn: str,
+        cortex_mesh_fn: str,
+        output_dir: str,
+        resolution: float,
+        ligand: str = &#39;flum&#39;,
+        n_samples: int = 10000,
+        max_depth: int = 5,
+        clobber: bool = False
+        ) -&gt; None:
+    &#34;&#34;&#34;Validate interpolation.
+
+    :param ligand_densities_fn: ligand densities filename
+    :param sphere_mesh_fn: sphere mesh filename
+    :param cortex_mesh_fn: cortex mesh filename
+    :param output_dir: output directory
+    :param resolution: resolution
+    :param ligand: ligand
+    :param n_samples: number of samples
+    :param max_depth: maximum depth
+    :param clobber: clobber
+    :return: None
+    &#34;&#34;&#34;
+    output_filename = f&#39;{output_dir}/validate_interpolation_{ligand}.csv&#39;
+    if not os.path.exists(output_filename) or clobber : 
+        #load ligand densities
+        densities = pd.read_csv(ligand_densities_fn,header=None).values.astype(np.float16)
+
+        idx = densities &gt; 0.0
+        idx = idx.reshape(-1,)
+        
+        idx_range = np.arange(idx.shape[0]).astype(int)
+        idx_range = idx_range[idx]
+        
+        np.random.shuffle(idx_range)
+        
+        valid_idx_range = idx_range #[0:n_samples]
+
+        #load coords and neighbours
+        coords, faces = load_mesh_ext(sphere_mesh_fn)
+       
+        cortex_coords, faces = load_mesh_ext(cortex_mesh_fn)
+        assert densities.shape[0] == coords.shape[0], &#39;Error: densities does not equal coords&#39; 
+        output_df = iterate_over_vertices(valid_idx_range, idx,  coords, cortex_coords, faces, densities, ligand, resolution, n_samples=n_samples, max_depth=max_depth)
+
+        output_df.to_csv(output_filename)
+    
+    output_df = pd.read_csv(output_filename)
+
+    return output_df
+
+if __name__ == &#39;__main__&#39; :
+    parser = argparse.ArgumentParser(description=&#39;Process some integers.&#39;)
+    parser.add_argument(&#39;--out-dir&#39;, dest=&#39;out_dir&#39;, default=&#39;/scratch/tfunck/output2/5_surf_interp/&#39;, help=&#39;output directory&#39;)
+    parser.add_argument(&#39;--mesh&#39;, dest=&#39;mesh_fn&#39;, default=&#39;/scratch/tfunck/output2/5_surf_interp/surfaces/surf_0.5mm_1.0_inflate_rsl.surf.gii&#39;, help=&#39;mesh fn&#39;)
+    parser.add_argument(&#39;--ligand&#39;, dest=&#39;file_list&#39;, nargs=&#39;+&#39;, default=&#39;/scratch/tfunck/output2/5_surf_interp/surfaces/surf_0.5mm_1.0_inflate_rsl.surf.gii&#39;, help=&#39;csv ligand densities&#39;)
+    args = parser.parse_args()
+    out_dir = args.out_dir
+    sphere_mesh_fn = &#39;surf_0.75mm_0.0_inflate_rsl.surf.gii&#39;
+    cortex_mesh_fn = &#39;surf_0.75mm_0.0_rsl.surf.gii&#39;
+
+    file_list = args.file_list
+
+    out_fn=&#39;validation.csv&#39;
+    output_file = open(out_fn, &#39;w+&#39;)
+    output_file.write(&#39;ligand,perimeter_dist,area,error,n\n&#39;)
+    
+    max_depth = 7
+    file_list = glob(&#39;MR1_R_*_0.25mm_profiles_0.0_raw.csv&#39;)
+    n_samples=1000   
+    for filename in file_list :
+        ligand = filename.split(&#39;_&#39;)[2]
+        print(filename, ligand)
+        #output_file = validate_interpolation(filename, sphere_mesh_fn, cortex_mesh_fn, output_file, ligand, n_samples=n_samples,max_depth=max_depth)
+        break
+    output_file.close()
+    plot_validation(out_fn)</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="brainbuilder.qc.validate_interpolation.calc_dist"><code class="name flex">
+<span>def <span class="ident">calc_dist</span></span>(<span>i: int, coords: numpy.ndarray, ngh: List[List[int]]) ‑> float</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Calculate the mean distance between a point and its neighboring points.</p>
+<p>:param i: Index of the point.
+:param coords: Array of coordinates of all points.
+:param ngh: List of neighboring points for each point.
+:return: Mean distance between the point and its neighboring points.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def calc_dist(i: int, coords: np.ndarray, ngh: List[List[int]]) -&gt; float:
+    &#34;&#34;&#34;Calculate the mean distance between a point and its neighboring points.
+
+    :param i: Index of the point.
+    :param coords: Array of coordinates of all points.
+    :param ngh: List of neighboring points for each point.
+    :return: Mean distance between the point and its neighboring points.
+    &#34;&#34;&#34;
+    distList = []
+    for ngh_i in ngh[i]:
+        if ngh_i != i:
+            temp_dist = np.sqrt(np.sum(np.power(coords[i] - coords[ngh_i], 2)))
+            distList.append(temp_dist)
+    distListMean = np.mean(distList)
+    return distListMean</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.qc.validate_interpolation.calculate_neighbours"><code class="name flex">
+<span>def <span class="ident">calculate_neighbours</span></span>(<span>i: int, sphere_coords: numpy.ndarray, cortex_coords: numpy.ndarray, core_depth: float, int_depth: float, max_depth: float) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Calculate the neighbors of a vertex based on the given parameters.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>i</code></strong> :&ensp;<code>int</code></dt>
+<dd>Index of the vertex.</dd>
+<dt><strong><code>sphere_coords</code></strong> :&ensp;<code>numpy.ndarray</code></dt>
+<dd>Array of coordinates of all vertices.</dd>
+<dt><strong><code>cortex_coords</code></strong> :&ensp;<code>numpy.ndarray</code></dt>
+<dd>Array of coordinates of cortex vertices.</dd>
+<dt><strong><code>core_depth</code></strong> :&ensp;<code>float</code></dt>
+<dd>Depth at which to consider vertices as core vertices.</dd>
+<dt><strong><code>int_depth</code></strong> :&ensp;<code>float</code></dt>
+<dd>Depth at which to consider vertices as intermediate vertices.</dd>
+<dt><strong><code>max_depth</code></strong> :&ensp;<code>float</code></dt>
+<dd>Maximum depth to consider for vertices.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>tuple</code></dt>
+<dd>A tuple containing four numpy arrays:
+- ngh_inner_core: Array of core vertices.
+- ngh_inner_all: Array of all intermediate vertices.
+- border: Array of border vertices.
+- perimeter_dist: Average distance between the vertex and border vertices.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def calculate_neighbours(i: int, sphere_coords: np.ndarray, cortex_coords: np.ndarray, core_depth: float, int_depth: float, max_depth: float) -&gt; tuple:
+    &#34;&#34;&#34;Calculate the neighbors of a vertex based on the given parameters.
+
+    Args:
+        i (int): Index of the vertex.
+        sphere_coords (numpy.ndarray): Array of coordinates of all vertices.
+        cortex_coords (numpy.ndarray): Array of coordinates of cortex vertices.
+        core_depth (float): Depth at which to consider vertices as core vertices.
+        int_depth (float): Depth at which to consider vertices as intermediate vertices.
+        max_depth (float): Maximum depth to consider for vertices.
+
+    Returns:
+        tuple: A tuple containing four numpy arrays:
+            - ngh_inner_core: Array of core vertices.
+            - ngh_inner_all: Array of all intermediate vertices.
+            - border: Array of border vertices.
+            - perimeter_dist: Average distance between the vertex and border vertices.
+    &#34;&#34;&#34;
+    idx_range = np.arange(sphere_coords.shape[0]).astype(int)
+
+    sphere_coords[i]
+    d = np.sqrt(np.sum(np.power(sphere_coords[i] - sphere_coords,2), axis=1))
+    core_ngh_idx = d &lt;= core_depth
+    all_ngh_idx = d &lt;= int_depth
+    border_idx = (d &lt;= max_depth) &amp; (d &gt; int_depth)
+
+    ngh_inner_core = idx_range[ core_ngh_idx ]
+    ngh_inner_all = idx_range[ all_ngh_idx ]
+    border = idx_range[ border_idx ]
+
+    perimeter_dist = np.mean(np.sqrt(np.sum(np.power(cortex_coords[i] - cortex_coords[border], 2), axis=1)))
+
+    assert len(set(ngh_inner_core) &amp; set(border)) == 0 , &#39;Error: border and core vertices overlap&#39;
+    return ngh_inner_core, ngh_inner_all, border,  perimeter_dist</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.qc.validate_interpolation.get_border"><code class="name flex">
+<span>def <span class="ident">get_border</span></span>(<span>border: List[int], densities: List[float], ngh: List[List[int]], ngh_inner_all: List[int]) ‑> List[int]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns a list of neighboring points that are on the border and have non-zero densities.</p>
+<p>:param border (list): List of points on the border.
+:param densities (list): List of densities for each point.
+:param ngh (list): List of neighboring points for each point.
+:param ngh_inner_all (list): List of neighboring points that are not on the border.
+:return new_border (list): List of neighboring points on the border with non-zero densities.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_border(border: List[int], densities: List[float], ngh: List[List[int]], ngh_inner_all: List[int]) -&gt; List[int]:
+    &#34;&#34;&#34;Returns a list of neighboring points that are on the border and have non-zero densities.
+
+    :param border (list): List of points on the border.
+    :param densities (list): List of densities for each point.
+    :param ngh (list): List of neighboring points for each point.
+    :param ngh_inner_all (list): List of neighboring points that are not on the border.
+    :return new_border (list): List of neighboring points on the border with non-zero densities.
+    &#34;&#34;&#34;
+    new_border = []
+    for j in border:
+        if densities[j] &gt; 0:
+            new_border += [jj for jj in ngh[j] if jj not in ngh_inner_all and densities[jj] &gt; 0]
+    return new_border</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.qc.validate_interpolation.get_core_vertices"><code class="name flex">
+<span>def <span class="ident">get_core_vertices</span></span>(<span>ngh: List[List[int]], densities: List[float], max_depth: int, core_depth: int, i: int) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the core vertices, inner vertices, and border vertices based on the given parameters.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>ngh</code></strong> :&ensp;<code>list</code></dt>
+<dd>List of neighbors for each vertex.</dd>
+<dt><strong><code>densities</code></strong> :&ensp;<code>list</code></dt>
+<dd>List of densities for each vertex.</dd>
+<dt><strong><code>max_depth</code></strong> :&ensp;<code>int</code></dt>
+<dd>Maximum depth to iterate.</dd>
+<dt><strong><code>core_depth</code></strong> :&ensp;<code>int</code></dt>
+<dd>Depth at which to consider vertices as core vertices.</dd>
+<dt><strong><code>i</code></strong> :&ensp;<code>int</code></dt>
+<dd>Index of the vertex to start from.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>tuple</code></dt>
+<dd>A tuple containing three numpy arrays:
+- ngh_inner_core: Array of core vertices.
+- ngh_inner_all: Array of inner vertices.
+- border: Array of border vertices.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_core_vertices(
+        ngh: List[List[int]], 
+        densities: List[float], 
+        max_depth: int, 
+        core_depth: int, 
+        i: int
+        )-&gt;tuple:
+    &#34;&#34;&#34;Get the core vertices, inner vertices, and border vertices based on the given parameters.
+
+    Args:
+        ngh (list): List of neighbors for each vertex.
+        densities (list): List of densities for each vertex.
+        max_depth (int): Maximum depth to iterate.
+        core_depth (int): Depth at which to consider vertices as core vertices.
+        i (int): Index of the vertex to start from.
+
+    Returns:
+        tuple: A tuple containing three numpy arrays:
+            - ngh_inner_core: Array of core vertices.
+            - ngh_inner_all: Array of inner vertices.
+            - border: Array of border vertices.
+    &#34;&#34;&#34;
+    ngh_inner_core = list([i])
+    ngh_inner_all = list([i])
+    border = list(ngh[i])
+
+    for depth in range(max_depth):
+        new_border = get_border(border, densities, ngh, ngh_inner_all)
+
+        if depth &lt; core_depth:
+            ngh_inner_core += border
+
+        if depth &lt; max_depth:
+            ngh_inner_all += border 
+        
+        border = new_border
+
+        print(&#39;\t\t&#39;, depth, core_depth, max_depth, len(ngh_inner_core), len(ngh_inner_all), len(border))
+
+    border = get_border(border, densities, ngh, ngh_inner_all)
+    return np.array(ngh_inner_core), np.array(ngh_inner_all), np.array(border)</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.qc.validate_interpolation.interpolate_over_sphere"><code class="name flex">
+<span>def <span class="ident">interpolate_over_sphere</span></span>(<span>densities: list, coords_all: numpy.ndarray, idx_inner_core: numpy.ndarray, idx: numpy.ndarray, border: numpy.ndarray, i: int) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Description of the function.</p>
+<p>:param densities: List of densities.
+:param coords_all: Array of coordinates.
+:param idx_inner_core: Array of inner core indices.
+:param idx: Array of indices.
+:param border: Array of border indices.
+:param i: Index of the vertex.
+:return: A tuple containing the results.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def interpolate_over_sphere(
+            densities: list,
+            coords_all: np.ndarray,
+            idx_inner_core: np.ndarray,
+            idx: np.ndarray,
+            border: np.ndarray,
+            i: int
+        ) -&gt; tuple:
+    &#34;&#34;&#34;Description of the function.
+
+    :param densities: List of densities.
+    :param coords_all: Array of coordinates.
+    :param idx_inner_core: Array of inner core indices.
+    :param idx: Array of indices.
+    :param border: Array of border indices.
+    :param i: Index of the vertex.
+    :return: A tuple containing the results.
+    &#34;&#34;&#34;
+    spherical_coords = spherical_np(coords_all)
+
+    spherical_coords += np.random.normal(0,.000001,spherical_coords.shape) 
+
+    coords_src = spherical_coords[border]
+    coords = spherical_coords[np.concatenate([idx,border])]
+
+    lats, lons = coords[:,1]-np.pi/2, coords[:,2]
+    lats_src, lons_src = coords_src[:,1]-np.pi/2, coords_src[:,2]
+
+    mesh = stripy.sTriangulation(lons_src, lats_src, permute=True)
+
+    # interpolate over the sphere
+    try :
+        interp_val, interp_type = mesh.interpolate(lons,lats, zdata=densities[border], order=1)
+    except ValueError :
+        print(&#39;Error in stripy interpolation&#39;)
+        return np.nan
+    
+    estimated = np.mean(interp_val[0:len(idx_inner_core)])
+    ground_truth = np.mean(densities[idx][0:len(idx_inner_core)])
+    error = 100. * np.abs(estimated - ground_truth ) /  ground_truth
+
+    return  error, estimated, ground_truth</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.qc.validate_interpolation.iterate_over_vertices"><code class="name flex">
+<span>def <span class="ident">iterate_over_vertices</span></span>(<span>valid_idx_range: List[int], idx: numpy.ndarray, coords: numpy.ndarray, cortex_coords: numpy.ndarray, faces: numpy.ndarray, densities: numpy.ndarray, ligand: str, resolution: float, max_depth: int = 5, n_samples: int = 10000) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Iterate over vertices and perform calculations.</p>
+<p>:param valid_idx_range: valid index range
+:param idx: index
+:param coords: coordinates
+:param cortex_coords: cortex coordinates
+:param faces: faces
+:param densities: densities
+:param ligand: ligand
+:param resolution: resolution
+:param max_depth: maximum depth
+:param n_samples: number of samples
+:return: dataframe</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def iterate_over_vertices(
+        valid_idx_range: List[int],
+        idx: np.ndarray,
+        coords: np.ndarray,
+        cortex_coords: np.ndarray,
+        faces: np.ndarray,
+        densities: np.ndarray,
+        ligand: str,
+        resolution: float,
+        max_depth: int = 5,
+        n_samples: int = 10000
+        ) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Iterate over vertices and perform calculations.
+    
+    :param valid_idx_range: valid index range
+    :param idx: index
+    :param coords: coordinates
+    :param cortex_coords: cortex coordinates
+    :param faces: faces
+    :param densities: densities
+    :param ligand: ligand
+    :param resolution: resolution
+    :param max_depth: maximum depth
+    :param n_samples: number of samples
+    :return: dataframe
+    &#34;&#34;&#34;
+    resolution=float(resolution)
+    densities = densities.reshape(-1,)
+    min_densities = 0.01 * np.mean(densities[densities &gt; 0]) 
+    print(&#39;Min Densities:&#39;, min_densities)
+
+    output_df_list = []
+    counter = 0 
+    for i, (x,y,z) in zip(valid_idx_range, coords[valid_idx_range,:]): 
+        core_depth = np.random.uniform(resolution/2,resolution) 
+        int_depth = np.random.uniform(core_depth,resolution*2)
+        max_depth = np.random.uniform(int_depth,resolution*3)
+        if i % 10 == 0 : 
+            print(100*i/idx.shape[0],end=&#39;\r&#39;)
+
+        # calculate neighbours
+        core, inner_all, border, perimeter_dist = calculate_neighbours(i, coords, cortex_coords, core_depth, int_depth, max_depth)
+    
+        if True in [ len(idx_list) &lt; 4 for idx_list in [core, inner_all, border] ] : 
+            continue
+
+        core = core[densities[core] &gt; min_densities] 
+        inner_all = inner_all[densities[inner_all]&gt; min_densities] 
+
+        n = len(border)
+        border = border[densities[border]&gt; min_densities] 
+
+        if len(core) &lt; 1 or len(border) &lt; 4 : 
+            continue 
+        else : 
+            counter += 1
+        
+        # interpolate small patch
+        error, estimated, ground_truth = interpolate_over_sphere(densities, coords,   core, inner_all, border, i)
+        sd = np.std( densities[ np.concatenate([inner_all, border]) ].astype(np.float128) )
+        if np.isinf(sd) :
+            print(sd)
+            print(densities[ np.concatenate([inner_all, border])] )
+            exit(1)
+
+        #print(&#39;Error:&#39;, np.round(error,2), &#39;Est&#39;, estimated,&#39;True&#39;, ground_truth, &#39;sd&#39;, sd)
+        
+        total_area=len(core) 
+        
+        tdf= pd.DataFrame({&#39;Ligand&#39;:[ligand],
+                                            &#39;Distance&#39;:[perimeter_dist],
+                                            &#39;TotalArea&#39;:[total_area],
+                                            &#39;Error&#39;:[error],
+                                            &#39;n&#39;:[n],
+                                            &#39;StdDev&#39;:[sd],
+                                            &#39;Estimated&#39;:[estimated],
+                                            &#39;TrueDensity&#39;:[ground_truth] } ) 
+        output_df_list.append(tdf)
+
+        if counter &gt;= n_samples : 
+            break
+    output_df = pd.concat(output_df_list)
+
+    return output_df</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.qc.validate_interpolation.plot_r2"><code class="name flex">
+<span>def <span class="ident">plot_r2</span></span>(<span>df: pandas.core.frame.DataFrame, out_fn: str) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Plot r2 values.</p>
+<p>:param df: dataframe
+:param out_fn: output filename
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def plot_r2(df:pd.DataFrame, out_fn:str)-&gt;None:
+    &#34;&#34;&#34;Plot r2 values.
+    
+    :param df: dataframe
+    :param out_fn: output filename
+    :return: None
+    &#34;&#34;&#34;
+    df.dropna(inplace=True)
+    plt.figure(figsize=(12,12)) 
+    nligands = len(np.unique(df[&#39;Ligand&#39;]))
+    col_wrap=4 if nligands &gt; 4 else nligands
+    sns.set(rc={&#39;figure.figsize&#39;:(12,12)})
+    df[&#39;True Density&#39;] = df[&#39;TrueDensity&#39;]
+    g = sns.lmplot(y=&#39;Estimated&#39;, x=&#39;True Density&#39;, data=df, hue=&#39;Ligand&#39;, col=&#39;Ligand&#39;, 
+                   scatter_kws={&#39;alpha&#39;:0.15}, col_wrap=col_wrap, sharex=False, sharey=False, fit_reg=True, legend=True)
+        
+    def annotate(
+            data:pd.DataFrame, 
+            **kws: dict 
+            )-&gt;None:
+        &#34;&#34;&#34;Annotate the plot with r2 and p-value.&#34;&#34;&#34;
+        import scipy as sp
+        r, p = sp.stats.pearsonr(data[&#39;True Density&#39;], data[&#39;Estimated&#39;])
+        ax = plt.gca()
+        ax.text(.05, .8, &#39;r={:.2f}, p&lt;{:.3f}&#39;.format(r, max(0.001,p)), transform=ax.transAxes)#{:.2g}
+        
+    g.map_dataframe(annotate)
+
+    print(&#39;Writing&#39;,out_fn)
+    plt.savefig(out_fn)</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.qc.validate_interpolation.plot_validation"><code class="name flex">
+<span>def <span class="ident">plot_validation</span></span>(<span>filename: str = 'validation.csv', out_fn: str = 'validation.png', area_dict: dict = None) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Plot true vs interpolated values for validation.</p>
+<p>:param filename: filename
+:param out_fn: output filename
+:param area_dict: area dictionary
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def plot_validation(
+        filename:str=&#39;validation.csv&#39;,
+        out_fn:str=&#39;validation.png&#39;,
+        area_dict:dict=None)-&gt;None:
+    &#34;&#34;&#34;Plot true vs interpolated values for validation.
+
+    :param filename: filename
+    :param out_fn: output filename
+    :param area_dict: area dictionary
+    :return: None
+    &#34;&#34;&#34;
+    df = pd.read_csv(filename)
+    df_factor = df.copy()
+
+    df_factor.rename(columns = {&#39;Error&#39;:&#39;Error (%)&#39;, &#39;Distance&#39;:&#39;Distance of interpolated vertices (mm)&#39;, &#39;TotalArea&#39;:&#39;N. Vertices&#39;, &#39;StdDev&#39;:&#39;Receptor Density (Std. Dev.)&#39;, &#39;TrueDensity&#39;:&#39;Receptor Density (Mean)&#39;}, inplace = True)
+    factors_out_fn = re.sub(&#39;.png&#39;,&#39;_factors.png&#39;,out_fn)
+    out_regr_fn = re.sub(&#39;.png&#39;,&#39;_r2.png&#39;,out_fn)
+    plt.figure(figsize=(12,12))
+    plt.subplot(2,2,1)
+    sns.scatterplot(y =&#34;Error (%)&#34;, x =&#39;Distance of interpolated vertices (mm)&#39;, data=df_factor)
+
+    plt.subplot(2,2,2)
+    sns.scatterplot(y =&#34;Error (%)&#34;, x =&#39;N. Vertices&#39;, data=df_factor)
+
+    plt.subplot(2,2,3)
+    sns.scatterplot(y =&#34;Error (%)&#34;, x =&#39;Receptor Density (Std. Dev.)&#39;, data=df_factor)
+
+    plt.subplot(2,2,4)
+    sns.scatterplot(y =&#34;Error (%)&#34;, x =&#39;Receptor Density (Mean)&#39;, data=df_factor)
+
+    plt.savefig(factors_out_fn)
+
+
+    df[&#39;Error&#39;].loc[df[&#39;Error&#39;] &gt; 100 ] = 100
+    plt.figure(figsize=(9,9))
+    plt.title(&#39;Histogram of interpolation error when estimating receptor densities&#39;)
+    plt.hist(df[&#39;Error&#39;].values, bins=100)
+    plt.gca().spines[&#39;right&#39;].set_visible(False)
+    plt.gca().spines[&#39;top&#39;].set_visible(False)
+    plt.ylabel(&#39;Count&#39;)
+    plt.xlabel(&#39;Interpolation Error % (|Predicted-True Density|/True Density)&#39;)
+
+    xticks = np.arange(0,105,5).astype(int)
+    xticklabels = xticks.astype(str)
+    xticklabels[-1] = xticklabels[-1] + &#39;+&#39;
+    plt.gca().set_xticks(xticks)
+    plt.gca().set_xticklabels(xticklabels)
+
+    n5 = np.sum( df[&#39;Error&#39;] &lt;= 5 )
+    n10 = np.sum( df[&#39;Error&#39;] &lt;= 10 )
+
+    print(&#39;Percent below 5% error:&#39;, np.round(100. * n5 / df.shape[0],2))
+    print(&#39;Percent below 10% error:&#39;, np.round(100. * n10 / df.shape[0],2) )
+    
+    plt.savefig(out_fn)
+
+    plt.figure(figsize=(12,12)) 
+    sns.set(rc={&#39;figure.figsize&#39;:(18,18)})
+    sns.set(font_scale=2)
+    sns.lmplot(x=&#39;Estimated&#39;, y=&#39;TrueDensity&#39;, data=df, hue=&#39;Ligand&#39;, col=&#39;Ligand&#39;, col_wrap=4)
+
+    plt.savefig(out_regr_fn)</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.qc.validate_interpolation.validate_interpolation"><code class="name flex">
+<span>def <span class="ident">validate_interpolation</span></span>(<span>ligand_densities_fn: str, sphere_mesh_fn: str, cortex_mesh_fn: str, output_dir: str, resolution: float, ligand: str = 'flum', n_samples: int = 10000, max_depth: int = 5, clobber: bool = False) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Validate interpolation.</p>
+<p>:param ligand_densities_fn: ligand densities filename
+:param sphere_mesh_fn: sphere mesh filename
+:param cortex_mesh_fn: cortex mesh filename
+:param output_dir: output directory
+:param resolution: resolution
+:param ligand: ligand
+:param n_samples: number of samples
+:param max_depth: maximum depth
+:param clobber: clobber
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def validate_interpolation(
+        ligand_densities_fn: str,
+        sphere_mesh_fn: str,
+        cortex_mesh_fn: str,
+        output_dir: str,
+        resolution: float,
+        ligand: str = &#39;flum&#39;,
+        n_samples: int = 10000,
+        max_depth: int = 5,
+        clobber: bool = False
+        ) -&gt; None:
+    &#34;&#34;&#34;Validate interpolation.
+
+    :param ligand_densities_fn: ligand densities filename
+    :param sphere_mesh_fn: sphere mesh filename
+    :param cortex_mesh_fn: cortex mesh filename
+    :param output_dir: output directory
+    :param resolution: resolution
+    :param ligand: ligand
+    :param n_samples: number of samples
+    :param max_depth: maximum depth
+    :param clobber: clobber
+    :return: None
+    &#34;&#34;&#34;
+    output_filename = f&#39;{output_dir}/validate_interpolation_{ligand}.csv&#39;
+    if not os.path.exists(output_filename) or clobber : 
+        #load ligand densities
+        densities = pd.read_csv(ligand_densities_fn,header=None).values.astype(np.float16)
+
+        idx = densities &gt; 0.0
+        idx = idx.reshape(-1,)
+        
+        idx_range = np.arange(idx.shape[0]).astype(int)
+        idx_range = idx_range[idx]
+        
+        np.random.shuffle(idx_range)
+        
+        valid_idx_range = idx_range #[0:n_samples]
+
+        #load coords and neighbours
+        coords, faces = load_mesh_ext(sphere_mesh_fn)
+       
+        cortex_coords, faces = load_mesh_ext(cortex_mesh_fn)
+        assert densities.shape[0] == coords.shape[0], &#39;Error: densities does not equal coords&#39; 
+        output_df = iterate_over_vertices(valid_idx_range, idx,  coords, cortex_coords, faces, densities, ligand, resolution, n_samples=n_samples, max_depth=max_depth)
+
+        output_df.to_csv(output_filename)
+    
+    output_df = pd.read_csv(output_filename)
+
+    return output_df</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="brainbuilder.qc" href="index.html">brainbuilder.qc</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="brainbuilder.qc.validate_interpolation.calc_dist" href="#brainbuilder.qc.validate_interpolation.calc_dist">calc_dist</a></code></li>
+<li><code><a title="brainbuilder.qc.validate_interpolation.calculate_neighbours" href="#brainbuilder.qc.validate_interpolation.calculate_neighbours">calculate_neighbours</a></code></li>
+<li><code><a title="brainbuilder.qc.validate_interpolation.get_border" href="#brainbuilder.qc.validate_interpolation.get_border">get_border</a></code></li>
+<li><code><a title="brainbuilder.qc.validate_interpolation.get_core_vertices" href="#brainbuilder.qc.validate_interpolation.get_core_vertices">get_core_vertices</a></code></li>
+<li><code><a title="brainbuilder.qc.validate_interpolation.interpolate_over_sphere" href="#brainbuilder.qc.validate_interpolation.interpolate_over_sphere">interpolate_over_sphere</a></code></li>
+<li><code><a title="brainbuilder.qc.validate_interpolation.iterate_over_vertices" href="#brainbuilder.qc.validate_interpolation.iterate_over_vertices">iterate_over_vertices</a></code></li>
+<li><code><a title="brainbuilder.qc.validate_interpolation.plot_r2" href="#brainbuilder.qc.validate_interpolation.plot_r2">plot_r2</a></code></li>
+<li><code><a title="brainbuilder.qc.validate_interpolation.plot_validation" href="#brainbuilder.qc.validate_interpolation.plot_validation">plot_validation</a></code></li>
+<li><code><a title="brainbuilder.qc.validate_interpolation.validate_interpolation" href="#brainbuilder.qc.validate_interpolation.validate_interpolation">validate_interpolation</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

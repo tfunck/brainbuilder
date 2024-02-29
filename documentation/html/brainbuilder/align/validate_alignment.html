@@ -1,0 +1,890 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>brainbuilder.align.validate_alignment API documentation</title>
+<meta name="description" content="Validate alignment of histological sections to structural reference volume." />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>brainbuilder.align.validate_alignment</code></h1>
+</header>
+<section id="section-intro">
+<p>Validate alignment of histological sections to structural reference volume.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;Validate alignment of histological sections to structural reference volume.&#34;&#34;&#34;
+import os
+from typing import Callable
+
+import matplotlib.pyplot as plt
+import nibabel as nib
+import numpy as np
+import pandas as pd
+from brainbuilder.utils import utils
+from joblib import Parallel, delayed
+
+global ligand_receptor_dict
+ligand_receptor_dict = {
+    &#34;ampa&#34;: &#34;AMPA&#34;,
+    &#34;kain&#34;: &#34;Kainate&#34;,
+    &#34;mk80&#34;: &#34;NMDA&#34;,
+    &#34;ly34&#34;: &#34;mGluR2/3&#34;,
+    &#34;flum&#34;: &#34;GABA$_A$ Benz.&#34;,
+    &#34;cgp5&#34;: &#34;GABA$_B$&#34;,
+    &#34;musc&#34;: &#34;GABA$_A$ Agonist&#34;,
+    &#34;sr95&#34;: &#34;GABA$_A$ Antagonist&#34;,
+    &#34;pire&#34;: r&#34;Muscarinic M$_1$&#34;,
+    &#34;afdx&#34;: r&#34;Muscarinic M$_2$ (antagonist)&#34;,
+    &#34;damp&#34;: r&#34;Muscarinic M$_3$&#34;,
+    &#34;epib&#34;: r&#34;Nicotinic $\alpha_4\beta_2$&#34;,
+    &#34;oxot&#34;: r&#34;Muscarinic M$_2$ (oxot)&#34;,
+    &#34;praz&#34;: r&#34;$\alpha_1$&#34;,
+    &#34;uk14&#34;: r&#34;$\alpha_2$ (agonist)&#34;,
+    &#34;rx82&#34;: r&#34;$\alpha_2$ (antagonist)&#34;,
+    &#34;dpat&#34;: r&#34;5-HT$_{1A}$&#34;,
+    &#34;keta&#34;: r&#34;5HT$_2$&#34;,
+    &#34;sch2&#34;: r&#34;D$_1$&#34;,
+    &#34;dpmg&#34;: &#34;Adenosine 1&#34;,
+    &#34;cellbody&#34;: &#34;Cell Body&#34;,
+    &#34;myelin&#34;: &#34;Myelin&#34;,
+}
+
+
+def dice(x: float, y: float) -&gt; float:
+    &#34;&#34;&#34;Calculate the Dice coefficient between two binary arrays.
+
+    Args:
+        x (np.ndarray): Binary array.
+        y (np.ndarray): Binary array.
+
+    Returns:
+        float: Dice coefficient.
+    &#34;&#34;&#34;
+    num = np.sum((x == 1) &amp; (y == 1)) * 2
+    den = np.sum(x) + np.sum(y)
+    dice_score = num / den
+    return dice_score
+
+
+def modified_dice(x: float, y: float) -&gt; float:
+    &#34;&#34;&#34;Calculate the modified Dice coefficient between two binary arrays.
+
+    Args:
+        x (np.ndarray): Binary array.
+        y (np.ndarray): Binary array.
+
+    Returns:
+        float: Modified Dice coefficient.
+    &#34;&#34;&#34;
+    num = np.sum((x == 1) &amp; (y == 1))
+    den = np.sum(y)
+    dice_score = num / den
+    return dice_score
+
+
+def prepare_volume(vol: np.ndarray) -&gt; np.ndarray:
+    &#34;&#34;&#34;Prepare the volume by normalizing and rounding it.
+
+    :param vol (np.ndarray): Input volume.
+    :return np.ndarray: Prepared volume.
+    &#34;&#34;&#34;
+    vol = (vol - np.min(vol)) / (vol.max() - vol.min())
+    vol = np.round(vol).astype(int)
+    return vol
+
+
+def global_dice(
+    fx_vol: np.ndarray, mv_vol: np.ndarray, clobber: bool = False
+) -&gt; tuple[float, int]:
+    &#34;&#34;&#34;Calculate the global dice score between two volumes.
+
+    Args:
+        fx_vol (np.ndarray): Fixed volume.
+        mv_vol (np.ndarray): Moving volume.
+        clobber (bool, optional): Whether to clobber existing results. Defaults to False.
+
+    Returns:
+        Tuple[float, int]: Global dice score and sum of moving volume.
+    &#34;&#34;&#34;
+    fx_vol = prepare_volume(fx_vol)
+    mv_vol = prepare_volume(mv_vol)
+
+    dice_score = modified_dice(fx_vol, mv_vol)
+
+    return dice_score, np.sum(mv_vol)
+
+
+def local_metric(
+    fx_vol: np.ndarray, mv_vol: np.ndarray, metric: Callable, offset: int = 5
+) -&gt; np.ndarray:
+    &#34;&#34;&#34;Calculate the local metric between two volumes with kernel windows of size &lt;offset&gt;.
+
+    :param: fx_vol: np.ndarray
+    :param: mv_vol: np.ndarray
+    :param: metric: function
+    :param: offset: int
+    :return: local_dice_volume: np.ndarray
+    &#34;&#34;&#34;
+    fx_vol = prepare_volume(fx_vol)
+    mv_vol = prepare_volume(mv_vol)
+
+    local_dice_section = np.zeros(fx_vol.shape)
+
+    for y in range(fx_vol.shape[0]):
+        for x in range(fx_vol.shape[1]):
+            x0 = max(0, x - offset)
+            x1 = min(fx_vol.shape[1], x + offset)
+            y0 = max(0, y - offset)
+            y1 = min(fx_vol.shape[0], y + offset)
+
+            # if  mv_vol[y, x] &gt; mv_min: #only consider overlap in moving image
+            if mv_vol[y, x] &gt; 0:
+                fx_sub = fx_vol[y0:y1, x0:x1]
+                mv_sub = mv_vol[y0:y1, x0:x1]
+
+                m = metric(fx_sub, mv_sub)
+                m = m if not np.isnan(m) else 0
+
+                local_dice_section[y, x] = m
+
+    return local_dice_section
+
+
+def qc_low_dice_section(
+    row: pd.DataFrame,
+    slab: int,
+    y: int,
+    mri_vol: np.array,
+    mv_vol: np.array,
+    fx_vol: np.array,
+    qc_dir: str,
+) -&gt; None:
+    &#34;&#34;&#34;Perform quality control on low dice section.
+
+    :param row: The row.
+    :param slab: The slab.
+    :param y: The y-coordinate.
+    :param mri_vol: The MRI volume.
+    :param mv_vol: The moving volume.
+    :param fx_vol: The fixed volume.
+    :param qc_dir: The directory for quality control.
+    :return: None
+    &#34;&#34;&#34;
+    # Add your code here
+
+    temp_fn = f&#34;{qc_dir}/{slab}_{y}_example.png&#34;
+    if not os.path.exists(temp_fn):
+        plt.cla()
+        plt.clf()
+
+        fig, ax = plt.subplots(2, 1, figsize=(9, 9))  # , sharex=True, sharey=True)
+        plt.style.use(&#34;dark_background&#34;)
+        ax[0].set_axis_off()
+        ax[0].imshow(mv_vol)
+
+        ax[1].imshow(fx_vol)
+        ax[1].set_axis_off()
+        plt.tight_layout()
+
+        plt.savefig(temp_fn)
+        plt.cla()
+        plt.clf()
+
+
+def get_section_metric(
+    fx_fn: str, mv_fn: str, out_png: str, idx: int, verbose: bool = False
+) -&gt; None:
+    &#34;&#34;&#34;Calculate the section metric for given input files and parameters.
+
+    :param fx_fn: The filename of the fixed volume.
+    :param mv_fn: The filename of the moving volume.
+    :param out_png: The filename for the output PNG.
+    :param idx: The index.
+    :param verbose: Whether to enable verbose mode.
+    :return: None
+    &#34;&#34;&#34;
+    # Add your code here
+    img0 = nib.load(fx_fn)
+    fx_vol = prepare_volume(img0.get_fdata())
+    mv_vol = prepare_volume(nib.load(mv_fn).get_fdata())
+
+    # section_dice_mean, fx_sum = global_dice(fx_vol, mv_vol)
+    section_dice = local_metric(fx_vol, mv_vol, dice, offset=2)
+    section_dice_mean = np.mean(section_dice[mv_vol &gt; 0])
+
+    fx_sum = np.sum(fx_vol)
+
+    plt.cla()
+    plt.clf()
+    plt.title(f&#34;Dice: {section_dice_mean:.3f}&#34;)
+    plt.subplot(1, 3, 1)
+    plt.imshow(fx_vol)
+    plt.subplot(1, 3, 2)
+    plt.imshow(mv_vol)
+    plt.subplot(1, 3, 3)
+    dice_vol = np.zeros(fx_vol.shape)
+    dice_vol[(fx_vol &gt; 0) &amp; (mv_vol &gt; 0)] = 1
+    dice_vol[fx_vol * mv_vol &gt; 0] = 2
+    plt.imshow(mv_vol * fx_vol)
+    plt.savefig(out_png)
+
+    if verbose:
+        print(&#34;\tValidation: &#34;, out_png)
+
+    return section_dice_mean, fx_sum, idx
+
+
+def calculate_volume_accuracy(
+    sect_info: pd.DataFrame,
+    tfm_dir: str,
+    num_cores: int = 0,
+    clobber: bool = False,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Calculate the accuracy of the alignment of histological sections to the structural reference volume.
+
+    :param sect_info: pd.DataFrame
+    :param tfm_dir: str
+    :param num_cores: int
+    :param clobber: bool
+    :return: pd.DataFrame
+    &#34;&#34;&#34;
+    pd.DataFrame({})
+
+    num_cores = int(num_cores) if num_cores &gt; 0 else int(os.cpu_count() / 2)
+
+    to_do = []
+
+    for idx, (i, row) in enumerate(sect_info.iterrows()):
+        y = row[&#34;sample&#34;]
+        base = row[&#34;base&#34;]
+
+        cls_fn = row[&#34;2d_align_cls&#34;]
+        tfm_dir = os.path.dirname(cls_fn)
+
+        fx_fn = utils.gen_2d_fn(f&#34;{tfm_dir}/{base}_y-{y}&#34;, &#34;_fx&#34;)
+
+        out_png = f&#34;{tfm_dir}/{base}_y-{y}_dice.png&#34;
+
+        to_do.append((cls_fn, fx_fn, out_png, idx))
+
+    parrallel_results = Parallel(n_jobs=num_cores)(
+        delayed(get_section_metric)(fx_fn, cls_fn, out_png, idx, verbose=True)
+        for cls_fn, fx_fn, out_png, idx in to_do
+    )
+
+    sect_info[&#34;dice&#34;] = [0] * len(sect_info)
+
+    for dice, total, idx in parrallel_results:
+        sect_info[&#34;dice&#34;].iloc[idx] = dice
+
+    return sect_info
+
+
+def output_stats(in_df: pd.DataFrame) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Output stats for alignment accuracy.
+
+    :param in_df: pd.DataFrame
+    :return: pd.DataFrame
+    &#34;&#34;&#34;
+    out_df = pd.DataFrame({})
+    for (slab, resolution), temp_df in in_df.groupby([&#34;slab&#34;, &#34;resolution&#34;]):
+        w = temp_df[&#34;weight&#34;].values
+        acc = temp_df[&#34;align_dice&#34;].values
+        # print(w)
+        # print(acc)
+        w_norm = np.array(w) / np.sum(w)
+        total_accuracy = np.sum(w_norm * acc)
+        std_accuracy = np.sqrt(np.average((acc - total_accuracy) ** 2, weights=w_norm))
+        print(&#34;Alignment Accuracy&#34;)
+        print(np.round(total_accuracy, 3), &#34;+/-&#34;, np.round(std_accuracy, 3))
+        row = pd.DataFrame(
+            {
+                &#34;slab&#34;: [slab],
+                &#34;resolution&#34;: [resolution],
+                &#34;dice&#34;: [total_accuracy],
+                &#34;sd&#34;: [std_accuracy],
+            }
+        )
+        out_df = pd.concat([out_df, row])
+
+    all_total_accuracy = np.sum(
+        in_df[&#34;align_dice&#34;] * (in_df[&#34;weight&#34;] / in_df[&#34;weight&#34;].sum())
+    )
+    all_std_accuracy = np.sqrt(
+        np.average(
+            (in_df[&#34;align_dice&#34;] - all_total_accuracy) ** 2, weights=in_df[&#34;weight&#34;]
+        )
+    )
+    row = pd.DataFrame(
+        {
+            &#34;slab&#34;: [&#34;all&#34;],
+            &#34;resolution&#34;: [resolution],
+            &#34;dice&#34;: [all_total_accuracy],
+            &#34;sd&#34;: [all_std_accuracy],
+        }
+    )
+    out_df = pd.concat([out_df, row])
+
+    return out_df
+
+
+def validate_section_alignment(
+    sect_info: pd.DataFrame, qc_dir: str, clobber: bool = False
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Validate alignment of histological sections to structural reference volume.
+
+    :param sect_info: pd.DataFrame
+    :param qc_dir: str
+    :param clobber: bool
+    :return: pd.DataFrame
+    &#34;&#34;&#34;
+    print(&#34;\n\t\tValidate Alignment\n&#34;)
+
+    os.makedirs(qc_dir, exist_ok=True)
+    out_csv = f&#34;{qc_dir}/alignment_accuracy.csv&#34;
+
+    cls_newer_than_out_csv = False
+    if os.path.exists(out_csv):
+        cls_newer_than_out_csv = [
+            utils.newer_than(fn, out_csv) for fn in sect_info[&#34;2d_align_cls&#34;].values
+        ]
+
+        if True in cls_newer_than_out_csv or clobber:
+            clobber = True
+
+    out_df = calculate_volume_accuracy(sect_info, qc_dir, clobber=clobber)
+    out_df.to_csv(out_csv, index=True)
+
+    # plot
+    return out_df</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="brainbuilder.align.validate_alignment.calculate_volume_accuracy"><code class="name flex">
+<span>def <span class="ident">calculate_volume_accuracy</span></span>(<span>sect_info: pandas.core.frame.DataFrame, tfm_dir: str, num_cores: int = 0, clobber: bool = False) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Calculate the accuracy of the alignment of histological sections to the structural reference volume.</p>
+<p>:param sect_info: pd.DataFrame
+:param tfm_dir: str
+:param num_cores: int
+:param clobber: bool
+:return: pd.DataFrame</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def calculate_volume_accuracy(
+    sect_info: pd.DataFrame,
+    tfm_dir: str,
+    num_cores: int = 0,
+    clobber: bool = False,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Calculate the accuracy of the alignment of histological sections to the structural reference volume.
+
+    :param sect_info: pd.DataFrame
+    :param tfm_dir: str
+    :param num_cores: int
+    :param clobber: bool
+    :return: pd.DataFrame
+    &#34;&#34;&#34;
+    pd.DataFrame({})
+
+    num_cores = int(num_cores) if num_cores &gt; 0 else int(os.cpu_count() / 2)
+
+    to_do = []
+
+    for idx, (i, row) in enumerate(sect_info.iterrows()):
+        y = row[&#34;sample&#34;]
+        base = row[&#34;base&#34;]
+
+        cls_fn = row[&#34;2d_align_cls&#34;]
+        tfm_dir = os.path.dirname(cls_fn)
+
+        fx_fn = utils.gen_2d_fn(f&#34;{tfm_dir}/{base}_y-{y}&#34;, &#34;_fx&#34;)
+
+        out_png = f&#34;{tfm_dir}/{base}_y-{y}_dice.png&#34;
+
+        to_do.append((cls_fn, fx_fn, out_png, idx))
+
+    parrallel_results = Parallel(n_jobs=num_cores)(
+        delayed(get_section_metric)(fx_fn, cls_fn, out_png, idx, verbose=True)
+        for cls_fn, fx_fn, out_png, idx in to_do
+    )
+
+    sect_info[&#34;dice&#34;] = [0] * len(sect_info)
+
+    for dice, total, idx in parrallel_results:
+        sect_info[&#34;dice&#34;].iloc[idx] = dice
+
+    return sect_info</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.validate_alignment.dice"><code class="name flex">
+<span>def <span class="ident">dice</span></span>(<span>x: float, y: float) ‑> float</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Calculate the Dice coefficient between two binary arrays.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>x</code></strong> :&ensp;<code>np.ndarray</code></dt>
+<dd>Binary array.</dd>
+<dt><strong><code>y</code></strong> :&ensp;<code>np.ndarray</code></dt>
+<dd>Binary array.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>float</code></dt>
+<dd>Dice coefficient.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def dice(x: float, y: float) -&gt; float:
+    &#34;&#34;&#34;Calculate the Dice coefficient between two binary arrays.
+
+    Args:
+        x (np.ndarray): Binary array.
+        y (np.ndarray): Binary array.
+
+    Returns:
+        float: Dice coefficient.
+    &#34;&#34;&#34;
+    num = np.sum((x == 1) &amp; (y == 1)) * 2
+    den = np.sum(x) + np.sum(y)
+    dice_score = num / den
+    return dice_score</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.validate_alignment.get_section_metric"><code class="name flex">
+<span>def <span class="ident">get_section_metric</span></span>(<span>fx_fn: str, mv_fn: str, out_png: str, idx: int, verbose: bool = False) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Calculate the section metric for given input files and parameters.</p>
+<p>:param fx_fn: The filename of the fixed volume.
+:param mv_fn: The filename of the moving volume.
+:param out_png: The filename for the output PNG.
+:param idx: The index.
+:param verbose: Whether to enable verbose mode.
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_section_metric(
+    fx_fn: str, mv_fn: str, out_png: str, idx: int, verbose: bool = False
+) -&gt; None:
+    &#34;&#34;&#34;Calculate the section metric for given input files and parameters.
+
+    :param fx_fn: The filename of the fixed volume.
+    :param mv_fn: The filename of the moving volume.
+    :param out_png: The filename for the output PNG.
+    :param idx: The index.
+    :param verbose: Whether to enable verbose mode.
+    :return: None
+    &#34;&#34;&#34;
+    # Add your code here
+    img0 = nib.load(fx_fn)
+    fx_vol = prepare_volume(img0.get_fdata())
+    mv_vol = prepare_volume(nib.load(mv_fn).get_fdata())
+
+    # section_dice_mean, fx_sum = global_dice(fx_vol, mv_vol)
+    section_dice = local_metric(fx_vol, mv_vol, dice, offset=2)
+    section_dice_mean = np.mean(section_dice[mv_vol &gt; 0])
+
+    fx_sum = np.sum(fx_vol)
+
+    plt.cla()
+    plt.clf()
+    plt.title(f&#34;Dice: {section_dice_mean:.3f}&#34;)
+    plt.subplot(1, 3, 1)
+    plt.imshow(fx_vol)
+    plt.subplot(1, 3, 2)
+    plt.imshow(mv_vol)
+    plt.subplot(1, 3, 3)
+    dice_vol = np.zeros(fx_vol.shape)
+    dice_vol[(fx_vol &gt; 0) &amp; (mv_vol &gt; 0)] = 1
+    dice_vol[fx_vol * mv_vol &gt; 0] = 2
+    plt.imshow(mv_vol * fx_vol)
+    plt.savefig(out_png)
+
+    if verbose:
+        print(&#34;\tValidation: &#34;, out_png)
+
+    return section_dice_mean, fx_sum, idx</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.validate_alignment.global_dice"><code class="name flex">
+<span>def <span class="ident">global_dice</span></span>(<span>fx_vol: numpy.ndarray, mv_vol: numpy.ndarray, clobber: bool = False) ‑> tuple[float, int]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Calculate the global dice score between two volumes.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>fx_vol</code></strong> :&ensp;<code>np.ndarray</code></dt>
+<dd>Fixed volume.</dd>
+<dt><strong><code>mv_vol</code></strong> :&ensp;<code>np.ndarray</code></dt>
+<dd>Moving volume.</dd>
+<dt><strong><code>clobber</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>Whether to clobber existing results. Defaults to False.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>Tuple[float, int]</code></dt>
+<dd>Global dice score and sum of moving volume.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def global_dice(
+    fx_vol: np.ndarray, mv_vol: np.ndarray, clobber: bool = False
+) -&gt; tuple[float, int]:
+    &#34;&#34;&#34;Calculate the global dice score between two volumes.
+
+    Args:
+        fx_vol (np.ndarray): Fixed volume.
+        mv_vol (np.ndarray): Moving volume.
+        clobber (bool, optional): Whether to clobber existing results. Defaults to False.
+
+    Returns:
+        Tuple[float, int]: Global dice score and sum of moving volume.
+    &#34;&#34;&#34;
+    fx_vol = prepare_volume(fx_vol)
+    mv_vol = prepare_volume(mv_vol)
+
+    dice_score = modified_dice(fx_vol, mv_vol)
+
+    return dice_score, np.sum(mv_vol)</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.validate_alignment.local_metric"><code class="name flex">
+<span>def <span class="ident">local_metric</span></span>(<span>fx_vol: numpy.ndarray, mv_vol: numpy.ndarray, metric: Callable, offset: int = 5) ‑> numpy.ndarray</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Calculate the local metric between two volumes with kernel windows of size <offset>.</p>
+<p>:param: fx_vol: np.ndarray
+:param: mv_vol: np.ndarray
+:param: metric: function
+:param: offset: int
+:return: local_dice_volume: np.ndarray</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def local_metric(
+    fx_vol: np.ndarray, mv_vol: np.ndarray, metric: Callable, offset: int = 5
+) -&gt; np.ndarray:
+    &#34;&#34;&#34;Calculate the local metric between two volumes with kernel windows of size &lt;offset&gt;.
+
+    :param: fx_vol: np.ndarray
+    :param: mv_vol: np.ndarray
+    :param: metric: function
+    :param: offset: int
+    :return: local_dice_volume: np.ndarray
+    &#34;&#34;&#34;
+    fx_vol = prepare_volume(fx_vol)
+    mv_vol = prepare_volume(mv_vol)
+
+    local_dice_section = np.zeros(fx_vol.shape)
+
+    for y in range(fx_vol.shape[0]):
+        for x in range(fx_vol.shape[1]):
+            x0 = max(0, x - offset)
+            x1 = min(fx_vol.shape[1], x + offset)
+            y0 = max(0, y - offset)
+            y1 = min(fx_vol.shape[0], y + offset)
+
+            # if  mv_vol[y, x] &gt; mv_min: #only consider overlap in moving image
+            if mv_vol[y, x] &gt; 0:
+                fx_sub = fx_vol[y0:y1, x0:x1]
+                mv_sub = mv_vol[y0:y1, x0:x1]
+
+                m = metric(fx_sub, mv_sub)
+                m = m if not np.isnan(m) else 0
+
+                local_dice_section[y, x] = m
+
+    return local_dice_section</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.validate_alignment.modified_dice"><code class="name flex">
+<span>def <span class="ident">modified_dice</span></span>(<span>x: float, y: float) ‑> float</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Calculate the modified Dice coefficient between two binary arrays.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>x</code></strong> :&ensp;<code>np.ndarray</code></dt>
+<dd>Binary array.</dd>
+<dt><strong><code>y</code></strong> :&ensp;<code>np.ndarray</code></dt>
+<dd>Binary array.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>float</code></dt>
+<dd>Modified Dice coefficient.</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def modified_dice(x: float, y: float) -&gt; float:
+    &#34;&#34;&#34;Calculate the modified Dice coefficient between two binary arrays.
+
+    Args:
+        x (np.ndarray): Binary array.
+        y (np.ndarray): Binary array.
+
+    Returns:
+        float: Modified Dice coefficient.
+    &#34;&#34;&#34;
+    num = np.sum((x == 1) &amp; (y == 1))
+    den = np.sum(y)
+    dice_score = num / den
+    return dice_score</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.validate_alignment.output_stats"><code class="name flex">
+<span>def <span class="ident">output_stats</span></span>(<span>in_df: pandas.core.frame.DataFrame) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Output stats for alignment accuracy.</p>
+<p>:param in_df: pd.DataFrame
+:return: pd.DataFrame</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def output_stats(in_df: pd.DataFrame) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Output stats for alignment accuracy.
+
+    :param in_df: pd.DataFrame
+    :return: pd.DataFrame
+    &#34;&#34;&#34;
+    out_df = pd.DataFrame({})
+    for (slab, resolution), temp_df in in_df.groupby([&#34;slab&#34;, &#34;resolution&#34;]):
+        w = temp_df[&#34;weight&#34;].values
+        acc = temp_df[&#34;align_dice&#34;].values
+        # print(w)
+        # print(acc)
+        w_norm = np.array(w) / np.sum(w)
+        total_accuracy = np.sum(w_norm * acc)
+        std_accuracy = np.sqrt(np.average((acc - total_accuracy) ** 2, weights=w_norm))
+        print(&#34;Alignment Accuracy&#34;)
+        print(np.round(total_accuracy, 3), &#34;+/-&#34;, np.round(std_accuracy, 3))
+        row = pd.DataFrame(
+            {
+                &#34;slab&#34;: [slab],
+                &#34;resolution&#34;: [resolution],
+                &#34;dice&#34;: [total_accuracy],
+                &#34;sd&#34;: [std_accuracy],
+            }
+        )
+        out_df = pd.concat([out_df, row])
+
+    all_total_accuracy = np.sum(
+        in_df[&#34;align_dice&#34;] * (in_df[&#34;weight&#34;] / in_df[&#34;weight&#34;].sum())
+    )
+    all_std_accuracy = np.sqrt(
+        np.average(
+            (in_df[&#34;align_dice&#34;] - all_total_accuracy) ** 2, weights=in_df[&#34;weight&#34;]
+        )
+    )
+    row = pd.DataFrame(
+        {
+            &#34;slab&#34;: [&#34;all&#34;],
+            &#34;resolution&#34;: [resolution],
+            &#34;dice&#34;: [all_total_accuracy],
+            &#34;sd&#34;: [all_std_accuracy],
+        }
+    )
+    out_df = pd.concat([out_df, row])
+
+    return out_df</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.validate_alignment.prepare_volume"><code class="name flex">
+<span>def <span class="ident">prepare_volume</span></span>(<span>vol: numpy.ndarray) ‑> numpy.ndarray</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Prepare the volume by normalizing and rounding it.</p>
+<p>:param vol (np.ndarray): Input volume.
+:return np.ndarray: Prepared volume.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def prepare_volume(vol: np.ndarray) -&gt; np.ndarray:
+    &#34;&#34;&#34;Prepare the volume by normalizing and rounding it.
+
+    :param vol (np.ndarray): Input volume.
+    :return np.ndarray: Prepared volume.
+    &#34;&#34;&#34;
+    vol = (vol - np.min(vol)) / (vol.max() - vol.min())
+    vol = np.round(vol).astype(int)
+    return vol</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.validate_alignment.qc_low_dice_section"><code class="name flex">
+<span>def <span class="ident">qc_low_dice_section</span></span>(<span>row: pandas.core.frame.DataFrame, slab: int, y: int, mri_vol: <built-in function array>, mv_vol: <built-in function array>, fx_vol: <built-in function array>, qc_dir: str) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Perform quality control on low dice section.</p>
+<p>:param row: The row.
+:param slab: The slab.
+:param y: The y-coordinate.
+:param mri_vol: The MRI volume.
+:param mv_vol: The moving volume.
+:param fx_vol: The fixed volume.
+:param qc_dir: The directory for quality control.
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def qc_low_dice_section(
+    row: pd.DataFrame,
+    slab: int,
+    y: int,
+    mri_vol: np.array,
+    mv_vol: np.array,
+    fx_vol: np.array,
+    qc_dir: str,
+) -&gt; None:
+    &#34;&#34;&#34;Perform quality control on low dice section.
+
+    :param row: The row.
+    :param slab: The slab.
+    :param y: The y-coordinate.
+    :param mri_vol: The MRI volume.
+    :param mv_vol: The moving volume.
+    :param fx_vol: The fixed volume.
+    :param qc_dir: The directory for quality control.
+    :return: None
+    &#34;&#34;&#34;
+    # Add your code here
+
+    temp_fn = f&#34;{qc_dir}/{slab}_{y}_example.png&#34;
+    if not os.path.exists(temp_fn):
+        plt.cla()
+        plt.clf()
+
+        fig, ax = plt.subplots(2, 1, figsize=(9, 9))  # , sharex=True, sharey=True)
+        plt.style.use(&#34;dark_background&#34;)
+        ax[0].set_axis_off()
+        ax[0].imshow(mv_vol)
+
+        ax[1].imshow(fx_vol)
+        ax[1].set_axis_off()
+        plt.tight_layout()
+
+        plt.savefig(temp_fn)
+        plt.cla()
+        plt.clf()</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.validate_alignment.validate_section_alignment"><code class="name flex">
+<span>def <span class="ident">validate_section_alignment</span></span>(<span>sect_info: pandas.core.frame.DataFrame, qc_dir: str, clobber: bool = False) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Validate alignment of histological sections to structural reference volume.</p>
+<p>:param sect_info: pd.DataFrame
+:param qc_dir: str
+:param clobber: bool
+:return: pd.DataFrame</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def validate_section_alignment(
+    sect_info: pd.DataFrame, qc_dir: str, clobber: bool = False
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Validate alignment of histological sections to structural reference volume.
+
+    :param sect_info: pd.DataFrame
+    :param qc_dir: str
+    :param clobber: bool
+    :return: pd.DataFrame
+    &#34;&#34;&#34;
+    print(&#34;\n\t\tValidate Alignment\n&#34;)
+
+    os.makedirs(qc_dir, exist_ok=True)
+    out_csv = f&#34;{qc_dir}/alignment_accuracy.csv&#34;
+
+    cls_newer_than_out_csv = False
+    if os.path.exists(out_csv):
+        cls_newer_than_out_csv = [
+            utils.newer_than(fn, out_csv) for fn in sect_info[&#34;2d_align_cls&#34;].values
+        ]
+
+        if True in cls_newer_than_out_csv or clobber:
+            clobber = True
+
+    out_df = calculate_volume_accuracy(sect_info, qc_dir, clobber=clobber)
+    out_df.to_csv(out_csv, index=True)
+
+    # plot
+    return out_df</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="brainbuilder.align" href="index.html">brainbuilder.align</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="brainbuilder.align.validate_alignment.calculate_volume_accuracy" href="#brainbuilder.align.validate_alignment.calculate_volume_accuracy">calculate_volume_accuracy</a></code></li>
+<li><code><a title="brainbuilder.align.validate_alignment.dice" href="#brainbuilder.align.validate_alignment.dice">dice</a></code></li>
+<li><code><a title="brainbuilder.align.validate_alignment.get_section_metric" href="#brainbuilder.align.validate_alignment.get_section_metric">get_section_metric</a></code></li>
+<li><code><a title="brainbuilder.align.validate_alignment.global_dice" href="#brainbuilder.align.validate_alignment.global_dice">global_dice</a></code></li>
+<li><code><a title="brainbuilder.align.validate_alignment.local_metric" href="#brainbuilder.align.validate_alignment.local_metric">local_metric</a></code></li>
+<li><code><a title="brainbuilder.align.validate_alignment.modified_dice" href="#brainbuilder.align.validate_alignment.modified_dice">modified_dice</a></code></li>
+<li><code><a title="brainbuilder.align.validate_alignment.output_stats" href="#brainbuilder.align.validate_alignment.output_stats">output_stats</a></code></li>
+<li><code><a title="brainbuilder.align.validate_alignment.prepare_volume" href="#brainbuilder.align.validate_alignment.prepare_volume">prepare_volume</a></code></li>
+<li><code><a title="brainbuilder.align.validate_alignment.qc_low_dice_section" href="#brainbuilder.align.validate_alignment.qc_low_dice_section">qc_low_dice_section</a></code></li>
+<li><code><a title="brainbuilder.align.validate_alignment.validate_section_alignment" href="#brainbuilder.align.validate_alignment.validate_section_alignment">validate_section_alignment</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

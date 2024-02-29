@@ -1,0 +1,1336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>brainbuilder.interpsections API documentation</title>
+<meta name="description" content="Main function for performing interpolation between acquired 2D sections." />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>brainbuilder.interpsections</code></h1>
+</header>
+<section id="section-intro">
+<p>Main function for performing interpolation between acquired 2D sections.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;Main function for performing interpolation between acquired 2D sections.&#34;&#34;&#34;
+import os
+import re
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+from brainbuilder.interp.batch_correction import apply_batch_correction
+from brainbuilder.interp.prepare_surfaces import prepare_surfaces
+from brainbuilder.interp.surfinterp import (
+    create_final_reconstructed_volume,
+    generate_surface_profiles,
+    write_raw_profiles_to_volume,
+)
+from brainbuilder.utils import utils
+from brainbuilder.utils.mesh_utils import smooth_surface_profiles
+
+
+def plot_paired_values(
+    paired_values: np.array, mid_values: np.array, png_fn: str
+) -&gt; None:
+    &#34;&#34;&#34;Plot the paired values for the batch correction step.
+
+    :param paired_values: dataframe containing the paired values
+    :param mid_values: array containing the values at the mid depth
+    :param png_fn: filename to save the plot
+    :return: None
+    &#34;&#34;&#34;
+    plt.cla()
+    plt.clf()
+    plt.figure(figsize=(10, 10))
+    for i, row in paired_values.iterrows():
+        curr_idx = row[&#34;curr_idx&#34;].astype(int)
+        next_idx = row[&#34;next_idx&#34;].astype(int)
+        curr_values = mid_values[curr_idx]
+        next_values = mid_values[next_idx]
+
+        x = [row[&#34;curr_label&#34;], row[&#34;next_label&#34;]]
+        y = [curr_values, next_values]
+        plt.scatter(x, y, c=&#34;r&#34;)
+        plt.plot(x, y, c=&#34;b&#34;, alpha=0.3)
+    print(f&#34;Saving {png_fn}&#34;)
+    plt.savefig(png_fn)
+
+
+def resample_struct_reference_volume(
+    orig_struct_vol_fn: str, resolution: float, output_dir: str, clobber: bool = False
+) -&gt; str:
+    &#34;&#34;&#34;Resample the structural reference volume to the desired resolution.
+
+    :param orig_struct_vol_fn: path to the original structural reference volume
+    :param hemisphere: hemisphere
+    :param resolution: resolution of the volume
+    :param output_dir: path to output directory
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: path to the resampled structural reference volume
+    &#34;&#34;&#34;
+    base_name = re.sub(
+        &#34;.nii&#34;, f&#34;_{resolution}mm.nii&#34;, os.path.basename(orig_struct_vol_fn)
+    )
+    struct_vol_rsl_fn = f&#34;{output_dir}/{base_name}&#34;
+
+    if not os.path.exists(struct_vol_rsl_fn) or clobber:
+        utils.resample_to_resolution(
+            orig_struct_vol_fn, [resolution] * 3, struct_vol_rsl_fn
+        )
+
+    return struct_vol_rsl_fn
+
+
+def volumes_to_surface_profiles(
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    resolution: float,
+    output_dir: str,
+    surf_dir: str,
+    ref_vol_fn: str,
+    gm_surf_fn: str,
+    wm_surf_fn: str,
+    depth_list: np.ndarray = None,
+    interp_order: int = 1,
+    gaussian_sd: float = 0,
+    clobber: bool = False,
+) -&gt; tuple:
+    &#34;&#34;&#34;Project volumes to surfaces and generate surface profiles.
+
+    :param chunk_info: dataframe containing chunk information
+    :param sect_info: dataframe containing section information
+    :param resolution: resolution of the volume
+    :param output_dir: path to output directory
+    :param surf_dir: path to surfaces directory
+    :param ref_vol_fn: path to the structural reference volume
+    :param gm_surf_fn: path to the gray matter surface
+    :param wm_surf_fn: path to the white matter surface
+    :param depth_list: list of depths
+    :param interp_order: order of the interpolation
+    :param gaussian_sd: standard deviation of the gaussian filter
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: sect_info, profiles_fn
+    &#34;&#34;&#34;
+    surf_depth_mni_dict, surf_depth_chunk_dict = prepare_surfaces(
+        chunk_info,
+        ref_vol_fn,
+        gm_surf_fn,
+        wm_surf_fn,
+        depth_list,
+        surf_dir,
+        resolution,
+        clobber=clobber,
+    )
+
+    struct_vol_rsl_fn = resample_struct_reference_volume(
+        ref_vol_fn, resolution, output_dir, clobber=clobber
+    )
+
+    (
+        profiles_fn,
+        surf_raw_values_dict,
+        distance_profiles_fn,
+        distance_dict,
+        chunk_info_thickened_csv,
+    ) = generate_surface_profiles(
+        chunk_info,
+        sect_info,
+        surf_depth_chunk_dict,
+        surf_depth_mni_dict,
+        resolution,
+        depth_list,
+        struct_vol_rsl_fn,
+        output_dir,
+        interp_order=interp_order,
+        gaussian_sd=gaussian_sd,
+        clobber=clobber,
+    )
+
+    return (
+        surf_depth_mni_dict,
+        surf_depth_chunk_dict,
+        surf_raw_values_dict,
+        distance_dict,
+        profiles_fn,
+        distance_profiles_fn,
+        chunk_info_thickened_csv,
+        struct_vol_rsl_fn,
+    )
+
+
+def get_profiles_with_batch_correction(
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    chunk_info_thickened_csv: str,
+    sub: str,
+    hemisphere: str,
+    acquisition: str,
+    resolution: float,
+    surf_depth_chunk_dict: dict,
+    surf_depth_mni_dict: dict,
+    struct_vol_rsl_fn: str,
+    output_dir: str,
+    surf_dir: str,
+    batch_correction_dir: str,
+    ref_vol_fn: str,
+    gm_surf_fn: str,
+    wm_surf_fn: str,
+    depth_list: np.ndarray,
+    batch_correction_resolution: int = 0,
+    clobber: bool = False,
+) -&gt; tuple:
+    &#34;&#34;&#34;Get the profiles with batch correction applied.
+
+    Batch correction is calculated by comparing vertex values along mid depth between adjacent chunks. The difference
+    between the values is calculated and the mean difference is calculated.
+
+    :param chunk_info: dataframe containing chunk information
+    :param sect_info: dataframe containing section information
+    :param resolution: resolution of the volume
+    :param output_dir: path to output directory
+    :param surf_dir: path to surfaces directory
+    :param batch_correction_dir: path to batch correction directory
+    :param ref_vol_fn: path to the structural reference volume
+    :param gm_surf_fn: path to the gray matter surface
+    :param wm_surf_fn: path to the white matter surface
+    :param depth_list: list of depths
+    :param batch_correction_resolution: resolution of the batch correction
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: sect_info, profiles_fn
+    &#34;&#34;&#34;
+    n_depths = len(depth_list)
+
+    # get the profiles without batch correction. interp order = 0 because that way
+    # we avoid mixing vertex values across chunks
+    (
+        batch_surf_depth_mni_dict,
+        batch_surf_depth_chunk_dict,
+        batch_surf_raw_values_dict,
+        batch_surf_distance_dict,
+        profiles_fn,
+        distance_profiles_fn,
+        chunk_info_thickened_csv,
+        batch_struct_vol_rsl_fn,
+    ) = volumes_to_surface_profiles(
+        chunk_info,
+        sect_info,
+        batch_correction_resolution,
+        batch_correction_dir,
+        surf_dir,
+        ref_vol_fn,
+        gm_surf_fn,
+        wm_surf_fn,
+        depth_list,
+        interp_order=1,
+        gaussian_sd=[0.5, 0.5 / 0.02, 0.5],
+        clobber=clobber,
+    )
+
+    uncorrected_reconstructed_cortex_fn = f&#34;{batch_correction_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_cortex_uncorrected.nii.gz&#34;
+
+    #
+    # create full resolution profiles with linear interp
+    #  | if batch_correction_resolution &gt; 0 :
+    #  | ---&gt; create profiles with nearest neighbor interp and batch correction resolution
+    #  | ---&gt; calculate batch correction
+    #  | ---&gt; create profiles based on batch correction
+    #  V
+    #  create full resolution final cortical reconstruction
+
+    # create a 3D volume of uncorrected values. useful for qc
+    create_final_reconstructed_volume(
+        uncorrected_reconstructed_cortex_fn,
+        batch_struct_vol_rsl_fn,
+        batch_correction_resolution,
+        batch_surf_depth_mni_dict,
+        profiles_fn,
+        clobber=clobber,
+    )
+
+    # update sect_info with chunk-level correction factors
+    sect_info, paired_values = apply_batch_correction(
+        chunk_info,
+        sect_info,
+        chunk_info_thickened_csv,
+        batch_surf_raw_values_dict,
+        profiles_fn,
+        batch_surf_depth_mni_dict,
+        batch_surf_depth_chunk_dict,
+        depth_list,
+        batch_correction_resolution,
+        batch_struct_vol_rsl_fn,
+        batch_correction_dir,
+        clobber=clobber,
+    )
+
+    # calculate the old mean of the profiles so that we can recenter the corrected profiles
+    values = np.load(profiles_fn + &#34;.npz&#34;)[&#34;data&#34;][:]
+    old_mean = np.mean(values[values &gt; values.min()])
+
+    # recreate profiles_fn with batch corrected values. The sect_info contains batch_offset correction factors
+    profiles_fn, _, distance_fn, _ = generate_surface_profiles(
+        chunk_info,
+        sect_info,
+        surf_depth_chunk_dict,
+        surf_depth_mni_dict,
+        resolution,
+        depth_list,
+        struct_vol_rsl_fn,
+        output_dir + &#34;corrected/&#34;,
+        clobber=clobber,
+    )
+
+    # recenter the corrected profiles
+    print(&#34;\tCorrected profiles: &#34;, profiles_fn)
+    profiles = np.load(profiles_fn + &#34;.npz&#34;)[&#34;data&#34;][:]
+    new_mean = np.mean(profiles[profiles &gt; profiles.min()])
+    print(&#34;\tOld mean: &#34;, old_mean, &#34; New mean: &#34;, new_mean)
+    profiles = profiles - new_mean + old_mean
+    profiles[profiles &lt; 0] = 0
+    np.savez(profiles_fn, data=profiles)
+
+    # mid_depth_index = int(np.rint(len(depth_list) / 2))
+    # surf_fn = surf_depth_mni_dict[depth_list[mid_depth_index]][&#34;depth_rsl_fn&#34;]
+    # sphere_fn = surf_depth_mni_dict[depth_list[mid_depth_index]][&#34;sphere_rsl_fn&#34;]
+    # mid_values = profiles[:, mid_depth_index]
+    # cortex_coords = load_mesh_ext(surf_fn)[0]
+    # sphere_coords = load_mesh_ext(sphere_fn)[0]
+    # png_fn = f&#34;{output_dir}/paired_values_corrected.png&#34;
+    # cortex_png_fn = f&#34;{output_dir}/paired_values_cortex.png&#34;
+    # sphere_png_fn = f&#34;{output_dir}/paired_values_sphere.png&#34;
+    # plot the paired values of the corrected values. useful for qc
+    # plot_paired_values(paired_values, mid_values, png_fn)
+    # plot_paired_values_surf(paired_values, cortex_coords, cortex_png_fn)
+    # plot_paired_values_surf(paired_values, sphere_coords, sphere_png_fn)
+
+    return sect_info, batch_surf_raw_values_dict, profiles_fn
+
+
+def surface_pipeline(
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    resolution: float,
+    output_dir: str,
+    surf_dir: str,
+    ref_vol_fn: str,
+    gm_surf_fn: str,
+    wm_surf_fn: str,
+    n_depths: int = 0,
+    surface_smoothing: int = 0,
+    batch_correction_resolution: int = 0,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Use surface-based interpolation to fill missing sections over the cortex.
+
+    Volumetric interpolation is used to fill missing sections in the subcortex.
+
+    :param sect_info_csv: path to csv file containing section information
+    :param chunk_info_csv: path to csv file containing chunk information
+    :param resolution: resolution of the volume
+    :param output_dir: path to output directory
+    :param ref_vol_fn: path to the structural reference volume
+    :param gm_surf_fn: path to the gray matter surface
+    :param wm_surf_fn: path to the white matter surface
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: None
+    &#34;&#34;&#34;
+    sub = sect_info[&#34;sub&#34;].values[0]
+    hemisphere = sect_info[&#34;hemisphere&#34;].values[0]
+    acquisition = sect_info[&#34;acquisition&#34;].values[0]
+
+    reconstructed_cortex_fn = f&#34;{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_cortex.nii.gz&#34;
+    smoothed_reconstructed_cortex_fn = f&#34;{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_cortex_smoothed.nii.gz&#34;
+
+    if (
+        not os.path.exists(reconstructed_cortex_fn)
+        or (
+            surface_smoothing &gt; 0
+            and not os.path.exists(smoothed_reconstructed_cortex_fn)
+        )
+        or clobber
+    ):
+        os.makedirs(output_dir, exist_ok=True)
+
+        assert len(np.unique(sect_info[&#34;sub&#34;])) == 1, &#34;Error: multiple subjects&#34;
+        assert (
+            len(np.unique(sect_info[&#34;hemisphere&#34;])) == 1
+        ), &#34;Error: multiple hemispheres&#34;
+        assert (
+            len(np.unique(sect_info[&#34;acquisition&#34;])) == 1
+        ), &#34;Error: multiple acquisitions&#34;
+
+        if n_depths == 0:
+            n_depths = np.ceil(5 / resolution).astype(int)
+
+        batch_correction_dir = output_dir + &#34;/batch_correction&#34;
+        os.makedirs(batch_correction_dir, exist_ok=True)
+
+        depth_list = np.round(np.linspace(0, 1, int(n_depths)), 3)
+
+        (
+            surf_depth_mni_dict,
+            surf_depth_chunk_dict,
+            surf_raw_values_dict,
+            surf_distance_dict,
+            profiles_fn,
+            distance_profiles_fn,
+            chunk_info_thickened_csv,
+            struct_vol_rsl_fn,
+        ) = volumes_to_surface_profiles(
+            chunk_info,
+            sect_info,
+            resolution,
+            output_dir,
+            surf_dir,
+            ref_vol_fn,
+            gm_surf_fn,
+            wm_surf_fn,
+            depth_list,
+            interp_order=0,
+            clobber=clobber,
+        )
+        raw_profile_volume_fn = f&#34;{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_raw_profiles.nii.gz&#34;
+        distance_volume_fn = f&#34;{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_distances.nii.gz&#34;
+
+        if batch_correction_resolution &gt; 0:
+            (
+                sect_info,
+                batch_surf_raw_values_dict,
+                final_profiles_fn,
+            ) = get_profiles_with_batch_correction(
+                chunk_info,
+                sect_info,
+                chunk_info_thickened_csv,
+                sub,
+                hemisphere,
+                acquisition,
+                resolution,
+                surf_depth_chunk_dict,
+                surf_depth_mni_dict,
+                struct_vol_rsl_fn,
+                output_dir,
+                surf_dir,
+                batch_correction_dir,
+                ref_vol_fn,
+                gm_surf_fn,
+                wm_surf_fn,
+                depth_list,
+                batch_correction_resolution,
+                clobber=clobber,
+            )
+        else:
+            final_profiles_fn = profiles_fn
+
+        # Write the uninterpolated surface profiles to a volume. This is useful for QC
+        write_raw_profiles_to_volume(
+            surf_raw_values_dict,
+            surf_depth_mni_dict,
+            raw_profile_volume_fn,
+            struct_vol_rsl_fn,
+            resolution,
+            clobber=clobber,
+        )
+
+        write_raw_profiles_to_volume(
+            surf_distance_dict,
+            surf_depth_mni_dict,
+            distance_volume_fn,
+            struct_vol_rsl_fn,
+            resolution,
+            clobber=clobber,
+        )
+
+        print(f&#34;Creating final volume with {final_profiles_fn}&#34;)
+        # do surface based interpolation to fill missing sections
+        create_final_reconstructed_volume(
+            reconstructed_cortex_fn,
+            struct_vol_rsl_fn,
+            resolution,
+            surf_depth_mni_dict,
+            final_profiles_fn,
+            clobber=clobber,
+        )
+
+        if surface_smoothing &gt; 0:
+            sigma = surface_smoothing / 2.355
+
+            smoothed_final_profiles_fn = smooth_surface_profiles(
+                final_profiles_fn, surf_depth_mni_dict, sigma, clobber=clobber
+            )
+
+            # do surface based interpolation to fill missing sections
+            create_final_reconstructed_volume(
+                smoothed_reconstructed_cortex_fn,
+                struct_vol_rsl_fn,
+                resolution,
+                surf_depth_mni_dict,
+                smoothed_final_profiles_fn,
+                clobber=clobber,
+            )
+        # create a mask of the subcortex that can be used for volumetric interpolation
+        # FIXME NOT YET IMPLEMENTED
+        # subcortex_mask_fn = utils.create_subcortex_mask(wm_surf_fn)
+
+        # perform volumetric interpolation to fill missing sections in the subcortex
+        # FIXME NOT YET IMPLEMENTED
+        # subcortex_interp_fn = volinterp.volumetric_interpolation(
+        #    sect_info, brain_mask_fn, clobber=clobber
+        # )
+
+        # combine the interpolated cortex and subcortex
+        # FIXME NOT YET IMPLEMENTED
+        # combine_volumes(interp_cortex_fn, subcortex_mask_fn)
+
+        return None
+
+
+def volumetric_pipeline(
+    chunk_info_csv: str,
+    sect_info_csv: str,
+    resolution: float,
+    output_dir: str,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Use volumetric interpolation to fill missing sections over the entire brain.&#34;&#34;&#34;
+    # chunk_info_thickened_csv = create_thickened_volumes(
+    #    curr_output_dir, chunk_info, sect_info, resolution
+    # )
+    # do volumetric interpolation to fill missing sections through whole brain
+    # final_interp_fn = volinterp.volumetric_interpolation(
+    #    sect_info, brain_mask_fn, clobber=clobber
+    # )
+    raise NotImplementedError
+
+    return None
+
+
+def interpolate_missing_sections(
+    hemi_info_csv: str,
+    chunk_info_csv: str,
+    sect_info_csv: str,
+    resolution: float,
+    output_dir: str,
+    n_depths: int = 0,
+    surface_smoothing: int = 0,
+    batch_correction_resolution: int = 0,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Interpolate missing sections in a volume.
+
+    :param sect_info: a dataframe with the following columns:
+    :param brain_mask_fn: path to the brain mask
+    :param resolution: resolution of the volume
+    :param clobber: if True, overwrite existing files
+    :return: path to the interpolated volume
+    &#34;&#34;&#34;
+    print(&#34;\n\tInterpolate Missing Sections\n&#34;)
+
+    sect_info = pd.read_csv(sect_info_csv, index_col=False)
+    chunk_info = pd.read_csv(chunk_info_csv, index_col=False)
+    hemi_info = pd.read_csv(hemi_info_csv, index_col=False)
+
+    for (acquisition, chunk), chunk_info_row in sect_info.groupby(
+        [
+            &#34;acquisition&#34;,
+            &#34;chunk&#34;,
+        ]
+    ):
+        print(chunk, chunk_info_row[&#34;sample&#34;].min(), chunk_info_row[&#34;sample&#34;].max())
+
+    surf_dir = f&#34;{output_dir}/surfaces/&#34;
+
+    for (sub, hemisphere, acquisition), curr_sect_info in sect_info.groupby(
+        [
+            &#34;sub&#34;,
+            &#34;hemisphere&#34;,
+            &#34;acquisition&#34;,
+        ]
+    ):
+        curr_output_dir = f&#34;{output_dir}/sub-{sub}/hemi-{hemisphere}/acq-{acquisition}/&#34;
+
+        os.makedirs(curr_output_dir, exist_ok=True)
+
+        curr_chunk_info = chunk_info.loc[
+            (chunk_info[&#34;sub&#34;] == sub)
+            &amp; (chunk_info[&#34;hemisphere&#34;] == hemisphere)
+            &amp; (chunk_info[&#34;resolution&#34;] == resolution)
+        ]
+
+        assert (
+            len(curr_chunk_info) &gt; 0
+        ), f&#34;Error: no chunk info found, sub: {sub}, hemisphere: {hemisphere}, resolution: {resolution}, \n{chunk_info}&#34;
+
+        curr_hemi_info = hemi_info.loc[
+            (hemi_info[&#34;sub&#34;] == sub) &amp; (hemi_info[&#34;hemisphere&#34;] == hemisphere)
+        ]
+        assert len(curr_hemi_info) &gt; 0, &#34;Error: no hemisphere info found&#34;
+
+        gm_surf_fn = curr_hemi_info[&#34;gm_surf&#34;].values[0]
+        wm_surf_fn = curr_hemi_info[&#34;wm_surf&#34;].values[0]
+        ref_vol_fn = curr_hemi_info[&#34;struct_ref_vol&#34;].values[0]
+
+        if (os.path.exists(gm_surf_fn) and os.path.exists(wm_surf_fn)) or clobber:
+            surface_pipeline(
+                curr_chunk_info,
+                curr_sect_info,
+                resolution,
+                curr_output_dir,
+                surf_dir,
+                ref_vol_fn,
+                gm_surf_fn,
+                wm_surf_fn,
+                n_depths,
+                surface_smoothing=surface_smoothing,
+                batch_correction_resolution=batch_correction_resolution,
+                clobber=clobber,
+            )
+        else:
+            print(&#34;Error: Volumetric interpolation pipeline not yet implemented&#34;)
+            exit(1)
+            # volumetric_pipeline(sect_info_csv, chunk_info_csv, resolution, output_dir, clobber=clobber)
+
+    return None
+
+
+if __name__ == &#34;__main__&#34;:
+    pass</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="brainbuilder.interpsections.get_profiles_with_batch_correction"><code class="name flex">
+<span>def <span class="ident">get_profiles_with_batch_correction</span></span>(<span>chunk_info: pandas.core.frame.DataFrame, sect_info: pandas.core.frame.DataFrame, chunk_info_thickened_csv: str, sub: str, hemisphere: str, acquisition: str, resolution: float, surf_depth_chunk_dict: dict, surf_depth_mni_dict: dict, struct_vol_rsl_fn: str, output_dir: str, surf_dir: str, batch_correction_dir: str, ref_vol_fn: str, gm_surf_fn: str, wm_surf_fn: str, depth_list: numpy.ndarray, batch_correction_resolution: int = 0, clobber: bool = False) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the profiles with batch correction applied.</p>
+<p>Batch correction is calculated by comparing vertex values along mid depth between adjacent chunks. The difference
+between the values is calculated and the mean difference is calculated.</p>
+<p>:param chunk_info: dataframe containing chunk information
+:param sect_info: dataframe containing section information
+:param resolution: resolution of the volume
+:param output_dir: path to output directory
+:param surf_dir: path to surfaces directory
+:param batch_correction_dir: path to batch correction directory
+:param ref_vol_fn: path to the structural reference volume
+:param gm_surf_fn: path to the gray matter surface
+:param wm_surf_fn: path to the white matter surface
+:param depth_list: list of depths
+:param batch_correction_resolution: resolution of the batch correction
+:param clobber: boolean indicating whether to overwrite existing files
+:return: sect_info, profiles_fn</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_profiles_with_batch_correction(
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    chunk_info_thickened_csv: str,
+    sub: str,
+    hemisphere: str,
+    acquisition: str,
+    resolution: float,
+    surf_depth_chunk_dict: dict,
+    surf_depth_mni_dict: dict,
+    struct_vol_rsl_fn: str,
+    output_dir: str,
+    surf_dir: str,
+    batch_correction_dir: str,
+    ref_vol_fn: str,
+    gm_surf_fn: str,
+    wm_surf_fn: str,
+    depth_list: np.ndarray,
+    batch_correction_resolution: int = 0,
+    clobber: bool = False,
+) -&gt; tuple:
+    &#34;&#34;&#34;Get the profiles with batch correction applied.
+
+    Batch correction is calculated by comparing vertex values along mid depth between adjacent chunks. The difference
+    between the values is calculated and the mean difference is calculated.
+
+    :param chunk_info: dataframe containing chunk information
+    :param sect_info: dataframe containing section information
+    :param resolution: resolution of the volume
+    :param output_dir: path to output directory
+    :param surf_dir: path to surfaces directory
+    :param batch_correction_dir: path to batch correction directory
+    :param ref_vol_fn: path to the structural reference volume
+    :param gm_surf_fn: path to the gray matter surface
+    :param wm_surf_fn: path to the white matter surface
+    :param depth_list: list of depths
+    :param batch_correction_resolution: resolution of the batch correction
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: sect_info, profiles_fn
+    &#34;&#34;&#34;
+    n_depths = len(depth_list)
+
+    # get the profiles without batch correction. interp order = 0 because that way
+    # we avoid mixing vertex values across chunks
+    (
+        batch_surf_depth_mni_dict,
+        batch_surf_depth_chunk_dict,
+        batch_surf_raw_values_dict,
+        batch_surf_distance_dict,
+        profiles_fn,
+        distance_profiles_fn,
+        chunk_info_thickened_csv,
+        batch_struct_vol_rsl_fn,
+    ) = volumes_to_surface_profiles(
+        chunk_info,
+        sect_info,
+        batch_correction_resolution,
+        batch_correction_dir,
+        surf_dir,
+        ref_vol_fn,
+        gm_surf_fn,
+        wm_surf_fn,
+        depth_list,
+        interp_order=1,
+        gaussian_sd=[0.5, 0.5 / 0.02, 0.5],
+        clobber=clobber,
+    )
+
+    uncorrected_reconstructed_cortex_fn = f&#34;{batch_correction_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_cortex_uncorrected.nii.gz&#34;
+
+    #
+    # create full resolution profiles with linear interp
+    #  | if batch_correction_resolution &gt; 0 :
+    #  | ---&gt; create profiles with nearest neighbor interp and batch correction resolution
+    #  | ---&gt; calculate batch correction
+    #  | ---&gt; create profiles based on batch correction
+    #  V
+    #  create full resolution final cortical reconstruction
+
+    # create a 3D volume of uncorrected values. useful for qc
+    create_final_reconstructed_volume(
+        uncorrected_reconstructed_cortex_fn,
+        batch_struct_vol_rsl_fn,
+        batch_correction_resolution,
+        batch_surf_depth_mni_dict,
+        profiles_fn,
+        clobber=clobber,
+    )
+
+    # update sect_info with chunk-level correction factors
+    sect_info, paired_values = apply_batch_correction(
+        chunk_info,
+        sect_info,
+        chunk_info_thickened_csv,
+        batch_surf_raw_values_dict,
+        profiles_fn,
+        batch_surf_depth_mni_dict,
+        batch_surf_depth_chunk_dict,
+        depth_list,
+        batch_correction_resolution,
+        batch_struct_vol_rsl_fn,
+        batch_correction_dir,
+        clobber=clobber,
+    )
+
+    # calculate the old mean of the profiles so that we can recenter the corrected profiles
+    values = np.load(profiles_fn + &#34;.npz&#34;)[&#34;data&#34;][:]
+    old_mean = np.mean(values[values &gt; values.min()])
+
+    # recreate profiles_fn with batch corrected values. The sect_info contains batch_offset correction factors
+    profiles_fn, _, distance_fn, _ = generate_surface_profiles(
+        chunk_info,
+        sect_info,
+        surf_depth_chunk_dict,
+        surf_depth_mni_dict,
+        resolution,
+        depth_list,
+        struct_vol_rsl_fn,
+        output_dir + &#34;corrected/&#34;,
+        clobber=clobber,
+    )
+
+    # recenter the corrected profiles
+    print(&#34;\tCorrected profiles: &#34;, profiles_fn)
+    profiles = np.load(profiles_fn + &#34;.npz&#34;)[&#34;data&#34;][:]
+    new_mean = np.mean(profiles[profiles &gt; profiles.min()])
+    print(&#34;\tOld mean: &#34;, old_mean, &#34; New mean: &#34;, new_mean)
+    profiles = profiles - new_mean + old_mean
+    profiles[profiles &lt; 0] = 0
+    np.savez(profiles_fn, data=profiles)
+
+    # mid_depth_index = int(np.rint(len(depth_list) / 2))
+    # surf_fn = surf_depth_mni_dict[depth_list[mid_depth_index]][&#34;depth_rsl_fn&#34;]
+    # sphere_fn = surf_depth_mni_dict[depth_list[mid_depth_index]][&#34;sphere_rsl_fn&#34;]
+    # mid_values = profiles[:, mid_depth_index]
+    # cortex_coords = load_mesh_ext(surf_fn)[0]
+    # sphere_coords = load_mesh_ext(sphere_fn)[0]
+    # png_fn = f&#34;{output_dir}/paired_values_corrected.png&#34;
+    # cortex_png_fn = f&#34;{output_dir}/paired_values_cortex.png&#34;
+    # sphere_png_fn = f&#34;{output_dir}/paired_values_sphere.png&#34;
+    # plot the paired values of the corrected values. useful for qc
+    # plot_paired_values(paired_values, mid_values, png_fn)
+    # plot_paired_values_surf(paired_values, cortex_coords, cortex_png_fn)
+    # plot_paired_values_surf(paired_values, sphere_coords, sphere_png_fn)
+
+    return sect_info, batch_surf_raw_values_dict, profiles_fn</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interpsections.interpolate_missing_sections"><code class="name flex">
+<span>def <span class="ident">interpolate_missing_sections</span></span>(<span>hemi_info_csv: str, chunk_info_csv: str, sect_info_csv: str, resolution: float, output_dir: str, n_depths: int = 0, surface_smoothing: int = 0, batch_correction_resolution: int = 0, clobber: bool = False) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Interpolate missing sections in a volume.</p>
+<p>:param sect_info: a dataframe with the following columns:
+:param brain_mask_fn: path to the brain mask
+:param resolution: resolution of the volume
+:param clobber: if True, overwrite existing files
+:return: path to the interpolated volume</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def interpolate_missing_sections(
+    hemi_info_csv: str,
+    chunk_info_csv: str,
+    sect_info_csv: str,
+    resolution: float,
+    output_dir: str,
+    n_depths: int = 0,
+    surface_smoothing: int = 0,
+    batch_correction_resolution: int = 0,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Interpolate missing sections in a volume.
+
+    :param sect_info: a dataframe with the following columns:
+    :param brain_mask_fn: path to the brain mask
+    :param resolution: resolution of the volume
+    :param clobber: if True, overwrite existing files
+    :return: path to the interpolated volume
+    &#34;&#34;&#34;
+    print(&#34;\n\tInterpolate Missing Sections\n&#34;)
+
+    sect_info = pd.read_csv(sect_info_csv, index_col=False)
+    chunk_info = pd.read_csv(chunk_info_csv, index_col=False)
+    hemi_info = pd.read_csv(hemi_info_csv, index_col=False)
+
+    for (acquisition, chunk), chunk_info_row in sect_info.groupby(
+        [
+            &#34;acquisition&#34;,
+            &#34;chunk&#34;,
+        ]
+    ):
+        print(chunk, chunk_info_row[&#34;sample&#34;].min(), chunk_info_row[&#34;sample&#34;].max())
+
+    surf_dir = f&#34;{output_dir}/surfaces/&#34;
+
+    for (sub, hemisphere, acquisition), curr_sect_info in sect_info.groupby(
+        [
+            &#34;sub&#34;,
+            &#34;hemisphere&#34;,
+            &#34;acquisition&#34;,
+        ]
+    ):
+        curr_output_dir = f&#34;{output_dir}/sub-{sub}/hemi-{hemisphere}/acq-{acquisition}/&#34;
+
+        os.makedirs(curr_output_dir, exist_ok=True)
+
+        curr_chunk_info = chunk_info.loc[
+            (chunk_info[&#34;sub&#34;] == sub)
+            &amp; (chunk_info[&#34;hemisphere&#34;] == hemisphere)
+            &amp; (chunk_info[&#34;resolution&#34;] == resolution)
+        ]
+
+        assert (
+            len(curr_chunk_info) &gt; 0
+        ), f&#34;Error: no chunk info found, sub: {sub}, hemisphere: {hemisphere}, resolution: {resolution}, \n{chunk_info}&#34;
+
+        curr_hemi_info = hemi_info.loc[
+            (hemi_info[&#34;sub&#34;] == sub) &amp; (hemi_info[&#34;hemisphere&#34;] == hemisphere)
+        ]
+        assert len(curr_hemi_info) &gt; 0, &#34;Error: no hemisphere info found&#34;
+
+        gm_surf_fn = curr_hemi_info[&#34;gm_surf&#34;].values[0]
+        wm_surf_fn = curr_hemi_info[&#34;wm_surf&#34;].values[0]
+        ref_vol_fn = curr_hemi_info[&#34;struct_ref_vol&#34;].values[0]
+
+        if (os.path.exists(gm_surf_fn) and os.path.exists(wm_surf_fn)) or clobber:
+            surface_pipeline(
+                curr_chunk_info,
+                curr_sect_info,
+                resolution,
+                curr_output_dir,
+                surf_dir,
+                ref_vol_fn,
+                gm_surf_fn,
+                wm_surf_fn,
+                n_depths,
+                surface_smoothing=surface_smoothing,
+                batch_correction_resolution=batch_correction_resolution,
+                clobber=clobber,
+            )
+        else:
+            print(&#34;Error: Volumetric interpolation pipeline not yet implemented&#34;)
+            exit(1)
+            # volumetric_pipeline(sect_info_csv, chunk_info_csv, resolution, output_dir, clobber=clobber)
+
+    return None</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interpsections.plot_paired_values"><code class="name flex">
+<span>def <span class="ident">plot_paired_values</span></span>(<span>paired_values: <built-in function array>, mid_values: <built-in function array>, png_fn: str) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Plot the paired values for the batch correction step.</p>
+<p>:param paired_values: dataframe containing the paired values
+:param mid_values: array containing the values at the mid depth
+:param png_fn: filename to save the plot
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def plot_paired_values(
+    paired_values: np.array, mid_values: np.array, png_fn: str
+) -&gt; None:
+    &#34;&#34;&#34;Plot the paired values for the batch correction step.
+
+    :param paired_values: dataframe containing the paired values
+    :param mid_values: array containing the values at the mid depth
+    :param png_fn: filename to save the plot
+    :return: None
+    &#34;&#34;&#34;
+    plt.cla()
+    plt.clf()
+    plt.figure(figsize=(10, 10))
+    for i, row in paired_values.iterrows():
+        curr_idx = row[&#34;curr_idx&#34;].astype(int)
+        next_idx = row[&#34;next_idx&#34;].astype(int)
+        curr_values = mid_values[curr_idx]
+        next_values = mid_values[next_idx]
+
+        x = [row[&#34;curr_label&#34;], row[&#34;next_label&#34;]]
+        y = [curr_values, next_values]
+        plt.scatter(x, y, c=&#34;r&#34;)
+        plt.plot(x, y, c=&#34;b&#34;, alpha=0.3)
+    print(f&#34;Saving {png_fn}&#34;)
+    plt.savefig(png_fn)</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interpsections.resample_struct_reference_volume"><code class="name flex">
+<span>def <span class="ident">resample_struct_reference_volume</span></span>(<span>orig_struct_vol_fn: str, resolution: float, output_dir: str, clobber: bool = False) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Resample the structural reference volume to the desired resolution.</p>
+<p>:param orig_struct_vol_fn: path to the original structural reference volume
+:param hemisphere: hemisphere
+:param resolution: resolution of the volume
+:param output_dir: path to output directory
+:param clobber: boolean indicating whether to overwrite existing files
+:return: path to the resampled structural reference volume</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def resample_struct_reference_volume(
+    orig_struct_vol_fn: str, resolution: float, output_dir: str, clobber: bool = False
+) -&gt; str:
+    &#34;&#34;&#34;Resample the structural reference volume to the desired resolution.
+
+    :param orig_struct_vol_fn: path to the original structural reference volume
+    :param hemisphere: hemisphere
+    :param resolution: resolution of the volume
+    :param output_dir: path to output directory
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: path to the resampled structural reference volume
+    &#34;&#34;&#34;
+    base_name = re.sub(
+        &#34;.nii&#34;, f&#34;_{resolution}mm.nii&#34;, os.path.basename(orig_struct_vol_fn)
+    )
+    struct_vol_rsl_fn = f&#34;{output_dir}/{base_name}&#34;
+
+    if not os.path.exists(struct_vol_rsl_fn) or clobber:
+        utils.resample_to_resolution(
+            orig_struct_vol_fn, [resolution] * 3, struct_vol_rsl_fn
+        )
+
+    return struct_vol_rsl_fn</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interpsections.surface_pipeline"><code class="name flex">
+<span>def <span class="ident">surface_pipeline</span></span>(<span>chunk_info: pandas.core.frame.DataFrame, sect_info: pandas.core.frame.DataFrame, resolution: float, output_dir: str, surf_dir: str, ref_vol_fn: str, gm_surf_fn: str, wm_surf_fn: str, n_depths: int = 0, surface_smoothing: int = 0, batch_correction_resolution: int = 0, clobber: bool = False) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Use surface-based interpolation to fill missing sections over the cortex.</p>
+<p>Volumetric interpolation is used to fill missing sections in the subcortex.</p>
+<p>:param sect_info_csv: path to csv file containing section information
+:param chunk_info_csv: path to csv file containing chunk information
+:param resolution: resolution of the volume
+:param output_dir: path to output directory
+:param ref_vol_fn: path to the structural reference volume
+:param gm_surf_fn: path to the gray matter surface
+:param wm_surf_fn: path to the white matter surface
+:param clobber: boolean indicating whether to overwrite existing files
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def surface_pipeline(
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    resolution: float,
+    output_dir: str,
+    surf_dir: str,
+    ref_vol_fn: str,
+    gm_surf_fn: str,
+    wm_surf_fn: str,
+    n_depths: int = 0,
+    surface_smoothing: int = 0,
+    batch_correction_resolution: int = 0,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Use surface-based interpolation to fill missing sections over the cortex.
+
+    Volumetric interpolation is used to fill missing sections in the subcortex.
+
+    :param sect_info_csv: path to csv file containing section information
+    :param chunk_info_csv: path to csv file containing chunk information
+    :param resolution: resolution of the volume
+    :param output_dir: path to output directory
+    :param ref_vol_fn: path to the structural reference volume
+    :param gm_surf_fn: path to the gray matter surface
+    :param wm_surf_fn: path to the white matter surface
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: None
+    &#34;&#34;&#34;
+    sub = sect_info[&#34;sub&#34;].values[0]
+    hemisphere = sect_info[&#34;hemisphere&#34;].values[0]
+    acquisition = sect_info[&#34;acquisition&#34;].values[0]
+
+    reconstructed_cortex_fn = f&#34;{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_cortex.nii.gz&#34;
+    smoothed_reconstructed_cortex_fn = f&#34;{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_cortex_smoothed.nii.gz&#34;
+
+    if (
+        not os.path.exists(reconstructed_cortex_fn)
+        or (
+            surface_smoothing &gt; 0
+            and not os.path.exists(smoothed_reconstructed_cortex_fn)
+        )
+        or clobber
+    ):
+        os.makedirs(output_dir, exist_ok=True)
+
+        assert len(np.unique(sect_info[&#34;sub&#34;])) == 1, &#34;Error: multiple subjects&#34;
+        assert (
+            len(np.unique(sect_info[&#34;hemisphere&#34;])) == 1
+        ), &#34;Error: multiple hemispheres&#34;
+        assert (
+            len(np.unique(sect_info[&#34;acquisition&#34;])) == 1
+        ), &#34;Error: multiple acquisitions&#34;
+
+        if n_depths == 0:
+            n_depths = np.ceil(5 / resolution).astype(int)
+
+        batch_correction_dir = output_dir + &#34;/batch_correction&#34;
+        os.makedirs(batch_correction_dir, exist_ok=True)
+
+        depth_list = np.round(np.linspace(0, 1, int(n_depths)), 3)
+
+        (
+            surf_depth_mni_dict,
+            surf_depth_chunk_dict,
+            surf_raw_values_dict,
+            surf_distance_dict,
+            profiles_fn,
+            distance_profiles_fn,
+            chunk_info_thickened_csv,
+            struct_vol_rsl_fn,
+        ) = volumes_to_surface_profiles(
+            chunk_info,
+            sect_info,
+            resolution,
+            output_dir,
+            surf_dir,
+            ref_vol_fn,
+            gm_surf_fn,
+            wm_surf_fn,
+            depth_list,
+            interp_order=0,
+            clobber=clobber,
+        )
+        raw_profile_volume_fn = f&#34;{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_raw_profiles.nii.gz&#34;
+        distance_volume_fn = f&#34;{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_distances.nii.gz&#34;
+
+        if batch_correction_resolution &gt; 0:
+            (
+                sect_info,
+                batch_surf_raw_values_dict,
+                final_profiles_fn,
+            ) = get_profiles_with_batch_correction(
+                chunk_info,
+                sect_info,
+                chunk_info_thickened_csv,
+                sub,
+                hemisphere,
+                acquisition,
+                resolution,
+                surf_depth_chunk_dict,
+                surf_depth_mni_dict,
+                struct_vol_rsl_fn,
+                output_dir,
+                surf_dir,
+                batch_correction_dir,
+                ref_vol_fn,
+                gm_surf_fn,
+                wm_surf_fn,
+                depth_list,
+                batch_correction_resolution,
+                clobber=clobber,
+            )
+        else:
+            final_profiles_fn = profiles_fn
+
+        # Write the uninterpolated surface profiles to a volume. This is useful for QC
+        write_raw_profiles_to_volume(
+            surf_raw_values_dict,
+            surf_depth_mni_dict,
+            raw_profile_volume_fn,
+            struct_vol_rsl_fn,
+            resolution,
+            clobber=clobber,
+        )
+
+        write_raw_profiles_to_volume(
+            surf_distance_dict,
+            surf_depth_mni_dict,
+            distance_volume_fn,
+            struct_vol_rsl_fn,
+            resolution,
+            clobber=clobber,
+        )
+
+        print(f&#34;Creating final volume with {final_profiles_fn}&#34;)
+        # do surface based interpolation to fill missing sections
+        create_final_reconstructed_volume(
+            reconstructed_cortex_fn,
+            struct_vol_rsl_fn,
+            resolution,
+            surf_depth_mni_dict,
+            final_profiles_fn,
+            clobber=clobber,
+        )
+
+        if surface_smoothing &gt; 0:
+            sigma = surface_smoothing / 2.355
+
+            smoothed_final_profiles_fn = smooth_surface_profiles(
+                final_profiles_fn, surf_depth_mni_dict, sigma, clobber=clobber
+            )
+
+            # do surface based interpolation to fill missing sections
+            create_final_reconstructed_volume(
+                smoothed_reconstructed_cortex_fn,
+                struct_vol_rsl_fn,
+                resolution,
+                surf_depth_mni_dict,
+                smoothed_final_profiles_fn,
+                clobber=clobber,
+            )
+        # create a mask of the subcortex that can be used for volumetric interpolation
+        # FIXME NOT YET IMPLEMENTED
+        # subcortex_mask_fn = utils.create_subcortex_mask(wm_surf_fn)
+
+        # perform volumetric interpolation to fill missing sections in the subcortex
+        # FIXME NOT YET IMPLEMENTED
+        # subcortex_interp_fn = volinterp.volumetric_interpolation(
+        #    sect_info, brain_mask_fn, clobber=clobber
+        # )
+
+        # combine the interpolated cortex and subcortex
+        # FIXME NOT YET IMPLEMENTED
+        # combine_volumes(interp_cortex_fn, subcortex_mask_fn)
+
+        return None</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interpsections.volumes_to_surface_profiles"><code class="name flex">
+<span>def <span class="ident">volumes_to_surface_profiles</span></span>(<span>chunk_info: pandas.core.frame.DataFrame, sect_info: pandas.core.frame.DataFrame, resolution: float, output_dir: str, surf_dir: str, ref_vol_fn: str, gm_surf_fn: str, wm_surf_fn: str, depth_list: numpy.ndarray = None, interp_order: int = 1, gaussian_sd: float = 0, clobber: bool = False) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Project volumes to surfaces and generate surface profiles.</p>
+<p>:param chunk_info: dataframe containing chunk information
+:param sect_info: dataframe containing section information
+:param resolution: resolution of the volume
+:param output_dir: path to output directory
+:param surf_dir: path to surfaces directory
+:param ref_vol_fn: path to the structural reference volume
+:param gm_surf_fn: path to the gray matter surface
+:param wm_surf_fn: path to the white matter surface
+:param depth_list: list of depths
+:param interp_order: order of the interpolation
+:param gaussian_sd: standard deviation of the gaussian filter
+:param clobber: boolean indicating whether to overwrite existing files
+:return: sect_info, profiles_fn</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def volumes_to_surface_profiles(
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    resolution: float,
+    output_dir: str,
+    surf_dir: str,
+    ref_vol_fn: str,
+    gm_surf_fn: str,
+    wm_surf_fn: str,
+    depth_list: np.ndarray = None,
+    interp_order: int = 1,
+    gaussian_sd: float = 0,
+    clobber: bool = False,
+) -&gt; tuple:
+    &#34;&#34;&#34;Project volumes to surfaces and generate surface profiles.
+
+    :param chunk_info: dataframe containing chunk information
+    :param sect_info: dataframe containing section information
+    :param resolution: resolution of the volume
+    :param output_dir: path to output directory
+    :param surf_dir: path to surfaces directory
+    :param ref_vol_fn: path to the structural reference volume
+    :param gm_surf_fn: path to the gray matter surface
+    :param wm_surf_fn: path to the white matter surface
+    :param depth_list: list of depths
+    :param interp_order: order of the interpolation
+    :param gaussian_sd: standard deviation of the gaussian filter
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: sect_info, profiles_fn
+    &#34;&#34;&#34;
+    surf_depth_mni_dict, surf_depth_chunk_dict = prepare_surfaces(
+        chunk_info,
+        ref_vol_fn,
+        gm_surf_fn,
+        wm_surf_fn,
+        depth_list,
+        surf_dir,
+        resolution,
+        clobber=clobber,
+    )
+
+    struct_vol_rsl_fn = resample_struct_reference_volume(
+        ref_vol_fn, resolution, output_dir, clobber=clobber
+    )
+
+    (
+        profiles_fn,
+        surf_raw_values_dict,
+        distance_profiles_fn,
+        distance_dict,
+        chunk_info_thickened_csv,
+    ) = generate_surface_profiles(
+        chunk_info,
+        sect_info,
+        surf_depth_chunk_dict,
+        surf_depth_mni_dict,
+        resolution,
+        depth_list,
+        struct_vol_rsl_fn,
+        output_dir,
+        interp_order=interp_order,
+        gaussian_sd=gaussian_sd,
+        clobber=clobber,
+    )
+
+    return (
+        surf_depth_mni_dict,
+        surf_depth_chunk_dict,
+        surf_raw_values_dict,
+        distance_dict,
+        profiles_fn,
+        distance_profiles_fn,
+        chunk_info_thickened_csv,
+        struct_vol_rsl_fn,
+    )</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interpsections.volumetric_pipeline"><code class="name flex">
+<span>def <span class="ident">volumetric_pipeline</span></span>(<span>chunk_info_csv: str, sect_info_csv: str, resolution: float, output_dir: str, clobber: bool = False) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Use volumetric interpolation to fill missing sections over the entire brain.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def volumetric_pipeline(
+    chunk_info_csv: str,
+    sect_info_csv: str,
+    resolution: float,
+    output_dir: str,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Use volumetric interpolation to fill missing sections over the entire brain.&#34;&#34;&#34;
+    # chunk_info_thickened_csv = create_thickened_volumes(
+    #    curr_output_dir, chunk_info, sect_info, resolution
+    # )
+    # do volumetric interpolation to fill missing sections through whole brain
+    # final_interp_fn = volinterp.volumetric_interpolation(
+    #    sect_info, brain_mask_fn, clobber=clobber
+    # )
+    raise NotImplementedError
+
+    return None</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="brainbuilder" href="index.html">brainbuilder</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="brainbuilder.interpsections.get_profiles_with_batch_correction" href="#brainbuilder.interpsections.get_profiles_with_batch_correction">get_profiles_with_batch_correction</a></code></li>
+<li><code><a title="brainbuilder.interpsections.interpolate_missing_sections" href="#brainbuilder.interpsections.interpolate_missing_sections">interpolate_missing_sections</a></code></li>
+<li><code><a title="brainbuilder.interpsections.plot_paired_values" href="#brainbuilder.interpsections.plot_paired_values">plot_paired_values</a></code></li>
+<li><code><a title="brainbuilder.interpsections.resample_struct_reference_volume" href="#brainbuilder.interpsections.resample_struct_reference_volume">resample_struct_reference_volume</a></code></li>
+<li><code><a title="brainbuilder.interpsections.surface_pipeline" href="#brainbuilder.interpsections.surface_pipeline">surface_pipeline</a></code></li>
+<li><code><a title="brainbuilder.interpsections.volumes_to_surface_profiles" href="#brainbuilder.interpsections.volumes_to_surface_profiles">volumes_to_surface_profiles</a></code></li>
+<li><code><a title="brainbuilder.interpsections.volumetric_pipeline" href="#brainbuilder.interpsections.volumetric_pipeline">volumetric_pipeline</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

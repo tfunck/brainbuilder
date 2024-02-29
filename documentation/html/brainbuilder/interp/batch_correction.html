@@ -1,0 +1,1772 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>brainbuilder.interp.batch_correction API documentation</title>
+<meta name="description" content="Batch correction functions." />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>brainbuilder.interp.batch_correction</code></h1>
+</header>
+<section id="section-intro">
+<p>Batch correction functions.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;Batch correction functions.&#34;&#34;&#34;
+import os
+
+import matplotlib.pyplot as plt
+import nibabel
+import numpy as np
+import pandas as pd
+
+import brainbuilder.segment as segment
+import brainbuilder.utils.ants_nibabel as nib
+from brainbuilder.utils.mesh_io import load_mesh_ext, load_values
+from brainbuilder.utils.mesh_utils import (
+    mesh_to_volume,
+    pairwise_coord_distances,
+    visualization,
+)
+
+
+def apply_batch_correction(
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    chunk_info_thickened_csv: str,
+    surf_raw_values_dict: str,
+    profiles_fn: str,
+    surf_depth_mni_dict: dict,
+    surf_depth_chunk_dict: dict,
+    depth_list: list,
+    resolution: float,
+    struct_vol_rsl_fn: str,
+    output_dir: str,
+    clobber: bool = False,
+) -&gt; (pd.DataFrame, str):
+    &#34;&#34;&#34;Apply batch correction to the profiles_fn to correct for mean shifts between chunks.
+
+    :param chunk_info: dataframe containing chunk information
+    :param sect_info: dataframe containing section information
+    :param surf_raw_values_dict: dictionary containing information about the surfaces
+    :param surf_depth_mni_dict: dictionary containing information about the surfaces
+    :param surf_depth_chunk_dict: dictionary containing information about the surfaces
+    :param chunk_info: dataframe containing chunk information
+    :param depth_list: list of depths to use for interpolation
+    :param output_dir: path to output directory
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: None
+    &#34;&#34;&#34;
+    os.makedirs(f&#34;{output_dir}&#34;, exist_ok=True)
+
+    mid_depth_index = int(np.ceil(len(depth_list) / 2))
+    mid_depth = depth_list[mid_depth_index]
+
+    # Get dict with mid surfaces for each chunk
+    mid_depth_chunk_dict = dict(surf_depth_chunk_dict[mid_depth].items())
+
+    # Get raw values file for mid depth surface
+    values_fn = surf_raw_values_dict[mid_depth]
+
+    # Load raw values
+    values = load_values(values_fn).reshape(
+        -1,
+    )
+
+    (
+        surface_labels_filename,
+        sect_info,
+        label_to_chunk_dict,
+    ) = create_surface_section_labels(
+        chunk_info,
+        sect_info,
+        values,
+        mid_depth_chunk_dict,
+        output_dir,
+        resolution,
+        qc_surface_fn=surf_depth_mni_dict[mid_depth][&#34;depth_rsl_fn&#34;],
+        ref_vol_fn=struct_vol_rsl_fn,
+        clobber=clobber,
+    )
+
+    profiles = np.load(profiles_fn + &#34;.npz&#34;)[&#34;data&#34;]
+
+    params, paired_values = calc_batch_correction_params(
+        chunk_info,
+        chunk_info_thickened_csv,
+        surface_labels_filename,
+        profiles,
+        surf_depth_mni_dict[mid_depth][&#34;sphere_rsl_fn&#34;],  # stereo_sphere_filename
+        surf_depth_mni_dict[mid_depth][&#34;depth_rsl_fn&#34;],  # stereo_cortex_filename
+        f&#34;{output_dir}&#34;,
+        label_start=0,
+        label_offset=1,
+        clobber=clobber,
+    )
+
+    # for i, row in paired_values.iterrows() :
+    #    c0 = coords[int(row[&#39;curr_idx&#39;])]
+    #    c1 = coords[int(row[&#39;next_idx&#39;])]
+    #    distance = np.sqrt(np.sum(np.power(c0-c1,2)))
+    #    print(row[&#39;curr_values&#39;], distance)
+
+    sect_info = update_df_with_correction_params(sect_info, params, label_to_chunk_dict)
+
+    return sect_info, paired_values
+
+
+def create_surface_section_labels(
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    values: np.ndarray,
+    chunk_surface_dict: dict,
+    out_dir: str,
+    resolution: float,
+    perc: float = 0.25,
+    qc_surface_fn: str = &#34;&#34;,
+    ref_vol_fn: str = &#34;&#34;,
+    clobber: bool = False,
+) -&gt; (str, pd.DataFrame, dict):
+    &#34;&#34;&#34;Create surface section labels.
+
+    :param chunk_info: dataframe containing chunk information
+    :param sect_info: dataframe containing section information
+    :param values: array containing values
+    :param chunk_surface_dict: dictionary containing information about the surfaces
+    :param out_dir: path to output directory
+    :param resolution: resolution of the reconstruction
+    :param perc: percentage of the chunk to use for the caudal and rostral portions
+    :param qc_surface_fn: path to qc surface
+    :param ref_vol_fn: path to reference volume
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: None
+    &#34;&#34;&#34;
+    acquisition = sect_info[&#34;acquisition&#34;].values[0]
+    out_fn = f&#34;{out_dir}/{acquisition}_section_labels&#34;
+    qc_fn = f&#34;{out_dir}/{acquisition}_section_labels_qc.png&#34;
+    vol_qc_fn = f&#34;{out_dir}/{acquisition}_section_labels_qc.nii.gz&#34;
+
+    label_to_chunk_dict = {}
+
+    sect_info[&#34;label&#34;] = [0] * sect_info.shape[0]  # - np.min(labels_for_df) +1
+
+    labels = np.zeros(values.shape[0])
+
+    if not os.path.exists(out_fn + &#34;.npz&#34;) or clobber:
+        max_chunk = sect_info[&#34;chunk&#34;].max() + 1
+
+        for (chunk,), chunk_df in chunk_info.groupby([&#34;chunk&#34;]):
+            surf_filename = chunk_surface_dict[chunk]
+            coords = load_mesh_ext(surf_filename)[0]
+
+            y_coords = coords[:, 1]
+
+            array_img = nibabel.load(chunk_df[&#34;nl_2d_vol_fn&#34;].values[0])
+            ystep = array_img.affine[1, 1]
+            ystart = array_img.affine[1, 3]
+
+            sect_chunk_df = sect_info[sect_info[&#34;chunk&#34;] == chunk]
+
+            y = sect_chunk_df[&#34;sample&#34;].values
+
+            sect_chunk_df[&#34;yw&#34;] = (y * ystep + ystart).reshape(-1, 1)
+
+            # get the y limits for the chunk
+            # |                         |
+            # |-------------------------|
+            # ymin                     ymax
+
+            ymax = sect_chunk_df[&#34;yw&#34;].max()
+            ymin = sect_chunk_df[&#34;yw&#34;].min()
+
+            perc = 0.5
+            # Posterior, caudal, bound for the chunk
+            ylo = ymin + (ymax - ymin) * perc
+
+            # Anterior, rostral, bound for the chunk
+            yhi = ymax - (ymax - ymin) * perc
+
+            #          ylo   yhi
+            # |         |     |         |
+            # |-------------------------|
+            # ymin                     ymax
+
+            # Set labels to 0 by default
+            sect_chunk_df[&#34;label&#34;] = [0] * sect_chunk_df.shape[0]
+
+            # Define the label values
+            label_0 = (max_chunk - chunk) * 2 - 1
+            label_1 = (max_chunk - chunk) * 2
+
+            # Identify sections that in the caudal portion of the chunk
+            idx0 = (sect_chunk_df[&#34;yw&#34;] &lt;= ylo) &amp; (sect_chunk_df[&#34;yw&#34;] &gt;= ymin)
+
+            # Identify sections that in the rostral portion of the chunk
+            idx1 = (sect_chunk_df[&#34;yw&#34;] &gt;= yhi) &amp; (sect_chunk_df[&#34;yw&#34;] &lt;= ymax)
+
+            #          ylo   yhi
+            # |   idx0  |     |   idx1  |
+            # |-------------------------|
+            # ymin                     ymax
+
+            sect_chunk_df[&#34;label&#34;].iloc[idx0] = label_0
+            sect_chunk_df[&#34;label&#34;].iloc[idx1] = label_1
+
+            label_to_chunk_dict[label_0] = chunk
+            label_to_chunk_dict[label_1] = chunk
+
+            vtx0 = (y_coords &lt;= ylo) &amp; (y_coords &gt;= ymin)
+            vtx1 = (y_coords &gt;= yhi) &amp; (y_coords &lt;= ymax)
+
+            # labels[vtx0] = label_0
+            # labels[vtx1] = label_1
+
+            labels[vtx0] = chunk
+            labels[vtx1] = chunk
+            &#34;&#34;&#34;
+            for i, row in sect_chunk_df.iterrows() :
+                if len(labels) == 0 :
+                    labels = np.zeros(coords.shape[0])
+                label = row[&#39;label&#39;] 
+                yw = row[&#39;yw&#39;]
+                ymin = row[&#39;ylo&#39;]
+                ymax = row[&#39;yhi&#39;]
+
+                idx = ((y &gt; ymin) &amp; (y &lt;= ymax) &amp; (values &gt; np.min(values) )).reshape(-1,)
+
+                labels[idx] = label
+            &#34;&#34;&#34;
+            labels[values == 0] = 0
+            np.savez(out_fn, data=labels)
+
+            print(&#34;Label png :&#34;, qc_fn)
+            visualization(qc_surface_fn, labels, qc_fn)
+            img = nibabel.load(ref_vol_fn)
+            aff = img.affine
+            starts = aff[0:3, 3]
+            steps = aff[[0, 1, 2], [0, 1, 2]]
+            dimensions = img.shape
+
+            print(qc_surface_fn)
+            print(starts, steps)
+            vol, n = mesh_to_volume(
+                load_mesh_ext(qc_surface_fn)[0],
+                labels,
+                dimensions,
+                starts,
+                steps,
+            )
+            vol[n &gt; 0] = vol[n &gt; 0] / n[n &gt; 0]
+            nib.Nifti1Image(vol, aff, direction_order=&#34;lpi&#34;).to_filename(vol_qc_fn)
+
+    return out_fn, sect_info, label_to_chunk_dict
+
+
+def update_df_with_correction_params(
+    df: pd.DataFrame, params: pd.DataFrame, label_to_chunk_dict: dict
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Update the dataframe with the correction parameters.
+
+    :param df: dataframe containing section information
+    :param params: dataframe containing the correction parameters
+    :param label_to_chunk_dict: dictionary containing the mapping between labels and chunks
+    :return: dataframe with updated correction parameters
+    &#34;&#34;&#34;
+    print(&#34;Update df with correction parameters&#34;)
+    df[&#34;batch_offset&#34;] = [0] * df.shape[0]
+    df[&#34;batch_multiplier&#34;] = [1] * df.shape[0]
+
+    for i, row in params.iterrows():
+        # idx = df[&#39;chunk&#39;] == label_to_chunk_dict[row[&#39;label&#39;].astype(int)]
+        idx = (
+            df[&#34;chunk&#34;] == row[&#34;label&#34;]
+        )  # label_to_chunk_dict[row[&#39;label&#39;].astype(int)]
+
+        df[&#34;batch_offset&#34;].loc[idx] = row[&#34;offset&#34;]
+        df[&#34;batch_multiplier&#34;].loc[idx] = row[&#34;multiplier&#34;]
+        print(row[&#34;label&#34;], row[&#34;offset&#34;])
+
+    return df
+
+
+def get_border_y(
+    df: pd.DataFrame,
+    chunk: int,
+    thr: int,
+    start: float,
+    step: float,
+    caudal: bool = True,
+) -&gt; list:
+    &#34;&#34;&#34;Get the y coordinates for the border of the chunk.
+
+    :param df: dataframe containing chunk information
+    :param chunk: chunk number
+    :param thr: threshold
+    :param start: start coordinate of the chunk
+    :param step: step size
+    :param caudal: boolean indicating whether the border is caudal or rostral
+    :return: list of y coordinates
+    &#34;&#34;&#34;
+    dfs = df.sort_values([&#34;chunk_order&#34;])
+
+    if caudal:
+        dfs = dfs.iloc[0:thr]
+        y_list = (
+            dfs[&#34;chunk_order&#34;].min(),
+            dfs[&#34;chunk_order&#34;].max() + 1,
+        )  ##add +1 so that it is inclusive range
+    else:  # rostral
+        dfs = dfs.iloc[-thr:]
+        y_list = (dfs[&#34;chunk_order&#34;].min(), dfs[&#34;chunk_order&#34;].max() + 1)
+
+    y_list = sorted([y * step + start for y in y_list])
+    # need to convert y to world coordinates
+
+    return y_list
+
+
+global CAUDAL_LABEL
+global ROSTRAL_LABEL
+
+CAUDAL_LABEL = 0.33
+ROSTRAL_LABEL = 0.66
+
+if False:  # test to make sure that pairsewise_coord_distances works correctly
+
+    def calc2(c0: np.ndarray, c1: np.ndarray) -&gt; np.ndarray:
+        &#34;&#34;&#34;Calculate pairwise distances between two sets of coordinates.&#34;&#34;&#34;
+        d = np.zeros([c0.shape[0], c1.shape[0]])
+        for i, x in enumerate(c0):
+            for j, y in enumerate(c1):
+                d[i][j] = np.sqrt(np.sum(np.power(x - y, 2)))
+        return d
+
+    c0 = np.random.normal(0, 1, (10, 3))
+    c1 = np.random.normal(1, 1, (14, 3))
+    d = pairwise_coord_distances(c0, c1)
+    d1 = calc2(c0, c1)
+
+    assert (
+        np.sum(np.abs(d - d1)) &lt; 1e-8
+    ), &#34;Error: pairwise_coord_distances function failed to return correct distances&#34;
+    print(d.shape)
+    exit(1)
+
+
+def get_rostral_caudal_borders(
+    label_surf_values: np.ndarray,
+    surfaces: np.ndarray,
+    out_dir: str,
+    perc: float = 0.05,
+    clobber: bool = False,
+) -&gt; str:
+    &#34;&#34;&#34;Get the rostral and caudal borders for each chunk.
+
+    :param label_surf_values: array containing the labels for each vertex
+    :param surfaces: array containing the surfaces
+    :param out_dir: path to output directory
+    :param perc: percentage of the chunk to use for the caudal and rostral portions
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: path to border file
+    &#34;&#34;&#34;
+    border_fn = f&#34;{out_dir}/borders&#34;
+
+    # WARNING the label volumes and surfaces must be in same coord space
+    if not os.path.exists(border_fn) or clobber:
+        labels = load_values(label_surf_values)
+        chunks = np.unique(labels[labels &gt; 0])
+        n_chunks = len(chunks)
+
+        assert isinstance(surfaces, list), &#34;Error: surfaces is not a list&#34;
+        if len(surfaces) == 1:
+            surfaces = surfaces * n_chunks
+
+        n_vtx = load_mesh_ext(surfaces[0])[0].shape[0]
+
+        border = np.zeros(n_vtx)
+
+        for i, chunk in enumerate(chunks):
+            coords = load_mesh_ext(surfaces[i])
+            y = coords[:, 1]
+
+            y0 = np.min(y[labels == chunk])
+            y1 = np.max(y[labels == chunk])
+            y = coords[:, 1]
+
+            perc = 0.5
+
+            c0 = y0
+            c1 = y0 + np.abs(y0 - y1) * perc
+
+            r0 = y1 - np.abs(y1 - y0) * perc
+            r1 = y1
+
+            caudal_idx = (y &gt; c0) &amp; (y &lt; c1)
+            assert (
+                np.sum(caudal_idx) &gt; 0
+            ), f&#34;Error: no vertices found between {c0} and {c1}&#34;
+
+            rostral_idx = (y &gt; r0) &amp; (y &lt; r1)
+            assert (
+                np.sum(rostral_idx) &gt; 0
+            ), f&#34;Error: no rostral vertices found between {r0} and {r1}&#34;
+
+            border[caudal_idx] = chunk + CAUDAL_LABEL
+            border[rostral_idx] = chunk + ROSTRAL_LABEL
+
+        np.savez(border_fn, data=border)
+    return border_fn
+
+
+def create_dataframe_for_pairs(
+    dist: np.ndarray, avg_values: np.ndarray, next_range: np.ndarray, c_vtx: np.ndarray
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Create a dataframe for the pairs.
+
+    :param dist: array containing the distances between the vertices
+    :param avg_values: array containing the average values
+    :param next_range: array containing the range of the next vertices
+    :param c_vtx: array containing the current vertices
+    :return: dataframe containing the pairs
+    &#34;&#34;&#34;
+    arg_m = np.argmin(dist, axis=1)
+    min_dist = dist[range(dist.shape[0]), arg_m]
+    del dist
+
+    n_vtx = next_range[arg_m]
+
+    next_values = avg_values[n_vtx]
+    curr_values = avg_values[c_vtx]
+
+    paired_values = pd.DataFrame(
+        {
+            &#34;curr_idx&#34;: c_vtx,
+            &#34;next_idx&#34;: n_vtx,
+            &#34;curr_values&#34;: curr_values,
+            &#34;next_values&#34;: next_values,
+            &#34;distance&#34;: min_dist,
+        }
+    )
+
+    thresholds = [5, 95]
+    curr_perc_min, next_perc_max = np.percentile(curr_values, thresholds)
+    next_perc_min, curr_perc_max = np.percentile(next_values, thresholds)
+    # curr_perc_min, curr_perc_max = np.max(curr_values)*0.9, np.max(curr_values)*0.1
+    # next_perc_min, next_perc_max = np.max(next_values)*0.9, np.max(next_values)*0.1
+
+    idx0 = (curr_values &gt; curr_perc_min) &amp; (curr_values &lt; curr_perc_max)
+    idx1 = (next_values &gt; next_perc_min) &amp; (next_values &lt; next_perc_max)
+
+    idx = idx0 &amp; idx1
+    print(&#34;Sum of valid pairs&#34;, np.sum(idx))
+
+    temp_paired_values = paired_values[idx]
+
+    if temp_paired_values.shape[0] &gt; 0:
+        paired_values = temp_paired_values
+
+    return paired_values
+
+
+def find_pairs_between_labels(
+    curr_label: float,
+    next_label: float,
+    stereo_sphere_coords: np.ndarray,
+    labels: np.ndarray,
+    avg_values: np.ndarray,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Find the pairs between the current and next label.
+
+    :param curr_label: current label
+    :param next_label: next label
+    :param stereo_sphere_coords: array containing the coordinates of the sphere
+    :param labels: array containing the labels
+    :param avg_values: array containing the average values
+    :return: dataframe containing the pairs
+    &#34;&#34;&#34;
+    # find vertex points in curr and next label
+    curr_idx = labels == float(curr_label)
+    next_idx = labels == float(next_label)
+
+    # get range of vertex points in curr and next label
+    vtx_range = np.arange(stereo_sphere_coords.shape[0]).astype(int)
+
+    # get range of vertex points in curr and next label
+    curr_range = vtx_range[curr_idx]
+    next_range = vtx_range[next_idx]
+
+    # get coordinates of vertex points in curr and next label
+    next_coords = stereo_sphere_coords[next_idx]
+    curr_coords = stereo_sphere_coords[curr_idx]
+
+    dist = pairwise_coord_distances(curr_coords, next_coords)
+
+    paired_values = create_dataframe_for_pairs(dist, avg_values, next_range, curr_range)
+
+    paired_values[&#34;curr_label&#34;] = [curr_label] * paired_values.shape[0]
+    paired_values[&#34;next_label&#34;] = [next_label] * paired_values.shape[0]
+    paired_values[&#34;vtx_pair_id&#34;] = np.arange(paired_values.shape[0])
+
+    return paired_values
+
+
+def simple_get_paired_values(
+    chunk_info: pd.DataFrame,
+    volumes_df: pd.DataFrame,
+    paired_values_csv: str,
+    unique_paired_values_csv: str,
+    clobber: bool = False,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Get the paired values between chunks.
+
+    :param chunk_info: dataframe containing chunk information
+    :param volumes_df: dataframe containing volume information
+    :param paired_values_csv: path to paired values csv
+    :param unique_paired_values_csv: path to unique paired values csv
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: dataframe containing the paired values
+    &#34;&#34;&#34;
+    if not os.path.exists(paired_values_csv) or clobber:
+        # find corresponding points between caudal and rostral
+        paired_values = pd.DataFrame({})
+        for (sub, hemisphere, chunk), chunk_df in chunk_info.groupby(
+            [
+                &#34;sub&#34;,
+                &#34;hemisphere&#34;,
+                &#34;chunk&#34;,
+            ]
+        ):
+            rec_fn = volumes_df[&#34;thickened&#34;].loc[volumes_df[&#34;chunk&#34;] == chunk].values[0]
+            rec_cls_fn = chunk_df[&#34;nl_2d_vol_cls_fn&#34;].values[0]
+            gm_fn = chunk_df[&#34;ref_space_nat&#34;].values[0]
+
+            rec = nib.load(rec_fn).get_fdata()
+            rec_cls = nib.load(rec_cls_fn).get_fdata()
+            gm = nib.load(gm_fn).get_fdata()
+
+            seg = segment.multi_threshold(rec)
+
+            curr_values = np.median(
+                rec[
+                    (gm &gt; 0.9)
+                    &amp; (rec_cls &gt; rec_cls.max() * 0.5)
+                    &amp; (seg &gt; seg.max() * 0.5)
+                ]
+            )
+
+            row = pd.DataFrame(
+                {
+                    &#34;sub&#34;: sub,
+                    &#34;hemisphere&#34;: hemisphere,
+                    &#34;curr_label&#34;: chunk,
+                    &#34;curr_values&#34;: curr_values,
+                },
+                index=[0],
+            )
+            paired_values = pd.concat([paired_values, row])
+        paired_values[&#34;next_label&#34;] = paired_values[&#34;curr_label&#34;].shift(-1)
+        paired_values[&#34;next_values&#34;] = paired_values[&#34;curr_values&#34;].shift(-1)
+        # paired_values.dropna(inplace=True)
+
+        paired_values.to_csv(paired_values_csv, index=False)
+        paired_values.to_csv(unique_paired_values_csv, index=False)
+    paired_values = pd.read_csv(paired_values_csv, index_col=False)
+
+    return paired_values
+
+
+def get_paired_values(
+    paired_values_csv: str,
+    unique_paired_values_csv: str,
+    stereo_sphere_filename: str,
+    label_filename: str,
+    values: np.ndarray,
+    out_dir: str,
+    label_start: int = 1,
+    label_offset: int = 2,
+    clobber: bool = False,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Get paired values between labels regions.
+
+    :param paired_values_csv: path to paired values csv
+    :param unique_paired_values_csv: path to unique paired values csv
+    :param stereo_sphere_filename: path to stereo sphere
+    :param label_filename: path to label file
+    :param values: array containing the values
+    :param out_dir: path to output directory
+    :param label_start: label start
+    :param label_offset: label offset
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: dataframe containing the paired values
+    &#34;&#34;&#34;
+    if not os.path.exists(paired_values_csv) or clobber:
+        # find corresponding points between caudal and rostral
+        labels = load_values(label_filename)
+        assert np.sum(labels &gt; 0), &#34;Error: no labels in &#34; + label_filename
+
+        stereo_sphere_coords = load_mesh_ext(stereo_sphere_filename)[0]
+
+        # Unlabel (i.e. set to 0) labeled vertices that have a value of 0
+        labels[values == 0] = 0
+        assert (
+            np.sum(values[labels &gt; 0] == 0) == 0
+        ), &#34;Error: 0 values found in vertices that shouldnt be zero, ie where labels &gt;0 &#34;
+
+        # examples of chunk structure
+        #   | 1 |   | 2 |   | 3 |
+        #   c   r   c   r   c   r
+        #   1   2   3   4   5   6
+
+        label_list = np.unique(labels)[1:]
+        paired_values = pd.DataFrame({})
+        curr_labels = label_list[label_start:-1:label_offset]
+        next_labels = label_list[label_start + 1 :: label_offset]
+        for curr_label, next_label in zip(curr_labels, next_labels):
+            print(f&#34;Finding pairs between {curr_label} and {next_label}&#34;)
+
+            curr_paired_values = find_pairs_between_labels(
+                curr_label, next_label, stereo_sphere_coords, labels, values
+            )
+            paired_values = pd.concat([paired_values, curr_paired_values])
+
+        paired_values.to_csv(paired_values_csv, index=False)
+
+    paired_values = pd.read_csv(paired_values_csv, index_col=False)
+    # FIXME testing if unqiue values are actually needed
+    # if not os.path.exists(unique_paired_values_csv) or clobber :
+    #    unique_paired_values = get_unique_pairs(paired_values, &#39;curr&#39;)
+    #    unique_paired_values = get_unique_pairs(unique_paired_values, &#39;next&#39;)
+    #    unique_paired_values.to_csv(unique_paired_values_csv, index=False)
+    # unique_paired_values = pd.read_csv(unique_paired_values_csv, index_col=False)
+    unique_paired_values = paired_values
+    unique_paired_values.to_csv(unique_paired_values_csv, index=False)
+
+    png_fn = f&#34;{out_dir}/paired_values.png&#34;
+
+    plt.cla()
+    plt.clf()
+    plt.figure(figsize=(10, 10))
+    if not os.path.exists(png_fn) or clobber:
+        for i, row in unique_paired_values.iterrows():
+            continue
+            x = [row[&#34;curr_label&#34;], row[&#34;next_label&#34;]]
+            y = [row[&#34;curr_values&#34;], row[&#34;next_values&#34;]]
+            plt.scatter(x, y, c=&#34;r&#34;)
+            plt.plot(x, y, c=&#34;b&#34;, alpha=0.1)
+        plt.savefig(png_fn)
+    print(&#34;Done&#34;)
+    return unique_paired_values
+
+
+def get_unique_pairs(
+    paired_values: pd.DataFrame, direction: str, n_points: int = 1
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Get the unique pairs between sets of paired values.
+
+    :param paired_values: dataframe containing the paired values
+    :param direction: direction of the pair
+    :param n_points: number of points
+    :return: dataframe containing the unique pairs
+    &#34;&#34;&#34;
+    unique_paired_values = pd.DataFrame({})
+
+    for (i_chunk,), i_df in paired_values.groupby([f&#34;{direction}_label&#34;]):
+        for counter, ((j_idx,), j_df) in enumerate(i_df.groupby([f&#34;{direction}_idx&#34;])):
+            min_distance_idx = np.argsort(j_df[&#34;distance&#34;])[:n_points]
+            row = j_df.iloc[min_distance_idx]
+
+            unique_paired_values = pd.concat([unique_paired_values, row])
+
+    return unique_paired_values
+
+
+def simple_chunk_correction(paired_values: pd.DataFrame) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Perform batch correction by using chunk average intensities.
+
+    :param paired_values: dataframe containing the paired values
+    :return: dataframe containing the correction parameters
+    &#34;&#34;&#34;
+    params = pd.DataFrame({})
+
+    row_dict = {
+        &#34;label&#34;: paired_values[&#34;curr_label&#34;].min(),
+        &#34;multiplier&#34;: [1],
+        &#34;offset&#34;: [0],
+    }
+
+    params = pd.concat([params, pd.DataFrame(row_dict)])
+
+    total_offset = 0
+
+    for (curr_label,), df in paired_values.groupby([&#34;curr_label&#34;]):
+        next_label = df[&#34;next_label&#34;].values[0]
+        curr_values = df[&#34;curr_values&#34;].values
+        next_values = df[&#34;next_values&#34;].values
+
+        mean_diff = curr_values - next_values
+
+        offset = mean_diff
+        total_offset += offset
+        print(curr_values, next_values, offset, total_offset)
+
+        row_dict = {
+            &#34;label&#34;: next_label,
+            &#34;multiplier&#34;: 1,
+            &#34;offset&#34;: total_offset,
+            &#34;chunk_offset&#34;: offset,
+        }
+
+        params = pd.concat([params, pd.DataFrame(row_dict, index=[0])])
+
+    return params
+
+
+def calc_batch_correction_params(
+    chunk_info: pd.DataFrame,
+    chunk_info_thickened_csv: str,
+    label_filename: str,
+    values: np.ndarray,
+    stereo_sphere_filename: str,
+    stereo_cortex_filename: str,
+    out_dir: str,
+    label_start: int = 1,
+    label_offset: int = 2,
+    clobber: bool = False,
+) -&gt; (pd.DataFrame, pd.DataFrame):
+    &#34;&#34;&#34;Identify the vertices within a given chunk and find the vertices that are part of the anterior and posterior border of that chunk.
+
+    :param label_filename: file with a scalar for each vertx where chunks are labeled with discrete integer values.
+    :param values_filename: file with scalar for each vertex. values that need to be corrected
+    :param stereo_sphere_filename: surface mesh inflated to sphere
+    :param stereo_cortex_filename: surface mesh of cortex
+    :param out_dir: output directory
+    :param clobber: overwrite existing files
+    :return: params, paired_values
+    &#34;&#34;&#34;
+    paired_values_csv = f&#34;{out_dir}/paired_values.csv&#34;
+    unique_paired_values_csv = f&#34;{out_dir}/unique_paired_values.csv&#34;
+
+    volumes_df = pd.read_csv(chunk_info_thickened_csv)
+
+    params_fn = f&#34;{out_dir}/params.csv&#34;
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    if not os.path.exists(params_fn) or clobber:
+        labels = np.unique(load_values(label_filename))[1:]
+        print(&#34;\t\tNumber of labels&#34;, len(labels), labels)
+
+        print(&#34;\t\tGet Paired Values&#34;)
+        &#34;&#34;&#34;
+        paired_values = get_paired_values(
+                paired_values_csv, 
+                unique_paired_values_csv,  
+                stereo_sphere_filename, 
+                label_filename, 
+                values, 
+                out_dir,
+                label_start = label_start,
+                label_offset = label_offset,
+                clobber=clobber
+                )
+        &#34;&#34;&#34;
+
+        paired_values = simple_get_paired_values(
+            chunk_info,
+            volumes_df,
+            paired_values_csv,
+            unique_paired_values_csv,
+        )
+
+        if not os.path.exists(params_fn) or clobber:
+            params = simple_chunk_correction(paired_values)
+            params.to_csv(params_fn, index=False)
+
+        params = pd.read_csv(params_fn)
+
+    params = pd.read_csv(params_fn)
+    paired_values = pd.read_csv(unique_paired_values_csv)
+
+    return params, paired_values</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="brainbuilder.interp.batch_correction.apply_batch_correction"><code class="name flex">
+<span>def <span class="ident">apply_batch_correction</span></span>(<span>chunk_info: pandas.core.frame.DataFrame, sect_info: pandas.core.frame.DataFrame, chunk_info_thickened_csv: str, surf_raw_values_dict: str, profiles_fn: str, surf_depth_mni_dict: dict, surf_depth_chunk_dict: dict, depth_list: list, resolution: float, struct_vol_rsl_fn: str, output_dir: str, clobber: bool = False) ‑> (<class 'pandas.core.frame.DataFrame'>, <class 'str'>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Apply batch correction to the profiles_fn to correct for mean shifts between chunks.</p>
+<p>:param chunk_info: dataframe containing chunk information
+:param sect_info: dataframe containing section information
+:param surf_raw_values_dict: dictionary containing information about the surfaces
+:param surf_depth_mni_dict: dictionary containing information about the surfaces
+:param surf_depth_chunk_dict: dictionary containing information about the surfaces
+:param chunk_info: dataframe containing chunk information
+:param depth_list: list of depths to use for interpolation
+:param output_dir: path to output directory
+:param clobber: boolean indicating whether to overwrite existing files
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def apply_batch_correction(
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    chunk_info_thickened_csv: str,
+    surf_raw_values_dict: str,
+    profiles_fn: str,
+    surf_depth_mni_dict: dict,
+    surf_depth_chunk_dict: dict,
+    depth_list: list,
+    resolution: float,
+    struct_vol_rsl_fn: str,
+    output_dir: str,
+    clobber: bool = False,
+) -&gt; (pd.DataFrame, str):
+    &#34;&#34;&#34;Apply batch correction to the profiles_fn to correct for mean shifts between chunks.
+
+    :param chunk_info: dataframe containing chunk information
+    :param sect_info: dataframe containing section information
+    :param surf_raw_values_dict: dictionary containing information about the surfaces
+    :param surf_depth_mni_dict: dictionary containing information about the surfaces
+    :param surf_depth_chunk_dict: dictionary containing information about the surfaces
+    :param chunk_info: dataframe containing chunk information
+    :param depth_list: list of depths to use for interpolation
+    :param output_dir: path to output directory
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: None
+    &#34;&#34;&#34;
+    os.makedirs(f&#34;{output_dir}&#34;, exist_ok=True)
+
+    mid_depth_index = int(np.ceil(len(depth_list) / 2))
+    mid_depth = depth_list[mid_depth_index]
+
+    # Get dict with mid surfaces for each chunk
+    mid_depth_chunk_dict = dict(surf_depth_chunk_dict[mid_depth].items())
+
+    # Get raw values file for mid depth surface
+    values_fn = surf_raw_values_dict[mid_depth]
+
+    # Load raw values
+    values = load_values(values_fn).reshape(
+        -1,
+    )
+
+    (
+        surface_labels_filename,
+        sect_info,
+        label_to_chunk_dict,
+    ) = create_surface_section_labels(
+        chunk_info,
+        sect_info,
+        values,
+        mid_depth_chunk_dict,
+        output_dir,
+        resolution,
+        qc_surface_fn=surf_depth_mni_dict[mid_depth][&#34;depth_rsl_fn&#34;],
+        ref_vol_fn=struct_vol_rsl_fn,
+        clobber=clobber,
+    )
+
+    profiles = np.load(profiles_fn + &#34;.npz&#34;)[&#34;data&#34;]
+
+    params, paired_values = calc_batch_correction_params(
+        chunk_info,
+        chunk_info_thickened_csv,
+        surface_labels_filename,
+        profiles,
+        surf_depth_mni_dict[mid_depth][&#34;sphere_rsl_fn&#34;],  # stereo_sphere_filename
+        surf_depth_mni_dict[mid_depth][&#34;depth_rsl_fn&#34;],  # stereo_cortex_filename
+        f&#34;{output_dir}&#34;,
+        label_start=0,
+        label_offset=1,
+        clobber=clobber,
+    )
+
+    # for i, row in paired_values.iterrows() :
+    #    c0 = coords[int(row[&#39;curr_idx&#39;])]
+    #    c1 = coords[int(row[&#39;next_idx&#39;])]
+    #    distance = np.sqrt(np.sum(np.power(c0-c1,2)))
+    #    print(row[&#39;curr_values&#39;], distance)
+
+    sect_info = update_df_with_correction_params(sect_info, params, label_to_chunk_dict)
+
+    return sect_info, paired_values</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.batch_correction.calc_batch_correction_params"><code class="name flex">
+<span>def <span class="ident">calc_batch_correction_params</span></span>(<span>chunk_info: pandas.core.frame.DataFrame, chunk_info_thickened_csv: str, label_filename: str, values: numpy.ndarray, stereo_sphere_filename: str, stereo_cortex_filename: str, out_dir: str, label_start: int = 1, label_offset: int = 2, clobber: bool = False) ‑> (<class 'pandas.core.frame.DataFrame'>, <class 'pandas.core.frame.DataFrame'>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Identify the vertices within a given chunk and find the vertices that are part of the anterior and posterior border of that chunk.</p>
+<p>:param label_filename: file with a scalar for each vertx where chunks are labeled with discrete integer values.
+:param values_filename: file with scalar for each vertex. values that need to be corrected
+:param stereo_sphere_filename: surface mesh inflated to sphere
+:param stereo_cortex_filename: surface mesh of cortex
+:param out_dir: output directory
+:param clobber: overwrite existing files
+:return: params, paired_values</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def calc_batch_correction_params(
+    chunk_info: pd.DataFrame,
+    chunk_info_thickened_csv: str,
+    label_filename: str,
+    values: np.ndarray,
+    stereo_sphere_filename: str,
+    stereo_cortex_filename: str,
+    out_dir: str,
+    label_start: int = 1,
+    label_offset: int = 2,
+    clobber: bool = False,
+) -&gt; (pd.DataFrame, pd.DataFrame):
+    &#34;&#34;&#34;Identify the vertices within a given chunk and find the vertices that are part of the anterior and posterior border of that chunk.
+
+    :param label_filename: file with a scalar for each vertx where chunks are labeled with discrete integer values.
+    :param values_filename: file with scalar for each vertex. values that need to be corrected
+    :param stereo_sphere_filename: surface mesh inflated to sphere
+    :param stereo_cortex_filename: surface mesh of cortex
+    :param out_dir: output directory
+    :param clobber: overwrite existing files
+    :return: params, paired_values
+    &#34;&#34;&#34;
+    paired_values_csv = f&#34;{out_dir}/paired_values.csv&#34;
+    unique_paired_values_csv = f&#34;{out_dir}/unique_paired_values.csv&#34;
+
+    volumes_df = pd.read_csv(chunk_info_thickened_csv)
+
+    params_fn = f&#34;{out_dir}/params.csv&#34;
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    if not os.path.exists(params_fn) or clobber:
+        labels = np.unique(load_values(label_filename))[1:]
+        print(&#34;\t\tNumber of labels&#34;, len(labels), labels)
+
+        print(&#34;\t\tGet Paired Values&#34;)
+        &#34;&#34;&#34;
+        paired_values = get_paired_values(
+                paired_values_csv, 
+                unique_paired_values_csv,  
+                stereo_sphere_filename, 
+                label_filename, 
+                values, 
+                out_dir,
+                label_start = label_start,
+                label_offset = label_offset,
+                clobber=clobber
+                )
+        &#34;&#34;&#34;
+
+        paired_values = simple_get_paired_values(
+            chunk_info,
+            volumes_df,
+            paired_values_csv,
+            unique_paired_values_csv,
+        )
+
+        if not os.path.exists(params_fn) or clobber:
+            params = simple_chunk_correction(paired_values)
+            params.to_csv(params_fn, index=False)
+
+        params = pd.read_csv(params_fn)
+
+    params = pd.read_csv(params_fn)
+    paired_values = pd.read_csv(unique_paired_values_csv)
+
+    return params, paired_values</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.batch_correction.create_dataframe_for_pairs"><code class="name flex">
+<span>def <span class="ident">create_dataframe_for_pairs</span></span>(<span>dist: numpy.ndarray, avg_values: numpy.ndarray, next_range: numpy.ndarray, c_vtx: numpy.ndarray) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Create a dataframe for the pairs.</p>
+<p>:param dist: array containing the distances between the vertices
+:param avg_values: array containing the average values
+:param next_range: array containing the range of the next vertices
+:param c_vtx: array containing the current vertices
+:return: dataframe containing the pairs</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def create_dataframe_for_pairs(
+    dist: np.ndarray, avg_values: np.ndarray, next_range: np.ndarray, c_vtx: np.ndarray
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Create a dataframe for the pairs.
+
+    :param dist: array containing the distances between the vertices
+    :param avg_values: array containing the average values
+    :param next_range: array containing the range of the next vertices
+    :param c_vtx: array containing the current vertices
+    :return: dataframe containing the pairs
+    &#34;&#34;&#34;
+    arg_m = np.argmin(dist, axis=1)
+    min_dist = dist[range(dist.shape[0]), arg_m]
+    del dist
+
+    n_vtx = next_range[arg_m]
+
+    next_values = avg_values[n_vtx]
+    curr_values = avg_values[c_vtx]
+
+    paired_values = pd.DataFrame(
+        {
+            &#34;curr_idx&#34;: c_vtx,
+            &#34;next_idx&#34;: n_vtx,
+            &#34;curr_values&#34;: curr_values,
+            &#34;next_values&#34;: next_values,
+            &#34;distance&#34;: min_dist,
+        }
+    )
+
+    thresholds = [5, 95]
+    curr_perc_min, next_perc_max = np.percentile(curr_values, thresholds)
+    next_perc_min, curr_perc_max = np.percentile(next_values, thresholds)
+    # curr_perc_min, curr_perc_max = np.max(curr_values)*0.9, np.max(curr_values)*0.1
+    # next_perc_min, next_perc_max = np.max(next_values)*0.9, np.max(next_values)*0.1
+
+    idx0 = (curr_values &gt; curr_perc_min) &amp; (curr_values &lt; curr_perc_max)
+    idx1 = (next_values &gt; next_perc_min) &amp; (next_values &lt; next_perc_max)
+
+    idx = idx0 &amp; idx1
+    print(&#34;Sum of valid pairs&#34;, np.sum(idx))
+
+    temp_paired_values = paired_values[idx]
+
+    if temp_paired_values.shape[0] &gt; 0:
+        paired_values = temp_paired_values
+
+    return paired_values</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.batch_correction.create_surface_section_labels"><code class="name flex">
+<span>def <span class="ident">create_surface_section_labels</span></span>(<span>chunk_info: pandas.core.frame.DataFrame, sect_info: pandas.core.frame.DataFrame, values: numpy.ndarray, chunk_surface_dict: dict, out_dir: str, resolution: float, perc: float = 0.25, qc_surface_fn: str = '', ref_vol_fn: str = '', clobber: bool = False) ‑> (<class 'str'>, <class 'pandas.core.frame.DataFrame'>, <class 'dict'>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Create surface section labels.</p>
+<p>:param chunk_info: dataframe containing chunk information
+:param sect_info: dataframe containing section information
+:param values: array containing values
+:param chunk_surface_dict: dictionary containing information about the surfaces
+:param out_dir: path to output directory
+:param resolution: resolution of the reconstruction
+:param perc: percentage of the chunk to use for the caudal and rostral portions
+:param qc_surface_fn: path to qc surface
+:param ref_vol_fn: path to reference volume
+:param clobber: boolean indicating whether to overwrite existing files
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def create_surface_section_labels(
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    values: np.ndarray,
+    chunk_surface_dict: dict,
+    out_dir: str,
+    resolution: float,
+    perc: float = 0.25,
+    qc_surface_fn: str = &#34;&#34;,
+    ref_vol_fn: str = &#34;&#34;,
+    clobber: bool = False,
+) -&gt; (str, pd.DataFrame, dict):
+    &#34;&#34;&#34;Create surface section labels.
+
+    :param chunk_info: dataframe containing chunk information
+    :param sect_info: dataframe containing section information
+    :param values: array containing values
+    :param chunk_surface_dict: dictionary containing information about the surfaces
+    :param out_dir: path to output directory
+    :param resolution: resolution of the reconstruction
+    :param perc: percentage of the chunk to use for the caudal and rostral portions
+    :param qc_surface_fn: path to qc surface
+    :param ref_vol_fn: path to reference volume
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: None
+    &#34;&#34;&#34;
+    acquisition = sect_info[&#34;acquisition&#34;].values[0]
+    out_fn = f&#34;{out_dir}/{acquisition}_section_labels&#34;
+    qc_fn = f&#34;{out_dir}/{acquisition}_section_labels_qc.png&#34;
+    vol_qc_fn = f&#34;{out_dir}/{acquisition}_section_labels_qc.nii.gz&#34;
+
+    label_to_chunk_dict = {}
+
+    sect_info[&#34;label&#34;] = [0] * sect_info.shape[0]  # - np.min(labels_for_df) +1
+
+    labels = np.zeros(values.shape[0])
+
+    if not os.path.exists(out_fn + &#34;.npz&#34;) or clobber:
+        max_chunk = sect_info[&#34;chunk&#34;].max() + 1
+
+        for (chunk,), chunk_df in chunk_info.groupby([&#34;chunk&#34;]):
+            surf_filename = chunk_surface_dict[chunk]
+            coords = load_mesh_ext(surf_filename)[0]
+
+            y_coords = coords[:, 1]
+
+            array_img = nibabel.load(chunk_df[&#34;nl_2d_vol_fn&#34;].values[0])
+            ystep = array_img.affine[1, 1]
+            ystart = array_img.affine[1, 3]
+
+            sect_chunk_df = sect_info[sect_info[&#34;chunk&#34;] == chunk]
+
+            y = sect_chunk_df[&#34;sample&#34;].values
+
+            sect_chunk_df[&#34;yw&#34;] = (y * ystep + ystart).reshape(-1, 1)
+
+            # get the y limits for the chunk
+            # |                         |
+            # |-------------------------|
+            # ymin                     ymax
+
+            ymax = sect_chunk_df[&#34;yw&#34;].max()
+            ymin = sect_chunk_df[&#34;yw&#34;].min()
+
+            perc = 0.5
+            # Posterior, caudal, bound for the chunk
+            ylo = ymin + (ymax - ymin) * perc
+
+            # Anterior, rostral, bound for the chunk
+            yhi = ymax - (ymax - ymin) * perc
+
+            #          ylo   yhi
+            # |         |     |         |
+            # |-------------------------|
+            # ymin                     ymax
+
+            # Set labels to 0 by default
+            sect_chunk_df[&#34;label&#34;] = [0] * sect_chunk_df.shape[0]
+
+            # Define the label values
+            label_0 = (max_chunk - chunk) * 2 - 1
+            label_1 = (max_chunk - chunk) * 2
+
+            # Identify sections that in the caudal portion of the chunk
+            idx0 = (sect_chunk_df[&#34;yw&#34;] &lt;= ylo) &amp; (sect_chunk_df[&#34;yw&#34;] &gt;= ymin)
+
+            # Identify sections that in the rostral portion of the chunk
+            idx1 = (sect_chunk_df[&#34;yw&#34;] &gt;= yhi) &amp; (sect_chunk_df[&#34;yw&#34;] &lt;= ymax)
+
+            #          ylo   yhi
+            # |   idx0  |     |   idx1  |
+            # |-------------------------|
+            # ymin                     ymax
+
+            sect_chunk_df[&#34;label&#34;].iloc[idx0] = label_0
+            sect_chunk_df[&#34;label&#34;].iloc[idx1] = label_1
+
+            label_to_chunk_dict[label_0] = chunk
+            label_to_chunk_dict[label_1] = chunk
+
+            vtx0 = (y_coords &lt;= ylo) &amp; (y_coords &gt;= ymin)
+            vtx1 = (y_coords &gt;= yhi) &amp; (y_coords &lt;= ymax)
+
+            # labels[vtx0] = label_0
+            # labels[vtx1] = label_1
+
+            labels[vtx0] = chunk
+            labels[vtx1] = chunk
+            &#34;&#34;&#34;
+            for i, row in sect_chunk_df.iterrows() :
+                if len(labels) == 0 :
+                    labels = np.zeros(coords.shape[0])
+                label = row[&#39;label&#39;] 
+                yw = row[&#39;yw&#39;]
+                ymin = row[&#39;ylo&#39;]
+                ymax = row[&#39;yhi&#39;]
+
+                idx = ((y &gt; ymin) &amp; (y &lt;= ymax) &amp; (values &gt; np.min(values) )).reshape(-1,)
+
+                labels[idx] = label
+            &#34;&#34;&#34;
+            labels[values == 0] = 0
+            np.savez(out_fn, data=labels)
+
+            print(&#34;Label png :&#34;, qc_fn)
+            visualization(qc_surface_fn, labels, qc_fn)
+            img = nibabel.load(ref_vol_fn)
+            aff = img.affine
+            starts = aff[0:3, 3]
+            steps = aff[[0, 1, 2], [0, 1, 2]]
+            dimensions = img.shape
+
+            print(qc_surface_fn)
+            print(starts, steps)
+            vol, n = mesh_to_volume(
+                load_mesh_ext(qc_surface_fn)[0],
+                labels,
+                dimensions,
+                starts,
+                steps,
+            )
+            vol[n &gt; 0] = vol[n &gt; 0] / n[n &gt; 0]
+            nib.Nifti1Image(vol, aff, direction_order=&#34;lpi&#34;).to_filename(vol_qc_fn)
+
+    return out_fn, sect_info, label_to_chunk_dict</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.batch_correction.find_pairs_between_labels"><code class="name flex">
+<span>def <span class="ident">find_pairs_between_labels</span></span>(<span>curr_label: float, next_label: float, stereo_sphere_coords: numpy.ndarray, labels: numpy.ndarray, avg_values: numpy.ndarray) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Find the pairs between the current and next label.</p>
+<p>:param curr_label: current label
+:param next_label: next label
+:param stereo_sphere_coords: array containing the coordinates of the sphere
+:param labels: array containing the labels
+:param avg_values: array containing the average values
+:return: dataframe containing the pairs</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def find_pairs_between_labels(
+    curr_label: float,
+    next_label: float,
+    stereo_sphere_coords: np.ndarray,
+    labels: np.ndarray,
+    avg_values: np.ndarray,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Find the pairs between the current and next label.
+
+    :param curr_label: current label
+    :param next_label: next label
+    :param stereo_sphere_coords: array containing the coordinates of the sphere
+    :param labels: array containing the labels
+    :param avg_values: array containing the average values
+    :return: dataframe containing the pairs
+    &#34;&#34;&#34;
+    # find vertex points in curr and next label
+    curr_idx = labels == float(curr_label)
+    next_idx = labels == float(next_label)
+
+    # get range of vertex points in curr and next label
+    vtx_range = np.arange(stereo_sphere_coords.shape[0]).astype(int)
+
+    # get range of vertex points in curr and next label
+    curr_range = vtx_range[curr_idx]
+    next_range = vtx_range[next_idx]
+
+    # get coordinates of vertex points in curr and next label
+    next_coords = stereo_sphere_coords[next_idx]
+    curr_coords = stereo_sphere_coords[curr_idx]
+
+    dist = pairwise_coord_distances(curr_coords, next_coords)
+
+    paired_values = create_dataframe_for_pairs(dist, avg_values, next_range, curr_range)
+
+    paired_values[&#34;curr_label&#34;] = [curr_label] * paired_values.shape[0]
+    paired_values[&#34;next_label&#34;] = [next_label] * paired_values.shape[0]
+    paired_values[&#34;vtx_pair_id&#34;] = np.arange(paired_values.shape[0])
+
+    return paired_values</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.batch_correction.get_border_y"><code class="name flex">
+<span>def <span class="ident">get_border_y</span></span>(<span>df: pandas.core.frame.DataFrame, chunk: int, thr: int, start: float, step: float, caudal: bool = True) ‑> list</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the y coordinates for the border of the chunk.</p>
+<p>:param df: dataframe containing chunk information
+:param chunk: chunk number
+:param thr: threshold
+:param start: start coordinate of the chunk
+:param step: step size
+:param caudal: boolean indicating whether the border is caudal or rostral
+:return: list of y coordinates</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_border_y(
+    df: pd.DataFrame,
+    chunk: int,
+    thr: int,
+    start: float,
+    step: float,
+    caudal: bool = True,
+) -&gt; list:
+    &#34;&#34;&#34;Get the y coordinates for the border of the chunk.
+
+    :param df: dataframe containing chunk information
+    :param chunk: chunk number
+    :param thr: threshold
+    :param start: start coordinate of the chunk
+    :param step: step size
+    :param caudal: boolean indicating whether the border is caudal or rostral
+    :return: list of y coordinates
+    &#34;&#34;&#34;
+    dfs = df.sort_values([&#34;chunk_order&#34;])
+
+    if caudal:
+        dfs = dfs.iloc[0:thr]
+        y_list = (
+            dfs[&#34;chunk_order&#34;].min(),
+            dfs[&#34;chunk_order&#34;].max() + 1,
+        )  ##add +1 so that it is inclusive range
+    else:  # rostral
+        dfs = dfs.iloc[-thr:]
+        y_list = (dfs[&#34;chunk_order&#34;].min(), dfs[&#34;chunk_order&#34;].max() + 1)
+
+    y_list = sorted([y * step + start for y in y_list])
+    # need to convert y to world coordinates
+
+    return y_list</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.batch_correction.get_paired_values"><code class="name flex">
+<span>def <span class="ident">get_paired_values</span></span>(<span>paired_values_csv: str, unique_paired_values_csv: str, stereo_sphere_filename: str, label_filename: str, values: numpy.ndarray, out_dir: str, label_start: int = 1, label_offset: int = 2, clobber: bool = False) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get paired values between labels regions.</p>
+<p>:param paired_values_csv: path to paired values csv
+:param unique_paired_values_csv: path to unique paired values csv
+:param stereo_sphere_filename: path to stereo sphere
+:param label_filename: path to label file
+:param values: array containing the values
+:param out_dir: path to output directory
+:param label_start: label start
+:param label_offset: label offset
+:param clobber: boolean indicating whether to overwrite existing files
+:return: dataframe containing the paired values</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_paired_values(
+    paired_values_csv: str,
+    unique_paired_values_csv: str,
+    stereo_sphere_filename: str,
+    label_filename: str,
+    values: np.ndarray,
+    out_dir: str,
+    label_start: int = 1,
+    label_offset: int = 2,
+    clobber: bool = False,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Get paired values between labels regions.
+
+    :param paired_values_csv: path to paired values csv
+    :param unique_paired_values_csv: path to unique paired values csv
+    :param stereo_sphere_filename: path to stereo sphere
+    :param label_filename: path to label file
+    :param values: array containing the values
+    :param out_dir: path to output directory
+    :param label_start: label start
+    :param label_offset: label offset
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: dataframe containing the paired values
+    &#34;&#34;&#34;
+    if not os.path.exists(paired_values_csv) or clobber:
+        # find corresponding points between caudal and rostral
+        labels = load_values(label_filename)
+        assert np.sum(labels &gt; 0), &#34;Error: no labels in &#34; + label_filename
+
+        stereo_sphere_coords = load_mesh_ext(stereo_sphere_filename)[0]
+
+        # Unlabel (i.e. set to 0) labeled vertices that have a value of 0
+        labels[values == 0] = 0
+        assert (
+            np.sum(values[labels &gt; 0] == 0) == 0
+        ), &#34;Error: 0 values found in vertices that shouldnt be zero, ie where labels &gt;0 &#34;
+
+        # examples of chunk structure
+        #   | 1 |   | 2 |   | 3 |
+        #   c   r   c   r   c   r
+        #   1   2   3   4   5   6
+
+        label_list = np.unique(labels)[1:]
+        paired_values = pd.DataFrame({})
+        curr_labels = label_list[label_start:-1:label_offset]
+        next_labels = label_list[label_start + 1 :: label_offset]
+        for curr_label, next_label in zip(curr_labels, next_labels):
+            print(f&#34;Finding pairs between {curr_label} and {next_label}&#34;)
+
+            curr_paired_values = find_pairs_between_labels(
+                curr_label, next_label, stereo_sphere_coords, labels, values
+            )
+            paired_values = pd.concat([paired_values, curr_paired_values])
+
+        paired_values.to_csv(paired_values_csv, index=False)
+
+    paired_values = pd.read_csv(paired_values_csv, index_col=False)
+    # FIXME testing if unqiue values are actually needed
+    # if not os.path.exists(unique_paired_values_csv) or clobber :
+    #    unique_paired_values = get_unique_pairs(paired_values, &#39;curr&#39;)
+    #    unique_paired_values = get_unique_pairs(unique_paired_values, &#39;next&#39;)
+    #    unique_paired_values.to_csv(unique_paired_values_csv, index=False)
+    # unique_paired_values = pd.read_csv(unique_paired_values_csv, index_col=False)
+    unique_paired_values = paired_values
+    unique_paired_values.to_csv(unique_paired_values_csv, index=False)
+
+    png_fn = f&#34;{out_dir}/paired_values.png&#34;
+
+    plt.cla()
+    plt.clf()
+    plt.figure(figsize=(10, 10))
+    if not os.path.exists(png_fn) or clobber:
+        for i, row in unique_paired_values.iterrows():
+            continue
+            x = [row[&#34;curr_label&#34;], row[&#34;next_label&#34;]]
+            y = [row[&#34;curr_values&#34;], row[&#34;next_values&#34;]]
+            plt.scatter(x, y, c=&#34;r&#34;)
+            plt.plot(x, y, c=&#34;b&#34;, alpha=0.1)
+        plt.savefig(png_fn)
+    print(&#34;Done&#34;)
+    return unique_paired_values</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.batch_correction.get_rostral_caudal_borders"><code class="name flex">
+<span>def <span class="ident">get_rostral_caudal_borders</span></span>(<span>label_surf_values: numpy.ndarray, surfaces: numpy.ndarray, out_dir: str, perc: float = 0.05, clobber: bool = False) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the rostral and caudal borders for each chunk.</p>
+<p>:param label_surf_values: array containing the labels for each vertex
+:param surfaces: array containing the surfaces
+:param out_dir: path to output directory
+:param perc: percentage of the chunk to use for the caudal and rostral portions
+:param clobber: boolean indicating whether to overwrite existing files
+:return: path to border file</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_rostral_caudal_borders(
+    label_surf_values: np.ndarray,
+    surfaces: np.ndarray,
+    out_dir: str,
+    perc: float = 0.05,
+    clobber: bool = False,
+) -&gt; str:
+    &#34;&#34;&#34;Get the rostral and caudal borders for each chunk.
+
+    :param label_surf_values: array containing the labels for each vertex
+    :param surfaces: array containing the surfaces
+    :param out_dir: path to output directory
+    :param perc: percentage of the chunk to use for the caudal and rostral portions
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: path to border file
+    &#34;&#34;&#34;
+    border_fn = f&#34;{out_dir}/borders&#34;
+
+    # WARNING the label volumes and surfaces must be in same coord space
+    if not os.path.exists(border_fn) or clobber:
+        labels = load_values(label_surf_values)
+        chunks = np.unique(labels[labels &gt; 0])
+        n_chunks = len(chunks)
+
+        assert isinstance(surfaces, list), &#34;Error: surfaces is not a list&#34;
+        if len(surfaces) == 1:
+            surfaces = surfaces * n_chunks
+
+        n_vtx = load_mesh_ext(surfaces[0])[0].shape[0]
+
+        border = np.zeros(n_vtx)
+
+        for i, chunk in enumerate(chunks):
+            coords = load_mesh_ext(surfaces[i])
+            y = coords[:, 1]
+
+            y0 = np.min(y[labels == chunk])
+            y1 = np.max(y[labels == chunk])
+            y = coords[:, 1]
+
+            perc = 0.5
+
+            c0 = y0
+            c1 = y0 + np.abs(y0 - y1) * perc
+
+            r0 = y1 - np.abs(y1 - y0) * perc
+            r1 = y1
+
+            caudal_idx = (y &gt; c0) &amp; (y &lt; c1)
+            assert (
+                np.sum(caudal_idx) &gt; 0
+            ), f&#34;Error: no vertices found between {c0} and {c1}&#34;
+
+            rostral_idx = (y &gt; r0) &amp; (y &lt; r1)
+            assert (
+                np.sum(rostral_idx) &gt; 0
+            ), f&#34;Error: no rostral vertices found between {r0} and {r1}&#34;
+
+            border[caudal_idx] = chunk + CAUDAL_LABEL
+            border[rostral_idx] = chunk + ROSTRAL_LABEL
+
+        np.savez(border_fn, data=border)
+    return border_fn</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.batch_correction.get_unique_pairs"><code class="name flex">
+<span>def <span class="ident">get_unique_pairs</span></span>(<span>paired_values: pandas.core.frame.DataFrame, direction: str, n_points: int = 1) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the unique pairs between sets of paired values.</p>
+<p>:param paired_values: dataframe containing the paired values
+:param direction: direction of the pair
+:param n_points: number of points
+:return: dataframe containing the unique pairs</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_unique_pairs(
+    paired_values: pd.DataFrame, direction: str, n_points: int = 1
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Get the unique pairs between sets of paired values.
+
+    :param paired_values: dataframe containing the paired values
+    :param direction: direction of the pair
+    :param n_points: number of points
+    :return: dataframe containing the unique pairs
+    &#34;&#34;&#34;
+    unique_paired_values = pd.DataFrame({})
+
+    for (i_chunk,), i_df in paired_values.groupby([f&#34;{direction}_label&#34;]):
+        for counter, ((j_idx,), j_df) in enumerate(i_df.groupby([f&#34;{direction}_idx&#34;])):
+            min_distance_idx = np.argsort(j_df[&#34;distance&#34;])[:n_points]
+            row = j_df.iloc[min_distance_idx]
+
+            unique_paired_values = pd.concat([unique_paired_values, row])
+
+    return unique_paired_values</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.batch_correction.simple_chunk_correction"><code class="name flex">
+<span>def <span class="ident">simple_chunk_correction</span></span>(<span>paired_values: pandas.core.frame.DataFrame) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Perform batch correction by using chunk average intensities.</p>
+<p>:param paired_values: dataframe containing the paired values
+:return: dataframe containing the correction parameters</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def simple_chunk_correction(paired_values: pd.DataFrame) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Perform batch correction by using chunk average intensities.
+
+    :param paired_values: dataframe containing the paired values
+    :return: dataframe containing the correction parameters
+    &#34;&#34;&#34;
+    params = pd.DataFrame({})
+
+    row_dict = {
+        &#34;label&#34;: paired_values[&#34;curr_label&#34;].min(),
+        &#34;multiplier&#34;: [1],
+        &#34;offset&#34;: [0],
+    }
+
+    params = pd.concat([params, pd.DataFrame(row_dict)])
+
+    total_offset = 0
+
+    for (curr_label,), df in paired_values.groupby([&#34;curr_label&#34;]):
+        next_label = df[&#34;next_label&#34;].values[0]
+        curr_values = df[&#34;curr_values&#34;].values
+        next_values = df[&#34;next_values&#34;].values
+
+        mean_diff = curr_values - next_values
+
+        offset = mean_diff
+        total_offset += offset
+        print(curr_values, next_values, offset, total_offset)
+
+        row_dict = {
+            &#34;label&#34;: next_label,
+            &#34;multiplier&#34;: 1,
+            &#34;offset&#34;: total_offset,
+            &#34;chunk_offset&#34;: offset,
+        }
+
+        params = pd.concat([params, pd.DataFrame(row_dict, index=[0])])
+
+    return params</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.batch_correction.simple_get_paired_values"><code class="name flex">
+<span>def <span class="ident">simple_get_paired_values</span></span>(<span>chunk_info: pandas.core.frame.DataFrame, volumes_df: pandas.core.frame.DataFrame, paired_values_csv: str, unique_paired_values_csv: str, clobber: bool = False) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the paired values between chunks.</p>
+<p>:param chunk_info: dataframe containing chunk information
+:param volumes_df: dataframe containing volume information
+:param paired_values_csv: path to paired values csv
+:param unique_paired_values_csv: path to unique paired values csv
+:param clobber: boolean indicating whether to overwrite existing files
+:return: dataframe containing the paired values</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def simple_get_paired_values(
+    chunk_info: pd.DataFrame,
+    volumes_df: pd.DataFrame,
+    paired_values_csv: str,
+    unique_paired_values_csv: str,
+    clobber: bool = False,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Get the paired values between chunks.
+
+    :param chunk_info: dataframe containing chunk information
+    :param volumes_df: dataframe containing volume information
+    :param paired_values_csv: path to paired values csv
+    :param unique_paired_values_csv: path to unique paired values csv
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: dataframe containing the paired values
+    &#34;&#34;&#34;
+    if not os.path.exists(paired_values_csv) or clobber:
+        # find corresponding points between caudal and rostral
+        paired_values = pd.DataFrame({})
+        for (sub, hemisphere, chunk), chunk_df in chunk_info.groupby(
+            [
+                &#34;sub&#34;,
+                &#34;hemisphere&#34;,
+                &#34;chunk&#34;,
+            ]
+        ):
+            rec_fn = volumes_df[&#34;thickened&#34;].loc[volumes_df[&#34;chunk&#34;] == chunk].values[0]
+            rec_cls_fn = chunk_df[&#34;nl_2d_vol_cls_fn&#34;].values[0]
+            gm_fn = chunk_df[&#34;ref_space_nat&#34;].values[0]
+
+            rec = nib.load(rec_fn).get_fdata()
+            rec_cls = nib.load(rec_cls_fn).get_fdata()
+            gm = nib.load(gm_fn).get_fdata()
+
+            seg = segment.multi_threshold(rec)
+
+            curr_values = np.median(
+                rec[
+                    (gm &gt; 0.9)
+                    &amp; (rec_cls &gt; rec_cls.max() * 0.5)
+                    &amp; (seg &gt; seg.max() * 0.5)
+                ]
+            )
+
+            row = pd.DataFrame(
+                {
+                    &#34;sub&#34;: sub,
+                    &#34;hemisphere&#34;: hemisphere,
+                    &#34;curr_label&#34;: chunk,
+                    &#34;curr_values&#34;: curr_values,
+                },
+                index=[0],
+            )
+            paired_values = pd.concat([paired_values, row])
+        paired_values[&#34;next_label&#34;] = paired_values[&#34;curr_label&#34;].shift(-1)
+        paired_values[&#34;next_values&#34;] = paired_values[&#34;curr_values&#34;].shift(-1)
+        # paired_values.dropna(inplace=True)
+
+        paired_values.to_csv(paired_values_csv, index=False)
+        paired_values.to_csv(unique_paired_values_csv, index=False)
+    paired_values = pd.read_csv(paired_values_csv, index_col=False)
+
+    return paired_values</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.batch_correction.update_df_with_correction_params"><code class="name flex">
+<span>def <span class="ident">update_df_with_correction_params</span></span>(<span>df: pandas.core.frame.DataFrame, params: pandas.core.frame.DataFrame, label_to_chunk_dict: dict) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Update the dataframe with the correction parameters.</p>
+<p>:param df: dataframe containing section information
+:param params: dataframe containing the correction parameters
+:param label_to_chunk_dict: dictionary containing the mapping between labels and chunks
+:return: dataframe with updated correction parameters</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def update_df_with_correction_params(
+    df: pd.DataFrame, params: pd.DataFrame, label_to_chunk_dict: dict
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Update the dataframe with the correction parameters.
+
+    :param df: dataframe containing section information
+    :param params: dataframe containing the correction parameters
+    :param label_to_chunk_dict: dictionary containing the mapping between labels and chunks
+    :return: dataframe with updated correction parameters
+    &#34;&#34;&#34;
+    print(&#34;Update df with correction parameters&#34;)
+    df[&#34;batch_offset&#34;] = [0] * df.shape[0]
+    df[&#34;batch_multiplier&#34;] = [1] * df.shape[0]
+
+    for i, row in params.iterrows():
+        # idx = df[&#39;chunk&#39;] == label_to_chunk_dict[row[&#39;label&#39;].astype(int)]
+        idx = (
+            df[&#34;chunk&#34;] == row[&#34;label&#34;]
+        )  # label_to_chunk_dict[row[&#39;label&#39;].astype(int)]
+
+        df[&#34;batch_offset&#34;].loc[idx] = row[&#34;offset&#34;]
+        df[&#34;batch_multiplier&#34;].loc[idx] = row[&#34;multiplier&#34;]
+        print(row[&#34;label&#34;], row[&#34;offset&#34;])
+
+    return df</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="brainbuilder.interp" href="index.html">brainbuilder.interp</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="brainbuilder.interp.batch_correction.apply_batch_correction" href="#brainbuilder.interp.batch_correction.apply_batch_correction">apply_batch_correction</a></code></li>
+<li><code><a title="brainbuilder.interp.batch_correction.calc_batch_correction_params" href="#brainbuilder.interp.batch_correction.calc_batch_correction_params">calc_batch_correction_params</a></code></li>
+<li><code><a title="brainbuilder.interp.batch_correction.create_dataframe_for_pairs" href="#brainbuilder.interp.batch_correction.create_dataframe_for_pairs">create_dataframe_for_pairs</a></code></li>
+<li><code><a title="brainbuilder.interp.batch_correction.create_surface_section_labels" href="#brainbuilder.interp.batch_correction.create_surface_section_labels">create_surface_section_labels</a></code></li>
+<li><code><a title="brainbuilder.interp.batch_correction.find_pairs_between_labels" href="#brainbuilder.interp.batch_correction.find_pairs_between_labels">find_pairs_between_labels</a></code></li>
+<li><code><a title="brainbuilder.interp.batch_correction.get_border_y" href="#brainbuilder.interp.batch_correction.get_border_y">get_border_y</a></code></li>
+<li><code><a title="brainbuilder.interp.batch_correction.get_paired_values" href="#brainbuilder.interp.batch_correction.get_paired_values">get_paired_values</a></code></li>
+<li><code><a title="brainbuilder.interp.batch_correction.get_rostral_caudal_borders" href="#brainbuilder.interp.batch_correction.get_rostral_caudal_borders">get_rostral_caudal_borders</a></code></li>
+<li><code><a title="brainbuilder.interp.batch_correction.get_unique_pairs" href="#brainbuilder.interp.batch_correction.get_unique_pairs">get_unique_pairs</a></code></li>
+<li><code><a title="brainbuilder.interp.batch_correction.simple_chunk_correction" href="#brainbuilder.interp.batch_correction.simple_chunk_correction">simple_chunk_correction</a></code></li>
+<li><code><a title="brainbuilder.interp.batch_correction.simple_get_paired_values" href="#brainbuilder.interp.batch_correction.simple_get_paired_values">simple_get_paired_values</a></code></li>
+<li><code><a title="brainbuilder.interp.batch_correction.update_df_with_correction_params" href="#brainbuilder.interp.batch_correction.update_df_with_correction_params">update_df_with_correction_params</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

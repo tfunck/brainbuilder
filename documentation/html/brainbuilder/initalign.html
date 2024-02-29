@@ -1,0 +1,1919 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>brainbuilder.initalign API documentation</title>
+<meta name="description" content="Calculate initial rigid alignment between sections." />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>brainbuilder.initalign</code></h1>
+</header>
+<section id="section-intro">
+<p>Calculate initial rigid alignment between sections.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;Calculate initial rigid alignment between sections.&#34;&#34;&#34;
+
+import os
+import re
+import shutil
+from typing import Dict, List, Optional, Tuple
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from skimage.transform import resize
+
+import brainbuilder.utils.ants_nibabel as nib
+from brainbuilder.utils import utils
+from brainbuilder.utils.ANTs import ANTs
+from brainbuilder.utils.utils import AntsParams
+
+
+def load2d(fn: str) -&gt; np.array:
+    &#34;&#34;&#34;Load 2d image.&#34;&#34;&#34;
+    ar = nib.load(fn).get_fdata()
+    ar = ar.reshape(ar.shape[0], ar.shape[1])
+    return ar
+
+
+def align_neighbours_to_fixed(
+    i: int,
+    j_list: List[int],
+    df: pd.DataFrame,
+    transforms: Dict[int, List[str]],
+    iteration: int,
+    shrink_factor: float,
+    smooth_sigma: float,
+    output_dir: str,
+    tfm_type: str,
+    desc: Tuple[str, str, str, str, str, str],
+    target_acquisition: Optional[str] = None,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Aligns the neighbours to the fixed section.
+
+    :param i: The index of the fixed section.
+    :param j_list: The list of indices of the moving sections.
+    :param df: The DataFrame containing the section information.
+    :param transforms: The dictionary of transformation files.
+    :param iteration: The number of iterations for the alignment.
+    :param shrink_factor: The shrink factor for the alignment.
+    :param smooth_sigma: The smoothing sigma for the alignment.
+    :param output_dir: The output directory for the alignment results.
+    :param tfm_type: The type of transformation.
+    :param desc: The description tuple.
+    :param target_acquisition: The target acquisition type (optional).
+    :param clobber: Whether to overwrite existing files (default: False).
+    &#34;&#34;&#34;
+    # For neighbours  a single section is selected as fixed (ith section),
+    # then the subsequent sections are considred moving sections (jth section)
+    # and are registered to the fixed section.
+    i_idx = df[&#34;sample&#34;] == i
+    fixed_fn = df[&#34;img&#34;].loc[i_idx].values[0]
+    for j in j_list:
+        j_idx = df[&#34;sample&#34;] == j
+        outprefix = &#34;{}/init_transforms/{}_{}-0/&#34;.format(output_dir, j, tfm_type)
+
+        moving_rsl_fn = outprefix + &#34;_level-0_Mattes_{}.nii.gz&#34;.format(tfm_type)
+        tfm_fn = outprefix + &#34;_level-0_Mattes_{}_Composite.h5&#34;.format(tfm_type)
+        concat_tfm_fn = (
+            outprefix + &#34;level-0_Mattes_{}_Composite_Concatenated.h5&#34;.format(tfm_type)
+        )
+        qc_fn = &#34;{}/qc/{}_{}_{}_{}_{}_{}-0.png&#34;.format(
+            output_dir, *desc, j, i, tfm_type
+        )
+        moving_fn = df[&#34;img&#34;].loc[j_idx].values[0]
+
+        # calculate rigid transform from moving to fixed images
+        if not os.path.exists(tfm_fn) or not os.path.exists(qc_fn):
+            print()
+            print(&#34;\tFixed:&#34;, i, fixed_fn)
+            print(&#34;\tMoving:&#34;, j, moving_fn)
+            print(&#34;\tTfm:&#34;, tfm_fn, os.path.exists(tfm_fn))
+            print(&#34;\tQC:&#34;, qc_fn, os.path.exists(qc_fn))
+            print(&#34;\tMoving RSL:&#34;, moving_rsl_fn)
+
+            if target_acquisition is not None:
+                if df[&#34;acquisition&#34;].loc[j_idx].values[0] != target_acquisition:
+                    print(&#34;\tSkipping&#34;)
+                    continue
+
+            os.makedirs(outprefix, exist_ok=True)
+
+            ANTs(
+                tfm_prefix=outprefix,
+                fixed_fn=fixed_fn,
+                moving_fn=moving_fn,
+                moving_rsl_prefix=outprefix + &#34;tmp&#34;,
+                iterations=[iteration],
+                metrics=[&#34;Mattes&#34;],
+                tfm_type=[tfm_type],
+                shrink_factors=[shrink_factor],
+                smoothing_sigmas=[smooth_sigma],
+                init_tfm=None,
+                no_init_tfm=False,
+                dim=2,
+                sampling_method=&#34;Random&#34;,
+                sampling=0.5,
+                verbose=0,
+                generate_masks=False,
+                clobber=True,
+            )
+
+        # concatenate the transformation files that have been applied to the fixed image and the new transform
+        # that is being applied to the moving image
+        if not os.path.exists(concat_tfm_fn):
+            transforms_str = &#34;-t {} &#34;.format(&#34; -t &#34;.join(transforms[i] + [tfm_fn]))
+            utils.shell(
+                f&#34;antsApplyTransforms -v 0 -d 2 -i {moving_fn} -r {moving_fn} {transforms_str} -o Linear[{concat_tfm_fn}] &#34;,
+            )
+
+        # apply the concatenated transform to the moving image. this brings it into correct alignment with all of the
+        # aligned images.
+        if not os.path.exists(moving_rsl_fn):
+            utils.shell(
+                f&#34;antsApplyTransforms -v 0 -d 2 -i {moving_fn} -r {fixed_fn} -t {concat_tfm_fn} -o {moving_rsl_fn}&#34;,
+            )
+
+        if not os.path.exists(qc_fn):
+            create_qc_image(
+                load2d(fixed_fn),
+                load2d(moving_fn),
+                load2d(moving_rsl_fn),
+                i,
+                j,
+                df[&#34;tier&#34;].loc[i_idx],
+                df[&#34;tier&#34;].loc[j_idx],
+                df[&#34;acquisition&#34;].loc[i_idx],
+                df[&#34;acquisition&#34;].loc[j_idx],
+                qc_fn,
+            )
+
+        df[&#34;img_new&#34;].loc[df[&#34;sample&#34;] == j] = moving_rsl_fn
+        df[&#34;init_tfm&#34;].loc[df[&#34;sample&#34;] == j] = concat_tfm_fn
+        df[&#34;init_fixed&#34;].loc[df[&#34;sample&#34;] == j] = fixed_fn
+        transforms[j] = [concat_tfm_fn]
+    return df, transforms
+
+
+def create_qc_image(
+    fixed: np.array,
+    moving: np.array,
+    rsl: np.array,
+    fixed_order: str,
+    moving_order: str,
+    tier_fixed: str,
+    tier_moving: str,
+    acquisition_fixed: str,
+    acquisition_moving: str,
+    qc_fn: str,
+) -&gt; None:
+    &#34;&#34;&#34;Create a quality control image.
+
+    Args:
+        fixed: The fixed image.
+        moving: The moving image.
+        rsl: The registered image.
+        fixed_order: The order of the fixed image.
+        moving_order: The order of the moving image.
+        tier_fixed: The tier of the fixed image.
+        tier_moving: The tier of the moving image.
+        acquisition_fixed: The acquisition of the fixed image.
+        acquisition_moving: The acquisition of the moving image.
+        qc_fn: The filename of the quality control image.
+
+    Returns:
+        None
+    &#34;&#34;&#34;
+    plt.subplot(1, 2, 1)
+    plt.title(
+        &#34;fixed (gray): {} {} {}&#34;.format(fixed_order, tier_fixed, acquisition_fixed)
+    )
+    plt.imshow(fixed, cmap=plt.cm.gray)
+    plt.imshow(moving, alpha=0.35, cmap=plt.cm.hot)
+    plt.subplot(1, 2, 2)
+    plt.title(
+        &#34;moving (hot): {} {} {}&#34;.format(moving_order, tier_moving, acquisition_moving)
+    )
+    plt.imshow(fixed, cmap=plt.cm.gray)
+    plt.imshow(rsl, alpha=0.35, cmap=plt.cm.hot)
+    plt.tight_layout()
+    plt.savefig(qc_fn)
+    plt.clf()
+
+
+def adjust_alignment(
+    df: pd.DataFrame,
+    y_idx: List[int],
+    mid: int,
+    transforms: Dict[int, List[str]],
+    step: int,
+    output_dir: str,
+    desc: str,
+    shrink_factor: float,
+    smooth_sigma: float,
+    iteration: int,
+    tfm_type: str,
+    target_acquisition: Optional[str] = None,
+    target_tier: int = 1,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Adjust the alignment of images.
+
+    Args:
+        df: The DataFrame containing image information.
+        y_idx: The list of indices along the y-axis.
+        mid: The middle index.
+        transforms: The dictionary of transforms.
+        step: The step size.
+        output_dir: The output directory.
+        desc: The description.
+        shrink_factor: The shrink factor.
+        smooth_sigma: The smooth sigma.
+        iteration: The number of iterations.
+        tfm_type: The transform type.
+        target_acquisition: The target acquisition.
+        target_tier: The target tier.
+        clobber: Whether to overwrite existing files.
+
+    Returns:
+        None
+    &#34;&#34;&#34;
+    os.makedirs(output_dir + &#34;/qc/&#34;, exist_ok=True)
+    i = mid
+    j = i
+    len(y_idx)
+    y_idx_tier1 = df[&#34;sample&#34;].loc[df[&#34;tier&#34;] == 1].values.astype(int)
+
+    y_idx_tier1.sort()
+    i_max = step if step &lt; 0 else df[&#34;sample&#34;].values.max() + 1
+
+    # Iterate over the sections along y-axis
+    for y in y_idx_tier1[mid::step]:
+        j_list = []
+        for j in range(int(y + step), int(i_max), int(step)):
+            if j in df[&#34;sample&#34;].loc[df[&#34;tier&#34;] == target_tier].values.astype(int):
+                j_list.append(int(j))
+
+            if j in y_idx_tier1:
+                break
+
+        df, transforms = align_neighbours_to_fixed(
+            y,
+            j_list,
+            df,
+            transforms,
+            iteration,
+            shrink_factor,
+            smooth_sigma,
+            output_dir,
+            tfm_type,
+            desc,
+            target_acquisition=target_acquisition,
+            clobber=clobber,
+        )
+
+    # df.to_csv(&#39;{}/df_{}-0.csv&#39;.format(output_dir,tfm_type))
+    return transforms, df
+
+
+def apply_transforms_to_sections(
+    df: pd.DataFrame,
+    transforms: Dict[int, List[str]],
+    output_dir: str,
+    tfm_type: str,
+    target_acquisition: str = None,
+    clobber: bool = False,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Apply the transforms to the sections.
+
+    :param df: The DataFrame containing the section information.
+    :param transforms: The dictionary of transforms.
+    :param output_dir: The output directory.
+    :param tfm_type: The transform type.
+    :param target_acquisition: The target acquisition.
+    :param clobber: Whether to overwrite existing files.
+    :return: The DataFrame containing the section information.
+    &#34;&#34;&#34;
+    print(&#34;Applying Transforms&#34;)
+    if target_acquisition is not None:
+        df = df.loc[df[&#34;acquisition&#34;] == target_acquisition]
+
+    for i, (rowi, row) in enumerate(df.iterrows()):
+        outprefix = &#34;{}/init_transforms/{}_{}-0/&#34;.format(
+            output_dir, int(row[&#34;sample&#34;]), tfm_type
+        )
+        final_rsl_fn = outprefix + &#34;final_level-0_Mattes_{}-0.nii.gz&#34;.format(tfm_type)
+
+        if not os.path.exists(final_rsl_fn) or clobber:
+            fixed_tfm_list = transforms[row[&#34;sample&#34;]]
+            if len(fixed_tfm_list) == 0:
+                continue
+            transforms_str = &#34; -t {}&#34;.format(&#34; -t &#34;.join(fixed_tfm_list))
+
+            fixed_fn = row[&#34;original_img&#34;]
+
+            utils.shell(
+                f&#34;antsApplyTransforms -v 1 -d 2 -i {fixed_fn} -r {fixed_fn} {transforms_str} -o {final_rsl_fn}&#34;,
+            )
+        df[&#34;img_new&#34;].iloc[i] = final_rsl_fn
+    return df
+
+
+def combine_sections_to_vol(
+    df: pd.DataFrame,
+    y_mm: float,
+    z_mm: float,
+    direction: str,
+    out_fn: str,
+    target_tier: int = 1,
+) -&gt; None:
+    &#34;&#34;&#34;Combine 2D aligned sections to volume.
+
+    :param df: The DataFrame containing the section information.
+    :param y_mm: The y-axis resolution.
+    :param z_mm: The z-axis resolution.
+    :param direction: The direction of the volume.
+    :param out_fn: The output filename.
+    :param target_tier: The target tier.
+    :return: None
+    &#34;&#34;&#34;
+    example_fn = df[&#34;img&#34;].iloc[0]
+    shape = nib.load(example_fn).shape
+    affine = nib.load(example_fn).affine
+    xstart = affine[0, 3]
+    zstart = affine[1, 3]
+    xstep = affine[0, 0]
+    zstep = affine[1, 1]
+    ystep = y_mm
+
+    xmax = int(shape[0])
+    zmax = int(shape[1])
+    order_max = df[&#34;sample&#34;].astype(int).max()
+    df[&#34;sample&#34;].astype(int).min()
+    chunk_ymax = int(order_max + 1)  # -order_min + 1
+
+    vol = np.zeros([xmax, chunk_ymax, zmax])
+    df = df.sort_values(&#34;sample&#34;)
+    for i, row in df.iterrows():
+        if row[&#34;tier&#34;] == target_tier:
+            y = row[&#34;sample&#34;]
+            ar = nib.load(row[&#34;img&#34;]).get_fdata()
+            ar = ar.reshape(ar.shape[0], ar.shape[1])
+            ar = resize(ar, [xmax, zmax])
+            vol[:, int(y), :] = ar
+            # vol[:,int(y),:] += int(y)
+            del ar
+
+    print(&#34;\n\tWriting Volume&#34;, out_fn, &#34;\n&#34;)
+    chunk_ymin = -126 + df[&#34;sample&#34;].min() * y_mm
+
+    affine = np.array(
+        [
+            [xstep, 0, 0, xstart],
+            [0, ystep, 0, chunk_ymin],
+            [0, 0, zstep, zstart],
+            [0, 0, 0, 1],
+        ]
+    )
+    affine = np.round(affine, 3)
+    # flip the volume along the y-axis so that the image is in RAS coordinates because ANTs requires RAS
+    # vol = np.flip(vol, axis=1)
+    nib.Nifti1Image(vol, affine, direction_order=&#34;lpi&#34;).to_filename(out_fn)
+
+
+def alignment_stage(
+    df: pd.DataFrame,
+    vol_fn_str: str,
+    output_dir: str,
+    transforms: list,
+    linParams: str,
+    desc: Tuple[int, int, int] = (0, 0, 0),
+    target_acquisition: Optional[str] = None,
+    target_tier: int = 1,
+    acquisition_n: int = 0,
+    clobber: bool = False,
+) -&gt; Tuple[pd.DataFrame, Dict[int, List[str]]]:
+    &#34;&#34;&#34;Perform alignment of autoradiographs within a chunk.
+
+    Alignment is calculated once from the middle section in the posterior direction and a second time from the middle section in the anterior direction.
+
+    :param df: The DataFrame containing the section information.
+    :param vol_fn_str: The volume filename string.
+    :param output_dir: The output directory.
+    :param transforms: The transforms.
+    :param linParams: The linear parameters.
+    :param desc: The description.
+    :param target_acquisition: The target acquisition.
+    :param target_tier: The target tier.
+    :param acquisition_n: The acquisition number.
+    :param clobber: The clobber flag.
+    :return: A tuple containing the DataFrame and a dictionary.
+    &#34;&#34;&#34;
+    tfm_type = &#34;Rigid&#34;
+
+    # Set parameters for rigid transform
+    shrink_factor = linParams.f_str
+    smooth_sigma = re.sub(&#34;vox&#34;, &#34;&#34;, linParams.s_str)
+    iterations = linParams.itr_str.split(&#34;,&#34;)[0][1:]
+
+    shrink_factor = &#34;4x3x2&#34;
+    smooth_sigma = &#34;2x1.5x1&#34;
+    iterations = &#34;10x5x2&#34;
+
+    csv_fn = vol_fn_str.format(
+        output_dir,
+        *desc,
+        target_acquisition,
+        acquisition_n,
+        tfm_type + &#34;-&#34; + str(0),
+        &#34;.csv&#34;,
+    )
+
+    out_fn = vol_fn_str.format(
+        output_dir,
+        *desc,
+        target_acquisition,
+        acquisition_n,
+        tfm_type + &#34;-&#34; + str(0),
+        &#34;nii.gz&#34;,
+    )
+
+    if not os.path.exists(csv_fn) or not os.path.exists(out_fn):
+        df.sort_values([&#34;sample&#34;], inplace=True, ascending=False)
+
+        y_idx = df[&#34;sample&#34;].values
+
+        y_idx_tier1 = (
+            df[&#34;sample&#34;].loc[df[&#34;tier&#34;].astype(int) == np.min(df[&#34;tier&#34;])].values
+        )
+        mid = int(len(y_idx_tier1) / 2)
+
+        df[&#34;img_new&#34;] = df[&#34;img&#34;]
+        df[&#34;init_tfm&#34;] = [None] * df.shape[0]
+        df[&#34;init_img&#34;] = df[&#34;img_new&#34;]
+        df[&#34;init_fixed&#34;] = [None] * df.shape[0]
+
+        # perform alignment in forward direction from middle section
+        transforms, df = adjust_alignment(
+            df,
+            y_idx,
+            mid,
+            transforms,
+            -1,
+            output_dir,
+            desc,
+            shrink_factor,
+            smooth_sigma,
+            iterations,
+            tfm_type,
+            target_acquisition=target_acquisition,
+            target_tier=target_tier,
+            clobber=clobber,
+        )
+
+        # perform alignment in reverse direction from middle section
+        transforms, df = adjust_alignment(
+            df,
+            y_idx,
+            mid,
+            transforms,
+            1,
+            output_dir,
+            desc,
+            shrink_factor,
+            smooth_sigma,
+            iterations,
+            tfm_type,
+            target_acquisition=target_acquisition,
+            target_tier=target_tier,
+            clobber=clobber,
+        )
+
+        # update the img so it has the new, resampled file names
+        df[&#34;img&#34;] = df[&#34;img_new&#34;]
+    else:
+        df = pd.read_csv(csv_fn)
+
+    return df, transforms
+
+
+def create_final_outputs(
+    final_tfm_dir: str,
+    df: pd.DataFrame,
+    step: int,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Create final outputs for the alignment stage.
+
+    :param final_tfm_dir: path to directory containing final transforms
+    :param df: dataframe containing section information
+    :param step: step size for iterating over sections
+    :return: dataframe containing section information
+    &#34;&#34;&#34;
+    y_idx_tier = df[&#34;sample&#34;].values.astype(int)
+    y_idx_tier.sort()
+
+    mid = int(len(y_idx_tier) / 2)
+    if step &lt; 0:
+        mid -= 1
+    step if step &lt; 0 else df[&#34;sample&#34;].values.max() + 1
+
+    #                     c
+    #            &lt;--------------
+    #                    b
+    #            &lt;---------
+    #    l  l    |  a l b1 l   l
+    #    l  l -&gt; | &lt;- l &lt;- l   l
+    #    l  l    |    l    l   l
+    #   s0  s1   s2   s3   s4  s5
+    #   a ( b1 (s2) )  --&gt; s2
+    #
+    for i, y in enumerate(y_idx_tier[mid::step]):
+        row = df.loc[y == df[&#34;sample&#34;]]
+
+        final_tfm_fn = &#34;{}/{}_final_Rigid.h5&#34;.format(
+            final_tfm_dir, int(row[&#34;sample&#34;].values[0])
+        )
+        final_section_fn = f&#39;{final_tfm_dir}/{int(row[&#34;sample&#34;].values[0])}{os.path.basename(row[&#34;img&#34;].values[0])}&#39;
+        print(row[&#34;init_img&#34;].values)
+        print(row[&#34;sample&#34;].values)
+        idx = df[&#34;sample&#34;].values == row[&#34;sample&#34;].values
+        if not os.path.exists(final_tfm_fn) or not os.path.exists(final_section_fn):
+            if isinstance(row[&#34;init_tfm&#34;].values[0], str):
+                # standard rigid transformation for moving image
+                shutil.copy(row[&#34;init_tfm&#34;].values[0], final_tfm_fn)
+
+                if not os.path.exists(final_section_fn) and not os.path.islink(
+                    final_section_fn
+                ):
+                    os.symlink(row[&#34;img&#34;].values[0], final_section_fn)
+            else:
+                if not os.path.exists(final_section_fn) and not os.path.islink(
+                    final_section_fn
+                ):
+                    os.symlink(row[&#34;img&#34;].values[0], final_section_fn)
+                final_tfm_fn = np.nan
+
+        df[&#34;init_tfm&#34;].loc[idx] = final_tfm_fn
+        df[&#34;init_img&#34;].loc[idx] = final_section_fn
+    return df
+
+
+def initalign(
+    sect_info_csv: str,
+    chunk_info_csv: str,
+    output_dir: str,
+    resolution_list: list,
+    clobber: bool = True,
+) -&gt; str:
+    &#34;&#34;&#34;Calulate initial rigid aligment between sections.
+
+    param sect_info_csv: path to csv file containing section information
+    param chunk_info_csv: path to csv file containing chunk information
+    param output_dir: path to output directory
+    param clobber: overwrite existing files
+    return: path to csv file containing section information
+    &#34;&#34;&#34;
+    # Validate Inputs
+    # FIXME UNCOMMENT
+    # assert valinpts.validate_csv(
+    #    sect_info_csv, valinpts.sect_info_required_columns
+    # ), f&#34;Invalid section info csv file: {sect_info_csv}&#34;
+    # assert valinpts.validate_csv(
+    #    chunk_info_csv, valinpts.chunk_info_required_columns
+    # ), f&#34;Invalid chunk info csv file: {chunk_info_csv}&#34;
+
+    initalign_sect_info_csv = os.path.join(output_dir, &#34;initalign_sect_info.csv&#34;)
+    initalign_chunk_info_csv = os.path.join(output_dir, &#34;initalign_chunk_info.csv&#34;)
+    initalign_sect_info = pd.DataFrame({})
+    initalign_chunk_info = pd.DataFrame({})
+
+    # run_stage = utils.check_run_stage(initalign_sect_info_csv, &#34;init_tfm&#34;, &#34;seg&#34;)
+    run_stage = False  # FIXME UNCOMMENT
+
+    linParams = AntsParams(resolution_list, resolution_list[-1], 100)
+
+    if (
+        not os.path.exists(initalign_sect_info_csv)
+        or not os.path.exists(initalign_chunk_info_csv)
+        or clobber
+        or run_stage  # FIXME need to change initalign so that it overwrites outdated files
+    ):
+        sect_info = pd.read_csv(sect_info_csv)
+        chunk_info = pd.read_csv(chunk_info_csv)
+
+        initalign_sect_info = pd.DataFrame({})
+
+        for (sub, hemisphere, chunk), curr_sect_info in sect_info.groupby(
+            [
+                &#34;sub&#34;,
+                &#34;hemisphere&#34;,
+                &#34;chunk&#34;,
+            ]
+        ):
+            idx = (
+                (chunk_info[&#34;sub&#34;] == sub)
+                &amp; (chunk_info[&#34;hemisphere&#34;] == hemisphere)
+                &amp; (chunk_info[&#34;chunk&#34;] == chunk)
+            )
+            curr_chunk_info = chunk_info.loc[idx]
+
+            curr_output_dir = f&#34;{output_dir}/{sub}_{hemisphere}_{chunk}/&#34;
+
+            curr_sect_info, curr_chunk_info = align_chunk(
+                sub,
+                hemisphere,
+                chunk,
+                curr_output_dir,
+                curr_sect_info,
+                linParams,
+                curr_chunk_info,
+                clobber=clobber,
+            )
+            initalign_sect_info = pd.concat([initalign_sect_info, curr_sect_info])
+            initalign_chunk_info = pd.concat([initalign_chunk_info, curr_chunk_info])
+
+        initalign_sect_info.to_csv(initalign_sect_info_csv, index=False)
+        initalign_chunk_info.to_csv(initalign_chunk_info_csv, index=False)
+
+    return initalign_sect_info_csv, initalign_chunk_info_csv
+
+
+def get_acquisition_contrast_order(df: pd.DataFrame) -&gt; list:
+    &#34;&#34;&#34;Calculate the contrast order of the acquisitions.
+
+    :param df: The DataFrame containing the section information.
+    :return: The list of acquisitions sorted by contrast.
+    &#34;&#34;&#34;
+    df_list = []
+    for i, acquisition_df in df.groupby([&#34;acquisition&#34;]):
+        for j, row in acquisition_df.iterrows():
+            ar = nib.load(row[&#34;img&#34;]).dataobj
+            i_max = np.max(ar)
+            i_min = np.min(ar)
+            contrast = (i_max - i_min) / (i_max + i_min)
+
+            df_list.append(
+                pd.DataFrame(
+                    {
+                        &#34;acquisition&#34;: [row[&#34;acquisition&#34;]],
+                        &#34;contrast&#34;: [contrast],
+                    }
+                )
+            )
+
+    df = pd.concat(df_list)
+
+    df_mean = df.groupby([&#34;acquisition&#34;]).mean()
+    df_mean.reset_index(inplace=True)
+
+    df_mean = df_mean.sort_values(by=[&#34;contrast&#34;], ascending=False)
+
+    acquisition_contrast_order = df_mean[&#34;acquisition&#34;].values
+
+    return acquisition_contrast_order
+
+
+def align_chunk(
+    sub: str,
+    hemisphere: str,
+    chunk: str,
+    output_dir: str,
+    sect_info: pd.DataFrame,
+    linParams: str,
+    chunk_info: pd.DataFrame,
+    clobber: bool = False,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Calulate initial rigid aligment between sections for a given chunk.
+
+    param sub: subject id
+    param hemi: hemisphere
+    param chunk: chunk
+    param output_dir: path to output directory
+    param sect_info: dataframe containing section information
+    param chunk_info: dataframe containing chunk information
+    param clobber: overwrite existing files
+    return: dataframe containing section information
+    &#34;&#34;&#34;
+    os.makedirs(output_dir, exist_ok=True)
+
+    init_align_fn = f&#34;{output_dir}/{sub}_{hemisphere}_{chunk}_init_align.nii.gz&#34;
+    init_tfm_csv = f&#34;{output_dir}/{sub}_{hemisphere}_{chunk}_init_tfm.csv&#34;
+
+    df = sect_info.copy()
+
+    df[&#34;original_img&#34;] = df[&#34;img&#34;]
+
+    acquisition_contrast_order = get_acquisition_contrast_order(sect_info)
+    print(&#34;\tAcquistion contrast order: &#34;, acquisition_contrast_order)
+
+    df[&#34;tier&#34;] = 1
+
+    chunk_img_fn_str = &#34;{}/sub-{}_hemi-{}_chunk-{}_acquisition_{}_{}_init_align_{}.{}&#34;
+
+    n_acquisitions = len(df[&#34;acquisition&#34;].unique())
+    _, z_mm, y_mm = utils.get_chunk_pixel_size(sub, hemisphere, chunk, chunk_info)
+
+    direction = utils.get_chunk_direction(sub, hemisphere, chunk, chunk_info)
+
+    ###########
+    # Stage 1 #
+    ###########
+    print(&#34;\t\tAlignment: Stage 1&#34;)
+    # Perform within acquisition alignment
+    output_dir_1 = output_dir + os.sep + &#34;stage_1&#34;
+
+    # Iterate data frames over each acquisition
+    df_acquisition = df.loc[df[&#34;acquisition&#34;] == acquisition_contrast_order[0]]
+
+    # Init dict with initial transforms
+    transforms_1 = {}
+    for i in df_acquisition[&#34;sample&#34;]:
+        transforms_1[i] = []
+
+    df_acquisition, transforms_1 = alignment_stage(
+        df_acquisition,
+        chunk_img_fn_str,
+        output_dir_1,
+        transforms_1,
+        linParams,
+        target_acquisition=acquisition_contrast_order[0],
+        acquisition_n=0,
+        target_tier=1,
+        desc=(sub, hemisphere, chunk),
+        clobber=clobber,
+    )
+
+    # update the master dataframe, df, with new dataframe for the acquisition
+    df.loc[df[&#34;acquisition&#34;] == acquisition_contrast_order[0]] = df_acquisition
+
+    ###########
+    # Stage 2 #
+    ###########
+    # Align acquisitions to one another based on mean pixel intensity. Start with highest first because these have better contrast
+    output_dir_2 = output_dir + os.sep + &#34;stage_2&#34;
+    concat_list = [
+        df_acquisition.loc[
+            df_acquisition[&#34;acquisition&#34;] == acquisition_contrast_order[0]
+        ]
+    ]
+    print(&#34;Stage 2&#34;)
+    for i in range(1, n_acquisitions):
+        current_acquisitions = [
+            acquisition_contrast_order[0],
+            acquisition_contrast_order[i],
+        ]
+
+        target_acquisition = current_acquisitions[-1]
+        idx = df[&#34;acquisition&#34;].apply(lambda x: x in current_acquisitions)
+        df_acquisition = df.loc[idx]
+        df_acquisition[&#34;tier&#34;].loc[
+            df_acquisition[&#34;acquisition&#34;] == target_acquisition
+        ] = 2
+        df_acquisition[&#34;tier&#34;].loc[
+            df_acquisition[&#34;acquisition&#34;] == acquisition_contrast_order[0]
+        ] = 1
+        # Init dict with initial transforms
+        transforms = {}
+        for i in df_acquisition[&#34;sample&#34;]:
+            transforms[i] = []
+
+        df_acquisition, transforms = alignment_stage(
+            df_acquisition,
+            chunk_img_fn_str,
+            output_dir_2,
+            transforms,
+            linParams,
+            target_acquisition=target_acquisition,
+            acquisition_n=i,
+            target_tier=2,
+            desc=(sub, hemisphere, chunk),
+            clobber=clobber,
+        )
+
+        concat_list.append(df_acquisition.loc[df_acquisition[&#34;tier&#34;] == 2])
+
+        # print(target_acquisition)
+        # print(df_acquisition[&#39;init_tfm&#39;].loc[ df[&#39;acquisition&#39;] == target_acquisition ])
+
+        # update the master dataframe, df, with new dataframe for the acquisition
+        df.loc[df[&#34;acquisition&#34;] == target_acquisition] = df_acquisition.loc[
+            df[&#34;acquisition&#34;] == target_acquisition
+        ]
+
+    stage_2_df = pd.concat(concat_list)
+
+    ###########
+    # Stage 3 #
+    ###########
+    final_tfm_dir = output_dir + os.sep + &#34;final_tfm&#34;
+    os.makedirs(final_tfm_dir, exist_ok=True)
+    df = stage_2_df
+    df = create_final_outputs(final_tfm_dir, df, 1)
+    df = create_final_outputs(final_tfm_dir, df, -1)
+
+    print(&#34;Writing:&#34;, init_tfm_csv)
+
+    df.to_csv(init_tfm_csv)
+
+    df[&#34;tier&#34;] = 1
+    if not os.path.exists(init_align_fn):
+        print(&#34;\tInit Align Volume:&#34;, init_align_fn)
+        combine_sections_to_vol(df, y_mm, z_mm, direction, init_align_fn)
+
+    sect_info[&#34;init_tfm&#34;] = df[&#34;init_tfm&#34;]
+    sect_info[&#34;init_img&#34;] = df[&#34;init_img&#34;]
+
+    chunk_info[&#34;init_volume&#34;] = init_align_fn
+
+    sect_info[&#34;2d_tfm&#34;] = sect_info[&#34;init_tfm&#34;]
+
+    assert False not in [
+        os.path.exists(x) for x in sect_info[&#34;init_tfm&#34;].values if not pd.isnull(x)
+    ]
+
+    return sect_info, chunk_info</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="brainbuilder.initalign.adjust_alignment"><code class="name flex">
+<span>def <span class="ident">adjust_alignment</span></span>(<span>df: pandas.core.frame.DataFrame, y_idx: List[int], mid: int, transforms: Dict[int, List[str]], step: int, output_dir: str, desc: str, shrink_factor: float, smooth_sigma: float, iteration: int, tfm_type: str, target_acquisition: Optional[str] = None, target_tier: int = 1, clobber: bool = False) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Adjust the alignment of images.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>df</code></strong></dt>
+<dd>The DataFrame containing image information.</dd>
+<dt><strong><code>y_idx</code></strong></dt>
+<dd>The list of indices along the y-axis.</dd>
+<dt><strong><code>mid</code></strong></dt>
+<dd>The middle index.</dd>
+<dt><strong><code>transforms</code></strong></dt>
+<dd>The dictionary of transforms.</dd>
+<dt><strong><code>step</code></strong></dt>
+<dd>The step size.</dd>
+<dt><strong><code>output_dir</code></strong></dt>
+<dd>The output directory.</dd>
+<dt><strong><code>desc</code></strong></dt>
+<dd>The description.</dd>
+<dt><strong><code>shrink_factor</code></strong></dt>
+<dd>The shrink factor.</dd>
+<dt><strong><code>smooth_sigma</code></strong></dt>
+<dd>The smooth sigma.</dd>
+<dt><strong><code>iteration</code></strong></dt>
+<dd>The number of iterations.</dd>
+<dt><strong><code>tfm_type</code></strong></dt>
+<dd>The transform type.</dd>
+<dt><strong><code>target_acquisition</code></strong></dt>
+<dd>The target acquisition.</dd>
+<dt><strong><code>target_tier</code></strong></dt>
+<dd>The target tier.</dd>
+<dt><strong><code>clobber</code></strong></dt>
+<dd>Whether to overwrite existing files.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def adjust_alignment(
+    df: pd.DataFrame,
+    y_idx: List[int],
+    mid: int,
+    transforms: Dict[int, List[str]],
+    step: int,
+    output_dir: str,
+    desc: str,
+    shrink_factor: float,
+    smooth_sigma: float,
+    iteration: int,
+    tfm_type: str,
+    target_acquisition: Optional[str] = None,
+    target_tier: int = 1,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Adjust the alignment of images.
+
+    Args:
+        df: The DataFrame containing image information.
+        y_idx: The list of indices along the y-axis.
+        mid: The middle index.
+        transforms: The dictionary of transforms.
+        step: The step size.
+        output_dir: The output directory.
+        desc: The description.
+        shrink_factor: The shrink factor.
+        smooth_sigma: The smooth sigma.
+        iteration: The number of iterations.
+        tfm_type: The transform type.
+        target_acquisition: The target acquisition.
+        target_tier: The target tier.
+        clobber: Whether to overwrite existing files.
+
+    Returns:
+        None
+    &#34;&#34;&#34;
+    os.makedirs(output_dir + &#34;/qc/&#34;, exist_ok=True)
+    i = mid
+    j = i
+    len(y_idx)
+    y_idx_tier1 = df[&#34;sample&#34;].loc[df[&#34;tier&#34;] == 1].values.astype(int)
+
+    y_idx_tier1.sort()
+    i_max = step if step &lt; 0 else df[&#34;sample&#34;].values.max() + 1
+
+    # Iterate over the sections along y-axis
+    for y in y_idx_tier1[mid::step]:
+        j_list = []
+        for j in range(int(y + step), int(i_max), int(step)):
+            if j in df[&#34;sample&#34;].loc[df[&#34;tier&#34;] == target_tier].values.astype(int):
+                j_list.append(int(j))
+
+            if j in y_idx_tier1:
+                break
+
+        df, transforms = align_neighbours_to_fixed(
+            y,
+            j_list,
+            df,
+            transforms,
+            iteration,
+            shrink_factor,
+            smooth_sigma,
+            output_dir,
+            tfm_type,
+            desc,
+            target_acquisition=target_acquisition,
+            clobber=clobber,
+        )
+
+    # df.to_csv(&#39;{}/df_{}-0.csv&#39;.format(output_dir,tfm_type))
+    return transforms, df</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.initalign.align_chunk"><code class="name flex">
+<span>def <span class="ident">align_chunk</span></span>(<span>sub: str, hemisphere: str, chunk: str, output_dir: str, sect_info: pandas.core.frame.DataFrame, linParams: str, chunk_info: pandas.core.frame.DataFrame, clobber: bool = False) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Calulate initial rigid aligment between sections for a given chunk.</p>
+<p>param sub: subject id
+param hemi: hemisphere
+param chunk: chunk
+param output_dir: path to output directory
+param sect_info: dataframe containing section information
+param chunk_info: dataframe containing chunk information
+param clobber: overwrite existing files
+return: dataframe containing section information</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def align_chunk(
+    sub: str,
+    hemisphere: str,
+    chunk: str,
+    output_dir: str,
+    sect_info: pd.DataFrame,
+    linParams: str,
+    chunk_info: pd.DataFrame,
+    clobber: bool = False,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Calulate initial rigid aligment between sections for a given chunk.
+
+    param sub: subject id
+    param hemi: hemisphere
+    param chunk: chunk
+    param output_dir: path to output directory
+    param sect_info: dataframe containing section information
+    param chunk_info: dataframe containing chunk information
+    param clobber: overwrite existing files
+    return: dataframe containing section information
+    &#34;&#34;&#34;
+    os.makedirs(output_dir, exist_ok=True)
+
+    init_align_fn = f&#34;{output_dir}/{sub}_{hemisphere}_{chunk}_init_align.nii.gz&#34;
+    init_tfm_csv = f&#34;{output_dir}/{sub}_{hemisphere}_{chunk}_init_tfm.csv&#34;
+
+    df = sect_info.copy()
+
+    df[&#34;original_img&#34;] = df[&#34;img&#34;]
+
+    acquisition_contrast_order = get_acquisition_contrast_order(sect_info)
+    print(&#34;\tAcquistion contrast order: &#34;, acquisition_contrast_order)
+
+    df[&#34;tier&#34;] = 1
+
+    chunk_img_fn_str = &#34;{}/sub-{}_hemi-{}_chunk-{}_acquisition_{}_{}_init_align_{}.{}&#34;
+
+    n_acquisitions = len(df[&#34;acquisition&#34;].unique())
+    _, z_mm, y_mm = utils.get_chunk_pixel_size(sub, hemisphere, chunk, chunk_info)
+
+    direction = utils.get_chunk_direction(sub, hemisphere, chunk, chunk_info)
+
+    ###########
+    # Stage 1 #
+    ###########
+    print(&#34;\t\tAlignment: Stage 1&#34;)
+    # Perform within acquisition alignment
+    output_dir_1 = output_dir + os.sep + &#34;stage_1&#34;
+
+    # Iterate data frames over each acquisition
+    df_acquisition = df.loc[df[&#34;acquisition&#34;] == acquisition_contrast_order[0]]
+
+    # Init dict with initial transforms
+    transforms_1 = {}
+    for i in df_acquisition[&#34;sample&#34;]:
+        transforms_1[i] = []
+
+    df_acquisition, transforms_1 = alignment_stage(
+        df_acquisition,
+        chunk_img_fn_str,
+        output_dir_1,
+        transforms_1,
+        linParams,
+        target_acquisition=acquisition_contrast_order[0],
+        acquisition_n=0,
+        target_tier=1,
+        desc=(sub, hemisphere, chunk),
+        clobber=clobber,
+    )
+
+    # update the master dataframe, df, with new dataframe for the acquisition
+    df.loc[df[&#34;acquisition&#34;] == acquisition_contrast_order[0]] = df_acquisition
+
+    ###########
+    # Stage 2 #
+    ###########
+    # Align acquisitions to one another based on mean pixel intensity. Start with highest first because these have better contrast
+    output_dir_2 = output_dir + os.sep + &#34;stage_2&#34;
+    concat_list = [
+        df_acquisition.loc[
+            df_acquisition[&#34;acquisition&#34;] == acquisition_contrast_order[0]
+        ]
+    ]
+    print(&#34;Stage 2&#34;)
+    for i in range(1, n_acquisitions):
+        current_acquisitions = [
+            acquisition_contrast_order[0],
+            acquisition_contrast_order[i],
+        ]
+
+        target_acquisition = current_acquisitions[-1]
+        idx = df[&#34;acquisition&#34;].apply(lambda x: x in current_acquisitions)
+        df_acquisition = df.loc[idx]
+        df_acquisition[&#34;tier&#34;].loc[
+            df_acquisition[&#34;acquisition&#34;] == target_acquisition
+        ] = 2
+        df_acquisition[&#34;tier&#34;].loc[
+            df_acquisition[&#34;acquisition&#34;] == acquisition_contrast_order[0]
+        ] = 1
+        # Init dict with initial transforms
+        transforms = {}
+        for i in df_acquisition[&#34;sample&#34;]:
+            transforms[i] = []
+
+        df_acquisition, transforms = alignment_stage(
+            df_acquisition,
+            chunk_img_fn_str,
+            output_dir_2,
+            transforms,
+            linParams,
+            target_acquisition=target_acquisition,
+            acquisition_n=i,
+            target_tier=2,
+            desc=(sub, hemisphere, chunk),
+            clobber=clobber,
+        )
+
+        concat_list.append(df_acquisition.loc[df_acquisition[&#34;tier&#34;] == 2])
+
+        # print(target_acquisition)
+        # print(df_acquisition[&#39;init_tfm&#39;].loc[ df[&#39;acquisition&#39;] == target_acquisition ])
+
+        # update the master dataframe, df, with new dataframe for the acquisition
+        df.loc[df[&#34;acquisition&#34;] == target_acquisition] = df_acquisition.loc[
+            df[&#34;acquisition&#34;] == target_acquisition
+        ]
+
+    stage_2_df = pd.concat(concat_list)
+
+    ###########
+    # Stage 3 #
+    ###########
+    final_tfm_dir = output_dir + os.sep + &#34;final_tfm&#34;
+    os.makedirs(final_tfm_dir, exist_ok=True)
+    df = stage_2_df
+    df = create_final_outputs(final_tfm_dir, df, 1)
+    df = create_final_outputs(final_tfm_dir, df, -1)
+
+    print(&#34;Writing:&#34;, init_tfm_csv)
+
+    df.to_csv(init_tfm_csv)
+
+    df[&#34;tier&#34;] = 1
+    if not os.path.exists(init_align_fn):
+        print(&#34;\tInit Align Volume:&#34;, init_align_fn)
+        combine_sections_to_vol(df, y_mm, z_mm, direction, init_align_fn)
+
+    sect_info[&#34;init_tfm&#34;] = df[&#34;init_tfm&#34;]
+    sect_info[&#34;init_img&#34;] = df[&#34;init_img&#34;]
+
+    chunk_info[&#34;init_volume&#34;] = init_align_fn
+
+    sect_info[&#34;2d_tfm&#34;] = sect_info[&#34;init_tfm&#34;]
+
+    assert False not in [
+        os.path.exists(x) for x in sect_info[&#34;init_tfm&#34;].values if not pd.isnull(x)
+    ]
+
+    return sect_info, chunk_info</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.initalign.align_neighbours_to_fixed"><code class="name flex">
+<span>def <span class="ident">align_neighbours_to_fixed</span></span>(<span>i: int, j_list: List[int], df: pandas.core.frame.DataFrame, transforms: Dict[int, List[str]], iteration: int, shrink_factor: float, smooth_sigma: float, output_dir: str, tfm_type: str, desc: Tuple[str, str, str, str, str, str], target_acquisition: Optional[str] = None, clobber: bool = False) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Aligns the neighbours to the fixed section.</p>
+<p>:param i: The index of the fixed section.
+:param j_list: The list of indices of the moving sections.
+:param df: The DataFrame containing the section information.
+:param transforms: The dictionary of transformation files.
+:param iteration: The number of iterations for the alignment.
+:param shrink_factor: The shrink factor for the alignment.
+:param smooth_sigma: The smoothing sigma for the alignment.
+:param output_dir: The output directory for the alignment results.
+:param tfm_type: The type of transformation.
+:param desc: The description tuple.
+:param target_acquisition: The target acquisition type (optional).
+:param clobber: Whether to overwrite existing files (default: False).</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def align_neighbours_to_fixed(
+    i: int,
+    j_list: List[int],
+    df: pd.DataFrame,
+    transforms: Dict[int, List[str]],
+    iteration: int,
+    shrink_factor: float,
+    smooth_sigma: float,
+    output_dir: str,
+    tfm_type: str,
+    desc: Tuple[str, str, str, str, str, str],
+    target_acquisition: Optional[str] = None,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Aligns the neighbours to the fixed section.
+
+    :param i: The index of the fixed section.
+    :param j_list: The list of indices of the moving sections.
+    :param df: The DataFrame containing the section information.
+    :param transforms: The dictionary of transformation files.
+    :param iteration: The number of iterations for the alignment.
+    :param shrink_factor: The shrink factor for the alignment.
+    :param smooth_sigma: The smoothing sigma for the alignment.
+    :param output_dir: The output directory for the alignment results.
+    :param tfm_type: The type of transformation.
+    :param desc: The description tuple.
+    :param target_acquisition: The target acquisition type (optional).
+    :param clobber: Whether to overwrite existing files (default: False).
+    &#34;&#34;&#34;
+    # For neighbours  a single section is selected as fixed (ith section),
+    # then the subsequent sections are considred moving sections (jth section)
+    # and are registered to the fixed section.
+    i_idx = df[&#34;sample&#34;] == i
+    fixed_fn = df[&#34;img&#34;].loc[i_idx].values[0]
+    for j in j_list:
+        j_idx = df[&#34;sample&#34;] == j
+        outprefix = &#34;{}/init_transforms/{}_{}-0/&#34;.format(output_dir, j, tfm_type)
+
+        moving_rsl_fn = outprefix + &#34;_level-0_Mattes_{}.nii.gz&#34;.format(tfm_type)
+        tfm_fn = outprefix + &#34;_level-0_Mattes_{}_Composite.h5&#34;.format(tfm_type)
+        concat_tfm_fn = (
+            outprefix + &#34;level-0_Mattes_{}_Composite_Concatenated.h5&#34;.format(tfm_type)
+        )
+        qc_fn = &#34;{}/qc/{}_{}_{}_{}_{}_{}-0.png&#34;.format(
+            output_dir, *desc, j, i, tfm_type
+        )
+        moving_fn = df[&#34;img&#34;].loc[j_idx].values[0]
+
+        # calculate rigid transform from moving to fixed images
+        if not os.path.exists(tfm_fn) or not os.path.exists(qc_fn):
+            print()
+            print(&#34;\tFixed:&#34;, i, fixed_fn)
+            print(&#34;\tMoving:&#34;, j, moving_fn)
+            print(&#34;\tTfm:&#34;, tfm_fn, os.path.exists(tfm_fn))
+            print(&#34;\tQC:&#34;, qc_fn, os.path.exists(qc_fn))
+            print(&#34;\tMoving RSL:&#34;, moving_rsl_fn)
+
+            if target_acquisition is not None:
+                if df[&#34;acquisition&#34;].loc[j_idx].values[0] != target_acquisition:
+                    print(&#34;\tSkipping&#34;)
+                    continue
+
+            os.makedirs(outprefix, exist_ok=True)
+
+            ANTs(
+                tfm_prefix=outprefix,
+                fixed_fn=fixed_fn,
+                moving_fn=moving_fn,
+                moving_rsl_prefix=outprefix + &#34;tmp&#34;,
+                iterations=[iteration],
+                metrics=[&#34;Mattes&#34;],
+                tfm_type=[tfm_type],
+                shrink_factors=[shrink_factor],
+                smoothing_sigmas=[smooth_sigma],
+                init_tfm=None,
+                no_init_tfm=False,
+                dim=2,
+                sampling_method=&#34;Random&#34;,
+                sampling=0.5,
+                verbose=0,
+                generate_masks=False,
+                clobber=True,
+            )
+
+        # concatenate the transformation files that have been applied to the fixed image and the new transform
+        # that is being applied to the moving image
+        if not os.path.exists(concat_tfm_fn):
+            transforms_str = &#34;-t {} &#34;.format(&#34; -t &#34;.join(transforms[i] + [tfm_fn]))
+            utils.shell(
+                f&#34;antsApplyTransforms -v 0 -d 2 -i {moving_fn} -r {moving_fn} {transforms_str} -o Linear[{concat_tfm_fn}] &#34;,
+            )
+
+        # apply the concatenated transform to the moving image. this brings it into correct alignment with all of the
+        # aligned images.
+        if not os.path.exists(moving_rsl_fn):
+            utils.shell(
+                f&#34;antsApplyTransforms -v 0 -d 2 -i {moving_fn} -r {fixed_fn} -t {concat_tfm_fn} -o {moving_rsl_fn}&#34;,
+            )
+
+        if not os.path.exists(qc_fn):
+            create_qc_image(
+                load2d(fixed_fn),
+                load2d(moving_fn),
+                load2d(moving_rsl_fn),
+                i,
+                j,
+                df[&#34;tier&#34;].loc[i_idx],
+                df[&#34;tier&#34;].loc[j_idx],
+                df[&#34;acquisition&#34;].loc[i_idx],
+                df[&#34;acquisition&#34;].loc[j_idx],
+                qc_fn,
+            )
+
+        df[&#34;img_new&#34;].loc[df[&#34;sample&#34;] == j] = moving_rsl_fn
+        df[&#34;init_tfm&#34;].loc[df[&#34;sample&#34;] == j] = concat_tfm_fn
+        df[&#34;init_fixed&#34;].loc[df[&#34;sample&#34;] == j] = fixed_fn
+        transforms[j] = [concat_tfm_fn]
+    return df, transforms</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.initalign.alignment_stage"><code class="name flex">
+<span>def <span class="ident">alignment_stage</span></span>(<span>df: pandas.core.frame.DataFrame, vol_fn_str: str, output_dir: str, transforms: list, linParams: str, desc: Tuple[int, int, int] = (0, 0, 0), target_acquisition: Optional[str] = None, target_tier: int = 1, acquisition_n: int = 0, clobber: bool = False) ‑> Tuple[pandas.core.frame.DataFrame, Dict[int, List[str]]]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Perform alignment of autoradiographs within a chunk.</p>
+<p>Alignment is calculated once from the middle section in the posterior direction and a second time from the middle section in the anterior direction.</p>
+<p>:param df: The DataFrame containing the section information.
+:param vol_fn_str: The volume filename string.
+:param output_dir: The output directory.
+:param transforms: The transforms.
+:param linParams: The linear parameters.
+:param desc: The description.
+:param target_acquisition: The target acquisition.
+:param target_tier: The target tier.
+:param acquisition_n: The acquisition number.
+:param clobber: The clobber flag.
+:return: A tuple containing the DataFrame and a dictionary.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def alignment_stage(
+    df: pd.DataFrame,
+    vol_fn_str: str,
+    output_dir: str,
+    transforms: list,
+    linParams: str,
+    desc: Tuple[int, int, int] = (0, 0, 0),
+    target_acquisition: Optional[str] = None,
+    target_tier: int = 1,
+    acquisition_n: int = 0,
+    clobber: bool = False,
+) -&gt; Tuple[pd.DataFrame, Dict[int, List[str]]]:
+    &#34;&#34;&#34;Perform alignment of autoradiographs within a chunk.
+
+    Alignment is calculated once from the middle section in the posterior direction and a second time from the middle section in the anterior direction.
+
+    :param df: The DataFrame containing the section information.
+    :param vol_fn_str: The volume filename string.
+    :param output_dir: The output directory.
+    :param transforms: The transforms.
+    :param linParams: The linear parameters.
+    :param desc: The description.
+    :param target_acquisition: The target acquisition.
+    :param target_tier: The target tier.
+    :param acquisition_n: The acquisition number.
+    :param clobber: The clobber flag.
+    :return: A tuple containing the DataFrame and a dictionary.
+    &#34;&#34;&#34;
+    tfm_type = &#34;Rigid&#34;
+
+    # Set parameters for rigid transform
+    shrink_factor = linParams.f_str
+    smooth_sigma = re.sub(&#34;vox&#34;, &#34;&#34;, linParams.s_str)
+    iterations = linParams.itr_str.split(&#34;,&#34;)[0][1:]
+
+    shrink_factor = &#34;4x3x2&#34;
+    smooth_sigma = &#34;2x1.5x1&#34;
+    iterations = &#34;10x5x2&#34;
+
+    csv_fn = vol_fn_str.format(
+        output_dir,
+        *desc,
+        target_acquisition,
+        acquisition_n,
+        tfm_type + &#34;-&#34; + str(0),
+        &#34;.csv&#34;,
+    )
+
+    out_fn = vol_fn_str.format(
+        output_dir,
+        *desc,
+        target_acquisition,
+        acquisition_n,
+        tfm_type + &#34;-&#34; + str(0),
+        &#34;nii.gz&#34;,
+    )
+
+    if not os.path.exists(csv_fn) or not os.path.exists(out_fn):
+        df.sort_values([&#34;sample&#34;], inplace=True, ascending=False)
+
+        y_idx = df[&#34;sample&#34;].values
+
+        y_idx_tier1 = (
+            df[&#34;sample&#34;].loc[df[&#34;tier&#34;].astype(int) == np.min(df[&#34;tier&#34;])].values
+        )
+        mid = int(len(y_idx_tier1) / 2)
+
+        df[&#34;img_new&#34;] = df[&#34;img&#34;]
+        df[&#34;init_tfm&#34;] = [None] * df.shape[0]
+        df[&#34;init_img&#34;] = df[&#34;img_new&#34;]
+        df[&#34;init_fixed&#34;] = [None] * df.shape[0]
+
+        # perform alignment in forward direction from middle section
+        transforms, df = adjust_alignment(
+            df,
+            y_idx,
+            mid,
+            transforms,
+            -1,
+            output_dir,
+            desc,
+            shrink_factor,
+            smooth_sigma,
+            iterations,
+            tfm_type,
+            target_acquisition=target_acquisition,
+            target_tier=target_tier,
+            clobber=clobber,
+        )
+
+        # perform alignment in reverse direction from middle section
+        transforms, df = adjust_alignment(
+            df,
+            y_idx,
+            mid,
+            transforms,
+            1,
+            output_dir,
+            desc,
+            shrink_factor,
+            smooth_sigma,
+            iterations,
+            tfm_type,
+            target_acquisition=target_acquisition,
+            target_tier=target_tier,
+            clobber=clobber,
+        )
+
+        # update the img so it has the new, resampled file names
+        df[&#34;img&#34;] = df[&#34;img_new&#34;]
+    else:
+        df = pd.read_csv(csv_fn)
+
+    return df, transforms</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.initalign.apply_transforms_to_sections"><code class="name flex">
+<span>def <span class="ident">apply_transforms_to_sections</span></span>(<span>df: pandas.core.frame.DataFrame, transforms: Dict[int, List[str]], output_dir: str, tfm_type: str, target_acquisition: str = None, clobber: bool = False) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Apply the transforms to the sections.</p>
+<p>:param df: The DataFrame containing the section information.
+:param transforms: The dictionary of transforms.
+:param output_dir: The output directory.
+:param tfm_type: The transform type.
+:param target_acquisition: The target acquisition.
+:param clobber: Whether to overwrite existing files.
+:return: The DataFrame containing the section information.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def apply_transforms_to_sections(
+    df: pd.DataFrame,
+    transforms: Dict[int, List[str]],
+    output_dir: str,
+    tfm_type: str,
+    target_acquisition: str = None,
+    clobber: bool = False,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Apply the transforms to the sections.
+
+    :param df: The DataFrame containing the section information.
+    :param transforms: The dictionary of transforms.
+    :param output_dir: The output directory.
+    :param tfm_type: The transform type.
+    :param target_acquisition: The target acquisition.
+    :param clobber: Whether to overwrite existing files.
+    :return: The DataFrame containing the section information.
+    &#34;&#34;&#34;
+    print(&#34;Applying Transforms&#34;)
+    if target_acquisition is not None:
+        df = df.loc[df[&#34;acquisition&#34;] == target_acquisition]
+
+    for i, (rowi, row) in enumerate(df.iterrows()):
+        outprefix = &#34;{}/init_transforms/{}_{}-0/&#34;.format(
+            output_dir, int(row[&#34;sample&#34;]), tfm_type
+        )
+        final_rsl_fn = outprefix + &#34;final_level-0_Mattes_{}-0.nii.gz&#34;.format(tfm_type)
+
+        if not os.path.exists(final_rsl_fn) or clobber:
+            fixed_tfm_list = transforms[row[&#34;sample&#34;]]
+            if len(fixed_tfm_list) == 0:
+                continue
+            transforms_str = &#34; -t {}&#34;.format(&#34; -t &#34;.join(fixed_tfm_list))
+
+            fixed_fn = row[&#34;original_img&#34;]
+
+            utils.shell(
+                f&#34;antsApplyTransforms -v 1 -d 2 -i {fixed_fn} -r {fixed_fn} {transforms_str} -o {final_rsl_fn}&#34;,
+            )
+        df[&#34;img_new&#34;].iloc[i] = final_rsl_fn
+    return df</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.initalign.combine_sections_to_vol"><code class="name flex">
+<span>def <span class="ident">combine_sections_to_vol</span></span>(<span>df: pandas.core.frame.DataFrame, y_mm: float, z_mm: float, direction: str, out_fn: str, target_tier: int = 1) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Combine 2D aligned sections to volume.</p>
+<p>:param df: The DataFrame containing the section information.
+:param y_mm: The y-axis resolution.
+:param z_mm: The z-axis resolution.
+:param direction: The direction of the volume.
+:param out_fn: The output filename.
+:param target_tier: The target tier.
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def combine_sections_to_vol(
+    df: pd.DataFrame,
+    y_mm: float,
+    z_mm: float,
+    direction: str,
+    out_fn: str,
+    target_tier: int = 1,
+) -&gt; None:
+    &#34;&#34;&#34;Combine 2D aligned sections to volume.
+
+    :param df: The DataFrame containing the section information.
+    :param y_mm: The y-axis resolution.
+    :param z_mm: The z-axis resolution.
+    :param direction: The direction of the volume.
+    :param out_fn: The output filename.
+    :param target_tier: The target tier.
+    :return: None
+    &#34;&#34;&#34;
+    example_fn = df[&#34;img&#34;].iloc[0]
+    shape = nib.load(example_fn).shape
+    affine = nib.load(example_fn).affine
+    xstart = affine[0, 3]
+    zstart = affine[1, 3]
+    xstep = affine[0, 0]
+    zstep = affine[1, 1]
+    ystep = y_mm
+
+    xmax = int(shape[0])
+    zmax = int(shape[1])
+    order_max = df[&#34;sample&#34;].astype(int).max()
+    df[&#34;sample&#34;].astype(int).min()
+    chunk_ymax = int(order_max + 1)  # -order_min + 1
+
+    vol = np.zeros([xmax, chunk_ymax, zmax])
+    df = df.sort_values(&#34;sample&#34;)
+    for i, row in df.iterrows():
+        if row[&#34;tier&#34;] == target_tier:
+            y = row[&#34;sample&#34;]
+            ar = nib.load(row[&#34;img&#34;]).get_fdata()
+            ar = ar.reshape(ar.shape[0], ar.shape[1])
+            ar = resize(ar, [xmax, zmax])
+            vol[:, int(y), :] = ar
+            # vol[:,int(y),:] += int(y)
+            del ar
+
+    print(&#34;\n\tWriting Volume&#34;, out_fn, &#34;\n&#34;)
+    chunk_ymin = -126 + df[&#34;sample&#34;].min() * y_mm
+
+    affine = np.array(
+        [
+            [xstep, 0, 0, xstart],
+            [0, ystep, 0, chunk_ymin],
+            [0, 0, zstep, zstart],
+            [0, 0, 0, 1],
+        ]
+    )
+    affine = np.round(affine, 3)
+    # flip the volume along the y-axis so that the image is in RAS coordinates because ANTs requires RAS
+    # vol = np.flip(vol, axis=1)
+    nib.Nifti1Image(vol, affine, direction_order=&#34;lpi&#34;).to_filename(out_fn)</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.initalign.create_final_outputs"><code class="name flex">
+<span>def <span class="ident">create_final_outputs</span></span>(<span>final_tfm_dir: str, df: pandas.core.frame.DataFrame, step: int) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Create final outputs for the alignment stage.</p>
+<p>:param final_tfm_dir: path to directory containing final transforms
+:param df: dataframe containing section information
+:param step: step size for iterating over sections
+:return: dataframe containing section information</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def create_final_outputs(
+    final_tfm_dir: str,
+    df: pd.DataFrame,
+    step: int,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Create final outputs for the alignment stage.
+
+    :param final_tfm_dir: path to directory containing final transforms
+    :param df: dataframe containing section information
+    :param step: step size for iterating over sections
+    :return: dataframe containing section information
+    &#34;&#34;&#34;
+    y_idx_tier = df[&#34;sample&#34;].values.astype(int)
+    y_idx_tier.sort()
+
+    mid = int(len(y_idx_tier) / 2)
+    if step &lt; 0:
+        mid -= 1
+    step if step &lt; 0 else df[&#34;sample&#34;].values.max() + 1
+
+    #                     c
+    #            &lt;--------------
+    #                    b
+    #            &lt;---------
+    #    l  l    |  a l b1 l   l
+    #    l  l -&gt; | &lt;- l &lt;- l   l
+    #    l  l    |    l    l   l
+    #   s0  s1   s2   s3   s4  s5
+    #   a ( b1 (s2) )  --&gt; s2
+    #
+    for i, y in enumerate(y_idx_tier[mid::step]):
+        row = df.loc[y == df[&#34;sample&#34;]]
+
+        final_tfm_fn = &#34;{}/{}_final_Rigid.h5&#34;.format(
+            final_tfm_dir, int(row[&#34;sample&#34;].values[0])
+        )
+        final_section_fn = f&#39;{final_tfm_dir}/{int(row[&#34;sample&#34;].values[0])}{os.path.basename(row[&#34;img&#34;].values[0])}&#39;
+        print(row[&#34;init_img&#34;].values)
+        print(row[&#34;sample&#34;].values)
+        idx = df[&#34;sample&#34;].values == row[&#34;sample&#34;].values
+        if not os.path.exists(final_tfm_fn) or not os.path.exists(final_section_fn):
+            if isinstance(row[&#34;init_tfm&#34;].values[0], str):
+                # standard rigid transformation for moving image
+                shutil.copy(row[&#34;init_tfm&#34;].values[0], final_tfm_fn)
+
+                if not os.path.exists(final_section_fn) and not os.path.islink(
+                    final_section_fn
+                ):
+                    os.symlink(row[&#34;img&#34;].values[0], final_section_fn)
+            else:
+                if not os.path.exists(final_section_fn) and not os.path.islink(
+                    final_section_fn
+                ):
+                    os.symlink(row[&#34;img&#34;].values[0], final_section_fn)
+                final_tfm_fn = np.nan
+
+        df[&#34;init_tfm&#34;].loc[idx] = final_tfm_fn
+        df[&#34;init_img&#34;].loc[idx] = final_section_fn
+    return df</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.initalign.create_qc_image"><code class="name flex">
+<span>def <span class="ident">create_qc_image</span></span>(<span>fixed: <built-in function array>, moving: <built-in function array>, rsl: <built-in function array>, fixed_order: str, moving_order: str, tier_fixed: str, tier_moving: str, acquisition_fixed: str, acquisition_moving: str, qc_fn: str) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Create a quality control image.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>fixed</code></strong></dt>
+<dd>The fixed image.</dd>
+<dt><strong><code>moving</code></strong></dt>
+<dd>The moving image.</dd>
+<dt><strong><code>rsl</code></strong></dt>
+<dd>The registered image.</dd>
+<dt><strong><code>fixed_order</code></strong></dt>
+<dd>The order of the fixed image.</dd>
+<dt><strong><code>moving_order</code></strong></dt>
+<dd>The order of the moving image.</dd>
+<dt><strong><code>tier_fixed</code></strong></dt>
+<dd>The tier of the fixed image.</dd>
+<dt><strong><code>tier_moving</code></strong></dt>
+<dd>The tier of the moving image.</dd>
+<dt><strong><code>acquisition_fixed</code></strong></dt>
+<dd>The acquisition of the fixed image.</dd>
+<dt><strong><code>acquisition_moving</code></strong></dt>
+<dd>The acquisition of the moving image.</dd>
+<dt><strong><code>qc_fn</code></strong></dt>
+<dd>The filename of the quality control image.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<p>None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def create_qc_image(
+    fixed: np.array,
+    moving: np.array,
+    rsl: np.array,
+    fixed_order: str,
+    moving_order: str,
+    tier_fixed: str,
+    tier_moving: str,
+    acquisition_fixed: str,
+    acquisition_moving: str,
+    qc_fn: str,
+) -&gt; None:
+    &#34;&#34;&#34;Create a quality control image.
+
+    Args:
+        fixed: The fixed image.
+        moving: The moving image.
+        rsl: The registered image.
+        fixed_order: The order of the fixed image.
+        moving_order: The order of the moving image.
+        tier_fixed: The tier of the fixed image.
+        tier_moving: The tier of the moving image.
+        acquisition_fixed: The acquisition of the fixed image.
+        acquisition_moving: The acquisition of the moving image.
+        qc_fn: The filename of the quality control image.
+
+    Returns:
+        None
+    &#34;&#34;&#34;
+    plt.subplot(1, 2, 1)
+    plt.title(
+        &#34;fixed (gray): {} {} {}&#34;.format(fixed_order, tier_fixed, acquisition_fixed)
+    )
+    plt.imshow(fixed, cmap=plt.cm.gray)
+    plt.imshow(moving, alpha=0.35, cmap=plt.cm.hot)
+    plt.subplot(1, 2, 2)
+    plt.title(
+        &#34;moving (hot): {} {} {}&#34;.format(moving_order, tier_moving, acquisition_moving)
+    )
+    plt.imshow(fixed, cmap=plt.cm.gray)
+    plt.imshow(rsl, alpha=0.35, cmap=plt.cm.hot)
+    plt.tight_layout()
+    plt.savefig(qc_fn)
+    plt.clf()</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.initalign.get_acquisition_contrast_order"><code class="name flex">
+<span>def <span class="ident">get_acquisition_contrast_order</span></span>(<span>df: pandas.core.frame.DataFrame) ‑> list</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Calculate the contrast order of the acquisitions.</p>
+<p>:param df: The DataFrame containing the section information.
+:return: The list of acquisitions sorted by contrast.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_acquisition_contrast_order(df: pd.DataFrame) -&gt; list:
+    &#34;&#34;&#34;Calculate the contrast order of the acquisitions.
+
+    :param df: The DataFrame containing the section information.
+    :return: The list of acquisitions sorted by contrast.
+    &#34;&#34;&#34;
+    df_list = []
+    for i, acquisition_df in df.groupby([&#34;acquisition&#34;]):
+        for j, row in acquisition_df.iterrows():
+            ar = nib.load(row[&#34;img&#34;]).dataobj
+            i_max = np.max(ar)
+            i_min = np.min(ar)
+            contrast = (i_max - i_min) / (i_max + i_min)
+
+            df_list.append(
+                pd.DataFrame(
+                    {
+                        &#34;acquisition&#34;: [row[&#34;acquisition&#34;]],
+                        &#34;contrast&#34;: [contrast],
+                    }
+                )
+            )
+
+    df = pd.concat(df_list)
+
+    df_mean = df.groupby([&#34;acquisition&#34;]).mean()
+    df_mean.reset_index(inplace=True)
+
+    df_mean = df_mean.sort_values(by=[&#34;contrast&#34;], ascending=False)
+
+    acquisition_contrast_order = df_mean[&#34;acquisition&#34;].values
+
+    return acquisition_contrast_order</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.initalign.initalign"><code class="name flex">
+<span>def <span class="ident">initalign</span></span>(<span>sect_info_csv: str, chunk_info_csv: str, output_dir: str, resolution_list: list, clobber: bool = True) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Calulate initial rigid aligment between sections.</p>
+<p>param sect_info_csv: path to csv file containing section information
+param chunk_info_csv: path to csv file containing chunk information
+param output_dir: path to output directory
+param clobber: overwrite existing files
+return: path to csv file containing section information</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def initalign(
+    sect_info_csv: str,
+    chunk_info_csv: str,
+    output_dir: str,
+    resolution_list: list,
+    clobber: bool = True,
+) -&gt; str:
+    &#34;&#34;&#34;Calulate initial rigid aligment between sections.
+
+    param sect_info_csv: path to csv file containing section information
+    param chunk_info_csv: path to csv file containing chunk information
+    param output_dir: path to output directory
+    param clobber: overwrite existing files
+    return: path to csv file containing section information
+    &#34;&#34;&#34;
+    # Validate Inputs
+    # FIXME UNCOMMENT
+    # assert valinpts.validate_csv(
+    #    sect_info_csv, valinpts.sect_info_required_columns
+    # ), f&#34;Invalid section info csv file: {sect_info_csv}&#34;
+    # assert valinpts.validate_csv(
+    #    chunk_info_csv, valinpts.chunk_info_required_columns
+    # ), f&#34;Invalid chunk info csv file: {chunk_info_csv}&#34;
+
+    initalign_sect_info_csv = os.path.join(output_dir, &#34;initalign_sect_info.csv&#34;)
+    initalign_chunk_info_csv = os.path.join(output_dir, &#34;initalign_chunk_info.csv&#34;)
+    initalign_sect_info = pd.DataFrame({})
+    initalign_chunk_info = pd.DataFrame({})
+
+    # run_stage = utils.check_run_stage(initalign_sect_info_csv, &#34;init_tfm&#34;, &#34;seg&#34;)
+    run_stage = False  # FIXME UNCOMMENT
+
+    linParams = AntsParams(resolution_list, resolution_list[-1], 100)
+
+    if (
+        not os.path.exists(initalign_sect_info_csv)
+        or not os.path.exists(initalign_chunk_info_csv)
+        or clobber
+        or run_stage  # FIXME need to change initalign so that it overwrites outdated files
+    ):
+        sect_info = pd.read_csv(sect_info_csv)
+        chunk_info = pd.read_csv(chunk_info_csv)
+
+        initalign_sect_info = pd.DataFrame({})
+
+        for (sub, hemisphere, chunk), curr_sect_info in sect_info.groupby(
+            [
+                &#34;sub&#34;,
+                &#34;hemisphere&#34;,
+                &#34;chunk&#34;,
+            ]
+        ):
+            idx = (
+                (chunk_info[&#34;sub&#34;] == sub)
+                &amp; (chunk_info[&#34;hemisphere&#34;] == hemisphere)
+                &amp; (chunk_info[&#34;chunk&#34;] == chunk)
+            )
+            curr_chunk_info = chunk_info.loc[idx]
+
+            curr_output_dir = f&#34;{output_dir}/{sub}_{hemisphere}_{chunk}/&#34;
+
+            curr_sect_info, curr_chunk_info = align_chunk(
+                sub,
+                hemisphere,
+                chunk,
+                curr_output_dir,
+                curr_sect_info,
+                linParams,
+                curr_chunk_info,
+                clobber=clobber,
+            )
+            initalign_sect_info = pd.concat([initalign_sect_info, curr_sect_info])
+            initalign_chunk_info = pd.concat([initalign_chunk_info, curr_chunk_info])
+
+        initalign_sect_info.to_csv(initalign_sect_info_csv, index=False)
+        initalign_chunk_info.to_csv(initalign_chunk_info_csv, index=False)
+
+    return initalign_sect_info_csv, initalign_chunk_info_csv</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.initalign.load2d"><code class="name flex">
+<span>def <span class="ident">load2d</span></span>(<span>fn: str) ‑> <built-in function array></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Load 2d image.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def load2d(fn: str) -&gt; np.array:
+    &#34;&#34;&#34;Load 2d image.&#34;&#34;&#34;
+    ar = nib.load(fn).get_fdata()
+    ar = ar.reshape(ar.shape[0], ar.shape[1])
+    return ar</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="brainbuilder" href="index.html">brainbuilder</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="brainbuilder.initalign.adjust_alignment" href="#brainbuilder.initalign.adjust_alignment">adjust_alignment</a></code></li>
+<li><code><a title="brainbuilder.initalign.align_chunk" href="#brainbuilder.initalign.align_chunk">align_chunk</a></code></li>
+<li><code><a title="brainbuilder.initalign.align_neighbours_to_fixed" href="#brainbuilder.initalign.align_neighbours_to_fixed">align_neighbours_to_fixed</a></code></li>
+<li><code><a title="brainbuilder.initalign.alignment_stage" href="#brainbuilder.initalign.alignment_stage">alignment_stage</a></code></li>
+<li><code><a title="brainbuilder.initalign.apply_transforms_to_sections" href="#brainbuilder.initalign.apply_transforms_to_sections">apply_transforms_to_sections</a></code></li>
+<li><code><a title="brainbuilder.initalign.combine_sections_to_vol" href="#brainbuilder.initalign.combine_sections_to_vol">combine_sections_to_vol</a></code></li>
+<li><code><a title="brainbuilder.initalign.create_final_outputs" href="#brainbuilder.initalign.create_final_outputs">create_final_outputs</a></code></li>
+<li><code><a title="brainbuilder.initalign.create_qc_image" href="#brainbuilder.initalign.create_qc_image">create_qc_image</a></code></li>
+<li><code><a title="brainbuilder.initalign.get_acquisition_contrast_order" href="#brainbuilder.initalign.get_acquisition_contrast_order">get_acquisition_contrast_order</a></code></li>
+<li><code><a title="brainbuilder.initalign.initalign" href="#brainbuilder.initalign.initalign">initalign</a></code></li>
+<li><code><a title="brainbuilder.initalign.load2d" href="#brainbuilder.initalign.load2d">load2d</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

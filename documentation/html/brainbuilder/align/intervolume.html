@@ -1,0 +1,1088 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>brainbuilder.align.intervolume API documentation</title>
+<meta name="description" content="Functions to create intermediate GM volumes for use in registration to the structural reference volume." />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>brainbuilder.align.intervolume</code></h1>
+</header>
+<section id="section-intro">
+<p>Functions to create intermediate GM volumes for use in registration to the structural reference volume.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;Functions to create intermediate GM volumes for use in registration to the structural reference volume.&#34;&#34;&#34;
+import os
+import shutil
+from glob import glob
+
+import brainbuilder.utils.ants_nibabel as nib
+import numpy as np
+import pandas as pd
+from brainbuilder.utils.utils import (
+    get_section_intervals,
+    get_seg_fn,
+    resample_to_resolution,
+    simple_ants_apply_tfm,
+)
+from joblib import Parallel, delayed
+from scipy.ndimage import center_of_mass, shift
+from scipy.ndimage.morphology import binary_dilation, binary_erosion
+from skimage.transform import resize
+
+
+def get_input_file(
+    seg_fn: str,
+    seg_rsl_fn: str,
+    row: pd.Series,
+    output_dir: str,
+    resolution_2d: float,
+    resolution_3d: float,
+    clobber: bool = False,
+) -&gt; str:
+    &#34;&#34;&#34;Get the input file for resampling and transformation.
+
+    :param seg_fn: the segmented file name
+    :param seg_rsl_fn: the resampled segmented file name
+    :param row: the row of the dataframe
+    :param output_dir: the output directory
+    :param resolution_2d: the 2D resolution
+    :param resolution_3d: the 3D resolution
+    :param clobber: whether to overwrite existing files
+    :return: the input file for resampling and transformation
+    &#34;&#34;&#34;
+    tfm_input_fn = seg_rsl_fn
+    if not os.path.exists(seg_rsl_fn):
+        resample_to_resolution(
+            seg_fn,
+            [resolution_2d] * 2,
+            seg_rsl_fn,
+            dtype=np.uint8,
+        )
+
+    if resolution_2d != resolution_3d:
+        tfm_input_fn = get_seg_fn(
+            output_dir, int(row[&#34;sample&#34;]), resolution_3d, seg_fn, &#34;_rsl&#34;
+        )
+        if not os.path.exists(tfm_input_fn) or clobber:
+            resample_to_resolution(
+                seg_fn,
+                [resolution_3d] * 2,
+                tfm_input_fn,
+                dtype=np.uint8,
+            )
+    return tfm_input_fn
+
+
+def resample_and_transform(
+    output_dir: str,
+    resolution_itr: int,
+    resolution_2d: float,
+    resolution_3d: float,
+    row: pd.Series,
+    tfm_ref_fn: str,
+    recenter_image: bool = False,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Resamples and transforms the segmented images to the current resolution.
+
+    :param output_dir: output directory
+    :param resolution_itr: current resolution iteration
+    :param resolution_2d: current 2D resolution
+    :param resolution_3d: current 3D resolution
+    :param row: row of the dataframe
+    :param tfm_ref_fn: reference transform file
+    :param recenter_image: whether to recenter the image
+    :param clobber: whether to overwrite existing files
+    :return: None
+    &#34;&#34;&#34;
+    print(row)
+    seg_fn = row[&#34;seg&#34;]
+
+    seg_rsl_fn = get_seg_fn(
+        output_dir, int(row[&#34;sample&#34;]), resolution_2d, seg_fn, &#34;_rsl&#34;
+    )
+    seg_rsl_tfm_fn = get_seg_fn(
+        output_dir, int(row[&#34;sample&#34;]), resolution_3d, seg_fn, &#34;_rsl_tfm&#34;
+    )
+    print()
+    if not os.path.exists(seg_rsl_tfm_fn) or clobber:
+        tfm_input_fn = get_input_file(
+            seg_fn, seg_rsl_fn, row, output_dir, resolution_2d, resolution_3d
+        )
+
+        if resolution_itr == 0:
+            tfm_ref_fn = tfm_input_fn
+
+        # get initial rigid transform
+        tfm_fn = row[&#34;2d_tfm&#34;]
+        print(&#34;\tTransforming&#34;, seg_rsl_fn, &#34;to&#34;, seg_rsl_tfm_fn)
+        if isinstance(tfm_fn, str):
+            simple_ants_apply_tfm(
+                tfm_input_fn,
+                tfm_ref_fn,
+                tfm_fn,
+                seg_rsl_tfm_fn,
+                ndim=2,
+                n=&#34;NearestNeighbor&#34;,
+                empty_ok=True,
+            )
+        else:
+            print(&#34;\tNo transform for&#34;, seg_rsl_fn)
+            shutil.copy(tfm_input_fn, seg_rsl_tfm_fn)
+
+
+def resample_transform_segmented_images(
+    sect_info: pd.DataFrame,
+    chunk_info: pd.DataFrame,
+    resolution_itr: int,
+    resolution_2d: float,
+    resolution_3d: float,
+    output_dir: str,
+    num_cores: int = 0,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Resample and transform segmented images to 3D create a 3D GM classification volume.
+
+    :param sect_info: dataframe with information about the section
+    :param chunk_info: dataframe with information about the chunk
+    :param resolution_itr: resolution iteration
+    :param resolution_2d: 2D resolution
+    :param resolution_3d: 3D resolution
+    :param output_dir: output directory
+    return: None
+    &#34;&#34;&#34;
+    os.makedirs(output_dir, exist_ok=True)
+    os.uname()
+
+    tfm_ref_fn = output_dir + &#34;/2d_reference_image.nii.gz&#34;
+
+    if not os.path.exists(tfm_ref_fn) and resolution_itr != 0:
+        ref_img = nib.load(sect_info[&#34;nl_2d_rsl&#34;].values[0])
+        xstart, zstart = ref_img.affine[[0, 1], 3]
+
+        resample_to_resolution(
+            sect_info[&#34;nl_2d_rsl&#34;].values[0],
+            [resolution_3d] * 2,
+            tfm_ref_fn,
+            order=0,
+        )
+
+    Parallel(n_jobs=num_cores, backend=&#34;multiprocessing&#34;)(
+        delayed(resample_and_transform)(
+            output_dir,
+            resolution_itr,
+            resolution_2d,
+            resolution_3d,
+            row,
+            tfm_ref_fn,
+            clobber=clobber,
+        )
+        for i, row in sect_info.iterrows()
+    )
+    return None
+
+
+def interpolate_missing_sections(
+    vol: np.array, dilate_volume: bool = False
+) -&gt; np.array:
+    &#34;&#34;&#34;Interpolates missing sections in a volume.
+
+    :param vol (ndarray): The input volume.
+    :dilate_volume (bool, optional): Whether to dilate the volume before interpolation. Defaults to False.
+    :return ndarray: The volume with missing sections interpolated.
+    &#34;&#34;&#34;
+    if dilate_volume:
+        vol_dil = binary_erosion(
+            binary_dilation(vol, iterations=4), iterations=4
+        ).astype(int)
+    else:
+        vol_dil = vol
+    intervals = get_section_intervals(vol_dil)
+
+    out_vol = vol.copy()  # np.zeros(vol.shape)
+    for i in range(len(intervals) - 1):
+        j = i + 1
+        x0, x1 = intervals[i]
+        y0, y1 = intervals[j]
+        x = np.mean(vol[:, x0:x1, :], axis=1)
+        y = np.mean(vol[:, y0:y1, :], axis=1)
+        vol[:, x0:x1, :] = np.repeat(
+            x.reshape(x.shape[0], 1, x.shape[1]), x1 - x0, axis=1
+        )
+        for ii in range(x1, y0):
+            den = y0 - x1
+            assert den != 0, &#34;Error: 0 denominator when interpolating missing sections&#34;
+            d = (ii - x1) / den
+            # d = np.rint(d)
+            z = x * (1 - d) + d * y
+
+            out_vol[:, ii, :] = z
+
+    return out_vol
+
+
+def recenter(
+    vol: np.array, affine: np.array, direction: np.array = np.array([1, 1, -1])
+) -&gt; tuple:
+    &#34;&#34;&#34;Recenter the volume.
+
+    :param vol: the volume
+    :param affine: the affine
+    :param direction: the direction
+    :return: the recentered volume and affine
+    &#34;&#34;&#34;
+    affine = np.array(affine)
+
+    vol_sum_1 = np.sum(np.abs(vol))
+    assert vol_sum_1 &gt; 0, &#34;Error: input volume sum is 0 in recenter&#34;
+
+    ndim = len(vol.shape)
+    vol[pd.isnull(vol)] = 0
+    coi = np.array(vol.shape) / 2
+    com = center_of_mass(vol)
+    d_vox = np.rint(coi - com)
+    d_vox[1] = 0
+    d_world = d_vox * affine[range(ndim), range(ndim)]
+    d_world *= direction
+    affine[range(ndim), 3] -= d_world
+
+    print(&#34;\tShift in Segmented Volume by:&#34;, d_vox)
+    vol = shift(vol, d_vox, order=0)
+
+    affine[range(ndim), range(ndim)]
+    return vol, affine
+
+
+def volumetric_interpolation(
+    sect_info: pd.DataFrame,
+    in_fn: str,
+    in_dir: str,
+    out_dir: str,
+    out_fn: str,
+    resolution_3d: float,
+    resolution_2d: float,
+    section_thickness: float,
+    flip_axes: tuple[int, ...] = (),
+    clobber: bool = False,
+    interpolation: str = &#34;nearest&#34;,
+) -&gt; None:
+    &#34;&#34;&#34;Interpolate missing sections in the volume.
+
+    param sect_info: dataframe with information about the section
+    param in_fn: input filename
+    param in_dir: input directory
+    param out_dir: output directory
+    param out_fn: output filename
+    param resolution_3d: 3D resolution
+    param resolution_2d: 2D resolution
+    param flip_axes: flip axes
+    param clobber: clobber
+    param interpolation: interpolation method
+    return: None
+    &#34;&#34;&#34;
+    if not os.path.exists(out_fn) or clobber:
+        #
+        # Check Inputs
+        #
+        if not os.path.exists(in_fn):
+            print(&#34;Error: could not find &#34;, in_fn)
+            exit(1)
+
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+
+        ref_img = nib.load(in_fn)
+
+        example_2d_list = glob(in_dir + f&#34;/*{resolution_3d}*rsl_tfm.nii.gz&#34;)
+
+        assert len(example_2d_list) &gt; 0, &#34;Error: no files found in {}&#34;.format(in_dir)
+        print(&#34;Example&#34;, example_2d_list[0])
+        # Example image should be at maximum 2D resolution
+        example_2d_img = nib.load(example_2d_list[0])
+
+        ymax = sect_info[&#34;sample&#34;].max() + 1
+
+        data = np.zeros(
+            [example_2d_img.shape[0], ymax, example_2d_img.shape[1]],
+            dtype=np.float32,
+        )
+
+        # TODO this works well for macaque but less so for human
+        if interpolation == &#34;linear&#34;:
+            for i, row in sect_info.iterrows():
+                s0 = int(row[&#34;sample&#34;])
+                fn = get_seg_fn(
+                    in_dir,
+                    int(row[&#34;sample&#34;]),
+                    resolution_3d,
+                    row[&#34;seg&#34;],
+                    &#34;_rsl_tfm&#34;,
+                )
+                img_2d = nib.load(fn).get_fdata()
+
+                # FIXME This is not a good way to solve issue with rsl_tfm files being the wrong size. Problem is probably in the use of nibabel&#39;s resampling function in resample
+                if img_2d.shape[0] != data.shape[0] or img_2d.shape[1] != data.shape[2]:
+                    img_2d = resize(img_2d, [data.shape[0], data.shape[2]], order=0)
+
+                data[:, s0, :] = img_2d
+
+            data = interpolate_missing_sections(data, dilate_volume=True)
+        else:
+            valid_slices = []
+            for i, row in sect_info.iterrows():
+                s0 = int(row[&#34;sample&#34;] - sect_info[&#34;sample&#34;].min())
+                fn = get_seg_fn(
+                    in_dir,
+                    int(row[&#34;sample&#34;]),
+                    resolution_3d,
+                    row[&#34;seg&#34;],
+                    &#34;_rsl_tfm&#34;,
+                )
+                img_2d = nib.load(fn).get_fdata()
+                # FIXME : Skipping frames that have been rotated
+                if img_2d.shape != example_2d_img.shape:
+                    pass
+                else:
+                    data[:, s0, :] = img_2d.reshape([img_2d.shape[0], img_2d.shape[1]])
+                valid_slices.append(int(row[&#34;sample&#34;]))
+
+            invalid_slices = [
+                i
+                for i in range(1 + int(sect_info[&#34;sample&#34;].max()))
+                if i not in valid_slices
+            ]
+
+            #
+            # Fill in missing slices using nearest neighbour interpolation
+            #
+            valid_slices = np.array(valid_slices)
+            for i in invalid_slices:
+                dif = np.argsort(np.absolute(valid_slices - i))
+
+                i0 = valid_slices[dif[0]]
+                # nearest neighbough interpolation
+                data[:, i, :] = data[:, i0, :]
+
+        assert (
+            np.sum(data) &gt; 0
+        ), &#34;Error: Empty volume when using nearest neighbour interpolation to produce GM mask&#34;
+
+        #
+        # Save output volume
+        #
+        xstart = float(ref_img.affine[0][3])
+        ystart = float(ref_img.affine[1][3])
+        zstart = float(ref_img.affine[2][3])
+
+        aff = np.array(
+            [
+                [resolution_3d, 0, 0, xstart],
+                [0, section_thickness, 0, ystart],
+                [0, 0, resolution_3d, zstart],
+                [0, 0, 0, 1],
+            ]
+        ).astype(float)
+        if flip_axes != ():
+            data = np.flip(data, axis=flip_axes)
+
+        aff2 = aff.copy()
+        aff2[1, 1] = 0.02
+        nib.Nifti1Image(data, aff2).to_filename(&#34;/tmp/tmp.nii.gz&#34;)
+
+        data = resample_to_resolution(
+            data,
+            [resolution_3d, resolution_3d, resolution_3d],
+            dtype=np.float32,
+            affine=aff,
+        ).get_fdata()
+
+        aff[[0, 1, 2], [0, 1, 2]] = resolution_3d
+
+        data, aff = recenter(data, aff)
+
+        print(&#34;\tWriting output to&#34;, out_fn)
+
+        img_out = nib.Nifti1Image(
+            data,
+            aff,
+            dtype=np.uint8,
+            direction_order=&#34;lpi&#34;,
+        )
+        img_out.to_filename(out_fn)
+
+    return 0
+
+
+def create_intermediate_volume(
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    resolution_itr: int,
+    resolution: float,
+    resolution_3d: float,
+    out_dir: str,
+    seg_rsl_fn: str,
+    init_align_fn: str,
+    interpolation: str = &#34;nearest&#34;,
+    num_cores: int = 0,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Create intermediate volume for use in registration to the structural reference volume.
+
+    param: sect_info: dataframe containing information about each section
+    param: chunk_info: dataframe containing information about each chunk
+    param: resolution_itr: current resolution iteration
+    param: resolution: current resolution
+    param: resolution_3d: current 3d resolution
+    param: out_dir: output directory
+    param: seg_rsl_fn: filename of the resampled segmented volume
+    param: init_align_fn: filename of the initial alignment volume
+    return: None
+    &#34;&#34;&#34;
+    print(&#34;\t\tStep 2: Autoradiograph segmentation&#34;)
+    if not os.path.exists(seg_rsl_fn) or clobber:
+        print(&#34;\t\t\tResampling segemented sections&#34;)
+
+        resample_transform_segmented_images(
+            sect_info,
+            chunk_info,
+            resolution_itr,
+            resolution,
+            resolution_3d,
+            out_dir + &#34;/2d/&#34;,
+            num_cores=num_cores,
+            clobber=clobber,
+        )
+
+        # write 2d segmented sections at current resolution. apply initial transform
+        print(&#34;\t\t\tInterpolating between segemented sections&#34;)
+        volumetric_interpolation(
+            sect_info,
+            init_align_fn,
+            out_dir + &#34;/2d/&#34;,
+            out_dir,
+            seg_rsl_fn,
+            resolution_3d,
+            resolution,
+            chunk_info[&#34;section_thickness&#34;].values[0],
+            interpolation=interpolation,
+            clobber=clobber,
+        )
+
+    return None</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="brainbuilder.align.intervolume.create_intermediate_volume"><code class="name flex">
+<span>def <span class="ident">create_intermediate_volume</span></span>(<span>chunk_info: pandas.core.frame.DataFrame, sect_info: pandas.core.frame.DataFrame, resolution_itr: int, resolution: float, resolution_3d: float, out_dir: str, seg_rsl_fn: str, init_align_fn: str, interpolation: str = 'nearest', num_cores: int = 0, clobber: bool = False) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Create intermediate volume for use in registration to the structural reference volume.</p>
+<p>param: sect_info: dataframe containing information about each section
+param: chunk_info: dataframe containing information about each chunk
+param: resolution_itr: current resolution iteration
+param: resolution: current resolution
+param: resolution_3d: current 3d resolution
+param: out_dir: output directory
+param: seg_rsl_fn: filename of the resampled segmented volume
+param: init_align_fn: filename of the initial alignment volume
+return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def create_intermediate_volume(
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    resolution_itr: int,
+    resolution: float,
+    resolution_3d: float,
+    out_dir: str,
+    seg_rsl_fn: str,
+    init_align_fn: str,
+    interpolation: str = &#34;nearest&#34;,
+    num_cores: int = 0,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Create intermediate volume for use in registration to the structural reference volume.
+
+    param: sect_info: dataframe containing information about each section
+    param: chunk_info: dataframe containing information about each chunk
+    param: resolution_itr: current resolution iteration
+    param: resolution: current resolution
+    param: resolution_3d: current 3d resolution
+    param: out_dir: output directory
+    param: seg_rsl_fn: filename of the resampled segmented volume
+    param: init_align_fn: filename of the initial alignment volume
+    return: None
+    &#34;&#34;&#34;
+    print(&#34;\t\tStep 2: Autoradiograph segmentation&#34;)
+    if not os.path.exists(seg_rsl_fn) or clobber:
+        print(&#34;\t\t\tResampling segemented sections&#34;)
+
+        resample_transform_segmented_images(
+            sect_info,
+            chunk_info,
+            resolution_itr,
+            resolution,
+            resolution_3d,
+            out_dir + &#34;/2d/&#34;,
+            num_cores=num_cores,
+            clobber=clobber,
+        )
+
+        # write 2d segmented sections at current resolution. apply initial transform
+        print(&#34;\t\t\tInterpolating between segemented sections&#34;)
+        volumetric_interpolation(
+            sect_info,
+            init_align_fn,
+            out_dir + &#34;/2d/&#34;,
+            out_dir,
+            seg_rsl_fn,
+            resolution_3d,
+            resolution,
+            chunk_info[&#34;section_thickness&#34;].values[0],
+            interpolation=interpolation,
+            clobber=clobber,
+        )
+
+    return None</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.intervolume.get_input_file"><code class="name flex">
+<span>def <span class="ident">get_input_file</span></span>(<span>seg_fn: str, seg_rsl_fn: str, row: pandas.core.series.Series, output_dir: str, resolution_2d: float, resolution_3d: float, clobber: bool = False) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the input file for resampling and transformation.</p>
+<p>:param seg_fn: the segmented file name
+:param seg_rsl_fn: the resampled segmented file name
+:param row: the row of the dataframe
+:param output_dir: the output directory
+:param resolution_2d: the 2D resolution
+:param resolution_3d: the 3D resolution
+:param clobber: whether to overwrite existing files
+:return: the input file for resampling and transformation</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_input_file(
+    seg_fn: str,
+    seg_rsl_fn: str,
+    row: pd.Series,
+    output_dir: str,
+    resolution_2d: float,
+    resolution_3d: float,
+    clobber: bool = False,
+) -&gt; str:
+    &#34;&#34;&#34;Get the input file for resampling and transformation.
+
+    :param seg_fn: the segmented file name
+    :param seg_rsl_fn: the resampled segmented file name
+    :param row: the row of the dataframe
+    :param output_dir: the output directory
+    :param resolution_2d: the 2D resolution
+    :param resolution_3d: the 3D resolution
+    :param clobber: whether to overwrite existing files
+    :return: the input file for resampling and transformation
+    &#34;&#34;&#34;
+    tfm_input_fn = seg_rsl_fn
+    if not os.path.exists(seg_rsl_fn):
+        resample_to_resolution(
+            seg_fn,
+            [resolution_2d] * 2,
+            seg_rsl_fn,
+            dtype=np.uint8,
+        )
+
+    if resolution_2d != resolution_3d:
+        tfm_input_fn = get_seg_fn(
+            output_dir, int(row[&#34;sample&#34;]), resolution_3d, seg_fn, &#34;_rsl&#34;
+        )
+        if not os.path.exists(tfm_input_fn) or clobber:
+            resample_to_resolution(
+                seg_fn,
+                [resolution_3d] * 2,
+                tfm_input_fn,
+                dtype=np.uint8,
+            )
+    return tfm_input_fn</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.intervolume.interpolate_missing_sections"><code class="name flex">
+<span>def <span class="ident">interpolate_missing_sections</span></span>(<span>vol: <built-in function array>, dilate_volume: bool = False) ‑> <built-in function array></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Interpolates missing sections in a volume.</p>
+<p>:param vol (ndarray): The input volume.
+:dilate_volume (bool, optional): Whether to dilate the volume before interpolation. Defaults to False.
+:return ndarray: The volume with missing sections interpolated.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def interpolate_missing_sections(
+    vol: np.array, dilate_volume: bool = False
+) -&gt; np.array:
+    &#34;&#34;&#34;Interpolates missing sections in a volume.
+
+    :param vol (ndarray): The input volume.
+    :dilate_volume (bool, optional): Whether to dilate the volume before interpolation. Defaults to False.
+    :return ndarray: The volume with missing sections interpolated.
+    &#34;&#34;&#34;
+    if dilate_volume:
+        vol_dil = binary_erosion(
+            binary_dilation(vol, iterations=4), iterations=4
+        ).astype(int)
+    else:
+        vol_dil = vol
+    intervals = get_section_intervals(vol_dil)
+
+    out_vol = vol.copy()  # np.zeros(vol.shape)
+    for i in range(len(intervals) - 1):
+        j = i + 1
+        x0, x1 = intervals[i]
+        y0, y1 = intervals[j]
+        x = np.mean(vol[:, x0:x1, :], axis=1)
+        y = np.mean(vol[:, y0:y1, :], axis=1)
+        vol[:, x0:x1, :] = np.repeat(
+            x.reshape(x.shape[0], 1, x.shape[1]), x1 - x0, axis=1
+        )
+        for ii in range(x1, y0):
+            den = y0 - x1
+            assert den != 0, &#34;Error: 0 denominator when interpolating missing sections&#34;
+            d = (ii - x1) / den
+            # d = np.rint(d)
+            z = x * (1 - d) + d * y
+
+            out_vol[:, ii, :] = z
+
+    return out_vol</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.intervolume.recenter"><code class="name flex">
+<span>def <span class="ident">recenter</span></span>(<span>vol: <built-in function array>, affine: <built-in function array>, direction: <built-in function array> = array([ 1,
+1, -1])) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Recenter the volume.</p>
+<p>:param vol: the volume
+:param affine: the affine
+:param direction: the direction
+:return: the recentered volume and affine</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def recenter(
+    vol: np.array, affine: np.array, direction: np.array = np.array([1, 1, -1])
+) -&gt; tuple:
+    &#34;&#34;&#34;Recenter the volume.
+
+    :param vol: the volume
+    :param affine: the affine
+    :param direction: the direction
+    :return: the recentered volume and affine
+    &#34;&#34;&#34;
+    affine = np.array(affine)
+
+    vol_sum_1 = np.sum(np.abs(vol))
+    assert vol_sum_1 &gt; 0, &#34;Error: input volume sum is 0 in recenter&#34;
+
+    ndim = len(vol.shape)
+    vol[pd.isnull(vol)] = 0
+    coi = np.array(vol.shape) / 2
+    com = center_of_mass(vol)
+    d_vox = np.rint(coi - com)
+    d_vox[1] = 0
+    d_world = d_vox * affine[range(ndim), range(ndim)]
+    d_world *= direction
+    affine[range(ndim), 3] -= d_world
+
+    print(&#34;\tShift in Segmented Volume by:&#34;, d_vox)
+    vol = shift(vol, d_vox, order=0)
+
+    affine[range(ndim), range(ndim)]
+    return vol, affine</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.intervolume.resample_and_transform"><code class="name flex">
+<span>def <span class="ident">resample_and_transform</span></span>(<span>output_dir: str, resolution_itr: int, resolution_2d: float, resolution_3d: float, row: pandas.core.series.Series, tfm_ref_fn: str, recenter_image: bool = False, clobber: bool = False) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Resamples and transforms the segmented images to the current resolution.</p>
+<p>:param output_dir: output directory
+:param resolution_itr: current resolution iteration
+:param resolution_2d: current 2D resolution
+:param resolution_3d: current 3D resolution
+:param row: row of the dataframe
+:param tfm_ref_fn: reference transform file
+:param recenter_image: whether to recenter the image
+:param clobber: whether to overwrite existing files
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def resample_and_transform(
+    output_dir: str,
+    resolution_itr: int,
+    resolution_2d: float,
+    resolution_3d: float,
+    row: pd.Series,
+    tfm_ref_fn: str,
+    recenter_image: bool = False,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Resamples and transforms the segmented images to the current resolution.
+
+    :param output_dir: output directory
+    :param resolution_itr: current resolution iteration
+    :param resolution_2d: current 2D resolution
+    :param resolution_3d: current 3D resolution
+    :param row: row of the dataframe
+    :param tfm_ref_fn: reference transform file
+    :param recenter_image: whether to recenter the image
+    :param clobber: whether to overwrite existing files
+    :return: None
+    &#34;&#34;&#34;
+    print(row)
+    seg_fn = row[&#34;seg&#34;]
+
+    seg_rsl_fn = get_seg_fn(
+        output_dir, int(row[&#34;sample&#34;]), resolution_2d, seg_fn, &#34;_rsl&#34;
+    )
+    seg_rsl_tfm_fn = get_seg_fn(
+        output_dir, int(row[&#34;sample&#34;]), resolution_3d, seg_fn, &#34;_rsl_tfm&#34;
+    )
+    print()
+    if not os.path.exists(seg_rsl_tfm_fn) or clobber:
+        tfm_input_fn = get_input_file(
+            seg_fn, seg_rsl_fn, row, output_dir, resolution_2d, resolution_3d
+        )
+
+        if resolution_itr == 0:
+            tfm_ref_fn = tfm_input_fn
+
+        # get initial rigid transform
+        tfm_fn = row[&#34;2d_tfm&#34;]
+        print(&#34;\tTransforming&#34;, seg_rsl_fn, &#34;to&#34;, seg_rsl_tfm_fn)
+        if isinstance(tfm_fn, str):
+            simple_ants_apply_tfm(
+                tfm_input_fn,
+                tfm_ref_fn,
+                tfm_fn,
+                seg_rsl_tfm_fn,
+                ndim=2,
+                n=&#34;NearestNeighbor&#34;,
+                empty_ok=True,
+            )
+        else:
+            print(&#34;\tNo transform for&#34;, seg_rsl_fn)
+            shutil.copy(tfm_input_fn, seg_rsl_tfm_fn)</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.intervolume.resample_transform_segmented_images"><code class="name flex">
+<span>def <span class="ident">resample_transform_segmented_images</span></span>(<span>sect_info: pandas.core.frame.DataFrame, chunk_info: pandas.core.frame.DataFrame, resolution_itr: int, resolution_2d: float, resolution_3d: float, output_dir: str, num_cores: int = 0, clobber: bool = False) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Resample and transform segmented images to 3D create a 3D GM classification volume.</p>
+<p>:param sect_info: dataframe with information about the section
+:param chunk_info: dataframe with information about the chunk
+:param resolution_itr: resolution iteration
+:param resolution_2d: 2D resolution
+:param resolution_3d: 3D resolution
+:param output_dir: output directory
+return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def resample_transform_segmented_images(
+    sect_info: pd.DataFrame,
+    chunk_info: pd.DataFrame,
+    resolution_itr: int,
+    resolution_2d: float,
+    resolution_3d: float,
+    output_dir: str,
+    num_cores: int = 0,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Resample and transform segmented images to 3D create a 3D GM classification volume.
+
+    :param sect_info: dataframe with information about the section
+    :param chunk_info: dataframe with information about the chunk
+    :param resolution_itr: resolution iteration
+    :param resolution_2d: 2D resolution
+    :param resolution_3d: 3D resolution
+    :param output_dir: output directory
+    return: None
+    &#34;&#34;&#34;
+    os.makedirs(output_dir, exist_ok=True)
+    os.uname()
+
+    tfm_ref_fn = output_dir + &#34;/2d_reference_image.nii.gz&#34;
+
+    if not os.path.exists(tfm_ref_fn) and resolution_itr != 0:
+        ref_img = nib.load(sect_info[&#34;nl_2d_rsl&#34;].values[0])
+        xstart, zstart = ref_img.affine[[0, 1], 3]
+
+        resample_to_resolution(
+            sect_info[&#34;nl_2d_rsl&#34;].values[0],
+            [resolution_3d] * 2,
+            tfm_ref_fn,
+            order=0,
+        )
+
+    Parallel(n_jobs=num_cores, backend=&#34;multiprocessing&#34;)(
+        delayed(resample_and_transform)(
+            output_dir,
+            resolution_itr,
+            resolution_2d,
+            resolution_3d,
+            row,
+            tfm_ref_fn,
+            clobber=clobber,
+        )
+        for i, row in sect_info.iterrows()
+    )
+    return None</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.intervolume.volumetric_interpolation"><code class="name flex">
+<span>def <span class="ident">volumetric_interpolation</span></span>(<span>sect_info: pandas.core.frame.DataFrame, in_fn: str, in_dir: str, out_dir: str, out_fn: str, resolution_3d: float, resolution_2d: float, section_thickness: float, flip_axes: tuple[int, ...] = (), clobber: bool = False, interpolation: str = 'nearest') ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Interpolate missing sections in the volume.</p>
+<p>param sect_info: dataframe with information about the section
+param in_fn: input filename
+param in_dir: input directory
+param out_dir: output directory
+param out_fn: output filename
+param resolution_3d: 3D resolution
+param resolution_2d: 2D resolution
+param flip_axes: flip axes
+param clobber: clobber
+param interpolation: interpolation method
+return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def volumetric_interpolation(
+    sect_info: pd.DataFrame,
+    in_fn: str,
+    in_dir: str,
+    out_dir: str,
+    out_fn: str,
+    resolution_3d: float,
+    resolution_2d: float,
+    section_thickness: float,
+    flip_axes: tuple[int, ...] = (),
+    clobber: bool = False,
+    interpolation: str = &#34;nearest&#34;,
+) -&gt; None:
+    &#34;&#34;&#34;Interpolate missing sections in the volume.
+
+    param sect_info: dataframe with information about the section
+    param in_fn: input filename
+    param in_dir: input directory
+    param out_dir: output directory
+    param out_fn: output filename
+    param resolution_3d: 3D resolution
+    param resolution_2d: 2D resolution
+    param flip_axes: flip axes
+    param clobber: clobber
+    param interpolation: interpolation method
+    return: None
+    &#34;&#34;&#34;
+    if not os.path.exists(out_fn) or clobber:
+        #
+        # Check Inputs
+        #
+        if not os.path.exists(in_fn):
+            print(&#34;Error: could not find &#34;, in_fn)
+            exit(1)
+
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+
+        ref_img = nib.load(in_fn)
+
+        example_2d_list = glob(in_dir + f&#34;/*{resolution_3d}*rsl_tfm.nii.gz&#34;)
+
+        assert len(example_2d_list) &gt; 0, &#34;Error: no files found in {}&#34;.format(in_dir)
+        print(&#34;Example&#34;, example_2d_list[0])
+        # Example image should be at maximum 2D resolution
+        example_2d_img = nib.load(example_2d_list[0])
+
+        ymax = sect_info[&#34;sample&#34;].max() + 1
+
+        data = np.zeros(
+            [example_2d_img.shape[0], ymax, example_2d_img.shape[1]],
+            dtype=np.float32,
+        )
+
+        # TODO this works well for macaque but less so for human
+        if interpolation == &#34;linear&#34;:
+            for i, row in sect_info.iterrows():
+                s0 = int(row[&#34;sample&#34;])
+                fn = get_seg_fn(
+                    in_dir,
+                    int(row[&#34;sample&#34;]),
+                    resolution_3d,
+                    row[&#34;seg&#34;],
+                    &#34;_rsl_tfm&#34;,
+                )
+                img_2d = nib.load(fn).get_fdata()
+
+                # FIXME This is not a good way to solve issue with rsl_tfm files being the wrong size. Problem is probably in the use of nibabel&#39;s resampling function in resample
+                if img_2d.shape[0] != data.shape[0] or img_2d.shape[1] != data.shape[2]:
+                    img_2d = resize(img_2d, [data.shape[0], data.shape[2]], order=0)
+
+                data[:, s0, :] = img_2d
+
+            data = interpolate_missing_sections(data, dilate_volume=True)
+        else:
+            valid_slices = []
+            for i, row in sect_info.iterrows():
+                s0 = int(row[&#34;sample&#34;] - sect_info[&#34;sample&#34;].min())
+                fn = get_seg_fn(
+                    in_dir,
+                    int(row[&#34;sample&#34;]),
+                    resolution_3d,
+                    row[&#34;seg&#34;],
+                    &#34;_rsl_tfm&#34;,
+                )
+                img_2d = nib.load(fn).get_fdata()
+                # FIXME : Skipping frames that have been rotated
+                if img_2d.shape != example_2d_img.shape:
+                    pass
+                else:
+                    data[:, s0, :] = img_2d.reshape([img_2d.shape[0], img_2d.shape[1]])
+                valid_slices.append(int(row[&#34;sample&#34;]))
+
+            invalid_slices = [
+                i
+                for i in range(1 + int(sect_info[&#34;sample&#34;].max()))
+                if i not in valid_slices
+            ]
+
+            #
+            # Fill in missing slices using nearest neighbour interpolation
+            #
+            valid_slices = np.array(valid_slices)
+            for i in invalid_slices:
+                dif = np.argsort(np.absolute(valid_slices - i))
+
+                i0 = valid_slices[dif[0]]
+                # nearest neighbough interpolation
+                data[:, i, :] = data[:, i0, :]
+
+        assert (
+            np.sum(data) &gt; 0
+        ), &#34;Error: Empty volume when using nearest neighbour interpolation to produce GM mask&#34;
+
+        #
+        # Save output volume
+        #
+        xstart = float(ref_img.affine[0][3])
+        ystart = float(ref_img.affine[1][3])
+        zstart = float(ref_img.affine[2][3])
+
+        aff = np.array(
+            [
+                [resolution_3d, 0, 0, xstart],
+                [0, section_thickness, 0, ystart],
+                [0, 0, resolution_3d, zstart],
+                [0, 0, 0, 1],
+            ]
+        ).astype(float)
+        if flip_axes != ():
+            data = np.flip(data, axis=flip_axes)
+
+        aff2 = aff.copy()
+        aff2[1, 1] = 0.02
+        nib.Nifti1Image(data, aff2).to_filename(&#34;/tmp/tmp.nii.gz&#34;)
+
+        data = resample_to_resolution(
+            data,
+            [resolution_3d, resolution_3d, resolution_3d],
+            dtype=np.float32,
+            affine=aff,
+        ).get_fdata()
+
+        aff[[0, 1, 2], [0, 1, 2]] = resolution_3d
+
+        data, aff = recenter(data, aff)
+
+        print(&#34;\tWriting output to&#34;, out_fn)
+
+        img_out = nib.Nifti1Image(
+            data,
+            aff,
+            dtype=np.uint8,
+            direction_order=&#34;lpi&#34;,
+        )
+        img_out.to_filename(out_fn)
+
+    return 0</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="brainbuilder.align" href="index.html">brainbuilder.align</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="brainbuilder.align.intervolume.create_intermediate_volume" href="#brainbuilder.align.intervolume.create_intermediate_volume">create_intermediate_volume</a></code></li>
+<li><code><a title="brainbuilder.align.intervolume.get_input_file" href="#brainbuilder.align.intervolume.get_input_file">get_input_file</a></code></li>
+<li><code><a title="brainbuilder.align.intervolume.interpolate_missing_sections" href="#brainbuilder.align.intervolume.interpolate_missing_sections">interpolate_missing_sections</a></code></li>
+<li><code><a title="brainbuilder.align.intervolume.recenter" href="#brainbuilder.align.intervolume.recenter">recenter</a></code></li>
+<li><code><a title="brainbuilder.align.intervolume.resample_and_transform" href="#brainbuilder.align.intervolume.resample_and_transform">resample_and_transform</a></code></li>
+<li><code><a title="brainbuilder.align.intervolume.resample_transform_segmented_images" href="#brainbuilder.align.intervolume.resample_transform_segmented_images">resample_transform_segmented_images</a></code></li>
+<li><code><a title="brainbuilder.align.intervolume.volumetric_interpolation" href="#brainbuilder.align.intervolume.volumetric_interpolation">volumetric_interpolation</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>
