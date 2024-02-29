@@ -13,7 +13,7 @@ from brainbuilder.utils.utils import (
 )
 
 
-def v2w(i:int, step:float, start:float)->float:
+def v2w(i: int, step: float, start: float) -> float:
     """Converts voxel coordinate to world coordinate.
 
     :param i: voxel coordinate
@@ -24,7 +24,7 @@ def v2w(i:int, step:float, start:float)->float:
     return start + i * step
 
 
-def find_vol_min_max(vol: np.ndarray)->tuple:
+def find_vol_min_max(vol: np.ndarray) -> tuple:
     """Finds the min and max spatial coordinate of the srv image.
 
     :param vol:  image volume
@@ -44,10 +44,10 @@ def pad_volume(
     max_factor: int,
     affine: np.ndarray,
     min_voxel_size: int = 29,
-    direction: list[int] = [1, 1, 1]
+    direction: list[int] = [1, 1, 1],
 ) -> tuple[np.ndarray, np.ndarray]:
     """Pad the volume so that it can be downsampled by the maximum downsample factor.
-    
+
     :param vol: volume to pad
     :param max_factor: maximum downsample factor
     :param affine: affine matrix
@@ -58,22 +58,26 @@ def pad_volume(
     xdim, ydim, zdim = vol.shape
 
     def padded_dim(dim: int, max_factor: int, min_voxel_size: int) -> int:
+        downsampled_dim = np.ceil(dim / 2 ** (max_factor - 1))
 
-        x_pad = padded_dim(xdim, max_factor, min_voxel_size)
-        y_pad = padded_dim(ydim, max_factor, min_voxel_size)
-        z_pad = padded_dim(zdim, max_factor, min_voxel_size)
+        if downsampled_dim < min_voxel_size:
+            return np.ceil((min_voxel_size - downsampled_dim) / 2).astype(int)
+        else:
+            return 0
 
-        vol_padded = np.pad(vol, ((x_pad, x_pad), (y_pad, y_pad), (z_pad, z_pad)))
-        affine[0, 3] -= x_pad * abs(affine[0, 0]) * direction[0]
-        affine[1, 3] -= y_pad * abs(affine[1, 1]) * direction[1]
-        affine[2, 3] -= z_pad * abs(affine[2, 2]) * direction[2]
-        print(np.sum(vol), np.sum(vol_padded))
-        print(vol.dtype, vol_padded.dtype)
+    x_pad = padded_dim(xdim, max_factor, min_voxel_size)
+    y_pad = padded_dim(ydim, max_factor, min_voxel_size)
+    z_pad = padded_dim(zdim, max_factor, min_voxel_size)
 
-        return vol_padded, affine
+    vol_padded = np.pad(vol, ((x_pad, x_pad), (y_pad, y_pad), (z_pad, z_pad)))
+    affine[0, 3] -= x_pad * abs(affine[0, 0]) * direction[0]
+    affine[1, 3] -= y_pad * abs(affine[1, 1]) * direction[1]
+    affine[2, 3] -= z_pad * abs(affine[2, 2]) * direction[2]
+
+    return vol_padded, affine
 
 
-def get_ref_info(ref_rsl_fn:str) -> tuple:
+def get_ref_info(ref_rsl_fn: str) -> tuple:
     """Get reference volume information.
 
     Description: Get the width, min, max, ystep, and ystart of the reference volume
@@ -95,9 +99,9 @@ def get_ref_info(ref_rsl_fn:str) -> tuple:
     return ref_width, ref_min, ref_max, ref_ystep, ref_ystart
 
 
-def pad_seg_vol(seg_rsl_fn:str, max_downsample_level:str)->str:
+def pad_seg_vol(seg_rsl_fn: str, max_downsample_level: str) -> str:
     """Pad a volume to center it while keeping it centered in the world coordinates.
-    
+
     :param seg_rsl_fn: segmentation volume filename
     :param max_downsample_level: maximum downsample level
     :return: padded segmentation volume filename
@@ -135,12 +139,12 @@ def pad_seg_vol(seg_rsl_fn:str, max_downsample_level:str)->str:
 def get_alignment_schedule(
     resolution_list: list[int],
     resolution: int,
-    resolution_cutoff_for_cc:float=0.3,
-    base_nl_itr:int=200,
-    base_lin_itr:int=500,
-)->tuple:
+    resolution_cutoff_for_cc: float = 0.3,
+    base_nl_itr: int = 200,
+    base_lin_itr: int = 500,
+) -> tuple:
     """Get the alignment schedule for the linear and nonlinear portions of the ants alignment.
-    
+
     :param resolution_list: list of resolutions
     :param resolution: resolution of the section volume
     :param resolution_cutoff_for_cc: resolution cutoff for cross correlation
@@ -257,6 +261,7 @@ def write_ref_chunk(
 
     return ref_chunk_fn
 
+
 def run_alignment(
     out_dir: str,
     out_tfm_fn: str,
@@ -269,7 +274,6 @@ def run_alignment(
     nlParams: AntsParams,
     ccParams: AntsParams,
     resolution: float,
-    manual_affine_fn: str,
     metric: str = "GC",
     nbins: int = 32,
     use_init_tfm: bool = False,
@@ -290,7 +294,6 @@ def run_alignment(
     :param nlParams: nonlinear parameters
     :param ccParams: cross correlation parameters
     :param resolution: resolution of the section volume
-    :param manual_affine_fn: manual affine filename
     :param metric: metric to use for registration
     :param nbins: number of bins for registration
     :param use_init_tfm: use initial transformation
@@ -313,8 +316,8 @@ def run_alignment(
     f"{prefix_manual}Composite.nii.gz"
 
     ref_tgt_fn = ref_chunk_fn
-    step = 0.5 
-    nbins = 32  
+    step = 0.5
+    nbins = 32
     sampling = 0.9
 
     nl_metric = f"Mattes[{ref_chunk_fn},{seg_rsl_fn},1,32,Random,{sampling}]"
@@ -324,7 +327,7 @@ def run_alignment(
 
     base = "antsRegistration -v 1 -a 1 -d 3 "
 
-    def write_log(prefix:str, kind:str, cmd:str)->None:
+    def write_log(prefix: str, kind: str, cmd: str) -> None:
         with open(f"{prefix}/log_{kind}.txt", "w+") as F:
             F.write(cmd)
         return None
@@ -339,7 +342,7 @@ def run_alignment(
         rigid_cmd = f"{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] "
         shell(rigid_cmd, verbose=True)
         write_log(out_dir, "rigid", rigid_cmd)
-    
+
     # calculate similarity registration
     if not os.path.exists(f"{prefix_similarity}Composite.h5"):
         similarity_cmd = f"{base}  --initial-moving-transform  {prefix_rigid}Composite.h5 -t Similarity[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] "
@@ -383,6 +386,7 @@ def run_alignment(
     )
 
     return None
+
 
 def align_3d(
     sub: str,
@@ -491,5 +495,3 @@ def align_3d(
         )
 
     return 0
-
-

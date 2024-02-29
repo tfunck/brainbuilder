@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import stripy as stripy
 from scipy.interpolate import interp1d
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import gaussian_filter, label
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.interp.adjust_section_means import (
@@ -88,6 +88,7 @@ def thicken_sections_within_chunk(
     resolution: float,
     tissue_type: str = "",
     gaussian_sd: float = 0,
+    use_conversion_factor=False,
     use_adjust_section_means: bool = True,
 ) -> None:
     """Thicken sections within a chunk. A thickened section is simply a section that is expanded along the y axis to the resolution of the reconstruction.
@@ -118,7 +119,6 @@ def thicken_sections_within_chunk(
             chunk_sect_info["nl_2d_rsl"].values,
             chunk_sect_info["sample"].values,
             os.path.dirname(thickened_fn),
-            chunk_sect_info["conversion_factor"].values,
         )
 
     # get the thicken widith fot the section. The resolution is halfed because we are thickening in both directions
@@ -129,19 +129,12 @@ def thicken_sections_within_chunk(
     rec_vol = np.zeros_like(array_src)
     n = np.zeros_like(array_src)
 
-    use_conversion_factor = False
-    if "conversion_factor" in chunk_sect_info.columns:
-        use_conversion_factor = True
-
     for row_i, row in chunk_sect_info.iterrows():
         y = int(row["sample"])
 
         # Conversion of radioactivity values to receptor density values
         nl_2d_rsl = row["nl_2d_rsl"]
         section = nib.load(nl_2d_rsl).get_fdata().copy()
-
-        if use_conversion_factor:
-            section *= row["conversion_factor"]
 
         if use_adjust_section_means:
             section += adj_factors_dict[y]
@@ -211,6 +204,70 @@ def check_all_thickened_files_exist(output_csv: str) -> bool:
     return True
 
 
+def get_section_intervals(vol: np.ndarray) -> list:
+    """Get the intervals of sections within a volume across y-axis of volume.
+
+    :param vol: np.array, volume
+    :return: list
+    """
+    section_max = np.max(vol, axis=(0, 2))
+    section_min = np.min(vol, axis=(0, 2))
+
+    print(section_max)
+    print(section_min)
+
+    valid_sections = section_max != section_min
+
+    labeled_sections, nlabels = label(valid_sections)
+
+    if nlabels < 2:
+        print(
+            "Error: there must be a gap between thickened sections. Use higher resolution volumes."
+        )
+
+    intervals = [
+        (
+            np.where(labeled_sections == i)[0][0],
+            np.where(labeled_sections == i)[0][-1] + 1,
+        )
+        for i in range(1, nlabels + 1)
+    ]
+
+    assert len(intervals) > 0, "Error: no valid intervals found for volume."
+    return intervals
+
+
+def create_distance_volume(volume_filename, distance_filename):
+    img = nib.load(volume_filename)
+    vol = img.get_fdata()
+
+    intervals = get_section_intervals(vol)
+
+    out_vol = np.zeros(vol.shape)
+    for i in range(len(intervals) - 1):
+        j = i + 1
+        x0, x1 = intervals[i]
+        y0, y1 = intervals[j]
+        x = np.mean(vol[:, x0:x1, :], axis=1)
+        y = np.mean(vol[:, y0:y1, :], axis=1)
+        vol[:, x0:x1, :] = np.repeat(
+            x.reshape(x.shape[0], 1, x.shape[1]), x1 - x0, axis=1
+        )
+        for ii in range(x1, y0):
+            den = y0 - x1
+            assert den != 0, "Error: 0 denominator when interpolating missing sections"
+            d0 = (ii - x1) / den
+            d1 = (y1 - ii) / den
+            d = min(d0, d1)
+            out_vol[:, ii, :] = d
+
+    nib.Nifti1Image(out_vol, img.affine, direction_order="lpi").to_filename(
+        distance_filename
+    )
+
+    return out_vol
+
+
 def create_thickened_volumes(
     output_dir: str,
     chunk_info: pd.DataFrame,
@@ -261,9 +318,11 @@ def create_thickened_volumes(
             chunk_info_row = chunk_info[idx].iloc[0]
 
             thickened_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_thickened.nii.gz"
+            distance_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_distance.nii.gz"
 
             chunk_info_row["acquisition"] = acquisition
             chunk_info_row["thickened"] = thickened_fn
+            chunk_info_row["distance"] = distance_fn
 
             if not os.path.exists(thickened_fn) or clobber:
                 thicken_sections_within_chunk(
@@ -275,6 +334,9 @@ def create_thickened_volumes(
                     resolution,
                     gaussian_sd=gaussian_sd,
                 )
+
+            if not os.path.exists(distance_fn) or clobber:
+                create_distance_volume(thickened_fn, distance_fn)
 
             chunk_info_out = pd.concat([chunk_info_out, chunk_info_row.to_frame().T])
 

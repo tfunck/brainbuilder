@@ -25,7 +25,9 @@ def get_min_max(fn: str) -> str:
         return np.nan, np.nan
 
 
-def get_min_max_parallel(df: pd.DataFrame, column: str) -> Tuple[float, float]:
+def get_min_max_parallel(
+    df: pd.DataFrame, column: str, num_cores: int = 1
+) -> Tuple[float, float]:
     """Get min and max values from image file in parallel.
 
     :param df: dataframe
@@ -34,7 +36,7 @@ def get_min_max_parallel(df: pd.DataFrame, column: str) -> Tuple[float, float]:
     """
     n_jobs = int(cpu_count())
 
-    min_max = Parallel(n_jobs=n_jobs)(
+    min_max = Parallel(n_jobs=num_cores, backend="multiprocessing")(
         delayed(get_min_max)(row[column]) for i, (_, row) in enumerate(df.iterrows())
     )
 
@@ -45,7 +47,11 @@ def get_min_max_parallel(df: pd.DataFrame, column: str) -> Tuple[float, float]:
 
 
 def data_set_quality_control(
-    sect_info_csv: str, base_output_dir: str, column: str = "raw", clobber: bool = False
+    sect_info_csv: str,
+    base_output_dir: str,
+    column: str = "raw",
+    num_cores: int = 1,
+    clobber: bool = False,
 ) -> None:
     """Quality control for data set.
 
@@ -59,6 +65,7 @@ def data_set_quality_control(
 
     sect_info = pd.read_csv(sect_info_csv, index_col=False)
 
+    # sect_info = sect_info.loc[ (sect_info['sub'] == 11539) & (sect_info['acquisition'] == 'dpmg') ]
     for (sub, hemisphere, acquisition, chunk), df in sect_info.groupby(
         [
             "sub",
@@ -67,8 +74,10 @@ def data_set_quality_control(
             "chunk",
         ]
     ):
-        output_dir = f"{base_output_dir}/sub-{sub}/hemi-{hemisphere}/"
+        output_dir = f"{base_output_dir}/sub-{sub}/hemi-{hemisphere}/{column}/"
+
         os.makedirs(output_dir, exist_ok=True)
+
         out_png = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_acq-{acquisition}_{column}.png"
         n = len(df)
 
@@ -77,17 +86,28 @@ def data_set_quality_control(
             n_cols = np.ceil(np.sqrt(n_images)).astype(int)
             n_rows = np.ceil(n_images / n_cols).astype(int)
 
-            plt.figure(figsize=(n_cols * 2, n_rows * 2))
+            plt.figure(figsize=(n_cols * 2, n_rows * 2))  # , dpi=300)
 
-            vmin, vmax = get_min_max_parallel(df, column)
+            vmin, vmax = get_min_max_parallel(df, column, num_cores=num_cores)
             df.sort_values(by=["sample"], inplace=True)
 
             for i, (_, row) in enumerate(df.iterrows()):
+                print(
+                    row["sub"],
+                    row["hemisphere"],
+                    row["chunk"],
+                    row["acquisition"],
+                    row["old_repeat"],
+                    row["sample"],
+                )
+                print(row["base"])
+                print()
                 plt.subplot(n_rows, n_cols, i + 1)
                 img = nib.load(row[column]).get_fdata()
                 plt.imshow(img, cmap="nipy_spectral", vmin=vmin, vmax=vmax)
                 plt.axis("off")
-                plt.title(row["sample"])
+                title_string = f'{row["old_repeat"]} {row["sample"]}'
+                plt.title(title_string)
 
             plt.tight_layout()
             print("\tSaving figure to: ", out_png)

@@ -17,9 +17,9 @@ base_file_dir, fn = os.path.split(os.path.abspath(__file__))
 repo_dir = f"{base_file_dir}/../"
 
 
-def apply_threshold(img:np.ndarray, method:callable)->np.ndarray:
+def apply_threshold(img: np.ndarray, method: callable) -> np.ndarray:
     """Apply thresholding method to the image.
-    
+
     :param img: np.ndarray, input image
     :param method: callable, thresholding method
     :return: np.ndarray, segmented image
@@ -30,9 +30,9 @@ def apply_threshold(img:np.ndarray, method:callable)->np.ndarray:
     return im
 
 
-def multi_threshold(img: np.ndarray)->np.ndarray:
+def multi_threshold(img: np.ndarray) -> np.ndarray:
     """Apply multiple thresholding methods to the image.
-    
+
     :param img: np.ndarray, input image
     :return: np.ndarray, segmented image
     """
@@ -50,7 +50,9 @@ def multi_threshold(img: np.ndarray)->np.ndarray:
     return seg
 
 
-def histogram_threshold(raw_fn: str, seg_fn: str, sd: float = 1, ref: str = None)-> None:
+def histogram_threshold(
+    raw_fn: str, seg_fn: str, sd: float = 1, ref: str = None
+) -> None:
     """Apply histogram thresholding to the cropped images.
 
     param: raw_fn: raw image filename
@@ -98,7 +100,7 @@ def convert_2d_array_to_nifti(
     output_filename: str,
     res: list,
     spacing: tuple = (1, 1, 1),
-    clobber:bool=False,
+    clobber: bool = False,
 ) -> None:
     """Converts numpy into a series of niftis.
 
@@ -110,7 +112,7 @@ def convert_2d_array_to_nifti(
     Datasets converted with this utility can only be used with the 2d U-Net configuration of nnU-Net
     If Transform is not None it will be applied to the image after loading.
     Segmentations will be converted to np.uint32!
-    
+
     :param input_filename: str, path to numpy array
     :param output_filename: str, path to output nifti file
     :param res: list, resolution of the image
@@ -152,7 +154,9 @@ def convert_2d_array_to_nifti(
         print("Wrote:", output_filename)
 
 
-def assign_seg_filenames(df: typeDataFrame, resolution: float, output_dir: str)-> pd.DataFrame:
+def assign_seg_filenames(
+    df: typeDataFrame, resolution: float, output_dir: str
+) -> pd.DataFrame:
     """Assign segmentation filenames to the dataframe.
 
     param: df: dataframe with columns: raw, seg_fn
@@ -168,7 +172,7 @@ def assign_seg_filenames(df: typeDataFrame, resolution: float, output_dir: str)-
 
 def apply_histogram_threshold(sect_info: typeDataFrame, num_cores: int = 1) -> None:
     """Apply histogram threshold to the raw images.
-    
+
     param: sect_info: dataframe with columns: raw, seg_fn
     return: dataframe with columns: raw, seg_fn
     """
@@ -179,9 +183,9 @@ def apply_histogram_threshold(sect_info: typeDataFrame, num_cores: int = 1) -> N
     return None
 
 
-def get_nnunet_filename(input_fn: str, nnunet_out_dir: str)-> str:
+def get_nnunet_filename(input_fn: str, nnunet_out_dir: str) -> str:
     """Get the nnunet filename from the input filename.
-    
+
     param: input_fn: input filename
     param: nnunet_out_dir: directory to save nnunet images
     return: nnunet filename
@@ -274,7 +278,7 @@ def check_seg_files(
     sect_info: typeDataFrame,
     nnunet_out_dir: str,
     warning_flag: bool = False,
-    nnunet_input_str: str = "img"
+    nnunet_input_str: str = "img",
 ) -> bool:
     """Check if all the segmentation files exist.
 
@@ -419,9 +423,11 @@ def segment(
     return output_csv
 
 
-def convert_from_nnunet(input_fn: str, reference_fn: str, output_fn: str, seg_dir: str)-> None:
+def convert_from_nnunet(
+    input_fn: str, reference_fn: str, output_fn: str, seg_dir: str
+) -> None:
     """Convert segmented files from the nnunet output to an easier to use.
-    
+
     param: input_fn: input filename
     param: reference_fn: reference filename
     param: output_fn: output filename
@@ -441,7 +447,7 @@ def convert_from_nnunet(input_fn: str, reference_fn: str, output_fn: str, seg_di
         ar[(ar == 3) | (ar == 4)] = 1
 
         gm = ar == 1
-        #wm = ar == 2
+        # wm = ar == 2
 
         ar *= 0
         ar[gm] = 1

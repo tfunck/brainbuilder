@@ -94,11 +94,10 @@ def reconstruct(
 
     valid_inputs_npz = f"{output_dir}/valid_inputs"
 
-    num_cores = utils.set_cores(num_cores)
+    num_cores = int(utils.set_cores(num_cores) / 2)
 
     maximum_resolution = resolution_list[-1]
 
-    # FIXME UNCOMMENT
     valid_inputs = validate_inputs(
         hemi_info_csv, chunk_info_csv, sect_info_csv, valid_inputs_npz
     )
@@ -111,7 +110,7 @@ def reconstruct(
         downsample_dir,
         clobber=clobber,
     )
-
+    print(sect_info_csv)
     qc.data_set_quality_control(sect_info_csv, qc_dir, column="img")
 
     # Stage: Segment

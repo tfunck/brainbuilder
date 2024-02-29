@@ -64,20 +64,23 @@ def downsample_sections(
             pixel_size_0, pixel_size_1, section_thickness = utils.get_chunk_pixel_size(
                 sub, hemi, chunk, chunk_info
             )
+
             affine = utils.create_2d_affine(
                 pixel_size_0, pixel_size_1, section_thickness
             )
+
             if utils.check_run_stage([downsample_file], [raw_file], clobber=clobber):
                 to_do.append((raw_file, downsample_file, affine, resolution))
 
         num_cores = cpu_count()
-        Parallel(n_jobs=num_cores)(
+
+        Parallel(n_jobs=num_cores, backend="multiprocessing")(
             delayed(utils.resample_to_resolution)(
                 raw_file,
                 [resolution, resolution],
                 downsample_file,
                 affine=affine,
-                order=3,
+                order=1,
             )
             for raw_file, downsample_file, affine, resolution in to_do
         )

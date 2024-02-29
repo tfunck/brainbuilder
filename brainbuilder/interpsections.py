@@ -17,7 +17,9 @@ from brainbuilder.utils import utils
 from brainbuilder.utils.mesh_utils import smooth_surface_profiles
 
 
-def plot_paired_values(paired_values:np.array, mid_values:np.array, png_fn:str)->None:
+def plot_paired_values(
+    paired_values: np.array, mid_values: np.array, png_fn: str
+) -> None:
     """Plot the paired values for the batch correction step.
 
     :param paired_values: dataframe containing the paired values
@@ -43,7 +45,7 @@ def plot_paired_values(paired_values:np.array, mid_values:np.array, png_fn:str)-
 
 
 def resample_struct_reference_volume(
-    orig_struct_vol_fn:str, resolution:float, output_dir:str, clobber:bool=False
+    orig_struct_vol_fn: str, resolution: float, output_dir: str, clobber: bool = False
 ) -> str:
     """Resample the structural reference volume to the desired resolution.
 
@@ -66,6 +68,7 @@ def resample_struct_reference_volume(
 
     return struct_vol_rsl_fn
 
+
 def volumes_to_surface_profiles(
     chunk_info: pd.DataFrame,
     sect_info: pd.DataFrame,
@@ -79,9 +82,9 @@ def volumes_to_surface_profiles(
     interp_order: int = 1,
     gaussian_sd: float = 0,
     clobber: bool = False,
-)->tuple:
+) -> tuple:
     """Project volumes to surfaces and generate surface profiles.
-    
+
     :param chunk_info: dataframe containing chunk information
     :param sect_info: dataframe containing section information
     :param resolution: resolution of the volume
@@ -114,6 +117,8 @@ def volumes_to_surface_profiles(
     (
         profiles_fn,
         surf_raw_values_dict,
+        distance_profiles_fn,
+        distance_dict,
         chunk_info_thickened_csv,
     ) = generate_surface_profiles(
         chunk_info,
@@ -133,7 +138,9 @@ def volumes_to_surface_profiles(
         surf_depth_mni_dict,
         surf_depth_chunk_dict,
         surf_raw_values_dict,
+        distance_dict,
         profiles_fn,
+        distance_profiles_fn,
         chunk_info_thickened_csv,
         struct_vol_rsl_fn,
     )
@@ -161,7 +168,7 @@ def get_profiles_with_batch_correction(
     clobber: bool = False,
 ) -> tuple:
     """Get the profiles with batch correction applied.
-    
+
     Batch correction is calculated by comparing vertex values along mid depth between adjacent chunks. The difference
     between the values is calculated and the mean difference is calculated.
 
@@ -187,7 +194,9 @@ def get_profiles_with_batch_correction(
         batch_surf_depth_mni_dict,
         batch_surf_depth_chunk_dict,
         batch_surf_raw_values_dict,
+        batch_surf_distance_dict,
         profiles_fn,
+        distance_profiles_fn,
         chunk_info_thickened_csv,
         batch_struct_vol_rsl_fn,
     ) = volumes_to_surface_profiles(
@@ -247,7 +256,7 @@ def get_profiles_with_batch_correction(
     old_mean = np.mean(values[values > values.min()])
 
     # recreate profiles_fn with batch corrected values. The sect_info contains batch_offset correction factors
-    profiles_fn, _, _ = generate_surface_profiles(
+    profiles_fn, _, distance_fn, _ = generate_surface_profiles(
         chunk_info,
         sect_info,
         surf_depth_chunk_dict,
@@ -259,8 +268,6 @@ def get_profiles_with_batch_correction(
         clobber=clobber,
     )
 
-    
-
     # recenter the corrected profiles
     print("\tCorrected profiles: ", profiles_fn)
     profiles = np.load(profiles_fn + ".npz")["data"][:]
@@ -270,16 +277,15 @@ def get_profiles_with_batch_correction(
     profiles[profiles < 0] = 0
     np.savez(profiles_fn, data=profiles)
 
-
-    #mid_depth_index = int(np.rint(len(depth_list) / 2))
-    #surf_fn = surf_depth_mni_dict[depth_list[mid_depth_index]]["depth_rsl_fn"]
-    #sphere_fn = surf_depth_mni_dict[depth_list[mid_depth_index]]["sphere_rsl_fn"]
-    #mid_values = profiles[:, mid_depth_index]
-    #cortex_coords = load_mesh_ext(surf_fn)[0]
-    #sphere_coords = load_mesh_ext(sphere_fn)[0]
-    #png_fn = f"{output_dir}/paired_values_corrected.png"
-    #cortex_png_fn = f"{output_dir}/paired_values_cortex.png"
-    #sphere_png_fn = f"{output_dir}/paired_values_sphere.png"
+    # mid_depth_index = int(np.rint(len(depth_list) / 2))
+    # surf_fn = surf_depth_mni_dict[depth_list[mid_depth_index]]["depth_rsl_fn"]
+    # sphere_fn = surf_depth_mni_dict[depth_list[mid_depth_index]]["sphere_rsl_fn"]
+    # mid_values = profiles[:, mid_depth_index]
+    # cortex_coords = load_mesh_ext(surf_fn)[0]
+    # sphere_coords = load_mesh_ext(sphere_fn)[0]
+    # png_fn = f"{output_dir}/paired_values_corrected.png"
+    # cortex_png_fn = f"{output_dir}/paired_values_cortex.png"
+    # sphere_png_fn = f"{output_dir}/paired_values_sphere.png"
     # plot the paired values of the corrected values. useful for qc
     # plot_paired_values(paired_values, mid_values, png_fn)
     # plot_paired_values_surf(paired_values, cortex_coords, cortex_png_fn)
@@ -305,7 +311,7 @@ def surface_pipeline(
     """Use surface-based interpolation to fill missing sections over the cortex.
 
     Volumetric interpolation is used to fill missing sections in the subcortex.
-    
+
     :param sect_info_csv: path to csv file containing section information
     :param chunk_info_csv: path to csv file containing chunk information
     :param resolution: resolution of the volume
@@ -353,7 +359,9 @@ def surface_pipeline(
             surf_depth_mni_dict,
             surf_depth_chunk_dict,
             surf_raw_values_dict,
+            surf_distance_dict,
             profiles_fn,
+            distance_profiles_fn,
             chunk_info_thickened_csv,
             struct_vol_rsl_fn,
         ) = volumes_to_surface_profiles(
@@ -370,6 +378,7 @@ def surface_pipeline(
             clobber=clobber,
         )
         raw_profile_volume_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_raw_profiles.nii.gz"
+        distance_volume_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_distances.nii.gz"
 
         if batch_correction_resolution > 0:
             (
@@ -405,6 +414,15 @@ def surface_pipeline(
             surf_raw_values_dict,
             surf_depth_mni_dict,
             raw_profile_volume_fn,
+            struct_vol_rsl_fn,
+            resolution,
+            clobber=clobber,
+        )
+
+        write_raw_profiles_to_volume(
+            surf_distance_dict,
+            surf_depth_mni_dict,
+            distance_volume_fn,
             struct_vol_rsl_fn,
             resolution,
             clobber=clobber,
@@ -462,13 +480,13 @@ def volumetric_pipeline(
     clobber: bool = False,
 ) -> None:
     """Use volumetric interpolation to fill missing sections over the entire brain."""
-    #chunk_info_thickened_csv = create_thickened_volumes(
+    # chunk_info_thickened_csv = create_thickened_volumes(
     #    curr_output_dir, chunk_info, sect_info, resolution
-    #)
+    # )
     # do volumetric interpolation to fill missing sections through whole brain
-    #final_interp_fn = volinterp.volumetric_interpolation(
+    # final_interp_fn = volinterp.volumetric_interpolation(
     #    sect_info, brain_mask_fn, clobber=clobber
-    #)
+    # )
     raise NotImplementedError
 
     return None
@@ -484,7 +502,7 @@ def interpolate_missing_sections(
     surface_smoothing: int = 0,
     batch_correction_resolution: int = 0,
     clobber: bool = False,
-)->None:
+) -> None:
     """Interpolate missing sections in a volume.
 
     :param sect_info: a dataframe with the following columns:

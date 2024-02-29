@@ -10,7 +10,6 @@ import seaborn as sns
 from brainbuilder.align.align_2d import align_2d
 from brainbuilder.align.align_3d import align_3d
 from brainbuilder.align.intervolume import create_intermediate_volume
-from brainbuilder.align.validate_alignment import validate_section_alignment
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
 
@@ -66,7 +65,7 @@ def get_multiresolution_filenames(
     return row
 
 
-def check_chunk_outputs(chunk_csv: str)-> None:
+def check_chunk_outputs(chunk_csv: str) -> None:
     """Check if chunk outputs exist, if not remove the chunk output csv and the chunk output directory.
 
     :param chunk_output_csv: path to chunk output csv
@@ -81,6 +80,7 @@ def check_chunk_outputs(chunk_csv: str)-> None:
                 os.remove(chunk_csv)
                 return None
     return None
+
 
 def multiresolution_alignment(
     hemi_info_csv: pd.DataFrame,
@@ -110,7 +110,7 @@ def multiresolution_alignment(
     multi_resolution_required_columns = valinpts.chunk_info_required_columns + [
         valinpts.Column("init_volume", "volume")
     ]
-    # FIXME UNCOMMENT
+
     assert valinpts.validate_csv(hemi_info_csv, valinpts.hemi_info_required_columns)
     assert valinpts.validate_csv(sect_info_csv, valinpts.sect_info_required_columns)
     assert valinpts.validate_csv(chunk_info_csv, multi_resolution_required_columns)
@@ -192,16 +192,16 @@ def multiresolution_alignment(
 
         sect_info_out.to_csv(sect_output_csv, index=False)
 
-    alignment_qc(sect_output_csv, output_dir)
+    # alignment_qc(sect_output_csv, output_dir)
 
     return chunk_output_csv, sect_output_csv
 
 
 def verify_chunk_limits(
     ref_rsl_fn: str, chunk_info: pd.DataFrame, verbose: bool = False
-)-> tuple:
+) -> tuple:
     """Get the start and end of the chunk in the reference space.
-    
+
     :param ref_rsl_fn: reference space file name
     :param verbose: verbose
     :return: (y0w, y1w) --> world coordinates; (y0, y1) --> voxel coordinates
@@ -236,9 +236,11 @@ def verify_chunk_limits(
     return [y0, y1], [y0w, y1w]
 
 
-def alignment_qc(sect_output_csv:str, output_dir:str, cutoff:float=0.7, clobber:bool=False)-> None:
+def alignment_qc(
+    sect_output_csv: str, output_dir: str, cutoff: float = 0.7, clobber: bool = False
+) -> None:
     """Create a scatter plot of dice values for each section and save the plot to <output_dir>/alignment_dice.png.
-    
+
     :param sect_output_csv: path to section output csv
     :param output_dir: output directory
     :param cutoff: cutoff for bad sections
@@ -259,9 +261,9 @@ def alignment_qc(sect_output_csv:str, output_dir:str, cutoff:float=0.7, clobber:
     ):
         df = pd.read_csv(sect_output_csv, index_col=None)
 
-        def normalize(x:float)->float:
+        def normalize(x: float) -> float:
             """Normalize dice values to 0-100.
-            
+
             :param x: dice values
             :return: normalized dice values
             """
@@ -314,6 +316,7 @@ def alignment_qc(sect_output_csv:str, output_dir:str, cutoff:float=0.7, clobber:
             print("\t\tBad section:", out_fn)
     return None
 
+
 def align_chunk(
     chunk_info: pd.DataFrame,
     sect_info: pd.DataFrame,
@@ -325,10 +328,10 @@ def align_chunk(
     clobber: bool = False,
 ) -> tuple:
     """3D-2D mutliresolution scheme.
-     
-      Steps: 
-      a) segments autoradiographs, 
-      b) aligns these to the donor mri in 3D, and then 2d. 
+
+      Steps:
+      a) segments autoradiographs,
+      b) aligns these to the donor mri in 3D, and then 2d.
       c) This schema is repeated for each resolution in the resolution heiarchy.
 
     :param chunk_info:  data frame with info for current chunk
@@ -401,7 +404,6 @@ def align_chunk(
         ### Stage 3.2 : Align chunks to MRI
         ###
         print("\t\tAlign chunks to MRI")
-
         align_3d(
             sub,
             hemisphere,
@@ -446,6 +448,6 @@ def align_chunk(
         chunk_info_out = pd.concat([chunk_info_out, row.to_frame().T])
         sect_info_out = pd.concat([sect_info_out, sect_info])
 
-    sect_info = validate_section_alignment(sect_info, output_dir)
+    # sect_info = validate_section_alignment(sect_info, output_dir)
 
     return chunk_info_out, sect_info

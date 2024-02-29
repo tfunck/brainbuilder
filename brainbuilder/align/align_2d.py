@@ -7,6 +7,7 @@ import shutil
 import tempfile
 
 import brainbuilder.utils.ants_nibabel as nib
+import matplotlib.pyplot as plt
 import nibabel
 import numpy as np
 import pandas as pd
@@ -15,7 +16,6 @@ from brainbuilder.utils import utils
 from brainbuilder.utils.utils import (
     AntsParams,
     gen_2d_fn,
-    get_seg_fn,
     resample_to_resolution,
     shell,
 )
@@ -210,8 +210,8 @@ def affine_trials(
             fx_fn, mv_rsl_fn, trial_prefix + "_dice.png", 0, verbose=False
         )
 
-        max_dice = trial_dice if trial_dice > max_dice else max_dice
         best_trial = trial if trial_dice > max_dice else best_trial
+        max_dice = trial_dice if trial_dice > max_dice else max_dice
         affine_tfm_trials[trial] = affine_tfm
 
     json.dump(affine_tfm_trials, open(f"{prefix}_affine_tfm_trials.json", "w"))
@@ -274,10 +274,18 @@ def align_2d_parallel(
     base = row["base"]
 
     prefix = f"{tfm_dir}/{base}_y-{y}"
+
+    affine_trial_dir = f"{tfm_dir}/{base}_y-{y}_affine_trial/"
+
+    affine_trial_prefix = f"{affine_trial_dir}/{base}_y-{y}"
+
     fx_fn = gen_2d_fn(prefix, "_fx")
 
-    mv_fn = get_seg_fn(mv_dir, int(y), resolution, row[file_to_align], suffix="")
+    if row["acquisition"] in ["myelin", "cellbody"]:
+        file_to_align = "img"
+
     mv_fn = row[file_to_align]
+    print(mv_fn)
 
     verbose = False
     affine_tfm = affine_trials(
@@ -298,11 +306,17 @@ def align_2d_parallel(
         verbose=verbose,
     )
 
-    cmd = f"antsApplyTransforms -v 0 -d 2 -n bSpline -i {mv_fn} -r {fx_fn} -t {syn_tfm} -o {row['2d_align_cls']} "
+    cmd = f"antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {mv_fn} -r {fx_fn} -t {syn_tfm} -o {row['2d_align_cls']} "
 
     shell(cmd, True)
 
     shutil.copy(syn_tfm, row["2d_tfm"])
+
+    plt.imshow(nib.load(fx_fn).get_fdata())
+    plt.imshow(
+        nib.load(row["2d_align_cls"]).get_fdata(), cmap="nipy_spectral", alpha=0.4
+    )
+    plt.savefig(f"{prefix}_qc.png")
 
     # assert np.sum(nib.load(prefix+'_cls_rsl.nii.gz').dataobj) > 0, 'Error: 2d affine transfromation failed'
     assert os.path.exists(
@@ -338,20 +352,22 @@ def apply_transforms_parallel(
     out_fn = prefix + "_rsl.nii.gz"
     fx_fn = gen_2d_fn(prefix, "_fx")
 
-    img_fn = row["img"]
-
+    img_fn = row["raw"]
     img = nib.load(img_fn)
     img_res = np.array([img.affine[0, 0], img.affine[1, 1]])
-    vol = img.get_fdata()
 
-    sd = np.array((float(resolution) / img_res) / np.pi)
-    vol = gaussian_filter(vol, sd)
+    if resolution != img_res[0] and resolution != img_res[1]:
+        sigma = utils.calculate_sigma_for_downsampling(resolution / img_res)
 
-    # vol = resize(vol, nib.load(fx_fn).shape, order=3)
-    aff = img.affine
-    nib.Nifti1Image(vol, aff, direction_order="lpi").to_filename(img_rsl_fn)
+        vol = img.get_fdata()
 
-    cmd = f"antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} "
+        vol = gaussian_filter(vol, sigma)
+
+        nib.Nifti1Image(vol, img.affine, direction_order="lpi").to_filename(img_rsl_fn)
+    else:
+        shutil.symlink(img_fn, img_rsl_fn)
+
+    cmd = f"antsApplyTransforms -v 0 -d 2 -n BSpline -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} "
 
     shell(cmd, True)
 
@@ -472,7 +488,7 @@ def align_sections(
     to_do_sect_info, to_do_resample_sect_info = get_align_2d_to_do(sect_info)
 
     if len(to_do_sect_info) > 0:
-        Parallel(n_jobs=num_cores)(
+        Parallel(n_jobs=num_cores, backend="multiprocessing")(
             delayed(align_2d_parallel)(
                 tfm_dir,
                 mv_dir,
@@ -491,7 +507,7 @@ def align_sections(
         )
 
     if len(to_do_resample_sect_info) > 0:
-        Parallel(n_jobs=num_cores)(
+        Parallel(n_jobs=num_cores, backend="multiprocessing")(
             delayed(apply_transforms_parallel)(
                 tfm_dir, mv_dir, resolution_itr, resolution, row
             )
@@ -530,8 +546,9 @@ def concatenate_sections_to_volume(
 
     for idx, (i, row) in enumerate(sect_info.iterrows()):
         y = int(row["sample"])
-        f"{tfm_dir}/y-{y}"
-        fn = f"{tfm_dir}/y-{y}_{target_str}.nii.gz"
+        base = row["base"]
+        f"{tfm_dir}/{base}_y-{y}"
+        fn = f"{tfm_dir}/{base}_y-{y}_{target_str}.nii.gz"
 
         sect_info[target_name].loc[i] = fn
 
@@ -543,9 +560,6 @@ def concatenate_sections_to_volume(
             try:
                 sec = nibabel.load(fn).get_fdata()
 
-                assert np.max(sec) < 256, (
-                    "Problem with file " + fn + f"\n Max Value = {np.max(sec)}"
-                )
                 out_vol[:, int(y), :] = sec
             except EOFError:
                 print("Error:", fn)
@@ -640,6 +654,7 @@ def align_2d(
         base_nl_itr=base_nl_itr,
         base_cc_itr=base_cc_itr,
         num_cores=num_cores,
+        file_to_align=file_to_align,
         clobber=clobber,
     )
 

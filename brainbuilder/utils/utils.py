@@ -378,12 +378,12 @@ def simple_ants_apply_tfm(
     :param tfm_fn: str, transformation filename
     :param out_fn: str, output filename
     :param ndim: int, number of dimensions
-    :param n: str, transformation type
+    :param n: str, transformation -type
     :param empty_ok: bool, whether empty files are allowed
     :return: None
     """
     if not os.path.exists(out_fn):
-        str0 = f"antsApplyTransforms -v 0 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}"
+        str0 = f"antsApplyTransforms -n {n} -v 0 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}"
         shell(str0, verbose=True)
         check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn, empty_ok=empty_ok)
 
@@ -450,8 +450,6 @@ def save_sections(
     )
 
     for fn, y in file_list:
-        print(fn)
-
         i = 0
         if np.sum(vol[:, int(y), :]) == 0:
             # Create 2D srv section
@@ -483,7 +481,6 @@ def get_to_do_list(
         assert int(y) >= 0, f"Error: negative y value found {y}"
         prefix = f"{out_dir}/{base}_y-{y}"
         fn = gen_2d_fn(prefix, str_var, ext=ext)
-        print(fn)
         if not os.path.exists(fn):
             to_do_list.append((fn, y))
     return to_do_list
@@ -520,9 +517,6 @@ def create_2d_sections(
         affine = srv_img.affine
         srv = srv_img.get_fdata()
         save_sections(fx_to_do, srv, affine, dtype=dtype)
-
-    print(len(fx_to_do))
-    print("check check")
 
     return None
 
@@ -853,9 +847,10 @@ def calculate_sigma_for_downsampling(new_pixel_spacing):
     """
     # Nyquist frequency for the downsampled image
     nyquist_frequency_downsampled = 1 / (2 * new_pixel_spacing)
-
     # Standard deviation of the Gaussian filter
     sigma = 1 / (2 * np.pi * nyquist_frequency_downsampled)
+
+    sigma[sigma <= 1] = 0
 
     return sigma
 
@@ -891,12 +886,13 @@ def resample_to_resolution(
     ) = parse_resample_arguments(input_arg, output_filename, affine, dtype)
 
     scale = old_resolution / np.array(new_resolution)
+    downsample_factor = 1 / scale
 
     new_dims = np.ceil(vol.shape * scale)
 
-    sigma = calculate_sigma_for_downsampling(np.array(new_resolution))
+    sigma = calculate_sigma_for_downsampling(downsample_factor)
 
-    sigma[scale <= 1] = 0
+    # sigma[sigma <= 1] = 0
 
     vol = resize(
         vol, new_dims, order=order, anti_aliasing=True, anti_aliasing_sigma=sigma

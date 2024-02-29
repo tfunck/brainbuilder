@@ -20,7 +20,7 @@ from brainbuilder.utils.mesh_utils import (
 from brainbuilder.utils.utils import get_section_intervals
 
 
-def get_valid_coords(coords: np.ndarray, iw: list)->tuple:
+def get_valid_coords(coords: np.ndarray, iw: list) -> tuple:
     """Get valid surface coordinates within a given interval.
 
     :param coords: surface coordinates
@@ -44,15 +44,15 @@ def get_valid_coords(coords: np.ndarray, iw: list)->tuple:
 
 
 def get_profiles(
-    profiles_fn:str,
-    surf_depth_chunk_dict:dict,
-    surf_depth_mni_dict:dict,
-    surf_raw_values_dict:dict,
+    profiles_fn: str,
+    surf_depth_chunk_dict: dict,
+    surf_depth_mni_dict: dict,
+    surf_raw_values_dict: dict,
     interp_order: int = 1,
     clobber: bool = False,
 ) -> str:
     """Get raw surface values and interpoalte over surface to fill in missing pixel intensities.
-    
+
     :param profiles_fn: path to profiles file
     :param surf_depth_chunk_dict: dictionary with surface information for each chunk
     :param surf_depth_mni_dict: dictionary with surface information for each depth
@@ -99,7 +99,9 @@ def get_profiles(
             n_elements_list += [surface_val.shape[0], surface_val.shape[0] * 3]
             element_size_list += [surface_val.dtype.itemsize, coords_dtype_itemsize]
 
-        def interpolate_over_surface_(sphere_rsl_fn:str, surface_val:str, depth_index:int)->tuple:
+        def interpolate_over_surface_(
+            sphere_rsl_fn: str, surface_val: str, depth_index: int
+        ) -> tuple:
             """Interpolate over a surface sphere.
 
             :param sphere_rsl_fn: path to sphere object
@@ -107,7 +109,9 @@ def get_profiles(
             :param depth_index: index of depth
             :return: interpolated values
             """
-            return depth_index, interpolate_over_surface(sphere_rsl_fn, surface_val, threshold=0.02, order=interp_order)
+            return depth_index, interpolate_over_surface(
+                sphere_rsl_fn, surface_val, threshold=0.02, order=interp_order
+            )
 
         num_cores = utils.get_maximum_cores(n_elements_list, element_size_list)
 
@@ -131,9 +135,9 @@ def project_values_over_section_intervals(
     steps: np.ndarray,
     dimensions: np.ndarray,
     clobber: bool = False,
-)->tuple:
+) -> tuple:
     """Project values over section intervals.
-    
+
     :param coords: surface coordinates
     :param vol: volume
     :param starts: start of volume
@@ -179,9 +183,7 @@ def project_values_over_section_intervals(
             if np.sum(np.abs(values)) > 0:
                 f"Error: empty vol[x,z] in project_volume_to_surfaces for {y0}"
 
-            assert (
-                np.sum(np.isnan(values)) == 0
-            ), "Error: nan found in values."
+            assert np.sum(np.isnan(values)) == 0, "Error: nan found in values."
         else:
             print("\t\t\t\tWarning: no valid coordinates found in interval", y0, y1)
 
@@ -193,8 +195,9 @@ def volume_to_surface_over_chunks(
     volumes_df: dict,
     interp_csv: str,
     depth: float,
-    clobber:bool=False,
-    verbose:bool=False,
+    volume_type: str = "thickened",
+    clobber: bool = False,
+    verbose: bool = False,
 ) -> None:
     """Project a volume onto a surface.
 
@@ -221,7 +224,7 @@ def volume_to_surface_over_chunks(
         for chunk, surf_fn in surf_chunk_dict.items():
             print("\t\t\tChunk:", chunk)
 
-            vol_fn = volumes_df["thickened"].loc[volumes_df["chunk"] == chunk].values[0]
+            vol_fn = volumes_df[volume_type].loc[volumes_df["chunk"] == chunk].values[0]
 
             coords, _ = load_mesh_ext(surf_fn)
             n_vtx = coords.shape[0]
@@ -340,7 +343,10 @@ def generate_surface_profiles(
 
     # Project autoradiograph densities onto surfaces
     # Extract profiles from the chunks using the surfaces
-    profiles_fn, surf_raw_values_dict = project_volume_to_surfaces(
+    (
+        profiles_fn,
+        surf_raw_values_dict,
+    ) = project_volume_to_surfaces(
         surf_depth_chunk_dict,
         surf_depth_mni_dict,
         chunk_info_thickened,
@@ -348,7 +354,22 @@ def generate_surface_profiles(
         interp_order=interp_order,
     )
 
-    return profiles_fn, surf_raw_values_dict, chunk_info_thickened_csv
+    distance_fn, distance_dict = project_volume_to_surfaces(
+        surf_depth_chunk_dict,
+        surf_depth_mni_dict,
+        chunk_info_thickened,
+        output_prefix,
+        volume_type="distance",
+        interp_order=interp_order,
+    )
+
+    return (
+        profiles_fn,
+        surf_raw_values_dict,
+        distance_fn,
+        distance_dict,
+        chunk_info_thickened_csv,
+    )
 
 
 def write_raw_profiles_to_volume(
@@ -358,9 +379,9 @@ def write_raw_profiles_to_volume(
     ref_volume_fn: str,
     resolution: float,
     clobber: bool = False,
-)->None:
+) -> None:
     """Write raw profiles to a volume.
-    
+
     :param surf_raw_values_dict: dictionary with raw surface values for each depth
     :param surf_depth_mni_dict: dictionary with surface information for each depth
     :param raw_profile_volume_fn: path to raw profiles volume
@@ -409,9 +430,10 @@ def project_volume_to_surfaces(
     surf_depth_mni_dict: dict,
     chunk_info_thickened: dict,
     output_prefix: str,
-    tissue_type:str="",
+    tissue_type: str = "",
+    volume_type: str = "thickened",
     interp_order: int = 1,
-    clobber:bool=False,
+    clobber: bool = False,
 ) -> str:
     """Project the voxel values of a volume onto a mesh.
 
@@ -429,7 +451,7 @@ def project_volume_to_surfaces(
     for depth, surf_depth_dict in surf_depth_chunk_dict.items():
         print("\t\tDepth", depth)
 
-        interp_csv = f"{output_prefix}{tissue_type}_{depth}_interp.csv"
+        interp_csv = f"{output_prefix}{tissue_type}_{depth}_interp_{volume_type}.csv"
 
         if not os.path.exists(interp_csv) or clobber:
             volume_to_surface_over_chunks(
@@ -437,6 +459,7 @@ def project_volume_to_surfaces(
                 chunk_info_thickened,
                 interp_csv,
                 depth,
+                volume_type="thickened",
                 clobber=clobber,
             )
 
@@ -455,7 +478,7 @@ def project_volume_to_surfaces(
     return profiles_fn, surf_raw_values_dict
 
 
-def spherical_np(xyz: np.ndarray)->np.ndarray:
+def spherical_np(xyz: np.ndarray) -> np.ndarray:
     """Convert Cartesian coordinates to spherical coordinates.
 
     :param xyz: Cartesian coordinates
@@ -532,7 +555,7 @@ def fill_in_missing_voxels(
     chunk_end: float,
     start: float,
     step: float,
-)->np.ndarray:
+) -> np.ndarray:
     """Fill in missing voxels in a volume.
 
     :param interp_vol: volume with interpolated values
@@ -630,15 +653,15 @@ def fill_in_missing_voxels(
 
 
 def create_final_reconstructed_volume(
-    reconstructed_cortex_fn:str,
-    cortex_mask_fn:str,
-    resolution:float,
-    surf_depth_mni_dict:dict,
-    profiles_fn:str,
+    reconstructed_cortex_fn: str,
+    cortex_mask_fn: str,
+    resolution: float,
+    surf_depth_mni_dict: dict,
+    profiles_fn: str,
     clobber: bool = False,
-)->None:
+) -> None:
     """Create final reconstructed volume from interpolated profiles and cortical surfaces.
-    
+
     :param reconstructed_cortex_fn: path to reconstructed cortex
     :param cortex_mask_fn: path to cortex mask
     :param resolution: resolution of the reconstructed volume

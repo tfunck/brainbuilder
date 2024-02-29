@@ -28,7 +28,7 @@ def get_input_file(
     clobber: bool = False,
 ) -> str:
     """Get the input file for resampling and transformation.
-    
+
     :param seg_fn: the segmented file name
     :param seg_rsl_fn: the resampled segmented file name
     :param row: the row of the dataframe
@@ -83,6 +83,7 @@ def resample_and_transform(
     :param clobber: whether to overwrite existing files
     :return: None
     """
+    print(row)
     seg_fn = row["seg"]
 
     seg_rsl_fn = get_seg_fn(
@@ -91,7 +92,7 @@ def resample_and_transform(
     seg_rsl_tfm_fn = get_seg_fn(
         output_dir, int(row["sample"]), resolution_3d, seg_fn, "_rsl_tfm"
     )
-
+    print()
     if not os.path.exists(seg_rsl_tfm_fn) or clobber:
         tfm_input_fn = get_input_file(
             seg_fn, seg_rsl_fn, row, output_dir, resolution_2d, resolution_3d
@@ -110,7 +111,7 @@ def resample_and_transform(
                 tfm_fn,
                 seg_rsl_tfm_fn,
                 ndim=2,
-                n="NearestNeighbour",
+                n="NearestNeighbor",
                 empty_ok=True,
             )
         else:
@@ -154,7 +155,7 @@ def resample_transform_segmented_images(
             order=0,
         )
 
-    Parallel(n_jobs=num_cores)(
+    Parallel(n_jobs=num_cores, backend="multiprocessing")(
         delayed(resample_and_transform)(
             output_dir,
             resolution_itr,
@@ -169,7 +170,9 @@ def resample_transform_segmented_images(
     return None
 
 
-def interpolate_missing_sections(vol:np.array, dilate_volume:bool=False)->np.array:
+def interpolate_missing_sections(
+    vol: np.array, dilate_volume: bool = False
+) -> np.array:
     """Interpolates missing sections in a volume.
 
     :param vol (ndarray): The input volume.
@@ -206,9 +209,11 @@ def interpolate_missing_sections(vol:np.array, dilate_volume:bool=False)->np.arr
     return out_vol
 
 
-def recenter(vol:np.array, affine:np.array, direction:np.array=np.array([1, 1, -1]))->tuple:
+def recenter(
+    vol: np.array, affine: np.array, direction: np.array = np.array([1, 1, -1])
+) -> tuple:
     """Recenter the volume.
-    
+
     :param vol: the volume
     :param affine: the affine
     :param direction: the direction
@@ -235,6 +240,7 @@ def recenter(vol:np.array, affine:np.array, direction:np.array=np.array([1, 1, -
     affine[range(ndim), range(ndim)]
     return vol, affine
 
+
 def volumetric_interpolation(
     sect_info: pd.DataFrame,
     in_fn: str,
@@ -249,7 +255,7 @@ def volumetric_interpolation(
     interpolation: str = "nearest",
 ) -> None:
     """Interpolate missing sections in the volume.
-    
+
     param sect_info: dataframe with information about the section
     param in_fn: input filename
     param in_dir: input directory
@@ -406,8 +412,8 @@ def create_intermediate_volume(
     init_align_fn: str,
     interpolation: str = "nearest",
     num_cores: int = 0,
-    clobber:bool=False,
-)->None:
+    clobber: bool = False,
+) -> None:
     """Create intermediate volume for use in registration to the structural reference volume.
 
     param: sect_info: dataframe containing information about each section

@@ -36,13 +36,13 @@ ligand_receptor_dict = {
 }
 
 
-def dice(x:float, y:float) -> float:
+def dice(x: float, y: float) -> float:
     """Calculate the Dice coefficient between two binary arrays.
-    
+
     Args:
         x (np.ndarray): Binary array.
         y (np.ndarray): Binary array.
-    
+
     Returns:
         float: Dice coefficient.
     """
@@ -52,13 +52,13 @@ def dice(x:float, y:float) -> float:
     return dice_score
 
 
-def modified_dice(x:float, y:float) -> float:
+def modified_dice(x: float, y: float) -> float:
     """Calculate the modified Dice coefficient between two binary arrays.
-    
+
     Args:
         x (np.ndarray): Binary array.
         y (np.ndarray): Binary array.
-    
+
     Returns:
         float: Modified Dice coefficient.
     """
@@ -70,7 +70,7 @@ def modified_dice(x:float, y:float) -> float:
 
 def prepare_volume(vol: np.ndarray) -> np.ndarray:
     """Prepare the volume by normalizing and rounding it.
-    
+
     :param vol (np.ndarray): Input volume.
     :return np.ndarray: Prepared volume.
     """
@@ -79,14 +79,16 @@ def prepare_volume(vol: np.ndarray) -> np.ndarray:
     return vol
 
 
-def global_dice(fx_vol: np.ndarray, mv_vol: np.ndarray, clobber: bool = False) -> tuple[float, int]:
+def global_dice(
+    fx_vol: np.ndarray, mv_vol: np.ndarray, clobber: bool = False
+) -> tuple[float, int]:
     """Calculate the global dice score between two volumes.
-    
+
     Args:
         fx_vol (np.ndarray): Fixed volume.
         mv_vol (np.ndarray): Moving volume.
         clobber (bool, optional): Whether to clobber existing results. Defaults to False.
-    
+
     Returns:
         Tuple[float, int]: Global dice score and sum of moving volume.
     """
@@ -98,7 +100,9 @@ def global_dice(fx_vol: np.ndarray, mv_vol: np.ndarray, clobber: bool = False) -
     return dice_score, np.sum(mv_vol)
 
 
-def local_metric(fx_vol: np.ndarray, mv_vol: np.ndarray, metric: Callable, offset: int = 5) -> np.ndarray:
+def local_metric(
+    fx_vol: np.ndarray, mv_vol: np.ndarray, metric: Callable, offset: int = 5
+) -> np.ndarray:
     """Calculate the local metric between two volumes with kernel windows of size <offset>.
 
     :param: fx_vol: np.ndarray
@@ -132,7 +136,15 @@ def local_metric(fx_vol: np.ndarray, mv_vol: np.ndarray, metric: Callable, offse
     return local_dice_section
 
 
-def qc_low_dice_section(row: pd.DataFrame, slab: int, y: int, mri_vol: np.array, mv_vol: np.array, fx_vol: np.array, qc_dir: str) -> None:
+def qc_low_dice_section(
+    row: pd.DataFrame,
+    slab: int,
+    y: int,
+    mri_vol: np.array,
+    mv_vol: np.array,
+    fx_vol: np.array,
+    qc_dir: str,
+) -> None:
     """Perform quality control on low dice section.
 
     :param row: The row.
@@ -165,7 +177,9 @@ def qc_low_dice_section(row: pd.DataFrame, slab: int, y: int, mri_vol: np.array,
         plt.clf()
 
 
-def get_section_metric(fx_fn: str, mv_fn: str, out_png: str, idx: int, verbose: bool = False) -> None:
+def get_section_metric(
+    fx_fn: str, mv_fn: str, out_png: str, idx: int, verbose: bool = False
+) -> None:
     """Calculate the section metric for given input files and parameters.
 
     :param fx_fn: The filename of the fixed volume.
@@ -211,9 +225,9 @@ def calculate_volume_accuracy(
     tfm_dir: str,
     num_cores: int = 0,
     clobber: bool = False,
-)-> pd.DataFrame:
+) -> pd.DataFrame:
     """Calculate the accuracy of the alignment of histological sections to the structural reference volume.
-    
+
     :param sect_info: pd.DataFrame
     :param tfm_dir: str
     :param num_cores: int
@@ -228,12 +242,12 @@ def calculate_volume_accuracy(
 
     for idx, (i, row) in enumerate(sect_info.iterrows()):
         y = row["sample"]
-        base = os.path.basename(row["raw"]).split(".")[0]
+        base = row["base"]
 
         cls_fn = row["2d_align_cls"]
         tfm_dir = os.path.dirname(cls_fn)
 
-        fx_fn = utils.gen_2d_fn(f"{tfm_dir}/y-{y}", "_fx")
+        fx_fn = utils.gen_2d_fn(f"{tfm_dir}/{base}_y-{y}", "_fx")
 
         out_png = f"{tfm_dir}/{base}_y-{y}_dice.png"
 
@@ -252,9 +266,9 @@ def calculate_volume_accuracy(
     return sect_info
 
 
-def output_stats(in_df: pd.DataFrame)-> pd.DataFrame:
+def output_stats(in_df: pd.DataFrame) -> pd.DataFrame:
     """Output stats for alignment accuracy.
-    
+
     :param in_df: pd.DataFrame
     :return: pd.DataFrame
     """
@@ -302,9 +316,9 @@ def output_stats(in_df: pd.DataFrame)-> pd.DataFrame:
 
 def validate_section_alignment(
     sect_info: pd.DataFrame, qc_dir: str, clobber: bool = False
-)-> pd.DataFrame:
+) -> pd.DataFrame:
     """Validate alignment of histological sections to structural reference volume.
-    
+
     :param sect_info: pd.DataFrame
     :param qc_dir: str
     :param clobber: bool
