@@ -2,6 +2,7 @@
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/tfunck/brainbuilder/blob/main/LICENSE)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![pages](https://img.shields.io/badge/api-docs-blue)](documentation/html/brainbuilder/index.html)
 
 ### Purpose
 BrainBuilder is a software packagefor reconstructing 3-dimensional cortical maps from data sets of 2-dimensional post-mortem serial brain sections processed for the quantification of multiple different biological components.
@@ -100,8 +101,3 @@ This .csv contains information specific to each image file that will be used in 
 **conversion_factor** : conversion factor to apply to convert pixel intensitites into biological parameter 
 
 **conversion_factor** : conversion factor to apply to convert pixel intensitites into biological parameter 
-
-
-### Documentation
-
-(Developer Documentation)[documentation/html/brainbuilder/index.html]
