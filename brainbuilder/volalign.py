@@ -144,8 +144,9 @@ def multiresolution_alignment(
         # We create a second list of 3d resolutions that replaces values below the maximum 3D resolution with the maximum 3D resolution, because it may not be possible to perform the 3D alignment at the highest resolution due to the large memory requirements.
         resolution_list_3d = [
             float(resolution)
-            for resolution in resolution_list + [max_resolution_3d]
             if float(resolution) >= max_resolution_3d
+            else max_resolution_3d
+            for resolution in resolution_list
         ]
 
         sect_info_out = pd.DataFrame({})

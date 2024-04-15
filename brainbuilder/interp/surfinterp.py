@@ -459,7 +459,7 @@ def project_volume_to_surfaces(
                 chunk_info_thickened,
                 interp_csv,
                 depth,
-                volume_type="thickened",
+                volume_type=volume_type,
                 clobber=clobber,
             )
 
@@ -498,7 +498,7 @@ def interpolate_over_surface(
     threshold: float = 0,
     surface_mask: np.ndarray = None,
     order: int = 1,
-):
+) -> np.ndarray:
     """Interpolate over a surface sphere.
 
     :param sphere_obj_fn: path to sphere object

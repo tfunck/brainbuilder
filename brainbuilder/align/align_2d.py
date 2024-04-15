@@ -275,10 +275,6 @@ def align_2d_parallel(
 
     prefix = f"{tfm_dir}/{base}_y-{y}"
 
-    affine_trial_dir = f"{tfm_dir}/{base}_y-{y}_affine_trial/"
-
-    affine_trial_prefix = f"{affine_trial_dir}/{base}_y-{y}"
-
     fx_fn = gen_2d_fn(prefix, "_fx")
 
     if row["acquisition"] in ["myelin", "cellbody"]:
@@ -329,9 +325,9 @@ def align_2d_parallel(
 def apply_transforms_parallel(
     tfm_dir: str,
     mv_dir: str,
-    resolution_itr: int,
     resolution: float,
     row: pd.Series,
+    last_resolution: bool = False,
 ) -> int:
     """Apply transforms to 2d sections.
 
@@ -339,7 +335,6 @@ def apply_transforms_parallel(
 
     :param tfm_dir: directory to store intermediate files
     :param mv_dir: directory to store intermediate files
-    :param resolution_itr: current iteration
     :param resolution: resolution of the current iteration
     :param row: row
     :return: 0
@@ -352,7 +347,8 @@ def apply_transforms_parallel(
     out_fn = prefix + "_rsl.nii.gz"
     fx_fn = gen_2d_fn(prefix, "_fx")
 
-    img_fn = row["raw"]
+    img_fn = row["img"]
+    print(img_fn)
     img = nib.load(img_fn)
     img_res = np.array([img.affine[0, 0], img.affine[1, 1]])
 
@@ -365,7 +361,8 @@ def apply_transforms_parallel(
 
         nib.Nifti1Image(vol, img.affine, direction_order="lpi").to_filename(img_rsl_fn)
     else:
-        shutil.symlink(img_fn, img_rsl_fn)
+        if not os.path.exists(img_rsl_fn):
+            os.symlink(img_fn, img_rsl_fn)
 
     cmd = f"antsApplyTransforms -v 0 -d 2 -n BSpline -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} "
 
@@ -487,6 +484,8 @@ def align_sections(
     # get lists of files that need to be aligned and resampled
     to_do_sect_info, to_do_resample_sect_info = get_align_2d_to_do(sect_info)
 
+    last_resolution = resolution == resolution_list[-1]
+
     if len(to_do_sect_info) > 0:
         Parallel(n_jobs=num_cores, backend="multiprocessing")(
             delayed(align_2d_parallel)(
@@ -509,7 +508,7 @@ def align_sections(
     if len(to_do_resample_sect_info) > 0:
         Parallel(n_jobs=num_cores, backend="multiprocessing")(
             delayed(apply_transforms_parallel)(
-                tfm_dir, mv_dir, resolution_itr, resolution, row
+                tfm_dir, mv_dir, resolution, row, last_resolution=last_resolution
             )
             for row in to_do_resample_sect_info
         )

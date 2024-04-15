@@ -107,6 +107,7 @@ def downsample_sections(
             for acq, tdf in chunk_sect_info.groupby("acquisition"):
                 for i, row in tdf.iterrows():
                     y = row["sample"]
+                    print(row["img"])
                     vol[:, y, :] = nib.load(row["img"]).get_fdata()
 
             pixel_size_0, pixel_size_1, section_thickness = utils.get_chunk_pixel_size(

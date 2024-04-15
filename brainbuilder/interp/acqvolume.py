@@ -88,7 +88,7 @@ def thicken_sections_within_chunk(
     resolution: float,
     tissue_type: str = "",
     gaussian_sd: float = 0,
-    use_conversion_factor=False,
+    use_conversion_factor: bool = False,
     use_adjust_section_means: bool = True,
 ) -> None:
     """Thicken sections within a chunk. A thickened section is simply a section that is expanded along the y axis to the resolution of the reconstruction.
@@ -237,7 +237,13 @@ def get_section_intervals(vol: np.ndarray) -> list:
     return intervals
 
 
-def create_distance_volume(volume_filename, distance_filename):
+def create_distance_volume(volume_filename: str, distance_filename: str) -> np.ndarray:
+    """Create a volume that represents distances from acquired sections.
+
+    :param volume_filename: path to volume
+    :param distance_filename: path to distance volume
+    :return: np.array
+    """
     img = nib.load(volume_filename)
     vol = img.get_fdata()
 
@@ -249,15 +255,14 @@ def create_distance_volume(volume_filename, distance_filename):
         x0, x1 = intervals[i]
         y0, y1 = intervals[j]
         x = np.mean(vol[:, x0:x1, :], axis=1)
-        y = np.mean(vol[:, y0:y1, :], axis=1)
         vol[:, x0:x1, :] = np.repeat(
             x.reshape(x.shape[0], 1, x.shape[1]), x1 - x0, axis=1
         )
         for ii in range(x1, y0):
             den = y0 - x1
             assert den != 0, "Error: 0 denominator when interpolating missing sections"
-            d0 = (ii - x1) / den
-            d1 = (y1 - ii) / den
+            d0 = ii - x1
+            d1 = y1 - ii
             d = min(d0, d1)
             out_vol[:, ii, :] = d
 

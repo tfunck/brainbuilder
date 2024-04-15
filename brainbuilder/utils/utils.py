@@ -40,7 +40,7 @@ def estimate_memory_usage(n_elements: int, n_bytes_per_element: int) -> int:
 
 
 def get_maximum_cores(
-    n_elemnts_list: list, n_bytes_per_element_list: list, max_memory: float = 0.8
+    n_elemnts_list: list, n_bytes_per_element_list: list, max_memory: float = 0.5
 ) -> int:
     """Get the maximum number of cores to use for a given memory limit.
 
@@ -836,7 +836,7 @@ def check_run_stage(
     return run_stage
 
 
-def calculate_sigma_for_downsampling(new_pixel_spacing):
+def calculate_sigma_for_downsampling(new_pixel_spacing: float) -> float:
     """Calculate the standard deviation of a Gaussian pre-filter for downsampling.
 
     Parameters:
