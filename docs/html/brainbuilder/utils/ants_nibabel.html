@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>brainbuilder.utils.ants_nibabel API documentation</title>
+<meta name="description" content="Module for reading and writing nifti files using ANTsPy." />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>brainbuilder.utils.ants_nibabel</code></h1>
+</header>
+<section id="section-intro">
+<p>Module for reading and writing nifti files using ANTsPy.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;Module for reading and writing nifti files using ANTsPy.&#34;&#34;&#34;
+import ants
+import nibabel as nb
+import numpy as np
+
+ras = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]])
+lpi = np.array([[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]])
+
+
+class Nifti1Image:
+    &#34;&#34;&#34;Class for Nifti1Image object with ANTSPy interface.&#34;&#34;&#34;
+    def __init__(
+        self, dataobj:np.ndarray,
+        affine:np.ndarray,
+        direction:list=[], 
+        direction_order:list=&#34;ras&#34;, 
+        dtype:int=None
+    )-&gt;None :
+        &#34;&#34;&#34;Constructor for Nifti1Image class.
+        
+        :param dataobj: Data object
+        :param affine: Affine matrix
+        :param direction: Direction matrix, defaults to []
+        :param direction_order: Direction order, defaults to &#34;ras&#34;
+        :param dtype: Data type, defaults to None
+        :return : None
+        &#34;&#34;&#34;
+        if type(dtype) != type(None):
+            if dtype == np.uint8:
+                dataobj = (
+                    255 * (dataobj - dataobj.min()) / (dataobj.max() - dataobj.min())
+                ).astype(np.uint8)
+        self.affine = affine
+        self.dataobj = dataobj
+        self.shape = dataobj.shape
+        ndim = len(self.shape)
+        if direction_order == &#34;ras&#34; and len(direction) == 0:
+            direction = ras
+        elif direction_order == &#34;lpi&#34; and len(direction) == 0:
+            direction = lpi
+        elif len(direction) != 0:
+            pass
+        else:
+            print(
+                &#34;Error: &lt;direction_order&gt; not supported, specify &lt;direction&gt; directly&#34;
+            )
+            exit(0)
+
+        self.direction = list(np.array(direction)[0:ndim, 0:ndim])
+
+    def to_filename(self, filename:str)-&gt;None:
+        &#34;&#34;&#34;Write the image to a nifti file.
+
+        :param filename: Filename of the nifti file
+        :return: None
+        &#34;&#34;&#34;
+        write_nifti(self.dataobj, self.affine, filename, direction=self.direction)
+
+    def get_fdata(self)-&gt;np.ndarray:
+        &#34;&#34;&#34;Get the data object.&#34;&#34;&#34;
+        return self.dataobj
+
+    def get_data(self)-&gt;np.ndarray:
+        &#34;&#34;&#34;Get the data object.&#34;&#34;&#34;
+        return self.dataobj
+
+
+def safe_image_read(fn:str)-&gt;ants.core.ants_image.ANTsImage:
+    &#34;&#34;&#34;Read a nifti file using ANTsPy.
+    
+    :param fn: Filename of the nifti file
+    :return: ANTsPy image object
+    &#34;&#34;&#34;
+    img = ants.image_read(fn)
+    try:
+        img = ants.image_read(fn)
+    except RuntimeError:
+        print(&#34;Error: cannot load file&#34;, fn)
+        exit(1)
+
+    return img
+
+
+def read_affine_antspy(fn:str)-&gt;np.ndarray:
+    &#34;&#34;&#34;Read affine matrix from a nifti file using ANTsPy.
+    
+    :param fn: Filename of the nifti file
+    :return: Affine matrix
+    &#34;&#34;&#34;
+    img = safe_image_read(fn)
+    spacing = img.spacing
+    origin = img.origin
+    # print(&#39;spacing&#39;, spacing)
+    # print(&#39;origin&#39;,origin)
+
+    affine = np.eye(4)
+
+    for i, (s, o) in enumerate(zip(spacing, origin)):
+        affine[i, i] = s
+        affine[i, 3] = o
+    orientation = img.orientation
+    if len(img.shape) == 3 and img.shape[-1] != 1:
+        if orientation != &#34;RAS&#34;:
+            print(f&#34;Warning: file has {orientation}, not RAS. {fn}&#34;)
+
+    return affine
+
+
+def read_affine(fn:str, use_antspy:bool=True)-&gt;np.ndarray:
+    &#34;&#34;&#34;Read affine matrix from a nifti file.
+    
+    :param fn: Filename of the nifti file
+    :param use_antspy: Whether to use ANTsPy to read the affine matrix, defaults to True
+    :return: Affine matrix
+    &#34;&#34;&#34;
+    if use_antspy:
+        affine = read_affine_antspy(fn)
+    else:
+        affine = nb.load(fn).affine
+        # print(&#39;reading&#39;, affine)
+
+    return affine
+
+
+def load(fn:str)-&gt;Nifti1Image:
+    &#34;&#34;&#34;Load a nifti file.
+
+    :param fn: Filename of the nifti file
+    :return: Nifti1Image object
+    &#34;&#34;&#34;
+    affine = read_affine(fn)
+    img = ants.image_read(fn)
+    vol = img.numpy()
+    direction = img.direction
+    # direction_order = img.direction_order
+    nii_obj = Nifti1Image(vol, affine, direction=direction)
+
+    return nii_obj
+
+
+def write_nifti(vol:np.ndarray, affine:np.ndarray, out_fn:str, direction:list=[])-&gt;None:
+    &#34;&#34;&#34;Write a nifti file.
+
+    :param vol: Volume to write
+    :param affine: Affine matrix
+    :param out_fn: Filename of the nifti file
+    :param direction: Direction matrix, defaults to []
+    :return: None
+    &#34;&#34;&#34;
+    ndim = len(vol.shape)
+    idx0 = list(range(0, ndim))
+    idx1 = [3] * ndim
+
+    origin = list(affine[idx0, idx1])
+    spacing = list(affine[idx0, idx0])
+
+    if direction == []:
+        if len(spacing) == 2:
+            direction = [[1.0, 0.0], [0.0, 1.0]]
+        else:
+            # Force to write in RAS coordinates
+            direction = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]]
+    ants_image = ants.from_numpy(
+        vol, origin=origin, spacing=spacing, direction=direction
+    )
+    assert True not in np.isnan(affine.ravel()), &#34;Bad affine matrix. NaN detected&#34;
+    ants.image_write(ants_image, out_fn)</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="brainbuilder.utils.ants_nibabel.load"><code class="name flex">
+<span>def <span class="ident">load</span></span>(<span>fn: str) ‑> <a title="brainbuilder.utils.ants_nibabel.Nifti1Image" href="#brainbuilder.utils.ants_nibabel.Nifti1Image">Nifti1Image</a></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Load a nifti file.</p>
+<p>:param fn: Filename of the nifti file
+:return: Nifti1Image object</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def load(fn:str)-&gt;Nifti1Image:
+    &#34;&#34;&#34;Load a nifti file.
+
+    :param fn: Filename of the nifti file
+    :return: Nifti1Image object
+    &#34;&#34;&#34;
+    affine = read_affine(fn)
+    img = ants.image_read(fn)
+    vol = img.numpy()
+    direction = img.direction
+    # direction_order = img.direction_order
+    nii_obj = Nifti1Image(vol, affine, direction=direction)
+
+    return nii_obj</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.ants_nibabel.read_affine"><code class="name flex">
+<span>def <span class="ident">read_affine</span></span>(<span>fn: str, use_antspy: bool = True) ‑> numpy.ndarray</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Read affine matrix from a nifti file.</p>
+<p>:param fn: Filename of the nifti file
+:param use_antspy: Whether to use ANTsPy to read the affine matrix, defaults to True
+:return: Affine matrix</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def read_affine(fn:str, use_antspy:bool=True)-&gt;np.ndarray:
+    &#34;&#34;&#34;Read affine matrix from a nifti file.
+    
+    :param fn: Filename of the nifti file
+    :param use_antspy: Whether to use ANTsPy to read the affine matrix, defaults to True
+    :return: Affine matrix
+    &#34;&#34;&#34;
+    if use_antspy:
+        affine = read_affine_antspy(fn)
+    else:
+        affine = nb.load(fn).affine
+        # print(&#39;reading&#39;, affine)
+
+    return affine</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.ants_nibabel.read_affine_antspy"><code class="name flex">
+<span>def <span class="ident">read_affine_antspy</span></span>(<span>fn: str) ‑> numpy.ndarray</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Read affine matrix from a nifti file using ANTsPy.</p>
+<p>:param fn: Filename of the nifti file
+:return: Affine matrix</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def read_affine_antspy(fn:str)-&gt;np.ndarray:
+    &#34;&#34;&#34;Read affine matrix from a nifti file using ANTsPy.
+    
+    :param fn: Filename of the nifti file
+    :return: Affine matrix
+    &#34;&#34;&#34;
+    img = safe_image_read(fn)
+    spacing = img.spacing
+    origin = img.origin
+    # print(&#39;spacing&#39;, spacing)
+    # print(&#39;origin&#39;,origin)
+
+    affine = np.eye(4)
+
+    for i, (s, o) in enumerate(zip(spacing, origin)):
+        affine[i, i] = s
+        affine[i, 3] = o
+    orientation = img.orientation
+    if len(img.shape) == 3 and img.shape[-1] != 1:
+        if orientation != &#34;RAS&#34;:
+            print(f&#34;Warning: file has {orientation}, not RAS. {fn}&#34;)
+
+    return affine</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.ants_nibabel.safe_image_read"><code class="name flex">
+<span>def <span class="ident">safe_image_read</span></span>(<span>fn: str) ‑> ants.core.ants_image.ANTsImage</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Read a nifti file using ANTsPy.</p>
+<p>:param fn: Filename of the nifti file
+:return: ANTsPy image object</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def safe_image_read(fn:str)-&gt;ants.core.ants_image.ANTsImage:
+    &#34;&#34;&#34;Read a nifti file using ANTsPy.
+    
+    :param fn: Filename of the nifti file
+    :return: ANTsPy image object
+    &#34;&#34;&#34;
+    img = ants.image_read(fn)
+    try:
+        img = ants.image_read(fn)
+    except RuntimeError:
+        print(&#34;Error: cannot load file&#34;, fn)
+        exit(1)
+
+    return img</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.ants_nibabel.write_nifti"><code class="name flex">
+<span>def <span class="ident">write_nifti</span></span>(<span>vol: numpy.ndarray, affine: numpy.ndarray, out_fn: str, direction: list = []) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Write a nifti file.</p>
+<p>:param vol: Volume to write
+:param affine: Affine matrix
+:param out_fn: Filename of the nifti file
+:param direction: Direction matrix, defaults to []
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def write_nifti(vol:np.ndarray, affine:np.ndarray, out_fn:str, direction:list=[])-&gt;None:
+    &#34;&#34;&#34;Write a nifti file.
+
+    :param vol: Volume to write
+    :param affine: Affine matrix
+    :param out_fn: Filename of the nifti file
+    :param direction: Direction matrix, defaults to []
+    :return: None
+    &#34;&#34;&#34;
+    ndim = len(vol.shape)
+    idx0 = list(range(0, ndim))
+    idx1 = [3] * ndim
+
+    origin = list(affine[idx0, idx1])
+    spacing = list(affine[idx0, idx0])
+
+    if direction == []:
+        if len(spacing) == 2:
+            direction = [[1.0, 0.0], [0.0, 1.0]]
+        else:
+            # Force to write in RAS coordinates
+            direction = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]]
+    ants_image = ants.from_numpy(
+        vol, origin=origin, spacing=spacing, direction=direction
+    )
+    assert True not in np.isnan(affine.ravel()), &#34;Bad affine matrix. NaN detected&#34;
+    ants.image_write(ants_image, out_fn)</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="brainbuilder.utils.ants_nibabel.Nifti1Image"><code class="flex name class">
+<span>class <span class="ident">Nifti1Image</span></span>
+<span>(</span><span>dataobj: numpy.ndarray, affine: numpy.ndarray, direction: list = [], direction_order: list = 'ras', dtype: int = None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Class for Nifti1Image object with ANTSPy interface.</p>
+<p>Constructor for Nifti1Image class.</p>
+<p>:param dataobj: Data object
+:param affine: Affine matrix
+:param direction: Direction matrix, defaults to []
+:param direction_order: Direction order, defaults to "ras"
+:param dtype: Data type, defaults to None
+:return : None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Nifti1Image:
+    &#34;&#34;&#34;Class for Nifti1Image object with ANTSPy interface.&#34;&#34;&#34;
+    def __init__(
+        self, dataobj:np.ndarray,
+        affine:np.ndarray,
+        direction:list=[], 
+        direction_order:list=&#34;ras&#34;, 
+        dtype:int=None
+    )-&gt;None :
+        &#34;&#34;&#34;Constructor for Nifti1Image class.
+        
+        :param dataobj: Data object
+        :param affine: Affine matrix
+        :param direction: Direction matrix, defaults to []
+        :param direction_order: Direction order, defaults to &#34;ras&#34;
+        :param dtype: Data type, defaults to None
+        :return : None
+        &#34;&#34;&#34;
+        if type(dtype) != type(None):
+            if dtype == np.uint8:
+                dataobj = (
+                    255 * (dataobj - dataobj.min()) / (dataobj.max() - dataobj.min())
+                ).astype(np.uint8)
+        self.affine = affine
+        self.dataobj = dataobj
+        self.shape = dataobj.shape
+        ndim = len(self.shape)
+        if direction_order == &#34;ras&#34; and len(direction) == 0:
+            direction = ras
+        elif direction_order == &#34;lpi&#34; and len(direction) == 0:
+            direction = lpi
+        elif len(direction) != 0:
+            pass
+        else:
+            print(
+                &#34;Error: &lt;direction_order&gt; not supported, specify &lt;direction&gt; directly&#34;
+            )
+            exit(0)
+
+        self.direction = list(np.array(direction)[0:ndim, 0:ndim])
+
+    def to_filename(self, filename:str)-&gt;None:
+        &#34;&#34;&#34;Write the image to a nifti file.
+
+        :param filename: Filename of the nifti file
+        :return: None
+        &#34;&#34;&#34;
+        write_nifti(self.dataobj, self.affine, filename, direction=self.direction)
+
+    def get_fdata(self)-&gt;np.ndarray:
+        &#34;&#34;&#34;Get the data object.&#34;&#34;&#34;
+        return self.dataobj
+
+    def get_data(self)-&gt;np.ndarray:
+        &#34;&#34;&#34;Get the data object.&#34;&#34;&#34;
+        return self.dataobj</code></pre>
+</details>
+<h3>Methods</h3>
+<dl>
+<dt id="brainbuilder.utils.ants_nibabel.Nifti1Image.get_data"><code class="name flex">
+<span>def <span class="ident">get_data</span></span>(<span>self) ‑> numpy.ndarray</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the data object.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_data(self)-&gt;np.ndarray:
+    &#34;&#34;&#34;Get the data object.&#34;&#34;&#34;
+    return self.dataobj</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.ants_nibabel.Nifti1Image.get_fdata"><code class="name flex">
+<span>def <span class="ident">get_fdata</span></span>(<span>self) ‑> numpy.ndarray</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the data object.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_fdata(self)-&gt;np.ndarray:
+    &#34;&#34;&#34;Get the data object.&#34;&#34;&#34;
+    return self.dataobj</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.ants_nibabel.Nifti1Image.to_filename"><code class="name flex">
+<span>def <span class="ident">to_filename</span></span>(<span>self, filename: str) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Write the image to a nifti file.</p>
+<p>:param filename: Filename of the nifti file
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def to_filename(self, filename:str)-&gt;None:
+    &#34;&#34;&#34;Write the image to a nifti file.
+
+    :param filename: Filename of the nifti file
+    :return: None
+    &#34;&#34;&#34;
+    write_nifti(self.dataobj, self.affine, filename, direction=self.direction)</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="brainbuilder.utils" href="index.html">brainbuilder.utils</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="brainbuilder.utils.ants_nibabel.load" href="#brainbuilder.utils.ants_nibabel.load">load</a></code></li>
+<li><code><a title="brainbuilder.utils.ants_nibabel.read_affine" href="#brainbuilder.utils.ants_nibabel.read_affine">read_affine</a></code></li>
+<li><code><a title="brainbuilder.utils.ants_nibabel.read_affine_antspy" href="#brainbuilder.utils.ants_nibabel.read_affine_antspy">read_affine_antspy</a></code></li>
+<li><code><a title="brainbuilder.utils.ants_nibabel.safe_image_read" href="#brainbuilder.utils.ants_nibabel.safe_image_read">safe_image_read</a></code></li>
+<li><code><a title="brainbuilder.utils.ants_nibabel.write_nifti" href="#brainbuilder.utils.ants_nibabel.write_nifti">write_nifti</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="brainbuilder.utils.ants_nibabel.Nifti1Image" href="#brainbuilder.utils.ants_nibabel.Nifti1Image">Nifti1Image</a></code></h4>
+<ul class="">
+<li><code><a title="brainbuilder.utils.ants_nibabel.Nifti1Image.get_data" href="#brainbuilder.utils.ants_nibabel.Nifti1Image.get_data">get_data</a></code></li>
+<li><code><a title="brainbuilder.utils.ants_nibabel.Nifti1Image.get_fdata" href="#brainbuilder.utils.ants_nibabel.Nifti1Image.get_fdata">get_fdata</a></code></li>
+<li><code><a title="brainbuilder.utils.ants_nibabel.Nifti1Image.to_filename" href="#brainbuilder.utils.ants_nibabel.Nifti1Image.to_filename">to_filename</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

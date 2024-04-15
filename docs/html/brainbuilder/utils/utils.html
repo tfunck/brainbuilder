@@ -1,0 +1,2513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>brainbuilder.utils.utils API documentation</title>
+<meta name="description" content="Utility functions for brainbuilder." />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>brainbuilder.utils.utils</code></h1>
+</header>
+<section id="section-intro">
+<p>Utility functions for brainbuilder.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;Utility functions for brainbuilder.&#34;&#34;&#34;
+
+import contextlib
+import multiprocessing
+import os
+import re
+from collections.abc import Iterable
+from subprocess import PIPE, STDOUT, Popen
+from typing import List, Optional, Tuple, Union
+
+import ants
+import imageio
+import numpy as np
+import pandas as pd
+import psutil
+from scipy.ndimage import label
+from skimage.transform import resize
+
+import brainbuilder.utils.ants_nibabel as nib
+
+os_info = os.uname()
+
+
+def get_available_memory() -&gt; int:
+    &#34;&#34;&#34;Get the available memory in bytes.
+
+    :return: int
+    &#34;&#34;&#34;
+    return psutil.virtual_memory()[1]
+
+
+def estimate_memory_usage(n_elements: int, n_bytes_per_element: int) -&gt; int:
+    &#34;&#34;&#34;Estimate the memory usage for a given number of elements and bytes per element.
+
+    :param n_elements: int, number of elements
+    :param n_bytes_per_element: int, number of bytes per element
+    :return: int
+    &#34;&#34;&#34;
+    return n_elements * n_bytes_per_element
+
+
+def get_maximum_cores(
+    n_elemnts_list: list, n_bytes_per_element_list: list, max_memory: float = 0.8
+) -&gt; int:
+    &#34;&#34;&#34;Get the maximum number of cores to use for a given memory limit.
+
+    :param n_elemnts: int, number of elements
+    :param n_bytes_per_element: int, number of bytes per element
+    :param max_memory: float, maximum memory to us
+    :return: int
+    &#34;&#34;&#34;
+    available_memory = get_available_memory()
+    estimated_memory = 0
+    for n_elemnts, n_bytes_per_element in zip(n_elemnts_list, n_bytes_per_element_list):
+        estimated_memory += estimate_memory_usage(n_elemnts, n_bytes_per_element)
+    max_cores = int(available_memory / estimated_memory * max_memory)
+    available_memory_gb = np.round(available_memory / 1024 / 1024 / 1024, 3)
+    estimated_memory_gb = np.round(estimated_memory / 1024 / 1024 / 1024, 3)
+
+    total_cores = multiprocessing.cpu_count()
+    max_cores = max([0, min([max_cores, total_cores])])
+
+    print(
+        &#34;\tAvailable memory (Gb): &#34;,
+        available_memory_gb,
+        &#34;Estimated memory: &#34;,
+        estimated_memory_gb,
+        &#34;Max cores: &#34;,
+        max_cores,
+    )
+    return max_cores
+
+
+def load_image(fn: str) -&gt; np.ndarray:
+    &#34;&#34;&#34;Load an image from a file.
+
+    :param fn: str, filename
+    :return: np.ndarray
+    &#34;&#34;&#34;
+    if isinstance(fn, str) and os.path.exists(fn):
+        if &#34;.nii&#34; in fn:
+            return ants.image_read(fn).numpy()
+        else:
+            return imageio.imread(fn)
+    else:
+        return None
+
+
+def get_chunk_pixel_size(sub: str, hemi: str, chunk: str, chunk_info: str) -&gt; tuple:
+    &#34;&#34;&#34;Get the pixel size of a chunk.
+
+    :param sub: str, name of the subject
+    :param hemi: str, hemisphere
+    :param chunk: int, chunk number
+    :param chunk_info: pd.DataFrame, chunk info dataframe
+    :return: tuple
+    &#34;&#34;&#34;
+    idx = (
+        (chunk_info[&#34;sub&#34;] == sub)
+        &amp; (chunk_info[&#34;hemisphere&#34;] == hemi)
+        &amp; (chunk_info[&#34;chunk&#34;] == chunk)
+    )
+    pixel_size_0 = chunk_info[&#34;pixel_size_0&#34;][idx].values[0]
+    pixel_size_1 = chunk_info[&#34;pixel_size_1&#34;][idx].values[0]
+    section_thickeness = chunk_info[&#34;section_thickness&#34;][idx].values[0]
+
+    return pixel_size_0, pixel_size_1, section_thickeness
+
+
+def create_2d_affine(
+    pixel_size_0: float, pixel_size_1: float, section_thickness: float
+) -&gt; np.ndarray:
+    &#34;&#34;&#34;Create a 2D affine.
+
+    :param pixel_size_0: float
+    :param pixel_size_1: float
+    :param section_thickness: float
+    :return: np.ndarray
+    &#34;&#34;&#34;
+    affine = np.eye(4)
+    affine[0, 0] = pixel_size_0
+    affine[1, 1] = pixel_size_1
+    affine[2, 2] = section_thickness
+    return affine
+
+
+def get_chunk_direction(
+    sub: str, hemi: str, chunk: int, chunk_info: pd.DataFrame
+) -&gt; list:
+    &#34;&#34;&#34;Get the direction of a chunk.
+
+    :param sub: str, name of the subject
+    :param hemi: str, hemisphere
+    :param chunk: int, chunk number
+    :param chunk_info: pd.DataFrame, chunk info dataframe
+    :return: list
+    &#34;&#34;&#34;
+    idx = (
+        (chunk_info[&#34;sub&#34;] == sub)
+        &amp; (chunk_info[&#34;hemisphere&#34;] == hemi)
+        &amp; (chunk_info[&#34;chunk&#34;] == chunk)
+    )
+
+    direction = chunk_info[&#34;direction&#34;][idx].values[0]
+
+    return direction
+
+
+def set_cores(num_cores: int) -&gt; int:
+    &#34;&#34;&#34;Sets the number of cores to use for parallel processing.
+
+    :param num_cores: int
+    :return: int
+    &#34;&#34;&#34;
+    if num_cores == 0:
+        num_cores = multiprocessing.cpu_count()
+
+    return num_cores
+
+
+def get_thicken_width(resolution: float, section_thickness: float = 0.02) -&gt; int:
+    &#34;&#34;&#34;Get the thicken width.
+
+    :param resolution: float, resolution
+    :param section_thickness: float, section thickness
+    :return: float
+    &#34;&#34;&#34;
+    return np.round(1 * (1 + float(resolution) / (section_thickness * 2))).astype(int)
+
+
+def get_section_intervals(vol: np.ndarray) -&gt; list:
+    &#34;&#34;&#34;Get the intervals of sections within a volume across y-axis of volume.
+
+    :param vol: np.array, volume
+    :return: list
+    &#34;&#34;&#34;
+    section_sums = np.sum(vol, axis=(0, 2))
+    valid_sections = section_sums &gt; np.min(section_sums)
+    labeled_sections, nlabels = label(valid_sections)
+    if nlabels &lt; 2:
+        print(
+            &#34;Error: there must be a gap between thickened sections. Use higher resolution volumes.&#34;
+        )
+
+    intervals = [
+        (
+            np.where(labeled_sections == i)[0][0],
+            np.where(labeled_sections == i)[0][-1] + 1,
+        )
+        for i in range(1, nlabels + 1)
+    ]
+
+    assert len(intervals) &gt; 0, &#34;Error: no valid intervals found for volume.&#34;
+    return intervals
+
+
+class AntsParams:
+    &#34;&#34;&#34;Class representing Ants parameters. Parameters are calculated based on a multi-resolution alignment schedule.&#34;&#34;&#34;
+
+    def __init__(
+        self: object,
+        resolution_list: List[float],
+        resolution: float,
+        base_itr: int,
+        max_resolution: Optional[float] = None,
+        verbose: bool = False,
+    ) -&gt; None:
+        &#34;&#34;&#34;Initialize the AntsParams object.
+
+        :param resolution_list: List[float], list of resolutions
+        :param resolution: float, resolution
+        :param base_itr: int, base iteration
+        :param max_resolution: Optional[float], maximum resolution (default: None)
+        :param verbose: bool, verbose flag (default: False)
+        :return: None
+        &#34;&#34;&#34;
+        if type(max_resolution) == type(None):
+            self.max_resolution = resolution
+        else:
+            self.max_resolution = max_resolution
+
+        if len(resolution_list) == 0:
+            return None
+
+        self.resolution_list = resolution_list
+        self.max_n = len(resolution_list)
+        self.cur_n = resolution_list.index(resolution)
+        self.max_itr = int((self.max_n + 1) * base_itr)
+
+        self.f_list = self.gen_downsample_factor_list(resolution_list)
+        self.max_downsample_factor = int(self.f_list[0])
+
+        self.f_str = self.get_downsample_params(resolution_list)
+        self.s_list = self.gen_smoothing_factor_list(resolution_list)
+        self.s_str = self.get_smoothing_params(resolution_list)
+        self.itr_str = self.gen_itr_str(self.max_itr, base_itr)
+
+        if verbose:
+            self._print()
+
+        assert (
+            len(self.f_list) == len(self.s_list) == len(self.itr_str.split(&#34;x&#34;))
+        ), f&#34;Error: incorrect number of elements in: \n{self.f_list}\n{self.s_list}\n{self.itr_str}\n{resolution_list}&#34;
+
+    def print(self) -&gt; None:
+        &#34;&#34;&#34;Print the AntsParams object.
+
+        :return: None
+        &#34;&#34;&#34;
+        print(&#34;Iterations:\t&#34;, self.itr_str)
+        print(&#34;Factors:\t&#34;, self.f_str)
+        print(&#34;Smoothing:\t&#34;, self.s_str)
+        return None
+
+    def gen_itr_str(self, max_itr: int, step: float) -&gt; str:
+        &#34;&#34;&#34;Generate the iteration string.
+
+        :param max_itr: int, maximum iteration
+        :param step: float, step size
+        :return: str
+        &#34;&#34;&#34;
+        itr_str = &#34;x&#34;.join(
+            [
+                str(int(max_itr - i * step))
+                for i in range(self.cur_n + 1)
+                if self.resolution_list[i] &gt;= self.max_resolution
+            ]
+        )
+        itr_str = &#34;[&#34; + itr_str + &#34;,1e-7,20 ]&#34;
+        return itr_str
+
+    def gen_smoothing_factor_string(self, lst: List) -&gt; str:
+        &#34;&#34;&#34;Generate the smoothing factor string.
+
+        :param lst: List[float], list of smoothing factors
+        :return: str, the generated smoothing factor string
+        &#34;&#34;&#34;
+        return &#34;x&#34;.join([str(i) for i in lst]) + &#34;vox&#34;
+
+    def gen_smoothing_factor_list(self, resolution_list: List[float]) -&gt; List[float]:
+        &#34;&#34;&#34;Generate the list of smoothing factors.
+
+        :param resolution_list: List[float], list of resolutions
+        :return: List[float]
+        &#34;&#34;&#34;
+
+        def smooth_f(x: float, y: float) -&gt; float:
+            &#34;&#34;&#34;Calculate the smoothing factor.
+
+            :param x: float, x
+            :param y: float, y
+            :return: float
+            &#34;&#34;&#34;
+            return np.round(float(float(x) / float(y) - 1) * 0.2, 3)
+
+        return [
+            smooth_f(resolution_list[i], resolution_list[self.cur_n])
+            if i != self.cur_n
+            else 0
+            for i in range(self.cur_n + 1)
+            if self.resolution_list[i] &gt;= self.max_resolution
+        ]
+
+    def get_smoothing_params(self, resolution_list: List[float]) -&gt; str:
+        &#34;&#34;&#34;Generate the smoothing factor string.
+
+        :param resolution_list: List[float], list of resolutions
+        :return: str
+        &#34;&#34;&#34;
+        s_list = self.gen_smoothing_factor_list(resolution_list)
+        return self.gen_smoothing_factor_string(s_list)
+
+    def calc_downsample_factor(self, cur_res: float, image_res: float) -&gt; str:
+        &#34;&#34;&#34;Calculate the downsample factor.
+
+        :param cur_res: float, current resolution
+        :param image_res: float, image resolution
+        :return: str
+        &#34;&#34;&#34;
+        return (
+            np.rint(float(cur_res) / float(image_res)).astype(int).astype(str)
+        )  # DEBUG
+        # return np.floor(1+np.log2(float(cur_res)/float(image_res))).astype(int).astype(str)
+
+    def gen_downsample_factor_list(self, resolution_list: List[float]) -&gt; List[str]:
+        &#34;&#34;&#34;Generate the list of downsample factors.
+
+        :param resolution_list: List[float], list of resolutions
+        :return: List[str]
+        &#34;&#34;&#34;
+        factors = [
+            self.calc_downsample_factor(resolution_list[i], resolution_list[self.cur_n])
+            for i in range(self.cur_n + 1)
+            if self.resolution_list[i] &gt;= self.max_resolution
+        ]
+        return factors
+
+    def get_downsample_params(self, resolution_list: List[float]) -&gt; str:
+        &#34;&#34;&#34;Generate the downsample factor string.
+
+        :param resolution_list: List[float], list of resolutions
+        :return: str
+        &#34;&#34;&#34;
+        return &#34;x&#34;.join(self.gen_downsample_factor_list(resolution_list))
+
+
+def check_transformation_not_empty(
+    in_fn: str, ref_fn: str, tfm_fn: str, out_fn: str, empty_ok: bool = False
+) -&gt; None:
+    &#34;&#34;&#34;Check if the transformed file is empty or does not exist.
+
+    :param in_fn: str, input filename
+    :param ref_fn: str, reference filename
+    :param tfm_fn: str, transformation filename
+    :param out_fn: str, output filename
+    :param empty_ok: bool, whether empty files are allowed
+    :return: None
+    &#34;&#34;&#34;
+    assert os.path.exists(out_fn), f&#34;Error: transformed file does not exist {out_fn}&#34;
+    assert (
+        np.sum(np.abs(nib.load(out_fn).dataobj)) &gt; 0 or empty_ok
+    ), f&#34;Error in applying transformation: \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n&#34;
+
+
+def simple_ants_apply_tfm(
+    in_fn: str,
+    ref_fn: str,
+    tfm_fn: str,
+    out_fn: str,
+    ndim: int = 3,
+    n: str = &#34;Linear&#34;,
+    empty_ok: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Apply transformation using ANTs.
+
+    :param in_fn: str, input filename
+    :param ref_fn: str, reference filename
+    :param tfm_fn: str, transformation filename
+    :param out_fn: str, output filename
+    :param ndim: int, number of dimensions
+    :param n: str, transformation -type
+    :param empty_ok: bool, whether empty files are allowed
+    :return: None
+    &#34;&#34;&#34;
+    if not os.path.exists(out_fn):
+        str0 = f&#34;antsApplyTransforms -n {n} -v 0 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}&#34;
+        shell(str0, verbose=True)
+        check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn, empty_ok=empty_ok)
+
+
+def get_seg_fn(
+    dirname: str, y: float, resolution: float, filename: str, suffix: str = &#34;&#34;
+) -&gt; str:
+    &#34;&#34;&#34;Get the segmented filename.
+
+    :param dirname: str, directory name
+    :param y: float, y value
+    :param resolution: float, resolution value
+    :param filename: str, original filename
+    :param suffix: str, suffix to add to the filename
+    :return: str, segmented filename
+    &#34;&#34;&#34;
+    filename = re.sub(
+        &#34;.nii.gz&#34;,
+        f&#34;_{resolution}mm{suffix}.nii.gz&#34;,
+        os.path.basename(filename),
+    )
+    return &#34;{}/{}&#34;.format(dirname, filename)
+
+
+def gen_2d_fn(prefix: str, suffix: str, ext: str = &#34;.nii.gz&#34;) -&gt; str:
+    &#34;&#34;&#34;Generate the 2D filename.
+
+    :param prefix: str, filename prefix
+    :param suffix: str, filename suffix
+    :param ext: str, filename extension
+    :return: str, generated filename
+    &#34;&#34;&#34;
+    return f&#34;{prefix}{suffix}{ext}&#34;
+
+
+def save_sections(
+    file_list: List[Tuple[str, float]],
+    vol: np.ndarray,
+    aff: np.ndarray,
+    dtype: int = None,
+) -&gt; None:
+    &#34;&#34;&#34;Save sections of a volume.
+
+    :param file_list: List[Tuple[str, float]], list of filenames and y values
+    :param vol: Any, volume data
+    :param aff: Any, affine transformation
+    :param dtype: Optional[Any], data type
+    :return: None
+    &#34;&#34;&#34;
+    xstep = aff[0, 0]
+    ystep = aff[1, 1]
+    zstep = aff[2, 2]
+
+    xstart = aff[0, 3]
+    zstart = aff[2, 3]
+
+    affine = np.array(
+        [
+            [xstep, 0, 0, xstart],
+            [0, zstep, 0, zstart],
+            [0, 0, ystep, 0],
+            [0, 0, 0, 1],
+        ]
+    )
+
+    for fn, y in file_list:
+        i = 0
+        if np.sum(vol[:, int(y), :]) == 0:
+            # Create 2D srv section
+            # this little while loop thing is so that if we go beyond  brain tissue in vol,
+            # we find the closest y segement in vol with brain tissue
+            while np.sum(vol[:, int(y - i), :]) == 0:
+                i += (ystep / np.abs(ystep)) * 1
+
+        sec = vol[:, int(y - i), :]
+
+        nib.Nifti1Image(sec, affine, dtype=dtype, direction_order=&#34;lpi&#34;).to_filename(fn)
+
+
+def get_to_do_list(
+    df: pd.DataFrame, out_dir: str, str_var: str, ext: str = &#34;.nii.gz&#34;
+) -&gt; List[Tuple[str, int]]:
+    &#34;&#34;&#34;Get the to-do list for processing.
+
+    :param df: DataFrame, input dataframe
+    :param out_dir: str, output directory
+    :param str_var: str, string variable
+    :param ext: str, filename extension
+    :return: List[Tuple[str, int]], to-do list
+    &#34;&#34;&#34;
+    to_do_list = []
+    for idx, (i, row) in enumerate(df.iterrows()):
+        y = int(row[&#34;sample&#34;])
+        base = row[&#34;base&#34;]
+        assert int(y) &gt;= 0, f&#34;Error: negative y value found {y}&#34;
+        prefix = f&#34;{out_dir}/{base}_y-{y}&#34;
+        fn = gen_2d_fn(prefix, str_var, ext=ext)
+        if not os.path.exists(fn):
+            to_do_list.append((fn, y))
+    return to_do_list
+
+
+def create_2d_sections(
+    df: pd.DataFrame,
+    srv_fn: str,
+    resolution: float,
+    output_dir: str,
+    dtype: int = None,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Create 2D sections from a dataframe.
+
+    :param df: pd.DataFrame, dataframe
+    :param srv_fn: str, filename of the srv
+    :param resolution: float, resolution
+    :param output_dir: str, output directory
+    :param dtype: Optional[int], data type
+    :param clobber: bool, whether to overwrite existing files
+    :return: None
+    &#34;&#34;&#34;
+    fx_to_do = []
+
+    tfm_dir = output_dir + os.sep + &#34;tfm&#34;
+    os.makedirs(tfm_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
+
+    fx_to_do = get_to_do_list(df, tfm_dir, &#34;_fx&#34;)
+
+    if len(fx_to_do) &gt; 0:
+        srv_img = nib.load(srv_fn)
+        affine = srv_img.affine
+        srv = srv_img.get_fdata()
+        save_sections(fx_to_do, srv, affine, dtype=dtype)
+
+    return None
+
+
+def splitext(s: str) -&gt; List:
+    &#34;&#34;&#34;Split a filename into basepath and extension.
+
+    :param s: str, filename
+    :return: List
+    &#34;&#34;&#34;
+    try:
+        ssplit = os.path.basename(s).split(&#34;.&#34;)
+        ext = &#34;.&#34; + &#34;.&#34;.join(ssplit[1:])
+        basepath = re.sub(ext, &#34;&#34;, s)
+        return [basepath, ext]
+    except TypeError:
+        return s
+
+
+newlines = [&#34;\n&#34;, &#34;\r\n&#34;, &#34;\r&#34;]
+
+
+def unbuffered(proc: Popen, stream: str = &#34;stdout&#34;) -&gt; str:
+    &#34;&#34;&#34;Read unbuffered from a process.
+
+    :param proc: process
+    :param stream: str, stream
+    :yield: str
+    &#34;&#34;&#34;
+    stream = getattr(proc, stream)
+    with contextlib.closing(stream):
+        while True:
+            out = []
+            last = stream.read(1)
+            # Don&#39;t loop forever
+            if last == &#34;&#34; and proc.poll() is not None:
+                break
+            while last not in newlines:
+                # Don&#39;t loop forever
+                if last == &#34;&#34; and proc.poll() is not None:
+                    break
+                out.append(last)
+                last = stream.read(1)
+            out = &#34;&#34;.join(out)
+            print(out)
+            yield out
+
+
+def shell(cmd: str, verbose: bool = False, exit_on_failure: bool = True) -&gt; tuple:
+    &#34;&#34;&#34;Run command in shell and read STDOUT, STDERR and the error code.
+
+    :param cmd: str, command
+    :param verbose: bool, optional, if True, print command, default=False
+    :param exit_on_failure: bool, optional, if True, exit on failure, default=True
+    &#34;&#34;&#34;
+    stdout = &#34;&#34;
+    if verbose:
+        print(cmd)
+
+    process = Popen(
+        cmd,
+        shell=True,
+        stdout=PIPE,
+        stderr=STDOUT,
+        universal_newlines=True,
+    )
+
+    for line in unbuffered(process):
+        stdout = stdout + line + &#34;\n&#34;
+        if verbose:
+            print(line)
+
+    errorcode = process.returncode
+    stderr = stdout
+    if errorcode != 0:
+        print(&#34;Error:&#34;)
+        print(&#34;Command:&#34;, cmd)
+        print(&#34;Stderr:&#34;, stdout)
+        if exit_on_failure:
+            exit(errorcode)
+    return stdout, stderr, errorcode
+
+
+def gen_new_filename(fn: str, output_dir: str, new_suffix: str) -&gt; str:
+    &#34;&#34;&#34;Generate a new filename.
+
+    :param fn: str, filename
+    :param output_dir: str, output directory
+    :param new_suffix: str, new suffix
+    &#34;&#34;&#34;
+    if &#34;.nii.gz&#34; in fn:
+        old_suffix = &#34;.nii.gz&#34;
+    else:
+        old_suffix = os.path.splitext(fn)[1]
+
+    out_fn = output_dir + &#34;/&#34; + re.sub(old_suffix, new_suffix, os.path.basename(fn))
+    return out_fn
+
+
+def get_values_from_df(
+    df: pd.DataFrame, fields: List = [&#34;sub&#34;, &#34;hemisphere&#34;, &#34;chunk&#34;]
+) -&gt; list:
+    &#34;&#34;&#34;Get the unique values from a dataframe for a list of fields.
+
+    :param df: dataframe
+    :param fields: list of fields
+    :return: list of unique values
+    &#34;&#34;&#34;
+    out_list = []
+    for field in fields:
+        temp_list = np.unique(df[field])
+        assert len(temp_list) == 1, f&#34;More than one {field} in chunk &#34; + len(temp_list)
+        out_list.append(temp_list[0])
+
+    return out_list
+
+
+def get_params_from_affine(aff: np.array, ndim: int) -&gt; tuple:
+    &#34;&#34;&#34;Get the parameters from an affine.
+
+    :param aff: np.ndarray, affine
+    :return: origin, spacing, direction
+    &#34;&#34;&#34;
+    spacing = aff[range(ndim), range(ndim)]
+    origin = aff[range(ndim), 3]
+    direction = [
+        [-1.0, 0.0, 0.0],
+        [0.0, -1.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ]  # FIXME: not sure if it&#39;s good idea to hardcord LPI direction
+    return origin, spacing, direction
+
+
+def parse_resample_arguments(
+    input_arg: Union[str, np.ndarray], output_filename: str, aff: np.ndarray, dtype: int
+) -&gt; tuple:
+    &#34;&#34;&#34;Parse the arguments for resample_to_resolution.
+
+    :param input_arg: input file or numpy array
+    :param output_filename: output filename
+    :param aff: np.ndarray, affine
+    :param dtype: data type
+    :return: vol, dtype, output_filename, aff
+    &#34;&#34;&#34;
+    if isinstance(input_arg, str):
+        assert os.path.exists(
+            input_arg
+        ), f&#34;Error: input file does not exist {input_arg}&#34;
+
+        if &#34;.nii&#34; in input_arg:
+            img = ants.image_read(input_arg)
+
+            vol = img.numpy()
+            origin = img.origin
+            spacing = img.spacing
+            direction = img.direction
+            aff = nib.load(input_arg).affine
+
+            if isinstance(dtype, type(None)):
+                dtype = img.dtype
+        else:
+            vol = load_image(input_arg)
+            origin, spacing, direction = get_params_from_affine(aff, len(vol.shape))
+
+    elif isinstance(input_arg, np.ndarray):
+        vol = input_arg
+        if isinstance(dtype, type(None)):
+            dtype = vol.dtype
+
+        assert (
+            isinstance(aff, np.ndarray) or isinstance(aff, list)
+        ), f&#34;Error: affine must be provided as a list or numpy array but got {type(aff)}&#34;
+
+        origin, spacing, direction = get_params_from_affine(aff, len(vol.shape))
+    else:
+        print(&#34;Error: input_arg must be a string or numpy array&#34;)
+        exit(1)
+
+    if not isinstance(output_filename, type(None)):
+        assert isinstance(
+            output_filename, str
+        ), f&#34;Error: output filename must be as string, got {type(output_filename)}&#34;
+
+    vol_sum = np.sum(np.abs(vol))
+    assert vol_sum &gt; 0, (
+        f&#34;Error: empty ({vol_sum}) input file for resample_to_resolution\n&#34; + input_arg
+    )
+    ndim = len(vol.shape)
+    if ndim == 3:
+        # 2D images sometimes have dimensions (m,n,1).
+        # We resample them to (m,n)
+        if vol.shape[2] == 1:
+            vol = vol.reshape([vol.shape[0], vol.shape[1]])
+
+    spacing = spacing[:ndim]
+
+    return vol, origin, spacing, direction, dtype, output_filename, aff, ndim
+
+
+def newer_than(fn1: str, fn2: str) -&gt; bool:
+    &#34;&#34;&#34;Check if fn1 is newer than fn2.
+
+    :param fn1: str, filename
+    :param fn2: str, filename
+    :return: bool
+    &#34;&#34;&#34;
+    if pd.isnull(fn1):
+        return False
+    elif not os.path.exists(fn1):
+        return True
+    else:
+        return os.path.getctime(fn1) &gt; os.path.getctime(fn2)
+
+
+def compare_timestamp_of_files(x: Union[str, List], y: Union[str, List]) -&gt; bool:
+    &#34;&#34;&#34;Compare the timestamps of two files. If x is newer than y, return True, otherwise return False.
+
+    :param x: str or list
+    :param y: str or list
+    :return: bool
+    &#34;&#34;&#34;
+    if isinstance(x, str) and isinstance(y, str):
+        # Compare two files
+        return newer_than(x, y)
+    elif isinstance(x, Iterable) and isinstance(y, Iterable):
+        # Compare two lists of files
+        for fn1, fn2 in zip(x, y):
+            if not newer_than(fn1, fn2):
+                return False
+    else:
+        print(
+            &#34;Error: x and y must be both strings or lists. Got {} and {}&#34;.format(
+                type(x), type(y)
+            )
+        )
+        exit(1)
+
+    return True
+
+
+def check_run_stage(
+    col1: Iterable, col2: Iterable, df_csv: str = None, clobber: bool = False
+) -&gt; bool:
+    &#34;&#34;&#34;Check if a stage should be run. If the output files exist, check if they are newer than the input files.
+
+    :param col1: column name
+    :param col2: column name
+    :param df_csv: path to dataframe
+    :param clobber: bool, optional, if True, overwrite existing files, default=False
+    :return: bool
+    &#34;&#34;&#34;
+    run_stage = False
+
+    def get_file_list(df_csv: str, col: str) -&gt; List:
+        &#34;&#34;&#34;Get the file list from a dataframe or a list.
+
+        :param df_csv: str, dataframe
+        :param col: str, column name
+        :return: list
+        &#34;&#34;&#34;
+        if isinstance(col, str) and isinstance(df_csv, str) and os.path.exists(df_csv):
+            df = pd.read_csv(df_csv, index_col=False)
+            if col in df.columns:
+                file_list = df[col].values
+        elif isinstance(col, Iterable):
+            file_list = col
+        else:
+            print(&#34;Error: col2 must be a string or list&#34;)
+            exit(0)
+
+        return file_list
+
+    def file_check(file_list: List, nan_okay: bool = True) -&gt; bool:
+        &#34;&#34;&#34;Check if all files exist.
+
+        :param file_list: list of files
+        :param nan_okay: bool, optional, if True, nan values are allowed, default=True
+        :return: bool
+        &#34;&#34;&#34;
+        for x in file_list:
+            if nan_okay &amp; pd.isnull(x):
+                continue
+            elif not os.path.exists(x):
+                print(&#34;File does not exist: {}&#34;.format(x))
+                return False
+        return True
+
+    assert (
+        (isinstance(col1, Iterable) and isinstance(col2, Iterable))
+        or (isinstance(col1, str) &amp; isinstance(col2, str) &amp; isinstance(df_csv, str))
+    ), &#34;Error: col1 and col2 must both be either strings or Iterables, but got {} and {}&#34;.format(
+        type(col1), type(col2)
+    )
+
+    if isinstance(df_csv, str) and not os.path.exists(df_csv) or clobber:
+        run_stage = True
+    else:
+        # get the list of files in col1
+        file_list_1 = get_file_list(df_csv, col1)
+        # get the list of files in col2
+        file_list_2 = get_file_list(df_csv, col2)
+
+        # check if all outputs for col1 exist
+        all_outputs_exist = file_check(file_list_1)
+
+        if not all_outputs_exist:
+            # if not all outputs exist, run stage
+            run_stage = True
+            print(&#34;Not all files exist for {}&#34;.format(col1))
+
+        # files in col1 should be newer than the ones in col2
+        # check if this is the case, if not run stage
+        if not compare_timestamp_of_files(file_list_1, file_list_2):
+            print(&#34;All files exist but some are older than {}&#34;.format(col2))
+            run_stage = True
+
+    return run_stage
+
+
+def calculate_sigma_for_downsampling(new_pixel_spacing):
+    &#34;&#34;&#34;Calculate the standard deviation of a Gaussian pre-filter for downsampling.
+
+    Parameters:
+    original_pixel_spacing (float): The pixel spacing in the original image (in units like mm/pixel).
+
+    Returns:
+    float: The standard deviation for the Gaussian pre-filter.
+    &#34;&#34;&#34;
+    # Nyquist frequency for the downsampled image
+    nyquist_frequency_downsampled = 1 / (2 * new_pixel_spacing)
+    # Standard deviation of the Gaussian filter
+    sigma = 1 / (2 * np.pi * nyquist_frequency_downsampled)
+
+    sigma[sigma &lt;= 1] = 0
+
+    return sigma
+
+
+def resample_to_resolution(
+    input_arg: Union[str, np.ndarray],
+    new_resolution: Tuple[float, float, float],
+    output_filename: Optional[str] = None,
+    dtype: Optional[np.dtype] = None,
+    affine: Optional[np.ndarray] = None,
+    direction_order: str = &#34;lpi&#34;,
+    order: int = 1,
+) -&gt; nib.Nifti1Image:
+    &#34;&#34;&#34;Resample a volume to a new resolution.
+
+    :param input_arg: input file or numpy array
+    :param new_resolution: new resolution
+    :param output_filename: output filename
+    :param dtype: data type
+    :param affine: np.ndarray, affine
+    :param order: order of interpolation
+    :return: img_out
+    &#34;&#34;&#34;
+    (
+        vol,
+        origin,
+        old_resolution,
+        direction,
+        dtype,
+        output_filename,
+        affine,
+        ndim,
+    ) = parse_resample_arguments(input_arg, output_filename, affine, dtype)
+
+    scale = old_resolution / np.array(new_resolution)
+    downsample_factor = 1 / scale
+
+    new_dims = np.ceil(vol.shape * scale)
+
+    sigma = calculate_sigma_for_downsampling(downsample_factor)
+
+    # sigma[sigma &lt;= 1] = 0
+
+    vol = resize(
+        vol, new_dims, order=order, anti_aliasing=True, anti_aliasing_sigma=sigma
+    )
+
+    assert np.sum(np.abs(vol)) &gt; 0, (
+        &#34;Error: empty output array for prefilter_and_downsample\n&#34; + output_filename
+    )
+
+    affine = np.eye(4, 4)
+    dim_range = range(ndim)
+    affine[dim_range, dim_range] = new_resolution
+    affine[dim_range, 3] = origin
+
+    img_out = nib.Nifti1Image(vol, affine, dtype=dtype, direction_order=direction_order)
+
+    if isinstance(output_filename, str):
+        img_out.to_filename(output_filename)
+    return img_out</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="brainbuilder.utils.utils.calculate_sigma_for_downsampling"><code class="name flex">
+<span>def <span class="ident">calculate_sigma_for_downsampling</span></span>(<span>new_pixel_spacing)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Calculate the standard deviation of a Gaussian pre-filter for downsampling.</p>
+<p>Parameters:
+original_pixel_spacing (float): The pixel spacing in the original image (in units like mm/pixel).</p>
+<p>Returns:
+float: The standard deviation for the Gaussian pre-filter.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def calculate_sigma_for_downsampling(new_pixel_spacing):
+    &#34;&#34;&#34;Calculate the standard deviation of a Gaussian pre-filter for downsampling.
+
+    Parameters:
+    original_pixel_spacing (float): The pixel spacing in the original image (in units like mm/pixel).
+
+    Returns:
+    float: The standard deviation for the Gaussian pre-filter.
+    &#34;&#34;&#34;
+    # Nyquist frequency for the downsampled image
+    nyquist_frequency_downsampled = 1 / (2 * new_pixel_spacing)
+    # Standard deviation of the Gaussian filter
+    sigma = 1 / (2 * np.pi * nyquist_frequency_downsampled)
+
+    sigma[sigma &lt;= 1] = 0
+
+    return sigma</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.check_run_stage"><code class="name flex">
+<span>def <span class="ident">check_run_stage</span></span>(<span>col1: collections.abc.Iterable, col2: collections.abc.Iterable, df_csv: str = None, clobber: bool = False) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Check if a stage should be run. If the output files exist, check if they are newer than the input files.</p>
+<p>:param col1: column name
+:param col2: column name
+:param df_csv: path to dataframe
+:param clobber: bool, optional, if True, overwrite existing files, default=False
+:return: bool</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def check_run_stage(
+    col1: Iterable, col2: Iterable, df_csv: str = None, clobber: bool = False
+) -&gt; bool:
+    &#34;&#34;&#34;Check if a stage should be run. If the output files exist, check if they are newer than the input files.
+
+    :param col1: column name
+    :param col2: column name
+    :param df_csv: path to dataframe
+    :param clobber: bool, optional, if True, overwrite existing files, default=False
+    :return: bool
+    &#34;&#34;&#34;
+    run_stage = False
+
+    def get_file_list(df_csv: str, col: str) -&gt; List:
+        &#34;&#34;&#34;Get the file list from a dataframe or a list.
+
+        :param df_csv: str, dataframe
+        :param col: str, column name
+        :return: list
+        &#34;&#34;&#34;
+        if isinstance(col, str) and isinstance(df_csv, str) and os.path.exists(df_csv):
+            df = pd.read_csv(df_csv, index_col=False)
+            if col in df.columns:
+                file_list = df[col].values
+        elif isinstance(col, Iterable):
+            file_list = col
+        else:
+            print(&#34;Error: col2 must be a string or list&#34;)
+            exit(0)
+
+        return file_list
+
+    def file_check(file_list: List, nan_okay: bool = True) -&gt; bool:
+        &#34;&#34;&#34;Check if all files exist.
+
+        :param file_list: list of files
+        :param nan_okay: bool, optional, if True, nan values are allowed, default=True
+        :return: bool
+        &#34;&#34;&#34;
+        for x in file_list:
+            if nan_okay &amp; pd.isnull(x):
+                continue
+            elif not os.path.exists(x):
+                print(&#34;File does not exist: {}&#34;.format(x))
+                return False
+        return True
+
+    assert (
+        (isinstance(col1, Iterable) and isinstance(col2, Iterable))
+        or (isinstance(col1, str) &amp; isinstance(col2, str) &amp; isinstance(df_csv, str))
+    ), &#34;Error: col1 and col2 must both be either strings or Iterables, but got {} and {}&#34;.format(
+        type(col1), type(col2)
+    )
+
+    if isinstance(df_csv, str) and not os.path.exists(df_csv) or clobber:
+        run_stage = True
+    else:
+        # get the list of files in col1
+        file_list_1 = get_file_list(df_csv, col1)
+        # get the list of files in col2
+        file_list_2 = get_file_list(df_csv, col2)
+
+        # check if all outputs for col1 exist
+        all_outputs_exist = file_check(file_list_1)
+
+        if not all_outputs_exist:
+            # if not all outputs exist, run stage
+            run_stage = True
+            print(&#34;Not all files exist for {}&#34;.format(col1))
+
+        # files in col1 should be newer than the ones in col2
+        # check if this is the case, if not run stage
+        if not compare_timestamp_of_files(file_list_1, file_list_2):
+            print(&#34;All files exist but some are older than {}&#34;.format(col2))
+            run_stage = True
+
+    return run_stage</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.check_transformation_not_empty"><code class="name flex">
+<span>def <span class="ident">check_transformation_not_empty</span></span>(<span>in_fn: str, ref_fn: str, tfm_fn: str, out_fn: str, empty_ok: bool = False) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Check if the transformed file is empty or does not exist.</p>
+<p>:param in_fn: str, input filename
+:param ref_fn: str, reference filename
+:param tfm_fn: str, transformation filename
+:param out_fn: str, output filename
+:param empty_ok: bool, whether empty files are allowed
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def check_transformation_not_empty(
+    in_fn: str, ref_fn: str, tfm_fn: str, out_fn: str, empty_ok: bool = False
+) -&gt; None:
+    &#34;&#34;&#34;Check if the transformed file is empty or does not exist.
+
+    :param in_fn: str, input filename
+    :param ref_fn: str, reference filename
+    :param tfm_fn: str, transformation filename
+    :param out_fn: str, output filename
+    :param empty_ok: bool, whether empty files are allowed
+    :return: None
+    &#34;&#34;&#34;
+    assert os.path.exists(out_fn), f&#34;Error: transformed file does not exist {out_fn}&#34;
+    assert (
+        np.sum(np.abs(nib.load(out_fn).dataobj)) &gt; 0 or empty_ok
+    ), f&#34;Error in applying transformation: \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n&#34;</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.compare_timestamp_of_files"><code class="name flex">
+<span>def <span class="ident">compare_timestamp_of_files</span></span>(<span>x: Union[str, List], y: Union[str, List]) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Compare the timestamps of two files. If x is newer than y, return True, otherwise return False.</p>
+<p>:param x: str or list
+:param y: str or list
+:return: bool</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def compare_timestamp_of_files(x: Union[str, List], y: Union[str, List]) -&gt; bool:
+    &#34;&#34;&#34;Compare the timestamps of two files. If x is newer than y, return True, otherwise return False.
+
+    :param x: str or list
+    :param y: str or list
+    :return: bool
+    &#34;&#34;&#34;
+    if isinstance(x, str) and isinstance(y, str):
+        # Compare two files
+        return newer_than(x, y)
+    elif isinstance(x, Iterable) and isinstance(y, Iterable):
+        # Compare two lists of files
+        for fn1, fn2 in zip(x, y):
+            if not newer_than(fn1, fn2):
+                return False
+    else:
+        print(
+            &#34;Error: x and y must be both strings or lists. Got {} and {}&#34;.format(
+                type(x), type(y)
+            )
+        )
+        exit(1)
+
+    return True</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.create_2d_affine"><code class="name flex">
+<span>def <span class="ident">create_2d_affine</span></span>(<span>pixel_size_0: float, pixel_size_1: float, section_thickness: float) ‑> numpy.ndarray</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Create a 2D affine.</p>
+<p>:param pixel_size_0: float
+:param pixel_size_1: float
+:param section_thickness: float
+:return: np.ndarray</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def create_2d_affine(
+    pixel_size_0: float, pixel_size_1: float, section_thickness: float
+) -&gt; np.ndarray:
+    &#34;&#34;&#34;Create a 2D affine.
+
+    :param pixel_size_0: float
+    :param pixel_size_1: float
+    :param section_thickness: float
+    :return: np.ndarray
+    &#34;&#34;&#34;
+    affine = np.eye(4)
+    affine[0, 0] = pixel_size_0
+    affine[1, 1] = pixel_size_1
+    affine[2, 2] = section_thickness
+    return affine</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.create_2d_sections"><code class="name flex">
+<span>def <span class="ident">create_2d_sections</span></span>(<span>df: pandas.core.frame.DataFrame, srv_fn: str, resolution: float, output_dir: str, dtype: int = None, clobber: bool = False) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Create 2D sections from a dataframe.</p>
+<p>:param df: pd.DataFrame, dataframe
+:param srv_fn: str, filename of the srv
+:param resolution: float, resolution
+:param output_dir: str, output directory
+:param dtype: Optional[int], data type
+:param clobber: bool, whether to overwrite existing files
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def create_2d_sections(
+    df: pd.DataFrame,
+    srv_fn: str,
+    resolution: float,
+    output_dir: str,
+    dtype: int = None,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Create 2D sections from a dataframe.
+
+    :param df: pd.DataFrame, dataframe
+    :param srv_fn: str, filename of the srv
+    :param resolution: float, resolution
+    :param output_dir: str, output directory
+    :param dtype: Optional[int], data type
+    :param clobber: bool, whether to overwrite existing files
+    :return: None
+    &#34;&#34;&#34;
+    fx_to_do = []
+
+    tfm_dir = output_dir + os.sep + &#34;tfm&#34;
+    os.makedirs(tfm_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
+
+    fx_to_do = get_to_do_list(df, tfm_dir, &#34;_fx&#34;)
+
+    if len(fx_to_do) &gt; 0:
+        srv_img = nib.load(srv_fn)
+        affine = srv_img.affine
+        srv = srv_img.get_fdata()
+        save_sections(fx_to_do, srv, affine, dtype=dtype)
+
+    return None</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.estimate_memory_usage"><code class="name flex">
+<span>def <span class="ident">estimate_memory_usage</span></span>(<span>n_elements: int, n_bytes_per_element: int) ‑> int</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Estimate the memory usage for a given number of elements and bytes per element.</p>
+<p>:param n_elements: int, number of elements
+:param n_bytes_per_element: int, number of bytes per element
+:return: int</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def estimate_memory_usage(n_elements: int, n_bytes_per_element: int) -&gt; int:
+    &#34;&#34;&#34;Estimate the memory usage for a given number of elements and bytes per element.
+
+    :param n_elements: int, number of elements
+    :param n_bytes_per_element: int, number of bytes per element
+    :return: int
+    &#34;&#34;&#34;
+    return n_elements * n_bytes_per_element</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.gen_2d_fn"><code class="name flex">
+<span>def <span class="ident">gen_2d_fn</span></span>(<span>prefix: str, suffix: str, ext: str = '.nii.gz') ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Generate the 2D filename.</p>
+<p>:param prefix: str, filename prefix
+:param suffix: str, filename suffix
+:param ext: str, filename extension
+:return: str, generated filename</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def gen_2d_fn(prefix: str, suffix: str, ext: str = &#34;.nii.gz&#34;) -&gt; str:
+    &#34;&#34;&#34;Generate the 2D filename.
+
+    :param prefix: str, filename prefix
+    :param suffix: str, filename suffix
+    :param ext: str, filename extension
+    :return: str, generated filename
+    &#34;&#34;&#34;
+    return f&#34;{prefix}{suffix}{ext}&#34;</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.gen_new_filename"><code class="name flex">
+<span>def <span class="ident">gen_new_filename</span></span>(<span>fn: str, output_dir: str, new_suffix: str) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Generate a new filename.</p>
+<p>:param fn: str, filename
+:param output_dir: str, output directory
+:param new_suffix: str, new suffix</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def gen_new_filename(fn: str, output_dir: str, new_suffix: str) -&gt; str:
+    &#34;&#34;&#34;Generate a new filename.
+
+    :param fn: str, filename
+    :param output_dir: str, output directory
+    :param new_suffix: str, new suffix
+    &#34;&#34;&#34;
+    if &#34;.nii.gz&#34; in fn:
+        old_suffix = &#34;.nii.gz&#34;
+    else:
+        old_suffix = os.path.splitext(fn)[1]
+
+    out_fn = output_dir + &#34;/&#34; + re.sub(old_suffix, new_suffix, os.path.basename(fn))
+    return out_fn</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.get_available_memory"><code class="name flex">
+<span>def <span class="ident">get_available_memory</span></span>(<span>) ‑> int</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the available memory in bytes.</p>
+<p>:return: int</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_available_memory() -&gt; int:
+    &#34;&#34;&#34;Get the available memory in bytes.
+
+    :return: int
+    &#34;&#34;&#34;
+    return psutil.virtual_memory()[1]</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.get_chunk_direction"><code class="name flex">
+<span>def <span class="ident">get_chunk_direction</span></span>(<span>sub: str, hemi: str, chunk: int, chunk_info: pandas.core.frame.DataFrame) ‑> list</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the direction of a chunk.</p>
+<p>:param sub: str, name of the subject
+:param hemi: str, hemisphere
+:param chunk: int, chunk number
+:param chunk_info: pd.DataFrame, chunk info dataframe
+:return: list</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_chunk_direction(
+    sub: str, hemi: str, chunk: int, chunk_info: pd.DataFrame
+) -&gt; list:
+    &#34;&#34;&#34;Get the direction of a chunk.
+
+    :param sub: str, name of the subject
+    :param hemi: str, hemisphere
+    :param chunk: int, chunk number
+    :param chunk_info: pd.DataFrame, chunk info dataframe
+    :return: list
+    &#34;&#34;&#34;
+    idx = (
+        (chunk_info[&#34;sub&#34;] == sub)
+        &amp; (chunk_info[&#34;hemisphere&#34;] == hemi)
+        &amp; (chunk_info[&#34;chunk&#34;] == chunk)
+    )
+
+    direction = chunk_info[&#34;direction&#34;][idx].values[0]
+
+    return direction</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.get_chunk_pixel_size"><code class="name flex">
+<span>def <span class="ident">get_chunk_pixel_size</span></span>(<span>sub: str, hemi: str, chunk: str, chunk_info: str) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the pixel size of a chunk.</p>
+<p>:param sub: str, name of the subject
+:param hemi: str, hemisphere
+:param chunk: int, chunk number
+:param chunk_info: pd.DataFrame, chunk info dataframe
+:return: tuple</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_chunk_pixel_size(sub: str, hemi: str, chunk: str, chunk_info: str) -&gt; tuple:
+    &#34;&#34;&#34;Get the pixel size of a chunk.
+
+    :param sub: str, name of the subject
+    :param hemi: str, hemisphere
+    :param chunk: int, chunk number
+    :param chunk_info: pd.DataFrame, chunk info dataframe
+    :return: tuple
+    &#34;&#34;&#34;
+    idx = (
+        (chunk_info[&#34;sub&#34;] == sub)
+        &amp; (chunk_info[&#34;hemisphere&#34;] == hemi)
+        &amp; (chunk_info[&#34;chunk&#34;] == chunk)
+    )
+    pixel_size_0 = chunk_info[&#34;pixel_size_0&#34;][idx].values[0]
+    pixel_size_1 = chunk_info[&#34;pixel_size_1&#34;][idx].values[0]
+    section_thickeness = chunk_info[&#34;section_thickness&#34;][idx].values[0]
+
+    return pixel_size_0, pixel_size_1, section_thickeness</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.get_maximum_cores"><code class="name flex">
+<span>def <span class="ident">get_maximum_cores</span></span>(<span>n_elemnts_list: list, n_bytes_per_element_list: list, max_memory: float = 0.8) ‑> int</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the maximum number of cores to use for a given memory limit.</p>
+<p>:param n_elemnts: int, number of elements
+:param n_bytes_per_element: int, number of bytes per element
+:param max_memory: float, maximum memory to us
+:return: int</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_maximum_cores(
+    n_elemnts_list: list, n_bytes_per_element_list: list, max_memory: float = 0.8
+) -&gt; int:
+    &#34;&#34;&#34;Get the maximum number of cores to use for a given memory limit.
+
+    :param n_elemnts: int, number of elements
+    :param n_bytes_per_element: int, number of bytes per element
+    :param max_memory: float, maximum memory to us
+    :return: int
+    &#34;&#34;&#34;
+    available_memory = get_available_memory()
+    estimated_memory = 0
+    for n_elemnts, n_bytes_per_element in zip(n_elemnts_list, n_bytes_per_element_list):
+        estimated_memory += estimate_memory_usage(n_elemnts, n_bytes_per_element)
+    max_cores = int(available_memory / estimated_memory * max_memory)
+    available_memory_gb = np.round(available_memory / 1024 / 1024 / 1024, 3)
+    estimated_memory_gb = np.round(estimated_memory / 1024 / 1024 / 1024, 3)
+
+    total_cores = multiprocessing.cpu_count()
+    max_cores = max([0, min([max_cores, total_cores])])
+
+    print(
+        &#34;\tAvailable memory (Gb): &#34;,
+        available_memory_gb,
+        &#34;Estimated memory: &#34;,
+        estimated_memory_gb,
+        &#34;Max cores: &#34;,
+        max_cores,
+    )
+    return max_cores</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.get_params_from_affine"><code class="name flex">
+<span>def <span class="ident">get_params_from_affine</span></span>(<span>aff: <built-in function array>, ndim: int) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the parameters from an affine.</p>
+<p>:param aff: np.ndarray, affine
+:return: origin, spacing, direction</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_params_from_affine(aff: np.array, ndim: int) -&gt; tuple:
+    &#34;&#34;&#34;Get the parameters from an affine.
+
+    :param aff: np.ndarray, affine
+    :return: origin, spacing, direction
+    &#34;&#34;&#34;
+    spacing = aff[range(ndim), range(ndim)]
+    origin = aff[range(ndim), 3]
+    direction = [
+        [-1.0, 0.0, 0.0],
+        [0.0, -1.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ]  # FIXME: not sure if it&#39;s good idea to hardcord LPI direction
+    return origin, spacing, direction</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.get_section_intervals"><code class="name flex">
+<span>def <span class="ident">get_section_intervals</span></span>(<span>vol: numpy.ndarray) ‑> list</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the intervals of sections within a volume across y-axis of volume.</p>
+<p>:param vol: np.array, volume
+:return: list</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_section_intervals(vol: np.ndarray) -&gt; list:
+    &#34;&#34;&#34;Get the intervals of sections within a volume across y-axis of volume.
+
+    :param vol: np.array, volume
+    :return: list
+    &#34;&#34;&#34;
+    section_sums = np.sum(vol, axis=(0, 2))
+    valid_sections = section_sums &gt; np.min(section_sums)
+    labeled_sections, nlabels = label(valid_sections)
+    if nlabels &lt; 2:
+        print(
+            &#34;Error: there must be a gap between thickened sections. Use higher resolution volumes.&#34;
+        )
+
+    intervals = [
+        (
+            np.where(labeled_sections == i)[0][0],
+            np.where(labeled_sections == i)[0][-1] + 1,
+        )
+        for i in range(1, nlabels + 1)
+    ]
+
+    assert len(intervals) &gt; 0, &#34;Error: no valid intervals found for volume.&#34;
+    return intervals</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.get_seg_fn"><code class="name flex">
+<span>def <span class="ident">get_seg_fn</span></span>(<span>dirname: str, y: float, resolution: float, filename: str, suffix: str = '') ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the segmented filename.</p>
+<p>:param dirname: str, directory name
+:param y: float, y value
+:param resolution: float, resolution value
+:param filename: str, original filename
+:param suffix: str, suffix to add to the filename
+:return: str, segmented filename</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_seg_fn(
+    dirname: str, y: float, resolution: float, filename: str, suffix: str = &#34;&#34;
+) -&gt; str:
+    &#34;&#34;&#34;Get the segmented filename.
+
+    :param dirname: str, directory name
+    :param y: float, y value
+    :param resolution: float, resolution value
+    :param filename: str, original filename
+    :param suffix: str, suffix to add to the filename
+    :return: str, segmented filename
+    &#34;&#34;&#34;
+    filename = re.sub(
+        &#34;.nii.gz&#34;,
+        f&#34;_{resolution}mm{suffix}.nii.gz&#34;,
+        os.path.basename(filename),
+    )
+    return &#34;{}/{}&#34;.format(dirname, filename)</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.get_thicken_width"><code class="name flex">
+<span>def <span class="ident">get_thicken_width</span></span>(<span>resolution: float, section_thickness: float = 0.02) ‑> int</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the thicken width.</p>
+<p>:param resolution: float, resolution
+:param section_thickness: float, section thickness
+:return: float</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_thicken_width(resolution: float, section_thickness: float = 0.02) -&gt; int:
+    &#34;&#34;&#34;Get the thicken width.
+
+    :param resolution: float, resolution
+    :param section_thickness: float, section thickness
+    :return: float
+    &#34;&#34;&#34;
+    return np.round(1 * (1 + float(resolution) / (section_thickness * 2))).astype(int)</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.get_to_do_list"><code class="name flex">
+<span>def <span class="ident">get_to_do_list</span></span>(<span>df: pandas.core.frame.DataFrame, out_dir: str, str_var: str, ext: str = '.nii.gz') ‑> List[Tuple[str, int]]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the to-do list for processing.</p>
+<p>:param df: DataFrame, input dataframe
+:param out_dir: str, output directory
+:param str_var: str, string variable
+:param ext: str, filename extension
+:return: List[Tuple[str, int]], to-do list</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_to_do_list(
+    df: pd.DataFrame, out_dir: str, str_var: str, ext: str = &#34;.nii.gz&#34;
+) -&gt; List[Tuple[str, int]]:
+    &#34;&#34;&#34;Get the to-do list for processing.
+
+    :param df: DataFrame, input dataframe
+    :param out_dir: str, output directory
+    :param str_var: str, string variable
+    :param ext: str, filename extension
+    :return: List[Tuple[str, int]], to-do list
+    &#34;&#34;&#34;
+    to_do_list = []
+    for idx, (i, row) in enumerate(df.iterrows()):
+        y = int(row[&#34;sample&#34;])
+        base = row[&#34;base&#34;]
+        assert int(y) &gt;= 0, f&#34;Error: negative y value found {y}&#34;
+        prefix = f&#34;{out_dir}/{base}_y-{y}&#34;
+        fn = gen_2d_fn(prefix, str_var, ext=ext)
+        if not os.path.exists(fn):
+            to_do_list.append((fn, y))
+    return to_do_list</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.get_values_from_df"><code class="name flex">
+<span>def <span class="ident">get_values_from_df</span></span>(<span>df: pandas.core.frame.DataFrame, fields: List = ['sub', 'hemisphere', 'chunk']) ‑> list</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the unique values from a dataframe for a list of fields.</p>
+<p>:param df: dataframe
+:param fields: list of fields
+:return: list of unique values</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_values_from_df(
+    df: pd.DataFrame, fields: List = [&#34;sub&#34;, &#34;hemisphere&#34;, &#34;chunk&#34;]
+) -&gt; list:
+    &#34;&#34;&#34;Get the unique values from a dataframe for a list of fields.
+
+    :param df: dataframe
+    :param fields: list of fields
+    :return: list of unique values
+    &#34;&#34;&#34;
+    out_list = []
+    for field in fields:
+        temp_list = np.unique(df[field])
+        assert len(temp_list) == 1, f&#34;More than one {field} in chunk &#34; + len(temp_list)
+        out_list.append(temp_list[0])
+
+    return out_list</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.load_image"><code class="name flex">
+<span>def <span class="ident">load_image</span></span>(<span>fn: str) ‑> numpy.ndarray</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Load an image from a file.</p>
+<p>:param fn: str, filename
+:return: np.ndarray</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def load_image(fn: str) -&gt; np.ndarray:
+    &#34;&#34;&#34;Load an image from a file.
+
+    :param fn: str, filename
+    :return: np.ndarray
+    &#34;&#34;&#34;
+    if isinstance(fn, str) and os.path.exists(fn):
+        if &#34;.nii&#34; in fn:
+            return ants.image_read(fn).numpy()
+        else:
+            return imageio.imread(fn)
+    else:
+        return None</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.newer_than"><code class="name flex">
+<span>def <span class="ident">newer_than</span></span>(<span>fn1: str, fn2: str) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Check if fn1 is newer than fn2.</p>
+<p>:param fn1: str, filename
+:param fn2: str, filename
+:return: bool</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def newer_than(fn1: str, fn2: str) -&gt; bool:
+    &#34;&#34;&#34;Check if fn1 is newer than fn2.
+
+    :param fn1: str, filename
+    :param fn2: str, filename
+    :return: bool
+    &#34;&#34;&#34;
+    if pd.isnull(fn1):
+        return False
+    elif not os.path.exists(fn1):
+        return True
+    else:
+        return os.path.getctime(fn1) &gt; os.path.getctime(fn2)</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.parse_resample_arguments"><code class="name flex">
+<span>def <span class="ident">parse_resample_arguments</span></span>(<span>input_arg: Union[str, numpy.ndarray], output_filename: str, aff: numpy.ndarray, dtype: int) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Parse the arguments for resample_to_resolution.</p>
+<p>:param input_arg: input file or numpy array
+:param output_filename: output filename
+:param aff: np.ndarray, affine
+:param dtype: data type
+:return: vol, dtype, output_filename, aff</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def parse_resample_arguments(
+    input_arg: Union[str, np.ndarray], output_filename: str, aff: np.ndarray, dtype: int
+) -&gt; tuple:
+    &#34;&#34;&#34;Parse the arguments for resample_to_resolution.
+
+    :param input_arg: input file or numpy array
+    :param output_filename: output filename
+    :param aff: np.ndarray, affine
+    :param dtype: data type
+    :return: vol, dtype, output_filename, aff
+    &#34;&#34;&#34;
+    if isinstance(input_arg, str):
+        assert os.path.exists(
+            input_arg
+        ), f&#34;Error: input file does not exist {input_arg}&#34;
+
+        if &#34;.nii&#34; in input_arg:
+            img = ants.image_read(input_arg)
+
+            vol = img.numpy()
+            origin = img.origin
+            spacing = img.spacing
+            direction = img.direction
+            aff = nib.load(input_arg).affine
+
+            if isinstance(dtype, type(None)):
+                dtype = img.dtype
+        else:
+            vol = load_image(input_arg)
+            origin, spacing, direction = get_params_from_affine(aff, len(vol.shape))
+
+    elif isinstance(input_arg, np.ndarray):
+        vol = input_arg
+        if isinstance(dtype, type(None)):
+            dtype = vol.dtype
+
+        assert (
+            isinstance(aff, np.ndarray) or isinstance(aff, list)
+        ), f&#34;Error: affine must be provided as a list or numpy array but got {type(aff)}&#34;
+
+        origin, spacing, direction = get_params_from_affine(aff, len(vol.shape))
+    else:
+        print(&#34;Error: input_arg must be a string or numpy array&#34;)
+        exit(1)
+
+    if not isinstance(output_filename, type(None)):
+        assert isinstance(
+            output_filename, str
+        ), f&#34;Error: output filename must be as string, got {type(output_filename)}&#34;
+
+    vol_sum = np.sum(np.abs(vol))
+    assert vol_sum &gt; 0, (
+        f&#34;Error: empty ({vol_sum}) input file for resample_to_resolution\n&#34; + input_arg
+    )
+    ndim = len(vol.shape)
+    if ndim == 3:
+        # 2D images sometimes have dimensions (m,n,1).
+        # We resample them to (m,n)
+        if vol.shape[2] == 1:
+            vol = vol.reshape([vol.shape[0], vol.shape[1]])
+
+    spacing = spacing[:ndim]
+
+    return vol, origin, spacing, direction, dtype, output_filename, aff, ndim</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.resample_to_resolution"><code class="name flex">
+<span>def <span class="ident">resample_to_resolution</span></span>(<span>input_arg: Union[str, numpy.ndarray], new_resolution: Tuple[float, float, float], output_filename: Optional[str] = None, dtype: Optional[numpy.dtype] = None, affine: Optional[numpy.ndarray] = None, direction_order: str = 'lpi', order: int = 1) ‑> <a title="brainbuilder.utils.ants_nibabel.Nifti1Image" href="ants_nibabel.html#brainbuilder.utils.ants_nibabel.Nifti1Image">Nifti1Image</a></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Resample a volume to a new resolution.</p>
+<p>:param input_arg: input file or numpy array
+:param new_resolution: new resolution
+:param output_filename: output filename
+:param dtype: data type
+:param affine: np.ndarray, affine
+:param order: order of interpolation
+:return: img_out</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def resample_to_resolution(
+    input_arg: Union[str, np.ndarray],
+    new_resolution: Tuple[float, float, float],
+    output_filename: Optional[str] = None,
+    dtype: Optional[np.dtype] = None,
+    affine: Optional[np.ndarray] = None,
+    direction_order: str = &#34;lpi&#34;,
+    order: int = 1,
+) -&gt; nib.Nifti1Image:
+    &#34;&#34;&#34;Resample a volume to a new resolution.
+
+    :param input_arg: input file or numpy array
+    :param new_resolution: new resolution
+    :param output_filename: output filename
+    :param dtype: data type
+    :param affine: np.ndarray, affine
+    :param order: order of interpolation
+    :return: img_out
+    &#34;&#34;&#34;
+    (
+        vol,
+        origin,
+        old_resolution,
+        direction,
+        dtype,
+        output_filename,
+        affine,
+        ndim,
+    ) = parse_resample_arguments(input_arg, output_filename, affine, dtype)
+
+    scale = old_resolution / np.array(new_resolution)
+    downsample_factor = 1 / scale
+
+    new_dims = np.ceil(vol.shape * scale)
+
+    sigma = calculate_sigma_for_downsampling(downsample_factor)
+
+    # sigma[sigma &lt;= 1] = 0
+
+    vol = resize(
+        vol, new_dims, order=order, anti_aliasing=True, anti_aliasing_sigma=sigma
+    )
+
+    assert np.sum(np.abs(vol)) &gt; 0, (
+        &#34;Error: empty output array for prefilter_and_downsample\n&#34; + output_filename
+    )
+
+    affine = np.eye(4, 4)
+    dim_range = range(ndim)
+    affine[dim_range, dim_range] = new_resolution
+    affine[dim_range, 3] = origin
+
+    img_out = nib.Nifti1Image(vol, affine, dtype=dtype, direction_order=direction_order)
+
+    if isinstance(output_filename, str):
+        img_out.to_filename(output_filename)
+    return img_out</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.save_sections"><code class="name flex">
+<span>def <span class="ident">save_sections</span></span>(<span>file_list: List[Tuple[str, float]], vol: numpy.ndarray, aff: numpy.ndarray, dtype: int = None) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Save sections of a volume.</p>
+<p>:param file_list: List[Tuple[str, float]], list of filenames and y values
+:param vol: Any, volume data
+:param aff: Any, affine transformation
+:param dtype: Optional[Any], data type
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def save_sections(
+    file_list: List[Tuple[str, float]],
+    vol: np.ndarray,
+    aff: np.ndarray,
+    dtype: int = None,
+) -&gt; None:
+    &#34;&#34;&#34;Save sections of a volume.
+
+    :param file_list: List[Tuple[str, float]], list of filenames and y values
+    :param vol: Any, volume data
+    :param aff: Any, affine transformation
+    :param dtype: Optional[Any], data type
+    :return: None
+    &#34;&#34;&#34;
+    xstep = aff[0, 0]
+    ystep = aff[1, 1]
+    zstep = aff[2, 2]
+
+    xstart = aff[0, 3]
+    zstart = aff[2, 3]
+
+    affine = np.array(
+        [
+            [xstep, 0, 0, xstart],
+            [0, zstep, 0, zstart],
+            [0, 0, ystep, 0],
+            [0, 0, 0, 1],
+        ]
+    )
+
+    for fn, y in file_list:
+        i = 0
+        if np.sum(vol[:, int(y), :]) == 0:
+            # Create 2D srv section
+            # this little while loop thing is so that if we go beyond  brain tissue in vol,
+            # we find the closest y segement in vol with brain tissue
+            while np.sum(vol[:, int(y - i), :]) == 0:
+                i += (ystep / np.abs(ystep)) * 1
+
+        sec = vol[:, int(y - i), :]
+
+        nib.Nifti1Image(sec, affine, dtype=dtype, direction_order=&#34;lpi&#34;).to_filename(fn)</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.set_cores"><code class="name flex">
+<span>def <span class="ident">set_cores</span></span>(<span>num_cores: int) ‑> int</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Sets the number of cores to use for parallel processing.</p>
+<p>:param num_cores: int
+:return: int</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def set_cores(num_cores: int) -&gt; int:
+    &#34;&#34;&#34;Sets the number of cores to use for parallel processing.
+
+    :param num_cores: int
+    :return: int
+    &#34;&#34;&#34;
+    if num_cores == 0:
+        num_cores = multiprocessing.cpu_count()
+
+    return num_cores</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.shell"><code class="name flex">
+<span>def <span class="ident">shell</span></span>(<span>cmd: str, verbose: bool = False, exit_on_failure: bool = True) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Run command in shell and read STDOUT, STDERR and the error code.</p>
+<p>:param cmd: str, command
+:param verbose: bool, optional, if True, print command, default=False
+:param exit_on_failure: bool, optional, if True, exit on failure, default=True</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def shell(cmd: str, verbose: bool = False, exit_on_failure: bool = True) -&gt; tuple:
+    &#34;&#34;&#34;Run command in shell and read STDOUT, STDERR and the error code.
+
+    :param cmd: str, command
+    :param verbose: bool, optional, if True, print command, default=False
+    :param exit_on_failure: bool, optional, if True, exit on failure, default=True
+    &#34;&#34;&#34;
+    stdout = &#34;&#34;
+    if verbose:
+        print(cmd)
+
+    process = Popen(
+        cmd,
+        shell=True,
+        stdout=PIPE,
+        stderr=STDOUT,
+        universal_newlines=True,
+    )
+
+    for line in unbuffered(process):
+        stdout = stdout + line + &#34;\n&#34;
+        if verbose:
+            print(line)
+
+    errorcode = process.returncode
+    stderr = stdout
+    if errorcode != 0:
+        print(&#34;Error:&#34;)
+        print(&#34;Command:&#34;, cmd)
+        print(&#34;Stderr:&#34;, stdout)
+        if exit_on_failure:
+            exit(errorcode)
+    return stdout, stderr, errorcode</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.simple_ants_apply_tfm"><code class="name flex">
+<span>def <span class="ident">simple_ants_apply_tfm</span></span>(<span>in_fn: str, ref_fn: str, tfm_fn: str, out_fn: str, ndim: int = 3, n: str = 'Linear', empty_ok: bool = False) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Apply transformation using ANTs.</p>
+<p>:param in_fn: str, input filename
+:param ref_fn: str, reference filename
+:param tfm_fn: str, transformation filename
+:param out_fn: str, output filename
+:param ndim: int, number of dimensions
+:param n: str, transformation -type
+:param empty_ok: bool, whether empty files are allowed
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def simple_ants_apply_tfm(
+    in_fn: str,
+    ref_fn: str,
+    tfm_fn: str,
+    out_fn: str,
+    ndim: int = 3,
+    n: str = &#34;Linear&#34;,
+    empty_ok: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Apply transformation using ANTs.
+
+    :param in_fn: str, input filename
+    :param ref_fn: str, reference filename
+    :param tfm_fn: str, transformation filename
+    :param out_fn: str, output filename
+    :param ndim: int, number of dimensions
+    :param n: str, transformation -type
+    :param empty_ok: bool, whether empty files are allowed
+    :return: None
+    &#34;&#34;&#34;
+    if not os.path.exists(out_fn):
+        str0 = f&#34;antsApplyTransforms -n {n} -v 0 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}&#34;
+        shell(str0, verbose=True)
+        check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn, empty_ok=empty_ok)</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.splitext"><code class="name flex">
+<span>def <span class="ident">splitext</span></span>(<span>s: str) ‑> List</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Split a filename into basepath and extension.</p>
+<p>:param s: str, filename
+:return: List</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def splitext(s: str) -&gt; List:
+    &#34;&#34;&#34;Split a filename into basepath and extension.
+
+    :param s: str, filename
+    :return: List
+    &#34;&#34;&#34;
+    try:
+        ssplit = os.path.basename(s).split(&#34;.&#34;)
+        ext = &#34;.&#34; + &#34;.&#34;.join(ssplit[1:])
+        basepath = re.sub(ext, &#34;&#34;, s)
+        return [basepath, ext]
+    except TypeError:
+        return s</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.unbuffered"><code class="name flex">
+<span>def <span class="ident">unbuffered</span></span>(<span>proc: subprocess.Popen, stream: str = 'stdout') ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Read unbuffered from a process.</p>
+<p>:param proc: process
+:param stream: str, stream
+:yield: str</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def unbuffered(proc: Popen, stream: str = &#34;stdout&#34;) -&gt; str:
+    &#34;&#34;&#34;Read unbuffered from a process.
+
+    :param proc: process
+    :param stream: str, stream
+    :yield: str
+    &#34;&#34;&#34;
+    stream = getattr(proc, stream)
+    with contextlib.closing(stream):
+        while True:
+            out = []
+            last = stream.read(1)
+            # Don&#39;t loop forever
+            if last == &#34;&#34; and proc.poll() is not None:
+                break
+            while last not in newlines:
+                # Don&#39;t loop forever
+                if last == &#34;&#34; and proc.poll() is not None:
+                    break
+                out.append(last)
+                last = stream.read(1)
+            out = &#34;&#34;.join(out)
+            print(out)
+            yield out</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="brainbuilder.utils.utils.AntsParams"><code class="flex name class">
+<span>class <span class="ident">AntsParams</span></span>
+<span>(</span><span>resolution_list: List[float], resolution: float, base_itr: int, max_resolution: Optional[float] = None, verbose: bool = False)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Class representing Ants parameters. Parameters are calculated based on a multi-resolution alignment schedule.</p>
+<p>Initialize the AntsParams object.</p>
+<p>:param resolution_list: List[float], list of resolutions
+:param resolution: float, resolution
+:param base_itr: int, base iteration
+:param max_resolution: Optional[float], maximum resolution (default: None)
+:param verbose: bool, verbose flag (default: False)
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class AntsParams:
+    &#34;&#34;&#34;Class representing Ants parameters. Parameters are calculated based on a multi-resolution alignment schedule.&#34;&#34;&#34;
+
+    def __init__(
+        self: object,
+        resolution_list: List[float],
+        resolution: float,
+        base_itr: int,
+        max_resolution: Optional[float] = None,
+        verbose: bool = False,
+    ) -&gt; None:
+        &#34;&#34;&#34;Initialize the AntsParams object.
+
+        :param resolution_list: List[float], list of resolutions
+        :param resolution: float, resolution
+        :param base_itr: int, base iteration
+        :param max_resolution: Optional[float], maximum resolution (default: None)
+        :param verbose: bool, verbose flag (default: False)
+        :return: None
+        &#34;&#34;&#34;
+        if type(max_resolution) == type(None):
+            self.max_resolution = resolution
+        else:
+            self.max_resolution = max_resolution
+
+        if len(resolution_list) == 0:
+            return None
+
+        self.resolution_list = resolution_list
+        self.max_n = len(resolution_list)
+        self.cur_n = resolution_list.index(resolution)
+        self.max_itr = int((self.max_n + 1) * base_itr)
+
+        self.f_list = self.gen_downsample_factor_list(resolution_list)
+        self.max_downsample_factor = int(self.f_list[0])
+
+        self.f_str = self.get_downsample_params(resolution_list)
+        self.s_list = self.gen_smoothing_factor_list(resolution_list)
+        self.s_str = self.get_smoothing_params(resolution_list)
+        self.itr_str = self.gen_itr_str(self.max_itr, base_itr)
+
+        if verbose:
+            self._print()
+
+        assert (
+            len(self.f_list) == len(self.s_list) == len(self.itr_str.split(&#34;x&#34;))
+        ), f&#34;Error: incorrect number of elements in: \n{self.f_list}\n{self.s_list}\n{self.itr_str}\n{resolution_list}&#34;
+
+    def print(self) -&gt; None:
+        &#34;&#34;&#34;Print the AntsParams object.
+
+        :return: None
+        &#34;&#34;&#34;
+        print(&#34;Iterations:\t&#34;, self.itr_str)
+        print(&#34;Factors:\t&#34;, self.f_str)
+        print(&#34;Smoothing:\t&#34;, self.s_str)
+        return None
+
+    def gen_itr_str(self, max_itr: int, step: float) -&gt; str:
+        &#34;&#34;&#34;Generate the iteration string.
+
+        :param max_itr: int, maximum iteration
+        :param step: float, step size
+        :return: str
+        &#34;&#34;&#34;
+        itr_str = &#34;x&#34;.join(
+            [
+                str(int(max_itr - i * step))
+                for i in range(self.cur_n + 1)
+                if self.resolution_list[i] &gt;= self.max_resolution
+            ]
+        )
+        itr_str = &#34;[&#34; + itr_str + &#34;,1e-7,20 ]&#34;
+        return itr_str
+
+    def gen_smoothing_factor_string(self, lst: List) -&gt; str:
+        &#34;&#34;&#34;Generate the smoothing factor string.
+
+        :param lst: List[float], list of smoothing factors
+        :return: str, the generated smoothing factor string
+        &#34;&#34;&#34;
+        return &#34;x&#34;.join([str(i) for i in lst]) + &#34;vox&#34;
+
+    def gen_smoothing_factor_list(self, resolution_list: List[float]) -&gt; List[float]:
+        &#34;&#34;&#34;Generate the list of smoothing factors.
+
+        :param resolution_list: List[float], list of resolutions
+        :return: List[float]
+        &#34;&#34;&#34;
+
+        def smooth_f(x: float, y: float) -&gt; float:
+            &#34;&#34;&#34;Calculate the smoothing factor.
+
+            :param x: float, x
+            :param y: float, y
+            :return: float
+            &#34;&#34;&#34;
+            return np.round(float(float(x) / float(y) - 1) * 0.2, 3)
+
+        return [
+            smooth_f(resolution_list[i], resolution_list[self.cur_n])
+            if i != self.cur_n
+            else 0
+            for i in range(self.cur_n + 1)
+            if self.resolution_list[i] &gt;= self.max_resolution
+        ]
+
+    def get_smoothing_params(self, resolution_list: List[float]) -&gt; str:
+        &#34;&#34;&#34;Generate the smoothing factor string.
+
+        :param resolution_list: List[float], list of resolutions
+        :return: str
+        &#34;&#34;&#34;
+        s_list = self.gen_smoothing_factor_list(resolution_list)
+        return self.gen_smoothing_factor_string(s_list)
+
+    def calc_downsample_factor(self, cur_res: float, image_res: float) -&gt; str:
+        &#34;&#34;&#34;Calculate the downsample factor.
+
+        :param cur_res: float, current resolution
+        :param image_res: float, image resolution
+        :return: str
+        &#34;&#34;&#34;
+        return (
+            np.rint(float(cur_res) / float(image_res)).astype(int).astype(str)
+        )  # DEBUG
+        # return np.floor(1+np.log2(float(cur_res)/float(image_res))).astype(int).astype(str)
+
+    def gen_downsample_factor_list(self, resolution_list: List[float]) -&gt; List[str]:
+        &#34;&#34;&#34;Generate the list of downsample factors.
+
+        :param resolution_list: List[float], list of resolutions
+        :return: List[str]
+        &#34;&#34;&#34;
+        factors = [
+            self.calc_downsample_factor(resolution_list[i], resolution_list[self.cur_n])
+            for i in range(self.cur_n + 1)
+            if self.resolution_list[i] &gt;= self.max_resolution
+        ]
+        return factors
+
+    def get_downsample_params(self, resolution_list: List[float]) -&gt; str:
+        &#34;&#34;&#34;Generate the downsample factor string.
+
+        :param resolution_list: List[float], list of resolutions
+        :return: str
+        &#34;&#34;&#34;
+        return &#34;x&#34;.join(self.gen_downsample_factor_list(resolution_list))</code></pre>
+</details>
+<h3>Methods</h3>
+<dl>
+<dt id="brainbuilder.utils.utils.AntsParams.calc_downsample_factor"><code class="name flex">
+<span>def <span class="ident">calc_downsample_factor</span></span>(<span>self, cur_res: float, image_res: float) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Calculate the downsample factor.</p>
+<p>:param cur_res: float, current resolution
+:param image_res: float, image resolution
+:return: str</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def calc_downsample_factor(self, cur_res: float, image_res: float) -&gt; str:
+    &#34;&#34;&#34;Calculate the downsample factor.
+
+    :param cur_res: float, current resolution
+    :param image_res: float, image resolution
+    :return: str
+    &#34;&#34;&#34;
+    return (
+        np.rint(float(cur_res) / float(image_res)).astype(int).astype(str)
+    )  # DEBUG
+    # return np.floor(1+np.log2(float(cur_res)/float(image_res))).astype(int).astype(str)</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.AntsParams.gen_downsample_factor_list"><code class="name flex">
+<span>def <span class="ident">gen_downsample_factor_list</span></span>(<span>self, resolution_list: List[float]) ‑> List[str]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Generate the list of downsample factors.</p>
+<p>:param resolution_list: List[float], list of resolutions
+:return: List[str]</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def gen_downsample_factor_list(self, resolution_list: List[float]) -&gt; List[str]:
+    &#34;&#34;&#34;Generate the list of downsample factors.
+
+    :param resolution_list: List[float], list of resolutions
+    :return: List[str]
+    &#34;&#34;&#34;
+    factors = [
+        self.calc_downsample_factor(resolution_list[i], resolution_list[self.cur_n])
+        for i in range(self.cur_n + 1)
+        if self.resolution_list[i] &gt;= self.max_resolution
+    ]
+    return factors</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.AntsParams.gen_itr_str"><code class="name flex">
+<span>def <span class="ident">gen_itr_str</span></span>(<span>self, max_itr: int, step: float) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Generate the iteration string.</p>
+<p>:param max_itr: int, maximum iteration
+:param step: float, step size
+:return: str</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def gen_itr_str(self, max_itr: int, step: float) -&gt; str:
+    &#34;&#34;&#34;Generate the iteration string.
+
+    :param max_itr: int, maximum iteration
+    :param step: float, step size
+    :return: str
+    &#34;&#34;&#34;
+    itr_str = &#34;x&#34;.join(
+        [
+            str(int(max_itr - i * step))
+            for i in range(self.cur_n + 1)
+            if self.resolution_list[i] &gt;= self.max_resolution
+        ]
+    )
+    itr_str = &#34;[&#34; + itr_str + &#34;,1e-7,20 ]&#34;
+    return itr_str</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.AntsParams.gen_smoothing_factor_list"><code class="name flex">
+<span>def <span class="ident">gen_smoothing_factor_list</span></span>(<span>self, resolution_list: List[float]) ‑> List[float]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Generate the list of smoothing factors.</p>
+<p>:param resolution_list: List[float], list of resolutions
+:return: List[float]</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def gen_smoothing_factor_list(self, resolution_list: List[float]) -&gt; List[float]:
+    &#34;&#34;&#34;Generate the list of smoothing factors.
+
+    :param resolution_list: List[float], list of resolutions
+    :return: List[float]
+    &#34;&#34;&#34;
+
+    def smooth_f(x: float, y: float) -&gt; float:
+        &#34;&#34;&#34;Calculate the smoothing factor.
+
+        :param x: float, x
+        :param y: float, y
+        :return: float
+        &#34;&#34;&#34;
+        return np.round(float(float(x) / float(y) - 1) * 0.2, 3)
+
+    return [
+        smooth_f(resolution_list[i], resolution_list[self.cur_n])
+        if i != self.cur_n
+        else 0
+        for i in range(self.cur_n + 1)
+        if self.resolution_list[i] &gt;= self.max_resolution
+    ]</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.AntsParams.gen_smoothing_factor_string"><code class="name flex">
+<span>def <span class="ident">gen_smoothing_factor_string</span></span>(<span>self, lst: List) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Generate the smoothing factor string.</p>
+<p>:param lst: List[float], list of smoothing factors
+:return: str, the generated smoothing factor string</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def gen_smoothing_factor_string(self, lst: List) -&gt; str:
+    &#34;&#34;&#34;Generate the smoothing factor string.
+
+    :param lst: List[float], list of smoothing factors
+    :return: str, the generated smoothing factor string
+    &#34;&#34;&#34;
+    return &#34;x&#34;.join([str(i) for i in lst]) + &#34;vox&#34;</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.AntsParams.get_downsample_params"><code class="name flex">
+<span>def <span class="ident">get_downsample_params</span></span>(<span>self, resolution_list: List[float]) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Generate the downsample factor string.</p>
+<p>:param resolution_list: List[float], list of resolutions
+:return: str</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_downsample_params(self, resolution_list: List[float]) -&gt; str:
+    &#34;&#34;&#34;Generate the downsample factor string.
+
+    :param resolution_list: List[float], list of resolutions
+    :return: str
+    &#34;&#34;&#34;
+    return &#34;x&#34;.join(self.gen_downsample_factor_list(resolution_list))</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.AntsParams.get_smoothing_params"><code class="name flex">
+<span>def <span class="ident">get_smoothing_params</span></span>(<span>self, resolution_list: List[float]) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Generate the smoothing factor string.</p>
+<p>:param resolution_list: List[float], list of resolutions
+:return: str</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_smoothing_params(self, resolution_list: List[float]) -&gt; str:
+    &#34;&#34;&#34;Generate the smoothing factor string.
+
+    :param resolution_list: List[float], list of resolutions
+    :return: str
+    &#34;&#34;&#34;
+    s_list = self.gen_smoothing_factor_list(resolution_list)
+    return self.gen_smoothing_factor_string(s_list)</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.utils.utils.AntsParams.print"><code class="name flex">
+<span>def <span class="ident">print</span></span>(<span>self) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Print the AntsParams object.</p>
+<p>:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def print(self) -&gt; None:
+    &#34;&#34;&#34;Print the AntsParams object.
+
+    :return: None
+    &#34;&#34;&#34;
+    print(&#34;Iterations:\t&#34;, self.itr_str)
+    print(&#34;Factors:\t&#34;, self.f_str)
+    print(&#34;Smoothing:\t&#34;, self.s_str)
+    return None</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="brainbuilder.utils" href="index.html">brainbuilder.utils</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="brainbuilder.utils.utils.calculate_sigma_for_downsampling" href="#brainbuilder.utils.utils.calculate_sigma_for_downsampling">calculate_sigma_for_downsampling</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.check_run_stage" href="#brainbuilder.utils.utils.check_run_stage">check_run_stage</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.check_transformation_not_empty" href="#brainbuilder.utils.utils.check_transformation_not_empty">check_transformation_not_empty</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.compare_timestamp_of_files" href="#brainbuilder.utils.utils.compare_timestamp_of_files">compare_timestamp_of_files</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.create_2d_affine" href="#brainbuilder.utils.utils.create_2d_affine">create_2d_affine</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.create_2d_sections" href="#brainbuilder.utils.utils.create_2d_sections">create_2d_sections</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.estimate_memory_usage" href="#brainbuilder.utils.utils.estimate_memory_usage">estimate_memory_usage</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.gen_2d_fn" href="#brainbuilder.utils.utils.gen_2d_fn">gen_2d_fn</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.gen_new_filename" href="#brainbuilder.utils.utils.gen_new_filename">gen_new_filename</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.get_available_memory" href="#brainbuilder.utils.utils.get_available_memory">get_available_memory</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.get_chunk_direction" href="#brainbuilder.utils.utils.get_chunk_direction">get_chunk_direction</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.get_chunk_pixel_size" href="#brainbuilder.utils.utils.get_chunk_pixel_size">get_chunk_pixel_size</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.get_maximum_cores" href="#brainbuilder.utils.utils.get_maximum_cores">get_maximum_cores</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.get_params_from_affine" href="#brainbuilder.utils.utils.get_params_from_affine">get_params_from_affine</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.get_section_intervals" href="#brainbuilder.utils.utils.get_section_intervals">get_section_intervals</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.get_seg_fn" href="#brainbuilder.utils.utils.get_seg_fn">get_seg_fn</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.get_thicken_width" href="#brainbuilder.utils.utils.get_thicken_width">get_thicken_width</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.get_to_do_list" href="#brainbuilder.utils.utils.get_to_do_list">get_to_do_list</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.get_values_from_df" href="#brainbuilder.utils.utils.get_values_from_df">get_values_from_df</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.load_image" href="#brainbuilder.utils.utils.load_image">load_image</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.newer_than" href="#brainbuilder.utils.utils.newer_than">newer_than</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.parse_resample_arguments" href="#brainbuilder.utils.utils.parse_resample_arguments">parse_resample_arguments</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.resample_to_resolution" href="#brainbuilder.utils.utils.resample_to_resolution">resample_to_resolution</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.save_sections" href="#brainbuilder.utils.utils.save_sections">save_sections</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.set_cores" href="#brainbuilder.utils.utils.set_cores">set_cores</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.shell" href="#brainbuilder.utils.utils.shell">shell</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.simple_ants_apply_tfm" href="#brainbuilder.utils.utils.simple_ants_apply_tfm">simple_ants_apply_tfm</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.splitext" href="#brainbuilder.utils.utils.splitext">splitext</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.unbuffered" href="#brainbuilder.utils.utils.unbuffered">unbuffered</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="brainbuilder.utils.utils.AntsParams" href="#brainbuilder.utils.utils.AntsParams">AntsParams</a></code></h4>
+<ul class="">
+<li><code><a title="brainbuilder.utils.utils.AntsParams.calc_downsample_factor" href="#brainbuilder.utils.utils.AntsParams.calc_downsample_factor">calc_downsample_factor</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.AntsParams.gen_downsample_factor_list" href="#brainbuilder.utils.utils.AntsParams.gen_downsample_factor_list">gen_downsample_factor_list</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.AntsParams.gen_itr_str" href="#brainbuilder.utils.utils.AntsParams.gen_itr_str">gen_itr_str</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.AntsParams.gen_smoothing_factor_list" href="#brainbuilder.utils.utils.AntsParams.gen_smoothing_factor_list">gen_smoothing_factor_list</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.AntsParams.gen_smoothing_factor_string" href="#brainbuilder.utils.utils.AntsParams.gen_smoothing_factor_string">gen_smoothing_factor_string</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.AntsParams.get_downsample_params" href="#brainbuilder.utils.utils.AntsParams.get_downsample_params">get_downsample_params</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.AntsParams.get_smoothing_params" href="#brainbuilder.utils.utils.AntsParams.get_smoothing_params">get_smoothing_params</a></code></li>
+<li><code><a title="brainbuilder.utils.utils.AntsParams.print" href="#brainbuilder.utils.utils.AntsParams.print">print</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

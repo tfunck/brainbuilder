@@ -100,10 +100,26 @@ def get_chunk_pixel_size(sub: str, hemi: str, chunk: str, chunk_info: str) -> tu
         & (chunk_info["hemisphere"] == hemi)
         & (chunk_info["chunk"] == chunk)
     )
-    pixel_size_0 = chunk_info["pixel_size_0"][idx].values[0]
-    pixel_size_1 = chunk_info["pixel_size_1"][idx].values[0]
-    section_thickeness = chunk_info["section_thickness"][idx].values[0]
+    
+    pixel_size_0 = None
+    pixel_size_1 = None
+    section_thickeness = None
 
+    try :
+        pixel_size_0 = chunk_info["pixel_size_0"][idx].values[0]
+    except IndexError :
+        pass
+
+    try :
+        pixel_size_1 = chunk_info["pixel_size_1"][idx].values[0]
+    except IndexError :
+        pass
+
+    try :
+        section_thickeness = chunk_info["section_thickness"][idx].values[0]
+    except IndexError :
+        pass
+        
     return pixel_size_0, pixel_size_1, section_thickeness
 
 

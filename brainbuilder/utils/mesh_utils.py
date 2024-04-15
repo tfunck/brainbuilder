@@ -439,6 +439,37 @@ def get_edges_from_faces(faces:np.ndarray)->np.ndarray:
     # edge_range = np.arange(edges_all.shape[0]).astype(int) % faces.shape[0]
     return edges
 
+
+def volume_filename_to_mesh(coords:np.ndarray, filename:str, sigma:int=0, zscore:bool=False)->np.ndarray:
+    """Read volumetric file and project to mesh"""
+    img = nb.load(filename)
+    starts = img.affine[0:3, 3]
+    steps = np.diag(img.affine)[0:3]    
+    dimensions = img.shape
+
+    vol = img.get_fdata()
+    if sigma > 0 :
+        print('Smoothing sigma:', sigma)
+        vol = gaussian_filter(vol, sigma=sigma)
+
+
+    if zscore:
+        idx = vol > vol.min()
+        vol = (vol - np.mean(vol[idx])) / np.std(vol[idx])
+
+    ar, idx = volume_to_mesh(
+        coords,
+        vol,
+        starts,
+        steps,
+        dimensions,
+    )
+
+    vtr = np.zeros(coords.shape[0])
+    vtr[idx] = ar
+
+    return vtr
+
 def volume_to_mesh(
     coords: np.ndarray,
     vol: np.ndarray,

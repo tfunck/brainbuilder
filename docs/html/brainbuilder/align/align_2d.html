@@ -1,0 +1,1600 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>brainbuilder.align.align_2d API documentation</title>
+<meta name="description" content="Performs 2D non-linear alignment of sections to sections from reference volume using ANTs." />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>brainbuilder.align.align_2d</code></h1>
+</header>
+<section id="section-intro">
+<p>Performs 2D non-linear alignment of sections to sections from reference volume using ANTs.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;Performs 2D non-linear alignment of sections to sections from reference volume using ANTs.&#34;&#34;&#34;
+
+import glob
+import json
+import os
+import shutil
+import tempfile
+
+import brainbuilder.utils.ants_nibabel as nib
+import matplotlib.pyplot as plt
+import nibabel
+import numpy as np
+import pandas as pd
+from brainbuilder.align.validate_alignment import get_section_metric
+from brainbuilder.utils import utils
+from brainbuilder.utils.utils import (
+    AntsParams,
+    gen_2d_fn,
+    resample_to_resolution,
+    shell,
+)
+from joblib import Parallel, cpu_count, delayed
+from scipy.ndimage.filters import gaussian_filter
+
+
+def resample_reference_to_sections(
+    resolution: float,
+    input_fn: str,
+    ref_fn: str,
+    tfm_inv_fn: str,
+    section_thickeness: float,
+    output_dir: str,
+    clobber: bool = False,
+) -&gt; tuple:
+    &#34;&#34;&#34;Apply 3d transformation and resample volume into the same coordinate space as 3d receptor volume.
+
+        The steps of this function are:
+        1. Apply 3d transformation to the reference volume
+        2. Resample the transformed volume to the resolution of the reconstruction
+        3. Resample the transformed volume to the resolution of the section width on the y axis and the resolution of the reconstruction on the x and z axis
+
+    Inputs:
+        :param resolution:     current resolution level
+        :param input_fn:     gm super-resolution volume (srv) extracted from donor brain
+        :param ref_fn:     brain mask of segmented autoradiographs
+        :param tfm_inv_fn:   3d transformation from mni to receptor coordinate space
+        :return iso_output_fn:   gm srv volume in receptor coordinate space with isotropic voxels at &lt;resolution&gt;mm
+        :return output_fn:  gm srv volume in receptor coordinate space with &lt;section_thickness&gt; dimension size along the y axis
+    &#34;&#34;&#34;
+    basename = os.path.basename(input_fn).split(&#34;.&#34;)[0]
+
+    iso_output_fn = f&#34;{output_dir}/{basename}_{resolution}mm_iso.nii.gz&#34;
+    output_fn = f&#34;{output_dir}/{basename}_{resolution}mm_space-nat.nii.gz&#34;
+
+    if not os.path.exists(iso_output_fn) or not os.path.exists(output_fn) or clobber:
+        # Apply 3d transformation to the reference volume
+        rand = tempfile.NamedTemporaryFile().name
+        rand_fn = f&#34;{rand}.nii.gz&#34;
+        utils.simple_ants_apply_tfm(input_fn, ref_fn, tfm_inv_fn, rand_fn, ndim=3)
+
+        img = nib.load(rand_fn)
+        vol = img.get_fdata()
+
+        assert np.sum(vol) &gt; 0, f&#34;Error: empty volume {iso_output_fn}&#34;
+
+        aff = img.affine.copy()
+
+        vol = (255 * (vol - vol.min()) / (vol.max() - vol.min())).astype(np.uint8)
+
+        # Resample the transformed volume to the resolution of the reconstruction
+        img_iso = resample_to_resolution(
+            vol,
+            [float(resolution)] * 3,
+            order=3,
+            affine=aff,
+            dtype=np.uint16,
+        )
+
+        img_iso.to_filename(iso_output_fn)
+
+        aff = img.affine.copy()
+
+        # Resample the transformed volume to the resolution of the section width on the y axis and the resolution of the reconstruction on the x and z axis
+        img3 = resample_to_resolution(
+            vol,
+            [float(resolution), section_thickeness, float(resolution)],
+            affine=aff,
+            order=1,
+            dtype=np.uint16,
+        )
+        img3.to_filename(output_fn)
+
+        os.remove(rand_fn)
+
+    return iso_output_fn, output_fn
+
+
+def ants_registeration_2d_section(
+    fx_fn: str,
+    mv_fn: str,
+    itr_list: str,
+    s_list: str,
+    f_list: str,
+    prefix: str,
+    transforms: list,
+    metrics: list,
+    bins: int = 32,
+    sampling: float = 0.9,
+    step: float = 0.5,
+    init_tfm: str = None,
+    verbose: bool = False,
+) -&gt; tuple:
+    &#34;&#34;&#34;Use ANTs to register 2d sections.
+
+    Description: Calculate a series of transformations using ANTs to register 2d sections based on user provided parameters.
+
+    :param fx_fn: fixed image filename
+    :param mv_fn: moving image filename
+    :param itr_list: list of iterations
+    :param s_list: list of smoothing factors
+    :param f_list: list of downsample factor sizes
+    :param prefix: prefix for output files
+    :param transforms: list of transforms
+    :param metrics: list of metrics
+    :param bins: bins
+    :param sampling: sampling
+    :param step: step
+    :param init_tfm: initial transform
+    :param verbose: verbose
+    :return: final_tfm, mv_rsl_fn
+    &#34;&#34;&#34;
+    last_transform = None
+    last_metric = None
+
+    for transform, metric, f_str, s_str, itr_str in zip(
+        transforms, metrics, f_list, s_list, itr_list
+    ):
+        mv_rsl_fn = f&#34;{prefix}_{transform}_{metric}_cls_rsl.nii.gz&#34;
+
+        if not isinstance(last_transform, type(None)):
+            init_str = f&#34;--initial-moving-transform {prefix}_{last_transform}_{last_metric}_Composite.h5&#34;
+        elif isinstance(init_tfm, str) and os.path.exists(init_tfm):
+            init_str = f&#34;--initial-moving-transform {init_tfm}&#34;
+        else:
+            init_str = f&#34;--initial-moving-transform [{fx_fn},{mv_fn},1]&#34;
+
+        command_str = f&#34;antsRegistration -v {int(verbose)} -d 2    --write-composite-transform 1 {init_str} -o [{prefix}_{transform}_{metric}_,{mv_rsl_fn},/tmp/out_inv.nii.gz] -t {transform}[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} &#34;
+
+        last_transform = transform
+        last_metric = metric
+
+        if verbose:
+            print(command_str)
+
+        with open(prefix + f&#34;{transform}_{metric}_command.txt&#34;, &#34;w&#34;) as f:
+            f.write(command_str)
+
+        shell(command_str)
+
+    final_tfm = f&#34;{prefix}_{transforms[-1]}_{metrics[-1]}_Composite.h5&#34;
+
+    return final_tfm, mv_rsl_fn
+
+
+def affine_trials(
+    fx_fn: str,
+    mv_fn: str,
+    linParams: AntsParams,
+    prefix: str,
+    n_trials: int = 5,
+    verbose: bool = False,
+) -&gt; str:
+    &#34;&#34;&#34;About: Calculate affine transformation between volumes.
+
+    Description: Try multiple affine transformations and return the best one based on dice score.
+    :param fx_fn: fixed image filename
+    :param mv_fn: moving image filename
+    :param linParams: linear parameters
+    :param prefix: prefix
+    :param n_trials: number of trials
+    :param verbose: verbose
+    :return: affine_tfm
+    &#34;&#34;&#34;
+    lin_transforms = [&#34;Rigid&#34;, &#34;Similarity&#34;, &#34;Affine&#34;]
+    max_dice = 0
+    best_trial = 0
+    affine_tfm_trials = {}
+
+    for trial in range(n_trials):
+        n = len(lin_transforms)
+        itr_list = [linParams.itr_str] * n
+        s_list = [linParams.s_str] * n
+        f_list = [linParams.f_str] * n
+
+        trial_prefix = prefix + f&#34;_trial-{trial}&#34;
+        affine_tfm, mv_rsl_fn = ants_registeration_2d_section(
+            fx_fn=fx_fn,
+            mv_fn=mv_fn,
+            itr_list=itr_list,
+            s_list=s_list,
+            f_list=f_list,
+            prefix=trial_prefix,
+            transforms=lin_transforms,
+            sampling=0.8,
+            metrics=[&#34;Mattes&#34;] * len(lin_transforms),
+            verbose=verbose,
+        )
+
+        trial_dice, _, _ = get_section_metric(
+            fx_fn, mv_rsl_fn, trial_prefix + &#34;_dice.png&#34;, 0, verbose=False
+        )
+
+        best_trial = trial if trial_dice &gt; max_dice else best_trial
+        max_dice = trial_dice if trial_dice &gt; max_dice else max_dice
+        affine_tfm_trials[trial] = affine_tfm
+
+    json.dump(affine_tfm_trials, open(f&#34;{prefix}_affine_tfm_trials.json&#34;, &#34;w&#34;))
+
+    for fn in glob.glob(f&#34;{prefix}/*trial-*&#34;):
+        if &#34;_trial-{best_trial}&#34; not in fn:
+            os.remove(fn)
+
+    affine_tfm = affine_tfm_trials[best_trial]
+
+    return affine_tfm
+
+
+def align_2d_parallel(
+    tfm_dir: str,
+    mv_dir: str,
+    resolution_itr: int,
+    resolution: float,
+    resolution_list: list,
+    row: pd.Series,
+    file_to_align: str = &#34;seg&#34;,
+    use_syn: bool = True,
+    step: float = 0.5,
+    bins: int = 32,
+    base_lin_itr: int = 100,
+    base_nl_itr: int = 30,
+    base_cc_itr: int = 5,
+    n_affine_trials: int = 5,
+    verbose: bool = False,
+) -&gt; int:
+    &#34;&#34;&#34;Align 2d sections to sections.
+
+    Description: Calculate affine and non-linear transformations using ANTs to register 2d sections.
+
+    :param tfm_dir: directory to store intermediate files
+    :param mv_dir: directory to store intermediate files
+    :param resolution_itr: current iteration
+    :param resolution: resolution of the current iteration
+    :param resolution_list: list of resolutions
+    :param row: row
+    :param file_to_align: file to align
+    :param use_syn: use syn registration
+    :param step: step
+    :param bins: bins
+    :param base_lin_itr: number of iterations for linear alignment
+    :param base_nl_itr: number of iterations for nonlinear alignment
+    :param base_cc_itr: number of iterations for cross correlation
+    :param n_affine_trials: number of affine trials
+    :param verbose: verbose
+    :return: 0
+    &#34;&#34;&#34;
+    # Set strings for alignment parameters
+    base_nl_itr = 30
+
+    linParams = AntsParams(resolution_list, resolution, base_lin_itr)
+
+    nlParams = AntsParams(resolution_list, resolution, base_nl_itr)
+
+    y = int(row[&#34;sample&#34;])
+    base = row[&#34;base&#34;]
+
+    prefix = f&#34;{tfm_dir}/{base}_y-{y}&#34;
+
+    affine_trial_dir = f&#34;{tfm_dir}/{base}_y-{y}_affine_trial/&#34;
+
+    affine_trial_prefix = f&#34;{affine_trial_dir}/{base}_y-{y}&#34;
+
+    fx_fn = gen_2d_fn(prefix, &#34;_fx&#34;)
+
+    if row[&#34;acquisition&#34;] in [&#34;myelin&#34;, &#34;cellbody&#34;]:
+        file_to_align = &#34;img&#34;
+
+    mv_fn = row[file_to_align]
+    print(mv_fn)
+
+    verbose = False
+    affine_tfm = affine_trials(
+        fx_fn, mv_fn, linParams, prefix, n_trials=n_affine_trials, verbose=verbose
+    )
+
+    syn_tfm, syn_vol = ants_registeration_2d_section(
+        fx_fn=fx_fn,
+        mv_fn=mv_fn,
+        itr_list=[nlParams.itr_str, 20],
+        s_list=[nlParams.s_str, 0],
+        f_list=[nlParams.f_str, 1],
+        prefix=prefix,
+        transforms=[&#34;SyN&#34;, &#34;SyN&#34;],
+        metrics=[&#34;Mattes&#34;, &#34;CC&#34;],
+        init_tfm=affine_tfm,
+        step=0.1,
+        verbose=verbose,
+    )
+
+    cmd = f&#34;antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {mv_fn} -r {fx_fn} -t {syn_tfm} -o {row[&#39;2d_align_cls&#39;]} &#34;
+
+    shell(cmd, True)
+
+    shutil.copy(syn_tfm, row[&#34;2d_tfm&#34;])
+
+    plt.imshow(nib.load(fx_fn).get_fdata())
+    plt.imshow(
+        nib.load(row[&#34;2d_align_cls&#34;]).get_fdata(), cmap=&#34;nipy_spectral&#34;, alpha=0.4
+    )
+    plt.savefig(f&#34;{prefix}_qc.png&#34;)
+
+    # assert np.sum(nib.load(prefix+&#39;_cls_rsl.nii.gz&#39;).dataobj) &gt; 0, &#39;Error: 2d affine transfromation failed&#39;
+    assert os.path.exists(
+        f&#34;{prefix}_cls_rsl.nii.gz&#34;
+    ), f&#34;Error: output does not exist {prefix}_cls_rsl.nii.gz&#34;
+
+    return 0
+
+
+def apply_transforms_parallel(
+    tfm_dir: str,
+    mv_dir: str,
+    resolution_itr: int,
+    resolution: float,
+    row: pd.Series,
+) -&gt; int:
+    &#34;&#34;&#34;Apply transforms to 2d sections.
+
+    Description: Apply transforms to downsampled files to get the final 2d sections. A gaussian filter is used to pre-filter the images to avoid aliasing.
+
+    :param tfm_dir: directory to store intermediate files
+    :param mv_dir: directory to store intermediate files
+    :param resolution_itr: current iteration
+    :param resolution: resolution of the current iteration
+    :param row: row
+    :return: 0
+    &#34;&#34;&#34;
+    y = int(row[&#34;sample&#34;])
+    base = row[&#34;base&#34;]
+
+    prefix = f&#34;{tfm_dir}/{base}_y-{y}&#34;
+    img_rsl_fn = f&#34;{prefix}_{resolution}mm.nii.gz&#34;
+    out_fn = prefix + &#34;_rsl.nii.gz&#34;
+    fx_fn = gen_2d_fn(prefix, &#34;_fx&#34;)
+
+    img_fn = row[&#34;raw&#34;]
+    img = nib.load(img_fn)
+    img_res = np.array([img.affine[0, 0], img.affine[1, 1]])
+
+    if resolution != img_res[0] and resolution != img_res[1]:
+        sigma = utils.calculate_sigma_for_downsampling(resolution / img_res)
+
+        vol = img.get_fdata()
+
+        vol = gaussian_filter(vol, sigma)
+
+        nib.Nifti1Image(vol, img.affine, direction_order=&#34;lpi&#34;).to_filename(img_rsl_fn)
+    else:
+        shutil.symlink(img_fn, img_rsl_fn)
+
+    cmd = f&#34;antsApplyTransforms -v 0 -d 2 -n BSpline -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} &#34;
+
+    shell(cmd, True)
+
+    assert os.path.exists(f&#34;{out_fn}&#34;), &#34;Error apply nl 2d tfm to img autoradiograph&#34;
+    return 0
+
+
+def get_align_2d_to_do(sect_info: pd.DataFrame, clobber: bool = False) -&gt; tuple:
+    &#34;&#34;&#34;Get files that need to be aligned.
+
+    Description: Get list of files that need to be aligned and resampled based on whether tfm_fn and cls_fn exist.
+
+    :param sect_info: dataframe containing section information
+    :param clobber: clobber
+    :return: to_do_sect_info, to_do_resample_sect_info
+    &#34;&#34;&#34;
+    to_do_sect_info = []
+    to_do_resample_sect_info = []
+
+    for idx, (i, row) in enumerate(sect_info.iterrows()):
+        cls_fn = row[&#34;2d_align_cls&#34;]
+        tfm_fn = row[&#34;2d_tfm&#34;]
+        out_fn = row[&#34;2d_align&#34;]
+
+        if not os.path.exists(tfm_fn) or not os.path.exists(cls_fn) or clobber:
+            to_do_sect_info.append(row)
+
+        if not os.path.exists(out_fn):
+            to_do_resample_sect_info.append(row)
+
+    return to_do_sect_info, to_do_resample_sect_info
+
+
+def get_align_filenames(
+    tfm_dir: str,
+    sect_info: pd.DataFrame,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Get filenames for alignment.
+
+    :param tfm_dir: directory to store intermediate files
+    :param sect_info: dataframe containing section information
+    :return: sect_info
+    &#34;&#34;&#34;
+    os.makedirs(tfm_dir, exist_ok=True)
+
+    sect_info[&#34;2d_tfm_affine&#34;] = [&#34;&#34;] * sect_info.shape[0]
+    sect_info[&#34;2d_tfm&#34;] = [&#34;&#34;] * sect_info.shape[0]
+    sect_info[&#34;2d_align&#34;] = [&#34;&#34;] * sect_info.shape[0]
+    sect_info[&#34;2d_align_cls&#34;] = [&#34;&#34;] * sect_info.shape[0]
+
+    for idx, (i, row) in enumerate(sect_info.iterrows()):
+        y = int(row[&#34;sample&#34;])
+        base = row[&#34;base&#34;]
+        prefix = f&#34;{tfm_dir}/{base}_y-{y}&#34;
+        cls_fn = prefix + &#34;_cls_rsl.nii.gz&#34;
+        out_fn = prefix + &#34;_rsl.nii.gz&#34;
+        tfm_fn = prefix + &#34;_Composite.h5&#34;
+        tfm_affine_fn = prefix + &#34;_Affine_Composite.h5&#34;
+
+        sect_info[&#34;2d_tfm&#34;].iloc[idx] = tfm_fn
+        sect_info[&#34;2d_tfm_affine&#34;].iloc[idx] = tfm_affine_fn
+
+        sect_info[&#34;2d_align_cls&#34;].iloc[idx] = cls_fn
+        sect_info[&#34;2d_align&#34;].iloc[idx] = out_fn
+
+    return sect_info
+
+
+def align_sections(
+    sect_info: pd.DataFrame,
+    rec_fn: str,
+    ref_fn: str,
+    mv_dir: str,
+    output_dir: str,
+    resolution: float,
+    resolution_itr: float,
+    resolution_list: list,
+    base_lin_itr: int = 100,
+    base_nl_itr: int = 30,
+    base_cc_itr: int = 5,
+    file_to_align: str = &#34;seg&#34;,
+    use_syn: bool = True,
+    batch_processing: bool = False,
+    num_cores: int = 0,
+    n_tries: int = 5,
+    verbose: bool = False,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Align sections to sections from reference volume using ANTs.
+
+    :param sect_info: dataframe containing information about sections
+    :param rec_fn: filename of volume with 2d sections
+    :param ref_fn: filename of reference volume transformed into acquisition space
+    :param mv_dir: directory to store intermediate files
+    :param output_dir: directory to store output files
+    :param resolution: resolution to use for alignment
+    :param resolution_itr: iteration of the resolution in the resolution list
+    :param resolution_list: list of resolutions to use for alignment
+    :param base_lin_itr: number of iterations for linear alignment
+    :param base_nl_itr: number of iterations for nonlinear alignment
+    :param base_cc_itr: number of iterations for cross correlation
+    :param file_to_align: filename of file to align
+    :param use_syn: use syn registration
+    :param batch_processing: batch processing
+    :param verbose: verbose
+    :param clobber: clobber
+    :return: None
+    &#34;&#34;&#34;
+    num_cores = cpu_count() if num_cores == 0 else num_cores
+
+    sect_info.reset_index(drop=True, inplace=True)
+
+    tfm_dir = output_dir + os.sep + &#34;tfm&#34;
+
+    sect_info = get_align_filenames(tfm_dir, sect_info)
+
+    # get lists of files that need to be aligned and resampled
+    to_do_sect_info, to_do_resample_sect_info = get_align_2d_to_do(sect_info)
+
+    if len(to_do_sect_info) &gt; 0:
+        Parallel(n_jobs=num_cores, backend=&#34;multiprocessing&#34;)(
+            delayed(align_2d_parallel)(
+                tfm_dir,
+                mv_dir,
+                resolution_itr,
+                resolution,
+                resolution_list,
+                row,
+                base_lin_itr=base_lin_itr,
+                base_nl_itr=base_nl_itr,
+                base_cc_itr=base_cc_itr,
+                file_to_align=file_to_align,
+                use_syn=use_syn,
+                verbose=verbose,
+            )
+            for row in to_do_sect_info
+        )
+
+    if len(to_do_resample_sect_info) &gt; 0:
+        Parallel(n_jobs=num_cores, backend=&#34;multiprocessing&#34;)(
+            delayed(apply_transforms_parallel)(
+                tfm_dir, mv_dir, resolution_itr, resolution, row
+            )
+            for row in to_do_resample_sect_info
+        )
+
+    return sect_info
+
+
+def concatenate_sections_to_volume(
+    sect_info: pd.DataFrame,
+    rec_fn: str,
+    output_dir: str,
+    out_fn: str,
+    target_str: str = &#34;rsl&#34;,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Concatenate 2D sections into output volume.
+
+    Description: Concatenate 2D sections into output volume. The steps of this function are:
+
+    :param sect_info: dataframe containing section information
+    :param rec_fn: filename of volume with 2d sections
+    :param output_dir: directory to store output files
+    :param out_fn: output filename
+    :param target_str: target string
+    :return: sect_info
+    &#34;&#34;&#34;
+    exit_flag = False
+    tfm_dir = output_dir + os.sep + &#34;tfm&#34;
+
+    hires_img = nib.load(rec_fn)
+    out_vol = np.zeros(hires_img.shape)
+    target_name = &#34;nl_2d_&#34; + target_str
+
+    sect_info[target_name] = [&#34;&#34;] * sect_info.shape[0]
+
+    for idx, (i, row) in enumerate(sect_info.iterrows()):
+        y = int(row[&#34;sample&#34;])
+        base = row[&#34;base&#34;]
+        f&#34;{tfm_dir}/{base}_y-{y}&#34;
+        fn = f&#34;{tfm_dir}/{base}_y-{y}_{target_str}.nii.gz&#34;
+
+        sect_info[target_name].loc[i] = fn
+
+    if not os.path.exists(out_fn):
+        for idx, (i, row) in enumerate(sect_info.iterrows()):
+            fn = sect_info[target_name].loc[i]
+            y = int(row[&#34;sample&#34;])
+
+            try:
+                sec = nibabel.load(fn).get_fdata()
+
+                out_vol[:, int(y), :] = sec
+            except EOFError:
+                print(&#34;Error:&#34;, fn)
+                os.remove(fn)
+                exit_flag = True
+
+            if exit_flag:
+                exit(1)
+
+        print(&#34;\t\tWriting 3D non-linear:&#34;, out_fn)
+
+        dtype = np.float32
+        if target_str == &#34;cls_rsl&#34;:
+            dtype = np.uint8
+        print(f&#34;Writing: {out_fn} dtype: {dtype}&#34;)
+
+        nib.Nifti1Image(
+            out_vol, hires_img.affine, dtype=np.float32, direction_order=&#34;lpi&#34;
+        ).to_filename(out_fn)
+
+    return sect_info
+
+
+def align_2d(
+    sect_info: pd.DataFrame,
+    nl_2d_dir: str,
+    seg_dir: str,
+    ref_rsl_fn: str,
+    resolution: float,
+    resolution_itr: int,
+    resolution_list: list,
+    seg_rsl_fn: str,
+    nl_3d_tfm_inv_fn: str,
+    nl_2d_vol_fn: str,
+    nl_2d_cls_fn: str,
+    section_thickness: float,
+    base_lin_itr: int = 100,
+    base_nl_itr: int = 20,
+    base_cc_itr: int = 5,
+    file_to_align: str = &#34;seg&#34;,
+    num_cores: int = 1,
+    clobber: bool = False,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Align 2D sections to sections from reference volume using ANTs.
+
+    Description: Align 2D sections to sections from reference volume using ANTs. The steps of this function are:
+    1. Resample reference volume to the resolution of the reconstruction and to the section width along the y-axis
+    2. Create 2D sections from the resampled reference volume
+    3. Align 2D sections to sections from reference volume using ANTs
+    4. Concatenate 2D sections into output volumes
+
+    :param sect_info: dataframe containing section information
+    :param nl_2d_dir: directory to store intermediate files
+    :param seg_dir: directory to store intermediate files
+    :param ref_rsl_fn: filename of volume with 2d sections
+    :param resolution: resolution of the current iteration
+    :param resolution_itr: current iteration
+    :param resolution_list: list of resolutions
+    :param chunk_info: dataframe containing chunk information
+    :param resolution: resolution of the current iteration
+    :param resolution_itr: current iteration
+    :param resolution_list: list of resolutions
+    :param file_to_align: file to align
+    :param target_str: target string
+    :return: sect_info
+    &#34;&#34;&#34;
+    ref_iso_space_nat_fn, ref_space_nat_fn = resample_reference_to_sections(
+        float(resolution),
+        ref_rsl_fn,
+        seg_rsl_fn,
+        nl_3d_tfm_inv_fn,
+        section_thickness,
+        nl_2d_dir,
+    )
+
+    utils.create_2d_sections(
+        sect_info, ref_space_nat_fn, float(resolution), nl_2d_dir, dtype=np.uint8
+    )
+
+    print(&#34;\t\tStep 4: 2d nl alignment&#34;)
+
+    sect_info = align_sections(
+        sect_info,
+        ref_space_nat_fn,  # chunk_info[&#34;init_volume&#34;],
+        ref_space_nat_fn,
+        seg_dir + &#34;/2d/&#34;,
+        nl_2d_dir,
+        resolution,
+        resolution_itr,
+        resolution_list,
+        base_lin_itr=base_lin_itr,
+        base_nl_itr=base_nl_itr,
+        base_cc_itr=base_cc_itr,
+        num_cores=num_cores,
+        file_to_align=file_to_align,
+        clobber=clobber,
+    )
+
+    # Concatenate 2D nonlinear aligned sections into output volume
+    sect_info = concatenate_sections_to_volume(
+        sect_info, ref_space_nat_fn, nl_2d_dir, nl_2d_vol_fn
+    )
+
+    # Concatenate 2D nonlinear aligned cls sections into an output volume
+    sect_info = concatenate_sections_to_volume(
+        sect_info, ref_space_nat_fn, nl_2d_dir, nl_2d_cls_fn, target_str=&#34;cls_rsl&#34;
+    )
+
+    return sect_info, ref_space_nat_fn</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="brainbuilder.align.align_2d.affine_trials"><code class="name flex">
+<span>def <span class="ident">affine_trials</span></span>(<span>fx_fn: str, mv_fn: str, linParams: <a title="brainbuilder.utils.utils.AntsParams" href="../utils/utils.html#brainbuilder.utils.utils.AntsParams">AntsParams</a>, prefix: str, n_trials: int = 5, verbose: bool = False) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>About: Calculate affine transformation between volumes.</p>
+<p>Description: Try multiple affine transformations and return the best one based on dice score.
+:param fx_fn: fixed image filename
+:param mv_fn: moving image filename
+:param linParams: linear parameters
+:param prefix: prefix
+:param n_trials: number of trials
+:param verbose: verbose
+:return: affine_tfm</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def affine_trials(
+    fx_fn: str,
+    mv_fn: str,
+    linParams: AntsParams,
+    prefix: str,
+    n_trials: int = 5,
+    verbose: bool = False,
+) -&gt; str:
+    &#34;&#34;&#34;About: Calculate affine transformation between volumes.
+
+    Description: Try multiple affine transformations and return the best one based on dice score.
+    :param fx_fn: fixed image filename
+    :param mv_fn: moving image filename
+    :param linParams: linear parameters
+    :param prefix: prefix
+    :param n_trials: number of trials
+    :param verbose: verbose
+    :return: affine_tfm
+    &#34;&#34;&#34;
+    lin_transforms = [&#34;Rigid&#34;, &#34;Similarity&#34;, &#34;Affine&#34;]
+    max_dice = 0
+    best_trial = 0
+    affine_tfm_trials = {}
+
+    for trial in range(n_trials):
+        n = len(lin_transforms)
+        itr_list = [linParams.itr_str] * n
+        s_list = [linParams.s_str] * n
+        f_list = [linParams.f_str] * n
+
+        trial_prefix = prefix + f&#34;_trial-{trial}&#34;
+        affine_tfm, mv_rsl_fn = ants_registeration_2d_section(
+            fx_fn=fx_fn,
+            mv_fn=mv_fn,
+            itr_list=itr_list,
+            s_list=s_list,
+            f_list=f_list,
+            prefix=trial_prefix,
+            transforms=lin_transforms,
+            sampling=0.8,
+            metrics=[&#34;Mattes&#34;] * len(lin_transforms),
+            verbose=verbose,
+        )
+
+        trial_dice, _, _ = get_section_metric(
+            fx_fn, mv_rsl_fn, trial_prefix + &#34;_dice.png&#34;, 0, verbose=False
+        )
+
+        best_trial = trial if trial_dice &gt; max_dice else best_trial
+        max_dice = trial_dice if trial_dice &gt; max_dice else max_dice
+        affine_tfm_trials[trial] = affine_tfm
+
+    json.dump(affine_tfm_trials, open(f&#34;{prefix}_affine_tfm_trials.json&#34;, &#34;w&#34;))
+
+    for fn in glob.glob(f&#34;{prefix}/*trial-*&#34;):
+        if &#34;_trial-{best_trial}&#34; not in fn:
+            os.remove(fn)
+
+    affine_tfm = affine_tfm_trials[best_trial]
+
+    return affine_tfm</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.align_2d.align_2d"><code class="name flex">
+<span>def <span class="ident">align_2d</span></span>(<span>sect_info: pandas.core.frame.DataFrame, nl_2d_dir: str, seg_dir: str, ref_rsl_fn: str, resolution: float, resolution_itr: int, resolution_list: list, seg_rsl_fn: str, nl_3d_tfm_inv_fn: str, nl_2d_vol_fn: str, nl_2d_cls_fn: str, section_thickness: float, base_lin_itr: int = 100, base_nl_itr: int = 20, base_cc_itr: int = 5, file_to_align: str = 'seg', num_cores: int = 1, clobber: bool = False) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Align 2D sections to sections from reference volume using ANTs.</p>
+<p>Description: Align 2D sections to sections from reference volume using ANTs. The steps of this function are:
+1. Resample reference volume to the resolution of the reconstruction and to the section width along the y-axis
+2. Create 2D sections from the resampled reference volume
+3. Align 2D sections to sections from reference volume using ANTs
+4. Concatenate 2D sections into output volumes</p>
+<p>:param sect_info: dataframe containing section information
+:param nl_2d_dir: directory to store intermediate files
+:param seg_dir: directory to store intermediate files
+:param ref_rsl_fn: filename of volume with 2d sections
+:param resolution: resolution of the current iteration
+:param resolution_itr: current iteration
+:param resolution_list: list of resolutions
+:param chunk_info: dataframe containing chunk information
+:param resolution: resolution of the current iteration
+:param resolution_itr: current iteration
+:param resolution_list: list of resolutions
+:param file_to_align: file to align
+:param target_str: target string
+:return: sect_info</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def align_2d(
+    sect_info: pd.DataFrame,
+    nl_2d_dir: str,
+    seg_dir: str,
+    ref_rsl_fn: str,
+    resolution: float,
+    resolution_itr: int,
+    resolution_list: list,
+    seg_rsl_fn: str,
+    nl_3d_tfm_inv_fn: str,
+    nl_2d_vol_fn: str,
+    nl_2d_cls_fn: str,
+    section_thickness: float,
+    base_lin_itr: int = 100,
+    base_nl_itr: int = 20,
+    base_cc_itr: int = 5,
+    file_to_align: str = &#34;seg&#34;,
+    num_cores: int = 1,
+    clobber: bool = False,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Align 2D sections to sections from reference volume using ANTs.
+
+    Description: Align 2D sections to sections from reference volume using ANTs. The steps of this function are:
+    1. Resample reference volume to the resolution of the reconstruction and to the section width along the y-axis
+    2. Create 2D sections from the resampled reference volume
+    3. Align 2D sections to sections from reference volume using ANTs
+    4. Concatenate 2D sections into output volumes
+
+    :param sect_info: dataframe containing section information
+    :param nl_2d_dir: directory to store intermediate files
+    :param seg_dir: directory to store intermediate files
+    :param ref_rsl_fn: filename of volume with 2d sections
+    :param resolution: resolution of the current iteration
+    :param resolution_itr: current iteration
+    :param resolution_list: list of resolutions
+    :param chunk_info: dataframe containing chunk information
+    :param resolution: resolution of the current iteration
+    :param resolution_itr: current iteration
+    :param resolution_list: list of resolutions
+    :param file_to_align: file to align
+    :param target_str: target string
+    :return: sect_info
+    &#34;&#34;&#34;
+    ref_iso_space_nat_fn, ref_space_nat_fn = resample_reference_to_sections(
+        float(resolution),
+        ref_rsl_fn,
+        seg_rsl_fn,
+        nl_3d_tfm_inv_fn,
+        section_thickness,
+        nl_2d_dir,
+    )
+
+    utils.create_2d_sections(
+        sect_info, ref_space_nat_fn, float(resolution), nl_2d_dir, dtype=np.uint8
+    )
+
+    print(&#34;\t\tStep 4: 2d nl alignment&#34;)
+
+    sect_info = align_sections(
+        sect_info,
+        ref_space_nat_fn,  # chunk_info[&#34;init_volume&#34;],
+        ref_space_nat_fn,
+        seg_dir + &#34;/2d/&#34;,
+        nl_2d_dir,
+        resolution,
+        resolution_itr,
+        resolution_list,
+        base_lin_itr=base_lin_itr,
+        base_nl_itr=base_nl_itr,
+        base_cc_itr=base_cc_itr,
+        num_cores=num_cores,
+        file_to_align=file_to_align,
+        clobber=clobber,
+    )
+
+    # Concatenate 2D nonlinear aligned sections into output volume
+    sect_info = concatenate_sections_to_volume(
+        sect_info, ref_space_nat_fn, nl_2d_dir, nl_2d_vol_fn
+    )
+
+    # Concatenate 2D nonlinear aligned cls sections into an output volume
+    sect_info = concatenate_sections_to_volume(
+        sect_info, ref_space_nat_fn, nl_2d_dir, nl_2d_cls_fn, target_str=&#34;cls_rsl&#34;
+    )
+
+    return sect_info, ref_space_nat_fn</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.align_2d.align_2d_parallel"><code class="name flex">
+<span>def <span class="ident">align_2d_parallel</span></span>(<span>tfm_dir: str, mv_dir: str, resolution_itr: int, resolution: float, resolution_list: list, row: pandas.core.series.Series, file_to_align: str = 'seg', use_syn: bool = True, step: float = 0.5, bins: int = 32, base_lin_itr: int = 100, base_nl_itr: int = 30, base_cc_itr: int = 5, n_affine_trials: int = 5, verbose: bool = False) ‑> int</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Align 2d sections to sections.</p>
+<p>Description: Calculate affine and non-linear transformations using ANTs to register 2d sections.</p>
+<p>:param tfm_dir: directory to store intermediate files
+:param mv_dir: directory to store intermediate files
+:param resolution_itr: current iteration
+:param resolution: resolution of the current iteration
+:param resolution_list: list of resolutions
+:param row: row
+:param file_to_align: file to align
+:param use_syn: use syn registration
+:param step: step
+:param bins: bins
+:param base_lin_itr: number of iterations for linear alignment
+:param base_nl_itr: number of iterations for nonlinear alignment
+:param base_cc_itr: number of iterations for cross correlation
+:param n_affine_trials: number of affine trials
+:param verbose: verbose
+:return: 0</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def align_2d_parallel(
+    tfm_dir: str,
+    mv_dir: str,
+    resolution_itr: int,
+    resolution: float,
+    resolution_list: list,
+    row: pd.Series,
+    file_to_align: str = &#34;seg&#34;,
+    use_syn: bool = True,
+    step: float = 0.5,
+    bins: int = 32,
+    base_lin_itr: int = 100,
+    base_nl_itr: int = 30,
+    base_cc_itr: int = 5,
+    n_affine_trials: int = 5,
+    verbose: bool = False,
+) -&gt; int:
+    &#34;&#34;&#34;Align 2d sections to sections.
+
+    Description: Calculate affine and non-linear transformations using ANTs to register 2d sections.
+
+    :param tfm_dir: directory to store intermediate files
+    :param mv_dir: directory to store intermediate files
+    :param resolution_itr: current iteration
+    :param resolution: resolution of the current iteration
+    :param resolution_list: list of resolutions
+    :param row: row
+    :param file_to_align: file to align
+    :param use_syn: use syn registration
+    :param step: step
+    :param bins: bins
+    :param base_lin_itr: number of iterations for linear alignment
+    :param base_nl_itr: number of iterations for nonlinear alignment
+    :param base_cc_itr: number of iterations for cross correlation
+    :param n_affine_trials: number of affine trials
+    :param verbose: verbose
+    :return: 0
+    &#34;&#34;&#34;
+    # Set strings for alignment parameters
+    base_nl_itr = 30
+
+    linParams = AntsParams(resolution_list, resolution, base_lin_itr)
+
+    nlParams = AntsParams(resolution_list, resolution, base_nl_itr)
+
+    y = int(row[&#34;sample&#34;])
+    base = row[&#34;base&#34;]
+
+    prefix = f&#34;{tfm_dir}/{base}_y-{y}&#34;
+
+    affine_trial_dir = f&#34;{tfm_dir}/{base}_y-{y}_affine_trial/&#34;
+
+    affine_trial_prefix = f&#34;{affine_trial_dir}/{base}_y-{y}&#34;
+
+    fx_fn = gen_2d_fn(prefix, &#34;_fx&#34;)
+
+    if row[&#34;acquisition&#34;] in [&#34;myelin&#34;, &#34;cellbody&#34;]:
+        file_to_align = &#34;img&#34;
+
+    mv_fn = row[file_to_align]
+    print(mv_fn)
+
+    verbose = False
+    affine_tfm = affine_trials(
+        fx_fn, mv_fn, linParams, prefix, n_trials=n_affine_trials, verbose=verbose
+    )
+
+    syn_tfm, syn_vol = ants_registeration_2d_section(
+        fx_fn=fx_fn,
+        mv_fn=mv_fn,
+        itr_list=[nlParams.itr_str, 20],
+        s_list=[nlParams.s_str, 0],
+        f_list=[nlParams.f_str, 1],
+        prefix=prefix,
+        transforms=[&#34;SyN&#34;, &#34;SyN&#34;],
+        metrics=[&#34;Mattes&#34;, &#34;CC&#34;],
+        init_tfm=affine_tfm,
+        step=0.1,
+        verbose=verbose,
+    )
+
+    cmd = f&#34;antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {mv_fn} -r {fx_fn} -t {syn_tfm} -o {row[&#39;2d_align_cls&#39;]} &#34;
+
+    shell(cmd, True)
+
+    shutil.copy(syn_tfm, row[&#34;2d_tfm&#34;])
+
+    plt.imshow(nib.load(fx_fn).get_fdata())
+    plt.imshow(
+        nib.load(row[&#34;2d_align_cls&#34;]).get_fdata(), cmap=&#34;nipy_spectral&#34;, alpha=0.4
+    )
+    plt.savefig(f&#34;{prefix}_qc.png&#34;)
+
+    # assert np.sum(nib.load(prefix+&#39;_cls_rsl.nii.gz&#39;).dataobj) &gt; 0, &#39;Error: 2d affine transfromation failed&#39;
+    assert os.path.exists(
+        f&#34;{prefix}_cls_rsl.nii.gz&#34;
+    ), f&#34;Error: output does not exist {prefix}_cls_rsl.nii.gz&#34;
+
+    return 0</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.align_2d.align_sections"><code class="name flex">
+<span>def <span class="ident">align_sections</span></span>(<span>sect_info: pandas.core.frame.DataFrame, rec_fn: str, ref_fn: str, mv_dir: str, output_dir: str, resolution: float, resolution_itr: float, resolution_list: list, base_lin_itr: int = 100, base_nl_itr: int = 30, base_cc_itr: int = 5, file_to_align: str = 'seg', use_syn: bool = True, batch_processing: bool = False, num_cores: int = 0, n_tries: int = 5, verbose: bool = False, clobber: bool = False) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Align sections to sections from reference volume using ANTs.</p>
+<p>:param sect_info: dataframe containing information about sections
+:param rec_fn: filename of volume with 2d sections
+:param ref_fn: filename of reference volume transformed into acquisition space
+:param mv_dir: directory to store intermediate files
+:param output_dir: directory to store output files
+:param resolution: resolution to use for alignment
+:param resolution_itr: iteration of the resolution in the resolution list
+:param resolution_list: list of resolutions to use for alignment
+:param base_lin_itr: number of iterations for linear alignment
+:param base_nl_itr: number of iterations for nonlinear alignment
+:param base_cc_itr: number of iterations for cross correlation
+:param file_to_align: filename of file to align
+:param use_syn: use syn registration
+:param batch_processing: batch processing
+:param verbose: verbose
+:param clobber: clobber
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def align_sections(
+    sect_info: pd.DataFrame,
+    rec_fn: str,
+    ref_fn: str,
+    mv_dir: str,
+    output_dir: str,
+    resolution: float,
+    resolution_itr: float,
+    resolution_list: list,
+    base_lin_itr: int = 100,
+    base_nl_itr: int = 30,
+    base_cc_itr: int = 5,
+    file_to_align: str = &#34;seg&#34;,
+    use_syn: bool = True,
+    batch_processing: bool = False,
+    num_cores: int = 0,
+    n_tries: int = 5,
+    verbose: bool = False,
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Align sections to sections from reference volume using ANTs.
+
+    :param sect_info: dataframe containing information about sections
+    :param rec_fn: filename of volume with 2d sections
+    :param ref_fn: filename of reference volume transformed into acquisition space
+    :param mv_dir: directory to store intermediate files
+    :param output_dir: directory to store output files
+    :param resolution: resolution to use for alignment
+    :param resolution_itr: iteration of the resolution in the resolution list
+    :param resolution_list: list of resolutions to use for alignment
+    :param base_lin_itr: number of iterations for linear alignment
+    :param base_nl_itr: number of iterations for nonlinear alignment
+    :param base_cc_itr: number of iterations for cross correlation
+    :param file_to_align: filename of file to align
+    :param use_syn: use syn registration
+    :param batch_processing: batch processing
+    :param verbose: verbose
+    :param clobber: clobber
+    :return: None
+    &#34;&#34;&#34;
+    num_cores = cpu_count() if num_cores == 0 else num_cores
+
+    sect_info.reset_index(drop=True, inplace=True)
+
+    tfm_dir = output_dir + os.sep + &#34;tfm&#34;
+
+    sect_info = get_align_filenames(tfm_dir, sect_info)
+
+    # get lists of files that need to be aligned and resampled
+    to_do_sect_info, to_do_resample_sect_info = get_align_2d_to_do(sect_info)
+
+    if len(to_do_sect_info) &gt; 0:
+        Parallel(n_jobs=num_cores, backend=&#34;multiprocessing&#34;)(
+            delayed(align_2d_parallel)(
+                tfm_dir,
+                mv_dir,
+                resolution_itr,
+                resolution,
+                resolution_list,
+                row,
+                base_lin_itr=base_lin_itr,
+                base_nl_itr=base_nl_itr,
+                base_cc_itr=base_cc_itr,
+                file_to_align=file_to_align,
+                use_syn=use_syn,
+                verbose=verbose,
+            )
+            for row in to_do_sect_info
+        )
+
+    if len(to_do_resample_sect_info) &gt; 0:
+        Parallel(n_jobs=num_cores, backend=&#34;multiprocessing&#34;)(
+            delayed(apply_transforms_parallel)(
+                tfm_dir, mv_dir, resolution_itr, resolution, row
+            )
+            for row in to_do_resample_sect_info
+        )
+
+    return sect_info</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.align_2d.ants_registeration_2d_section"><code class="name flex">
+<span>def <span class="ident">ants_registeration_2d_section</span></span>(<span>fx_fn: str, mv_fn: str, itr_list: str, s_list: str, f_list: str, prefix: str, transforms: list, metrics: list, bins: int = 32, sampling: float = 0.9, step: float = 0.5, init_tfm: str = None, verbose: bool = False) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Use ANTs to register 2d sections.</p>
+<p>Description: Calculate a series of transformations using ANTs to register 2d sections based on user provided parameters.</p>
+<p>:param fx_fn: fixed image filename
+:param mv_fn: moving image filename
+:param itr_list: list of iterations
+:param s_list: list of smoothing factors
+:param f_list: list of downsample factor sizes
+:param prefix: prefix for output files
+:param transforms: list of transforms
+:param metrics: list of metrics
+:param bins: bins
+:param sampling: sampling
+:param step: step
+:param init_tfm: initial transform
+:param verbose: verbose
+:return: final_tfm, mv_rsl_fn</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def ants_registeration_2d_section(
+    fx_fn: str,
+    mv_fn: str,
+    itr_list: str,
+    s_list: str,
+    f_list: str,
+    prefix: str,
+    transforms: list,
+    metrics: list,
+    bins: int = 32,
+    sampling: float = 0.9,
+    step: float = 0.5,
+    init_tfm: str = None,
+    verbose: bool = False,
+) -&gt; tuple:
+    &#34;&#34;&#34;Use ANTs to register 2d sections.
+
+    Description: Calculate a series of transformations using ANTs to register 2d sections based on user provided parameters.
+
+    :param fx_fn: fixed image filename
+    :param mv_fn: moving image filename
+    :param itr_list: list of iterations
+    :param s_list: list of smoothing factors
+    :param f_list: list of downsample factor sizes
+    :param prefix: prefix for output files
+    :param transforms: list of transforms
+    :param metrics: list of metrics
+    :param bins: bins
+    :param sampling: sampling
+    :param step: step
+    :param init_tfm: initial transform
+    :param verbose: verbose
+    :return: final_tfm, mv_rsl_fn
+    &#34;&#34;&#34;
+    last_transform = None
+    last_metric = None
+
+    for transform, metric, f_str, s_str, itr_str in zip(
+        transforms, metrics, f_list, s_list, itr_list
+    ):
+        mv_rsl_fn = f&#34;{prefix}_{transform}_{metric}_cls_rsl.nii.gz&#34;
+
+        if not isinstance(last_transform, type(None)):
+            init_str = f&#34;--initial-moving-transform {prefix}_{last_transform}_{last_metric}_Composite.h5&#34;
+        elif isinstance(init_tfm, str) and os.path.exists(init_tfm):
+            init_str = f&#34;--initial-moving-transform {init_tfm}&#34;
+        else:
+            init_str = f&#34;--initial-moving-transform [{fx_fn},{mv_fn},1]&#34;
+
+        command_str = f&#34;antsRegistration -v {int(verbose)} -d 2    --write-composite-transform 1 {init_str} -o [{prefix}_{transform}_{metric}_,{mv_rsl_fn},/tmp/out_inv.nii.gz] -t {transform}[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} &#34;
+
+        last_transform = transform
+        last_metric = metric
+
+        if verbose:
+            print(command_str)
+
+        with open(prefix + f&#34;{transform}_{metric}_command.txt&#34;, &#34;w&#34;) as f:
+            f.write(command_str)
+
+        shell(command_str)
+
+    final_tfm = f&#34;{prefix}_{transforms[-1]}_{metrics[-1]}_Composite.h5&#34;
+
+    return final_tfm, mv_rsl_fn</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.align_2d.apply_transforms_parallel"><code class="name flex">
+<span>def <span class="ident">apply_transforms_parallel</span></span>(<span>tfm_dir: str, mv_dir: str, resolution_itr: int, resolution: float, row: pandas.core.series.Series) ‑> int</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Apply transforms to 2d sections.</p>
+<p>Description: Apply transforms to downsampled files to get the final 2d sections. A gaussian filter is used to pre-filter the images to avoid aliasing.</p>
+<p>:param tfm_dir: directory to store intermediate files
+:param mv_dir: directory to store intermediate files
+:param resolution_itr: current iteration
+:param resolution: resolution of the current iteration
+:param row: row
+:return: 0</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def apply_transforms_parallel(
+    tfm_dir: str,
+    mv_dir: str,
+    resolution_itr: int,
+    resolution: float,
+    row: pd.Series,
+) -&gt; int:
+    &#34;&#34;&#34;Apply transforms to 2d sections.
+
+    Description: Apply transforms to downsampled files to get the final 2d sections. A gaussian filter is used to pre-filter the images to avoid aliasing.
+
+    :param tfm_dir: directory to store intermediate files
+    :param mv_dir: directory to store intermediate files
+    :param resolution_itr: current iteration
+    :param resolution: resolution of the current iteration
+    :param row: row
+    :return: 0
+    &#34;&#34;&#34;
+    y = int(row[&#34;sample&#34;])
+    base = row[&#34;base&#34;]
+
+    prefix = f&#34;{tfm_dir}/{base}_y-{y}&#34;
+    img_rsl_fn = f&#34;{prefix}_{resolution}mm.nii.gz&#34;
+    out_fn = prefix + &#34;_rsl.nii.gz&#34;
+    fx_fn = gen_2d_fn(prefix, &#34;_fx&#34;)
+
+    img_fn = row[&#34;raw&#34;]
+    img = nib.load(img_fn)
+    img_res = np.array([img.affine[0, 0], img.affine[1, 1]])
+
+    if resolution != img_res[0] and resolution != img_res[1]:
+        sigma = utils.calculate_sigma_for_downsampling(resolution / img_res)
+
+        vol = img.get_fdata()
+
+        vol = gaussian_filter(vol, sigma)
+
+        nib.Nifti1Image(vol, img.affine, direction_order=&#34;lpi&#34;).to_filename(img_rsl_fn)
+    else:
+        shutil.symlink(img_fn, img_rsl_fn)
+
+    cmd = f&#34;antsApplyTransforms -v 0 -d 2 -n BSpline -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} &#34;
+
+    shell(cmd, True)
+
+    assert os.path.exists(f&#34;{out_fn}&#34;), &#34;Error apply nl 2d tfm to img autoradiograph&#34;
+    return 0</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.align_2d.concatenate_sections_to_volume"><code class="name flex">
+<span>def <span class="ident">concatenate_sections_to_volume</span></span>(<span>sect_info: pandas.core.frame.DataFrame, rec_fn: str, output_dir: str, out_fn: str, target_str: str = 'rsl') ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Concatenate 2D sections into output volume.</p>
+<p>Description: Concatenate 2D sections into output volume. The steps of this function are:</p>
+<p>:param sect_info: dataframe containing section information
+:param rec_fn: filename of volume with 2d sections
+:param output_dir: directory to store output files
+:param out_fn: output filename
+:param target_str: target string
+:return: sect_info</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def concatenate_sections_to_volume(
+    sect_info: pd.DataFrame,
+    rec_fn: str,
+    output_dir: str,
+    out_fn: str,
+    target_str: str = &#34;rsl&#34;,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Concatenate 2D sections into output volume.
+
+    Description: Concatenate 2D sections into output volume. The steps of this function are:
+
+    :param sect_info: dataframe containing section information
+    :param rec_fn: filename of volume with 2d sections
+    :param output_dir: directory to store output files
+    :param out_fn: output filename
+    :param target_str: target string
+    :return: sect_info
+    &#34;&#34;&#34;
+    exit_flag = False
+    tfm_dir = output_dir + os.sep + &#34;tfm&#34;
+
+    hires_img = nib.load(rec_fn)
+    out_vol = np.zeros(hires_img.shape)
+    target_name = &#34;nl_2d_&#34; + target_str
+
+    sect_info[target_name] = [&#34;&#34;] * sect_info.shape[0]
+
+    for idx, (i, row) in enumerate(sect_info.iterrows()):
+        y = int(row[&#34;sample&#34;])
+        base = row[&#34;base&#34;]
+        f&#34;{tfm_dir}/{base}_y-{y}&#34;
+        fn = f&#34;{tfm_dir}/{base}_y-{y}_{target_str}.nii.gz&#34;
+
+        sect_info[target_name].loc[i] = fn
+
+    if not os.path.exists(out_fn):
+        for idx, (i, row) in enumerate(sect_info.iterrows()):
+            fn = sect_info[target_name].loc[i]
+            y = int(row[&#34;sample&#34;])
+
+            try:
+                sec = nibabel.load(fn).get_fdata()
+
+                out_vol[:, int(y), :] = sec
+            except EOFError:
+                print(&#34;Error:&#34;, fn)
+                os.remove(fn)
+                exit_flag = True
+
+            if exit_flag:
+                exit(1)
+
+        print(&#34;\t\tWriting 3D non-linear:&#34;, out_fn)
+
+        dtype = np.float32
+        if target_str == &#34;cls_rsl&#34;:
+            dtype = np.uint8
+        print(f&#34;Writing: {out_fn} dtype: {dtype}&#34;)
+
+        nib.Nifti1Image(
+            out_vol, hires_img.affine, dtype=np.float32, direction_order=&#34;lpi&#34;
+        ).to_filename(out_fn)
+
+    return sect_info</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.align_2d.get_align_2d_to_do"><code class="name flex">
+<span>def <span class="ident">get_align_2d_to_do</span></span>(<span>sect_info: pandas.core.frame.DataFrame, clobber: bool = False) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get files that need to be aligned.</p>
+<p>Description: Get list of files that need to be aligned and resampled based on whether tfm_fn and cls_fn exist.</p>
+<p>:param sect_info: dataframe containing section information
+:param clobber: clobber
+:return: to_do_sect_info, to_do_resample_sect_info</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_align_2d_to_do(sect_info: pd.DataFrame, clobber: bool = False) -&gt; tuple:
+    &#34;&#34;&#34;Get files that need to be aligned.
+
+    Description: Get list of files that need to be aligned and resampled based on whether tfm_fn and cls_fn exist.
+
+    :param sect_info: dataframe containing section information
+    :param clobber: clobber
+    :return: to_do_sect_info, to_do_resample_sect_info
+    &#34;&#34;&#34;
+    to_do_sect_info = []
+    to_do_resample_sect_info = []
+
+    for idx, (i, row) in enumerate(sect_info.iterrows()):
+        cls_fn = row[&#34;2d_align_cls&#34;]
+        tfm_fn = row[&#34;2d_tfm&#34;]
+        out_fn = row[&#34;2d_align&#34;]
+
+        if not os.path.exists(tfm_fn) or not os.path.exists(cls_fn) or clobber:
+            to_do_sect_info.append(row)
+
+        if not os.path.exists(out_fn):
+            to_do_resample_sect_info.append(row)
+
+    return to_do_sect_info, to_do_resample_sect_info</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.align_2d.get_align_filenames"><code class="name flex">
+<span>def <span class="ident">get_align_filenames</span></span>(<span>tfm_dir: str, sect_info: pandas.core.frame.DataFrame) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get filenames for alignment.</p>
+<p>:param tfm_dir: directory to store intermediate files
+:param sect_info: dataframe containing section information
+:return: sect_info</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_align_filenames(
+    tfm_dir: str,
+    sect_info: pd.DataFrame,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Get filenames for alignment.
+
+    :param tfm_dir: directory to store intermediate files
+    :param sect_info: dataframe containing section information
+    :return: sect_info
+    &#34;&#34;&#34;
+    os.makedirs(tfm_dir, exist_ok=True)
+
+    sect_info[&#34;2d_tfm_affine&#34;] = [&#34;&#34;] * sect_info.shape[0]
+    sect_info[&#34;2d_tfm&#34;] = [&#34;&#34;] * sect_info.shape[0]
+    sect_info[&#34;2d_align&#34;] = [&#34;&#34;] * sect_info.shape[0]
+    sect_info[&#34;2d_align_cls&#34;] = [&#34;&#34;] * sect_info.shape[0]
+
+    for idx, (i, row) in enumerate(sect_info.iterrows()):
+        y = int(row[&#34;sample&#34;])
+        base = row[&#34;base&#34;]
+        prefix = f&#34;{tfm_dir}/{base}_y-{y}&#34;
+        cls_fn = prefix + &#34;_cls_rsl.nii.gz&#34;
+        out_fn = prefix + &#34;_rsl.nii.gz&#34;
+        tfm_fn = prefix + &#34;_Composite.h5&#34;
+        tfm_affine_fn = prefix + &#34;_Affine_Composite.h5&#34;
+
+        sect_info[&#34;2d_tfm&#34;].iloc[idx] = tfm_fn
+        sect_info[&#34;2d_tfm_affine&#34;].iloc[idx] = tfm_affine_fn
+
+        sect_info[&#34;2d_align_cls&#34;].iloc[idx] = cls_fn
+        sect_info[&#34;2d_align&#34;].iloc[idx] = out_fn
+
+    return sect_info</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.align.align_2d.resample_reference_to_sections"><code class="name flex">
+<span>def <span class="ident">resample_reference_to_sections</span></span>(<span>resolution: float, input_fn: str, ref_fn: str, tfm_inv_fn: str, section_thickeness: float, output_dir: str, clobber: bool = False) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Apply 3d transformation and resample volume into the same coordinate space as 3d receptor volume.</p>
+<pre><code>The steps of this function are:
+1. Apply 3d transformation to the reference volume
+2. Resample the transformed volume to the resolution of the reconstruction
+3. Resample the transformed volume to the resolution of the section width on the y axis and the resolution of the reconstruction on the x and z axis
+</code></pre>
+<h2 id="inputs">Inputs</h2>
+<p>:param resolution:
+current resolution level
+:param input_fn:
+gm super-resolution volume (srv) extracted from donor brain
+:param ref_fn:
+brain mask of segmented autoradiographs
+:param tfm_inv_fn:
+3d transformation from mni to receptor coordinate space
+:return iso_output_fn:
+gm srv volume in receptor coordinate space with isotropic voxels at <resolution>mm
+:return output_fn:
+gm srv volume in receptor coordinate space with <section_thickness> dimension size along the y axis</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def resample_reference_to_sections(
+    resolution: float,
+    input_fn: str,
+    ref_fn: str,
+    tfm_inv_fn: str,
+    section_thickeness: float,
+    output_dir: str,
+    clobber: bool = False,
+) -&gt; tuple:
+    &#34;&#34;&#34;Apply 3d transformation and resample volume into the same coordinate space as 3d receptor volume.
+
+        The steps of this function are:
+        1. Apply 3d transformation to the reference volume
+        2. Resample the transformed volume to the resolution of the reconstruction
+        3. Resample the transformed volume to the resolution of the section width on the y axis and the resolution of the reconstruction on the x and z axis
+
+    Inputs:
+        :param resolution:     current resolution level
+        :param input_fn:     gm super-resolution volume (srv) extracted from donor brain
+        :param ref_fn:     brain mask of segmented autoradiographs
+        :param tfm_inv_fn:   3d transformation from mni to receptor coordinate space
+        :return iso_output_fn:   gm srv volume in receptor coordinate space with isotropic voxels at &lt;resolution&gt;mm
+        :return output_fn:  gm srv volume in receptor coordinate space with &lt;section_thickness&gt; dimension size along the y axis
+    &#34;&#34;&#34;
+    basename = os.path.basename(input_fn).split(&#34;.&#34;)[0]
+
+    iso_output_fn = f&#34;{output_dir}/{basename}_{resolution}mm_iso.nii.gz&#34;
+    output_fn = f&#34;{output_dir}/{basename}_{resolution}mm_space-nat.nii.gz&#34;
+
+    if not os.path.exists(iso_output_fn) or not os.path.exists(output_fn) or clobber:
+        # Apply 3d transformation to the reference volume
+        rand = tempfile.NamedTemporaryFile().name
+        rand_fn = f&#34;{rand}.nii.gz&#34;
+        utils.simple_ants_apply_tfm(input_fn, ref_fn, tfm_inv_fn, rand_fn, ndim=3)
+
+        img = nib.load(rand_fn)
+        vol = img.get_fdata()
+
+        assert np.sum(vol) &gt; 0, f&#34;Error: empty volume {iso_output_fn}&#34;
+
+        aff = img.affine.copy()
+
+        vol = (255 * (vol - vol.min()) / (vol.max() - vol.min())).astype(np.uint8)
+
+        # Resample the transformed volume to the resolution of the reconstruction
+        img_iso = resample_to_resolution(
+            vol,
+            [float(resolution)] * 3,
+            order=3,
+            affine=aff,
+            dtype=np.uint16,
+        )
+
+        img_iso.to_filename(iso_output_fn)
+
+        aff = img.affine.copy()
+
+        # Resample the transformed volume to the resolution of the section width on the y axis and the resolution of the reconstruction on the x and z axis
+        img3 = resample_to_resolution(
+            vol,
+            [float(resolution), section_thickeness, float(resolution)],
+            affine=aff,
+            order=1,
+            dtype=np.uint16,
+        )
+        img3.to_filename(output_fn)
+
+        os.remove(rand_fn)
+
+    return iso_output_fn, output_fn</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="brainbuilder.align" href="index.html">brainbuilder.align</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="brainbuilder.align.align_2d.affine_trials" href="#brainbuilder.align.align_2d.affine_trials">affine_trials</a></code></li>
+<li><code><a title="brainbuilder.align.align_2d.align_2d" href="#brainbuilder.align.align_2d.align_2d">align_2d</a></code></li>
+<li><code><a title="brainbuilder.align.align_2d.align_2d_parallel" href="#brainbuilder.align.align_2d.align_2d_parallel">align_2d_parallel</a></code></li>
+<li><code><a title="brainbuilder.align.align_2d.align_sections" href="#brainbuilder.align.align_2d.align_sections">align_sections</a></code></li>
+<li><code><a title="brainbuilder.align.align_2d.ants_registeration_2d_section" href="#brainbuilder.align.align_2d.ants_registeration_2d_section">ants_registeration_2d_section</a></code></li>
+<li><code><a title="brainbuilder.align.align_2d.apply_transforms_parallel" href="#brainbuilder.align.align_2d.apply_transforms_parallel">apply_transforms_parallel</a></code></li>
+<li><code><a title="brainbuilder.align.align_2d.concatenate_sections_to_volume" href="#brainbuilder.align.align_2d.concatenate_sections_to_volume">concatenate_sections_to_volume</a></code></li>
+<li><code><a title="brainbuilder.align.align_2d.get_align_2d_to_do" href="#brainbuilder.align.align_2d.get_align_2d_to_do">get_align_2d_to_do</a></code></li>
+<li><code><a title="brainbuilder.align.align_2d.get_align_filenames" href="#brainbuilder.align.align_2d.get_align_filenames">get_align_filenames</a></code></li>
+<li><code><a title="brainbuilder.align.align_2d.resample_reference_to_sections" href="#brainbuilder.align.align_2d.resample_reference_to_sections">resample_reference_to_sections</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

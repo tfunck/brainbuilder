@@ -1,0 +1,1109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>brainbuilder.interp.prepare_surfaces API documentation</title>
+<meta name="description" content="Prepare surfaces for surface-based interpolation." />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>brainbuilder.interp.prepare_surfaces</code></h1>
+</header>
+<section id="section-intro">
+<p>Prepare surfaces for surface-based interpolation.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;Prepare surfaces for surface-based interpolation.&#34;&#34;&#34;
+import os
+import re
+from typing import Optional, Tuple
+
+import nibabel as nb_surf
+import numpy as np
+import pandas as pd
+
+import brainbuilder.utils.ants_nibabel as nib
+from brainbuilder.utils import utils
+from brainbuilder.utils.mesh_io import load_mesh, load_mesh_ext, write_gifti
+from brainbuilder.utils.mesh_utils import (
+    apply_ants_transform_to_gii,
+    mesh_to_volume,
+    upsample_over_faces,
+)
+from brainbuilder.utils.utils import shell
+
+
+def transform_surface_to_chunks(
+    chunk_info: pd.DataFrame,
+    depth: float,
+    out_dir: str,
+    surf_fn: str,
+    ref_gii_fn: Optional[str] = None,
+    faces_fn: Optional[str] = None,
+    ext: str = &#34;.surf.gii&#34;,
+) -&gt; dict:
+    &#34;&#34;&#34;Transform a surface to the histological space of each chunk.
+    
+    :param chunk_info: pd.DataFrame, chunk information
+    :param depth: float, cortical depth
+    :param out_dir: str, path to output directory
+    :param surf_fn: str, path to surface file
+    :param ref_gii_fn: str, path to reference surface file
+    :param faces_fn: str, path to faces file
+    :param ext: str, extension of surface file
+    :return dict: surf_chunk_dict
+    &#34;&#34;&#34;
+    surf_chunk_dict = {}
+
+    for (sub, hemisphere, chunk), chunk_df in chunk_info.groupby(
+        [
+            &#34;sub&#34;,
+            &#34;hemisphere&#34;,
+            &#34;chunk&#34;,
+        ]
+    ):
+        thickened_fn = chunk_df[&#34;nl_2d_vol_fn&#34;].values[0]
+        nl_3d_tfm_fn = chunk_df[&#34;nl_3d_tfm_fn&#34;].values[0]
+        surf_chunk_space_fn = f&#34;{out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{os.path.basename(surf_fn)}&#34;
+
+        surf_chunk_dict[chunk] = surf_chunk_space_fn
+
+        if not os.path.exists(surf_chunk_space_fn) or utils.newer_than(
+            nl_3d_tfm_fn, surf_chunk_space_fn
+        ):
+            print(&#34;\tFROM:&#34;, surf_fn)
+            print(&#34;\tTO:&#34;, surf_chunk_space_fn)
+            print(&#34;\tWITH:&#34;, nl_3d_tfm_fn)
+            print(&#34;\tREF:&#34;, thickened_fn)
+
+            apply_ants_transform_to_gii(
+                surf_fn,
+                [nl_3d_tfm_fn],
+                surf_chunk_space_fn,
+                0,
+                ref_gii_fn=ref_gii_fn,
+                faces_fn=faces_fn,
+                ref_vol_fn=thickened_fn,
+            )
+    return surf_chunk_dict
+
+
+def prepare_surfaces(
+    chunk_info: pd.DataFrame,
+    ref_vol_fn: str,
+    gm_surf_fn: str,
+    wm_surf_fn: str,
+    depth_list: list,
+    output_dir: str,
+    resolution: float,
+    verbose: bool = False,
+    clobber: bool = False,
+)-&gt; tuple:
+    &#34;&#34;&#34;Prepare surfaces for surface-based interpolation.
+
+    :param chunk_info_csv: path to the chunk info csv
+    :param ref_vol_fn: path to the structural reference volume
+    :param gm_surf_fn: path to the gray matter surface
+    :param wm_surf_fn: path to the white matter surface
+    :param depth_list: list of cortical depths
+    :param output_dir: output directory
+    :param resolution: resolution of the surfaces
+    :param clobber: bool
+    :return dict: surf_depth_mni_dict, surf_depth_chunk_dict
+    &#34;&#34;&#34;
+    os.makedirs(output_dir, exist_ok=True)
+
+    print(&#34;\tGenerating surfaces across cortical depth.&#34;)
+    surf_depth_mni_dict = generate_cortical_depth_surfaces(
+        ref_vol_fn,
+        depth_list,
+        resolution,
+        wm_surf_fn,
+        gm_surf_fn,
+        output_dir,
+    )
+
+    print(&#34;\tInflating surfaces.&#34;)
+    surf_depth_mni_dict = inflate_surfaces(
+        surf_depth_mni_dict, output_dir, resolution, depth_list, clobber=clobber
+    )
+
+    print(&#34;\tUpsampling surfaces.&#34;)
+    surf_depth_mni_dict = upsample_surfaces(
+        surf_depth_mni_dict,
+        output_dir,
+        gm_surf_fn,
+        resolution,
+        depth_list,
+        ref_vol_fn,
+        clobber=clobber,
+    )
+
+    # For each chunk, transform the mesh surface to the receptor space
+    print(&#34;\tTransforming surfaces to chunk space.&#34;)
+    surf_depth_chunk_dict = transfrom_depth_surf_to_chunk_space(
+        chunk_info, surf_depth_mni_dict, output_dir
+    )
+
+    return surf_depth_mni_dict, surf_depth_chunk_dict
+
+
+def transfrom_depth_surf_to_chunk_space(
+    chunk_info: pd.DataFrame, surf_depth_mni_dict: dict, surf_rsl_dir: str
+)-&gt; dict:
+    &#34;&#34;&#34;For each chunk, transform the mesh surface to the histological space.
+
+    :param chunk_info: pd.DataFrame, chunk information
+    :param surf_depth_mni_dict: dict, keys are cortical depths, values are dicts containing surfaces in reference space
+    :param surf_rsl_dir: str, path to output directory
+    :return surf_depth_chunk_dict : dict, keys are cortical depths, values are dicts containing surfaces in histological space of each chunk
+    &#34;&#34;&#34;
+    surf_depth_chunk_dict = {}
+
+    for depth, depth_dict in surf_depth_mni_dict.items():
+        faces_fn = None
+
+        ref_gii_fn = depth_dict[&#34;depth_surf_fn&#34;]
+
+        surf_fn = depth_dict[&#34;depth_rsl_fn&#34;]
+
+        surf_chunk_dict = transform_surface_to_chunks(
+            chunk_info,
+            depth,
+            surf_rsl_dir,
+            surf_fn,
+            faces_fn=faces_fn,
+            ref_gii_fn=ref_gii_fn,
+        )
+
+        surf_depth_chunk_dict[float(depth)] = surf_chunk_dict
+
+    return surf_depth_chunk_dict
+
+
+def get_surf_base(surf_fn: str) -&gt; str:
+    &#34;&#34;&#34;Get the basename of a surface file.
+
+    :param surf_fn: str, path to surface file
+    :return str: basename of surface file
+    &#34;&#34;&#34;
+    surf_base = os.path.basename(surf_fn)
+    for string in [&#34;.pial&#34;, &#34;.smoothwm&#34;, &#34;.gz&#34;, &#34;.gii&#34;, &#34;.surf&#34;]:
+        surf_base = re.sub(string, &#34;&#34;, surf_base)
+
+    return surf_base
+
+
+def generate_cortical_depth_surfaces(
+    ref_vol_fn: str,
+    depth_list: list,
+    resolution: float,
+    wm_surf_fn: str,
+    gm_surf_fn: str,
+    output_dir: str,
+) -&gt; dict:
+    &#34;&#34;&#34;Generate cortical depth surfaces.
+
+    :param ref_vol_fn: str, path to reference volume file
+    :param depth_list: list, cortical depths
+    :param resolution: float, maximum resolution of the reconstruction
+    :param wm_surf_fn: str, path to white matter surface file
+    :param gm_surf_fn: str, path to gray matter surface file
+    :param output_dir: str, path to output directory
+    :return dict: surf_depth_mni_dict
+    &#34;&#34;&#34;
+    surf_depth_mni_dict = {}
+
+    img = nb_surf.load(ref_vol_fn)
+    dimensions = img.shape
+    steps = img.affine[[0, 1, 2], [0, 1, 2]]
+    starts = img.affine[[0, 1, 2], [3, 3, 3]]
+
+    gm_coords, gm_faces, gm_info = load_mesh(gm_surf_fn, correct_offset=True)
+    wm_coords, wm_faces, wm_info = load_mesh(wm_surf_fn, correct_offset=True)
+
+    d_coords = wm_coords - gm_coords
+
+    del wm_coords
+
+    surf_base = get_surf_base(gm_surf_fn)
+
+    for depth in depth_list:
+        depth_surf_fn = &#34;{}/{}_{}mm_{}.surf.gii&#34;.format(
+            output_dir,
+            surf_base,
+            resolution,
+            depth,
+        )
+        depth_vol_fn = &#34;{}/{}_{}mm_{}.nii.gz&#34;.format(
+            output_dir, surf_base, resolution, depth
+        )
+
+        surf_depth_mni_dict[depth] = {&#34;depth_surf_fn&#34;: depth_surf_fn}
+
+        coords = gm_coords + depth * d_coords
+
+        if not os.path.exists(depth_surf_fn):
+            write_gifti(depth_surf_fn, coords, gm_faces)
+
+            # Create a volume of the cortical depth surface for QC purposes
+            interp_vol, _ = mesh_to_volume(
+                coords, np.ones(coords.shape[0]), dimensions, starts, steps
+            )
+            print(&#34;\tWriting&#34;, depth_vol_fn)
+            nib.Nifti1Image(
+                interp_vol, nib.load(ref_vol_fn).affine, direction_order=&#34;lpi&#34;
+            ).to_filename(depth_vol_fn)
+
+    return surf_depth_mni_dict
+
+
+def inflate_surfaces(
+    surf_depth_mni_dict: dict,
+    output_dir: str,
+    resolution: float,
+    depth_list: list,
+    clobber: bool = False,
+) -&gt; dict:
+    &#34;&#34;&#34;Upsampling of meshes at various depths across cortex produces meshes with different n vertices.
+
+     To create a set of meshes across the surfaces across the cortex that have the same number of
+     vertices, we first upsample and inflate the wm mesh.
+     Then, for each mesh across the cortex we resample that mesh so that it has the same polygons
+     and hence the same number of vertices as the wm mesh.
+     Each mesh across the cortical depth is inflated (from low resolution, not the upsampled version)
+     and then resampled so that it has the high resolution number of vertices.
+
+    :param surf_depth_mni_dict: dict, keys are cortical depths, values are dicts containing surfaces in stereotaxic space
+    :param output_dir: str, path to output directory
+    :param resolution: float, maximum resolution of the reconstruction
+    :param depth_list: list, cortical depths
+    :param clobber: bool, whether to overwrite existing files
+    :return dict: surf_depth_mni_dict
+    &#34;&#34;&#34;
+    for depth in depth_list:
+        depth += 0.0
+        depth_surf_fn = surf_depth_mni_dict[float(depth)][&#34;depth_surf_fn&#34;]
+
+        base_surf = re.sub(&#34;.surf.gii&#34;, &#34;&#34;, os.path.basename(depth_surf_fn))
+
+        inflate_fn = &#34;{}/{}_{}mm_{}.inflate&#34;.format(
+            output_dir, base_surf, resolution, depth
+        )
+        sphere_fn = &#34;{}/{}_{}mm_{}.sphere&#34;.format(
+            output_dir, base_surf, resolution, depth
+        )
+        sphere_rsl_fn = &#34;{}/{}_{}mm_{}_sphere_rsl.npz&#34;.format(
+            output_dir, base_surf, resolution, depth
+        )
+        surf_depth_mni_dict[depth][&#34;sphere_rsl_fn&#34;] = sphere_rsl_fn
+        surf_depth_mni_dict[depth][&#34;sphere_fn&#34;] = sphere_fn
+        surf_depth_mni_dict[depth][&#34;inflate_fn&#34;] = inflate_fn
+
+        if not os.path.exists(sphere_fn) or clobber:
+            print(&#34;\tInflate to sphere&#34;)
+            shell(f&#34;~/freesurfer/bin/mris_inflate -n 100  {depth_surf_fn} {inflate_fn}&#34;)
+            print(f&#34;\t\t{inflate_fn}&#34;)
+            shell(f&#34;~/freesurfer/bin/mris_sphere -q  {inflate_fn} {sphere_fn}&#34;)
+            print(f&#34;\t\t{sphere_fn}&#34;)
+
+    return surf_depth_mni_dict
+
+
+def generate_face_and_coord_mask(
+        edge_mask_idx: np.ndarray,
+        faces: np.ndarray,
+        coords: np.ndarray
+        ) -&gt; Tuple[np.ndarray, np.ndarray]:
+    &#34;&#34;&#34;Generate face and coordinate masks.
+
+    :param edge_mask_idx: np.ndarray, indices of the edge mask
+    :param faces: np.ndarray, faces of the mesh
+    :param coords: np.ndarray, coordinates of the mesh
+    :return np.ndarray: face_mask
+    :return np.ndarray: coord_mask
+    &#34;&#34;&#34;
+    mask_idx_unique = np.unique(edge_mask_idx)
+    n = max(faces.shape[0], coords.shape[0])
+
+    face_mask = np.zeros(faces.shape[0]).astype(np.bool)
+    coord_mask = np.zeros(coords.shape[0]).astype(np.bool)
+
+    for i in range(n):
+        if i &lt; faces.shape[0]:
+            f0, f1, f2 = faces[i]
+            if f0 in mask_idx_unique:
+                face_mask[i] = True
+            if f1 in mask_idx_unique:
+                face_mask[i] = True
+            if f2 in mask_idx_unique:
+                face_mask[i] = True
+        if i &lt; coords.shape[0]:
+            if i in mask_idx_unique:
+                coord_mask[i] = True
+    return face_mask, coord_mask
+
+
+def resample_points(surf_fn:str, new_points_gen: list)-&gt; tuple:
+    &#34;&#34;&#34;Resample points on a mesh surface using the new points generator class.
+
+    Basically the new points generator class generates new points on the surface of the mesh based on
+    the surface triangle around the point.
+    
+    :param surf_fn: str, path to surface file
+    :param new_points_gen: list, new points generator class
+    :return np.ndarray: new_points
+    :return np.ndarray: points
+    &#34;&#34;&#34;
+    points, faces = load_mesh_ext(surf_fn)
+    n = len(new_points_gen)
+
+    new_points = np.zeros([n, 3])
+
+    for i, gen in enumerate(new_points_gen):
+        new_points[i] = gen.generate_point(points)
+
+    # new_points, unique_index, unique_reverse = unique_points(new_points)
+    new_points += np.random.normal(0, 0.0001, new_points.shape)
+    return new_points, points
+
+
+def upsample_surfaces(
+    surf_depth_mni_dict: dict,
+    output_dir: str,
+    gm_surf_fn: str,
+    resolution: float,
+    depth_list: list,
+    ref_vol_fn: str,
+    clobber: bool = False,
+) -&gt; dict:
+    &#34;&#34;&#34;Upsample surfaces across cortical depth.
+
+    :param surf_depth_mni_dict: dict, keys are cortical depths, values are dicts containing surfaces in stereotaxic space
+    :param output_dir: str, path to output directory
+    :param gm_surf_fn: str, path to gray matter surface
+    :param resolution: float, maximum resolution of the reconstruction
+    :param depth_list: list, cortical depths
+    :param ref_vol_fn: str, path to structural reference volume
+    :param clobber: bool, whether to overwrite existing files
+    :return dict: surf_depth_mni_dict
+    &#34;&#34;&#34;
+    surf_base = get_surf_base(gm_surf_fn)
+
+    &#34;{}/{}_{}mm_{}_rsl.obj&#34;.format(output_dir, surf_base, resolution, 0)
+    upsample_0_fn = &#34;{}/surf_{}mm_{}_rsl.surf.gii&#34;.format(
+        output_dir, resolution, depth_list[0]
+    )
+    upsample_1_fn = &#34;{}/{}_{}mm_{}_rsl.surf.gii&#34;.format(
+        output_dir, surf_base, resolution, depth_list[-1]
+    )
+    input_list = []
+    output_list = []
+
+    for depth in depth_list:
+        depth_rsl_gii = &#34;{}/{}_{}mm_{}_rsl.surf.gii&#34;.format(
+            output_dir, surf_base, resolution, depth
+        )
+        depth_rsl_fn = &#34;{}/{}_{}mm_{}_rsl.npz&#34;.format(
+            output_dir, surf_base, resolution, depth
+        )
+
+        surf_depth_mni_dict[depth][&#34;depth_rsl_fn&#34;] = depth_rsl_fn
+        surf_depth_mni_dict[depth][&#34;depth_rsl_gii&#34;] = depth_rsl_gii
+
+        depth_surf_fn = surf_depth_mni_dict[depth][&#34;depth_surf_fn&#34;]
+        sphere_fn = surf_depth_mni_dict[depth][&#34;sphere_fn&#34;]
+        sphere_rsl_fn = surf_depth_mni_dict[depth][&#34;sphere_rsl_fn&#34;]
+
+        input_list += [depth_surf_fn, sphere_fn]
+        output_list += [depth_rsl_fn, sphere_rsl_fn]
+
+    surf_depth_mni_dict[depth_list[0]][&#34;depth_rsl_gii&#34;] = upsample_0_fn
+    surf_depth_mni_dict[depth_list[-1]][&#34;depth_rsl_gii&#34;] = upsample_1_fn
+
+    # DEBUG put the next few lines incase want to try face upsampling instead of full surf upsampling
+    ref_gii_fn = surf_depth_mni_dict[0][&#34;depth_surf_fn&#34;]
+    surf_depth_mni_dict[0][&#34;depth_rsl_gii&#34;]
+    ref_rsl_npy_fn = re.sub(&#34;.surf.gii&#34;, &#34;&#34;, surf_depth_mni_dict[0][&#34;depth_rsl_gii&#34;])
+    re.sub(&#34;.nii.gz&#34;, &#34;_ngh&#34;, surf_depth_mni_dict[0][&#34;depth_rsl_gii&#34;])
+    coords, faces, volume_info = load_mesh(ref_gii_fn)
+
+    if False in [os.path.exists(fn) for fn in output_list + [ref_rsl_npy_fn + &#34;.npz&#34;]]:
+        points, _, new_points_gen = upsample_over_faces(
+            ref_gii_fn, resolution, ref_rsl_npy_fn
+        )
+
+        img = nb_surf.load(ref_vol_fn)
+        steps = img.affine[[0, 1, 2], [0, 1, 2]]
+        starts = img.affine[[0, 1, 2], 3]
+        dimensions = img.shape
+        interp_vol, _ = mesh_to_volume(
+            points, np.ones(points.shape[0]), dimensions, starts, steps
+        )
+        nib.Nifti1Image(
+            interp_vol, nib.load(ref_vol_fn).affine, direction_order=&#34;lpi&#34;
+        ).to_filename(f&#34;{output_dir}/surf_{resolution}mm_{depth}_rsl.nii.gz&#34;)
+
+        print(&#34;Upsampled points&#34;, points.shape, len(new_points_gen))
+
+        ref_points = np.load(ref_rsl_npy_fn + &#34;.npz&#34;)[&#34;points&#34;]
+        n_points = ref_points.shape[0]
+
+        for in_fn, out_fn in zip(input_list, output_list):
+            points, old_points = resample_points(in_fn, new_points_gen)
+            # full = np.arange(points.shape[0]).astype(int)
+
+            assert (
+                n_points == points.shape[0]
+            ), f&#34;Error: mismatch in number of points in mesh between {n_points} and {points.shape[0]}&#34;
+
+            nii_fn = os.path.splitext(out_fn)[0] + &#34;.nii.gz&#34;
+            nib.Nifti1Image(
+                interp_vol, nib.load(ref_vol_fn).affine, direction_order=&#34;lpi&#34;
+            ).to_filename(nii_fn)
+            print(&#34;\tWriting (nifti):&#34;, nii_fn)
+            assert points.shape[1], (
+                &#34;Error: shape of points is incorrect &#34; + points.shape
+            )
+            np.savez(out_fn, points=points)
+            print(&#34;\tWriting (npz)&#34;, out_fn)
+    return surf_depth_mni_dict</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="brainbuilder.interp.prepare_surfaces.generate_cortical_depth_surfaces"><code class="name flex">
+<span>def <span class="ident">generate_cortical_depth_surfaces</span></span>(<span>ref_vol_fn: str, depth_list: list, resolution: float, wm_surf_fn: str, gm_surf_fn: str, output_dir: str) ‑> dict</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Generate cortical depth surfaces.</p>
+<p>:param ref_vol_fn: str, path to reference volume file
+:param depth_list: list, cortical depths
+:param resolution: float, maximum resolution of the reconstruction
+:param wm_surf_fn: str, path to white matter surface file
+:param gm_surf_fn: str, path to gray matter surface file
+:param output_dir: str, path to output directory
+:return dict: surf_depth_mni_dict</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def generate_cortical_depth_surfaces(
+    ref_vol_fn: str,
+    depth_list: list,
+    resolution: float,
+    wm_surf_fn: str,
+    gm_surf_fn: str,
+    output_dir: str,
+) -&gt; dict:
+    &#34;&#34;&#34;Generate cortical depth surfaces.
+
+    :param ref_vol_fn: str, path to reference volume file
+    :param depth_list: list, cortical depths
+    :param resolution: float, maximum resolution of the reconstruction
+    :param wm_surf_fn: str, path to white matter surface file
+    :param gm_surf_fn: str, path to gray matter surface file
+    :param output_dir: str, path to output directory
+    :return dict: surf_depth_mni_dict
+    &#34;&#34;&#34;
+    surf_depth_mni_dict = {}
+
+    img = nb_surf.load(ref_vol_fn)
+    dimensions = img.shape
+    steps = img.affine[[0, 1, 2], [0, 1, 2]]
+    starts = img.affine[[0, 1, 2], [3, 3, 3]]
+
+    gm_coords, gm_faces, gm_info = load_mesh(gm_surf_fn, correct_offset=True)
+    wm_coords, wm_faces, wm_info = load_mesh(wm_surf_fn, correct_offset=True)
+
+    d_coords = wm_coords - gm_coords
+
+    del wm_coords
+
+    surf_base = get_surf_base(gm_surf_fn)
+
+    for depth in depth_list:
+        depth_surf_fn = &#34;{}/{}_{}mm_{}.surf.gii&#34;.format(
+            output_dir,
+            surf_base,
+            resolution,
+            depth,
+        )
+        depth_vol_fn = &#34;{}/{}_{}mm_{}.nii.gz&#34;.format(
+            output_dir, surf_base, resolution, depth
+        )
+
+        surf_depth_mni_dict[depth] = {&#34;depth_surf_fn&#34;: depth_surf_fn}
+
+        coords = gm_coords + depth * d_coords
+
+        if not os.path.exists(depth_surf_fn):
+            write_gifti(depth_surf_fn, coords, gm_faces)
+
+            # Create a volume of the cortical depth surface for QC purposes
+            interp_vol, _ = mesh_to_volume(
+                coords, np.ones(coords.shape[0]), dimensions, starts, steps
+            )
+            print(&#34;\tWriting&#34;, depth_vol_fn)
+            nib.Nifti1Image(
+                interp_vol, nib.load(ref_vol_fn).affine, direction_order=&#34;lpi&#34;
+            ).to_filename(depth_vol_fn)
+
+    return surf_depth_mni_dict</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.prepare_surfaces.generate_face_and_coord_mask"><code class="name flex">
+<span>def <span class="ident">generate_face_and_coord_mask</span></span>(<span>edge_mask_idx: numpy.ndarray, faces: numpy.ndarray, coords: numpy.ndarray) ‑> Tuple[numpy.ndarray, numpy.ndarray]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Generate face and coordinate masks.</p>
+<p>:param edge_mask_idx: np.ndarray, indices of the edge mask
+:param faces: np.ndarray, faces of the mesh
+:param coords: np.ndarray, coordinates of the mesh
+:return np.ndarray: face_mask
+:return np.ndarray: coord_mask</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def generate_face_and_coord_mask(
+        edge_mask_idx: np.ndarray,
+        faces: np.ndarray,
+        coords: np.ndarray
+        ) -&gt; Tuple[np.ndarray, np.ndarray]:
+    &#34;&#34;&#34;Generate face and coordinate masks.
+
+    :param edge_mask_idx: np.ndarray, indices of the edge mask
+    :param faces: np.ndarray, faces of the mesh
+    :param coords: np.ndarray, coordinates of the mesh
+    :return np.ndarray: face_mask
+    :return np.ndarray: coord_mask
+    &#34;&#34;&#34;
+    mask_idx_unique = np.unique(edge_mask_idx)
+    n = max(faces.shape[0], coords.shape[0])
+
+    face_mask = np.zeros(faces.shape[0]).astype(np.bool)
+    coord_mask = np.zeros(coords.shape[0]).astype(np.bool)
+
+    for i in range(n):
+        if i &lt; faces.shape[0]:
+            f0, f1, f2 = faces[i]
+            if f0 in mask_idx_unique:
+                face_mask[i] = True
+            if f1 in mask_idx_unique:
+                face_mask[i] = True
+            if f2 in mask_idx_unique:
+                face_mask[i] = True
+        if i &lt; coords.shape[0]:
+            if i in mask_idx_unique:
+                coord_mask[i] = True
+    return face_mask, coord_mask</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.prepare_surfaces.get_surf_base"><code class="name flex">
+<span>def <span class="ident">get_surf_base</span></span>(<span>surf_fn: str) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the basename of a surface file.</p>
+<p>:param surf_fn: str, path to surface file
+:return str: basename of surface file</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_surf_base(surf_fn: str) -&gt; str:
+    &#34;&#34;&#34;Get the basename of a surface file.
+
+    :param surf_fn: str, path to surface file
+    :return str: basename of surface file
+    &#34;&#34;&#34;
+    surf_base = os.path.basename(surf_fn)
+    for string in [&#34;.pial&#34;, &#34;.smoothwm&#34;, &#34;.gz&#34;, &#34;.gii&#34;, &#34;.surf&#34;]:
+        surf_base = re.sub(string, &#34;&#34;, surf_base)
+
+    return surf_base</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.prepare_surfaces.inflate_surfaces"><code class="name flex">
+<span>def <span class="ident">inflate_surfaces</span></span>(<span>surf_depth_mni_dict: dict, output_dir: str, resolution: float, depth_list: list, clobber: bool = False) ‑> dict</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Upsampling of meshes at various depths across cortex produces meshes with different n vertices.</p>
+<p>To create a set of meshes across the surfaces across the cortex that have the same number of
+vertices, we first upsample and inflate the wm mesh.
+Then, for each mesh across the cortex we resample that mesh so that it has the same polygons
+and hence the same number of vertices as the wm mesh.
+Each mesh across the cortical depth is inflated (from low resolution, not the upsampled version)
+and then resampled so that it has the high resolution number of vertices.</p>
+<p>:param surf_depth_mni_dict: dict, keys are cortical depths, values are dicts containing surfaces in stereotaxic space
+:param output_dir: str, path to output directory
+:param resolution: float, maximum resolution of the reconstruction
+:param depth_list: list, cortical depths
+:param clobber: bool, whether to overwrite existing files
+:return dict: surf_depth_mni_dict</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def inflate_surfaces(
+    surf_depth_mni_dict: dict,
+    output_dir: str,
+    resolution: float,
+    depth_list: list,
+    clobber: bool = False,
+) -&gt; dict:
+    &#34;&#34;&#34;Upsampling of meshes at various depths across cortex produces meshes with different n vertices.
+
+     To create a set of meshes across the surfaces across the cortex that have the same number of
+     vertices, we first upsample and inflate the wm mesh.
+     Then, for each mesh across the cortex we resample that mesh so that it has the same polygons
+     and hence the same number of vertices as the wm mesh.
+     Each mesh across the cortical depth is inflated (from low resolution, not the upsampled version)
+     and then resampled so that it has the high resolution number of vertices.
+
+    :param surf_depth_mni_dict: dict, keys are cortical depths, values are dicts containing surfaces in stereotaxic space
+    :param output_dir: str, path to output directory
+    :param resolution: float, maximum resolution of the reconstruction
+    :param depth_list: list, cortical depths
+    :param clobber: bool, whether to overwrite existing files
+    :return dict: surf_depth_mni_dict
+    &#34;&#34;&#34;
+    for depth in depth_list:
+        depth += 0.0
+        depth_surf_fn = surf_depth_mni_dict[float(depth)][&#34;depth_surf_fn&#34;]
+
+        base_surf = re.sub(&#34;.surf.gii&#34;, &#34;&#34;, os.path.basename(depth_surf_fn))
+
+        inflate_fn = &#34;{}/{}_{}mm_{}.inflate&#34;.format(
+            output_dir, base_surf, resolution, depth
+        )
+        sphere_fn = &#34;{}/{}_{}mm_{}.sphere&#34;.format(
+            output_dir, base_surf, resolution, depth
+        )
+        sphere_rsl_fn = &#34;{}/{}_{}mm_{}_sphere_rsl.npz&#34;.format(
+            output_dir, base_surf, resolution, depth
+        )
+        surf_depth_mni_dict[depth][&#34;sphere_rsl_fn&#34;] = sphere_rsl_fn
+        surf_depth_mni_dict[depth][&#34;sphere_fn&#34;] = sphere_fn
+        surf_depth_mni_dict[depth][&#34;inflate_fn&#34;] = inflate_fn
+
+        if not os.path.exists(sphere_fn) or clobber:
+            print(&#34;\tInflate to sphere&#34;)
+            shell(f&#34;~/freesurfer/bin/mris_inflate -n 100  {depth_surf_fn} {inflate_fn}&#34;)
+            print(f&#34;\t\t{inflate_fn}&#34;)
+            shell(f&#34;~/freesurfer/bin/mris_sphere -q  {inflate_fn} {sphere_fn}&#34;)
+            print(f&#34;\t\t{sphere_fn}&#34;)
+
+    return surf_depth_mni_dict</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.prepare_surfaces.prepare_surfaces"><code class="name flex">
+<span>def <span class="ident">prepare_surfaces</span></span>(<span>chunk_info: pandas.core.frame.DataFrame, ref_vol_fn: str, gm_surf_fn: str, wm_surf_fn: str, depth_list: list, output_dir: str, resolution: float, verbose: bool = False, clobber: bool = False) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Prepare surfaces for surface-based interpolation.</p>
+<p>:param chunk_info_csv: path to the chunk info csv
+:param ref_vol_fn: path to the structural reference volume
+:param gm_surf_fn: path to the gray matter surface
+:param wm_surf_fn: path to the white matter surface
+:param depth_list: list of cortical depths
+:param output_dir: output directory
+:param resolution: resolution of the surfaces
+:param clobber: bool
+:return dict: surf_depth_mni_dict, surf_depth_chunk_dict</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def prepare_surfaces(
+    chunk_info: pd.DataFrame,
+    ref_vol_fn: str,
+    gm_surf_fn: str,
+    wm_surf_fn: str,
+    depth_list: list,
+    output_dir: str,
+    resolution: float,
+    verbose: bool = False,
+    clobber: bool = False,
+)-&gt; tuple:
+    &#34;&#34;&#34;Prepare surfaces for surface-based interpolation.
+
+    :param chunk_info_csv: path to the chunk info csv
+    :param ref_vol_fn: path to the structural reference volume
+    :param gm_surf_fn: path to the gray matter surface
+    :param wm_surf_fn: path to the white matter surface
+    :param depth_list: list of cortical depths
+    :param output_dir: output directory
+    :param resolution: resolution of the surfaces
+    :param clobber: bool
+    :return dict: surf_depth_mni_dict, surf_depth_chunk_dict
+    &#34;&#34;&#34;
+    os.makedirs(output_dir, exist_ok=True)
+
+    print(&#34;\tGenerating surfaces across cortical depth.&#34;)
+    surf_depth_mni_dict = generate_cortical_depth_surfaces(
+        ref_vol_fn,
+        depth_list,
+        resolution,
+        wm_surf_fn,
+        gm_surf_fn,
+        output_dir,
+    )
+
+    print(&#34;\tInflating surfaces.&#34;)
+    surf_depth_mni_dict = inflate_surfaces(
+        surf_depth_mni_dict, output_dir, resolution, depth_list, clobber=clobber
+    )
+
+    print(&#34;\tUpsampling surfaces.&#34;)
+    surf_depth_mni_dict = upsample_surfaces(
+        surf_depth_mni_dict,
+        output_dir,
+        gm_surf_fn,
+        resolution,
+        depth_list,
+        ref_vol_fn,
+        clobber=clobber,
+    )
+
+    # For each chunk, transform the mesh surface to the receptor space
+    print(&#34;\tTransforming surfaces to chunk space.&#34;)
+    surf_depth_chunk_dict = transfrom_depth_surf_to_chunk_space(
+        chunk_info, surf_depth_mni_dict, output_dir
+    )
+
+    return surf_depth_mni_dict, surf_depth_chunk_dict</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.prepare_surfaces.resample_points"><code class="name flex">
+<span>def <span class="ident">resample_points</span></span>(<span>surf_fn: str, new_points_gen: list) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Resample points on a mesh surface using the new points generator class.</p>
+<p>Basically the new points generator class generates new points on the surface of the mesh based on
+the surface triangle around the point.</p>
+<p>:param surf_fn: str, path to surface file
+:param new_points_gen: list, new points generator class
+:return np.ndarray: new_points
+:return np.ndarray: points</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def resample_points(surf_fn:str, new_points_gen: list)-&gt; tuple:
+    &#34;&#34;&#34;Resample points on a mesh surface using the new points generator class.
+
+    Basically the new points generator class generates new points on the surface of the mesh based on
+    the surface triangle around the point.
+    
+    :param surf_fn: str, path to surface file
+    :param new_points_gen: list, new points generator class
+    :return np.ndarray: new_points
+    :return np.ndarray: points
+    &#34;&#34;&#34;
+    points, faces = load_mesh_ext(surf_fn)
+    n = len(new_points_gen)
+
+    new_points = np.zeros([n, 3])
+
+    for i, gen in enumerate(new_points_gen):
+        new_points[i] = gen.generate_point(points)
+
+    # new_points, unique_index, unique_reverse = unique_points(new_points)
+    new_points += np.random.normal(0, 0.0001, new_points.shape)
+    return new_points, points</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.prepare_surfaces.transform_surface_to_chunks"><code class="name flex">
+<span>def <span class="ident">transform_surface_to_chunks</span></span>(<span>chunk_info: pandas.core.frame.DataFrame, depth: float, out_dir: str, surf_fn: str, ref_gii_fn: Optional[str] = None, faces_fn: Optional[str] = None, ext: str = '.surf.gii') ‑> dict</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Transform a surface to the histological space of each chunk.</p>
+<p>:param chunk_info: pd.DataFrame, chunk information
+:param depth: float, cortical depth
+:param out_dir: str, path to output directory
+:param surf_fn: str, path to surface file
+:param ref_gii_fn: str, path to reference surface file
+:param faces_fn: str, path to faces file
+:param ext: str, extension of surface file
+:return dict: surf_chunk_dict</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def transform_surface_to_chunks(
+    chunk_info: pd.DataFrame,
+    depth: float,
+    out_dir: str,
+    surf_fn: str,
+    ref_gii_fn: Optional[str] = None,
+    faces_fn: Optional[str] = None,
+    ext: str = &#34;.surf.gii&#34;,
+) -&gt; dict:
+    &#34;&#34;&#34;Transform a surface to the histological space of each chunk.
+    
+    :param chunk_info: pd.DataFrame, chunk information
+    :param depth: float, cortical depth
+    :param out_dir: str, path to output directory
+    :param surf_fn: str, path to surface file
+    :param ref_gii_fn: str, path to reference surface file
+    :param faces_fn: str, path to faces file
+    :param ext: str, extension of surface file
+    :return dict: surf_chunk_dict
+    &#34;&#34;&#34;
+    surf_chunk_dict = {}
+
+    for (sub, hemisphere, chunk), chunk_df in chunk_info.groupby(
+        [
+            &#34;sub&#34;,
+            &#34;hemisphere&#34;,
+            &#34;chunk&#34;,
+        ]
+    ):
+        thickened_fn = chunk_df[&#34;nl_2d_vol_fn&#34;].values[0]
+        nl_3d_tfm_fn = chunk_df[&#34;nl_3d_tfm_fn&#34;].values[0]
+        surf_chunk_space_fn = f&#34;{out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{os.path.basename(surf_fn)}&#34;
+
+        surf_chunk_dict[chunk] = surf_chunk_space_fn
+
+        if not os.path.exists(surf_chunk_space_fn) or utils.newer_than(
+            nl_3d_tfm_fn, surf_chunk_space_fn
+        ):
+            print(&#34;\tFROM:&#34;, surf_fn)
+            print(&#34;\tTO:&#34;, surf_chunk_space_fn)
+            print(&#34;\tWITH:&#34;, nl_3d_tfm_fn)
+            print(&#34;\tREF:&#34;, thickened_fn)
+
+            apply_ants_transform_to_gii(
+                surf_fn,
+                [nl_3d_tfm_fn],
+                surf_chunk_space_fn,
+                0,
+                ref_gii_fn=ref_gii_fn,
+                faces_fn=faces_fn,
+                ref_vol_fn=thickened_fn,
+            )
+    return surf_chunk_dict</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.prepare_surfaces.transfrom_depth_surf_to_chunk_space"><code class="name flex">
+<span>def <span class="ident">transfrom_depth_surf_to_chunk_space</span></span>(<span>chunk_info: pandas.core.frame.DataFrame, surf_depth_mni_dict: dict, surf_rsl_dir: str) ‑> dict</span>
+</code></dt>
+<dd>
+<div class="desc"><p>For each chunk, transform the mesh surface to the histological space.</p>
+<p>:param chunk_info: pd.DataFrame, chunk information
+:param surf_depth_mni_dict: dict, keys are cortical depths, values are dicts containing surfaces in reference space
+:param surf_rsl_dir: str, path to output directory
+:return surf_depth_chunk_dict : dict, keys are cortical depths, values are dicts containing surfaces in histological space of each chunk</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def transfrom_depth_surf_to_chunk_space(
+    chunk_info: pd.DataFrame, surf_depth_mni_dict: dict, surf_rsl_dir: str
+)-&gt; dict:
+    &#34;&#34;&#34;For each chunk, transform the mesh surface to the histological space.
+
+    :param chunk_info: pd.DataFrame, chunk information
+    :param surf_depth_mni_dict: dict, keys are cortical depths, values are dicts containing surfaces in reference space
+    :param surf_rsl_dir: str, path to output directory
+    :return surf_depth_chunk_dict : dict, keys are cortical depths, values are dicts containing surfaces in histological space of each chunk
+    &#34;&#34;&#34;
+    surf_depth_chunk_dict = {}
+
+    for depth, depth_dict in surf_depth_mni_dict.items():
+        faces_fn = None
+
+        ref_gii_fn = depth_dict[&#34;depth_surf_fn&#34;]
+
+        surf_fn = depth_dict[&#34;depth_rsl_fn&#34;]
+
+        surf_chunk_dict = transform_surface_to_chunks(
+            chunk_info,
+            depth,
+            surf_rsl_dir,
+            surf_fn,
+            faces_fn=faces_fn,
+            ref_gii_fn=ref_gii_fn,
+        )
+
+        surf_depth_chunk_dict[float(depth)] = surf_chunk_dict
+
+    return surf_depth_chunk_dict</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.prepare_surfaces.upsample_surfaces"><code class="name flex">
+<span>def <span class="ident">upsample_surfaces</span></span>(<span>surf_depth_mni_dict: dict, output_dir: str, gm_surf_fn: str, resolution: float, depth_list: list, ref_vol_fn: str, clobber: bool = False) ‑> dict</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Upsample surfaces across cortical depth.</p>
+<p>:param surf_depth_mni_dict: dict, keys are cortical depths, values are dicts containing surfaces in stereotaxic space
+:param output_dir: str, path to output directory
+:param gm_surf_fn: str, path to gray matter surface
+:param resolution: float, maximum resolution of the reconstruction
+:param depth_list: list, cortical depths
+:param ref_vol_fn: str, path to structural reference volume
+:param clobber: bool, whether to overwrite existing files
+:return dict: surf_depth_mni_dict</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def upsample_surfaces(
+    surf_depth_mni_dict: dict,
+    output_dir: str,
+    gm_surf_fn: str,
+    resolution: float,
+    depth_list: list,
+    ref_vol_fn: str,
+    clobber: bool = False,
+) -&gt; dict:
+    &#34;&#34;&#34;Upsample surfaces across cortical depth.
+
+    :param surf_depth_mni_dict: dict, keys are cortical depths, values are dicts containing surfaces in stereotaxic space
+    :param output_dir: str, path to output directory
+    :param gm_surf_fn: str, path to gray matter surface
+    :param resolution: float, maximum resolution of the reconstruction
+    :param depth_list: list, cortical depths
+    :param ref_vol_fn: str, path to structural reference volume
+    :param clobber: bool, whether to overwrite existing files
+    :return dict: surf_depth_mni_dict
+    &#34;&#34;&#34;
+    surf_base = get_surf_base(gm_surf_fn)
+
+    &#34;{}/{}_{}mm_{}_rsl.obj&#34;.format(output_dir, surf_base, resolution, 0)
+    upsample_0_fn = &#34;{}/surf_{}mm_{}_rsl.surf.gii&#34;.format(
+        output_dir, resolution, depth_list[0]
+    )
+    upsample_1_fn = &#34;{}/{}_{}mm_{}_rsl.surf.gii&#34;.format(
+        output_dir, surf_base, resolution, depth_list[-1]
+    )
+    input_list = []
+    output_list = []
+
+    for depth in depth_list:
+        depth_rsl_gii = &#34;{}/{}_{}mm_{}_rsl.surf.gii&#34;.format(
+            output_dir, surf_base, resolution, depth
+        )
+        depth_rsl_fn = &#34;{}/{}_{}mm_{}_rsl.npz&#34;.format(
+            output_dir, surf_base, resolution, depth
+        )
+
+        surf_depth_mni_dict[depth][&#34;depth_rsl_fn&#34;] = depth_rsl_fn
+        surf_depth_mni_dict[depth][&#34;depth_rsl_gii&#34;] = depth_rsl_gii
+
+        depth_surf_fn = surf_depth_mni_dict[depth][&#34;depth_surf_fn&#34;]
+        sphere_fn = surf_depth_mni_dict[depth][&#34;sphere_fn&#34;]
+        sphere_rsl_fn = surf_depth_mni_dict[depth][&#34;sphere_rsl_fn&#34;]
+
+        input_list += [depth_surf_fn, sphere_fn]
+        output_list += [depth_rsl_fn, sphere_rsl_fn]
+
+    surf_depth_mni_dict[depth_list[0]][&#34;depth_rsl_gii&#34;] = upsample_0_fn
+    surf_depth_mni_dict[depth_list[-1]][&#34;depth_rsl_gii&#34;] = upsample_1_fn
+
+    # DEBUG put the next few lines incase want to try face upsampling instead of full surf upsampling
+    ref_gii_fn = surf_depth_mni_dict[0][&#34;depth_surf_fn&#34;]
+    surf_depth_mni_dict[0][&#34;depth_rsl_gii&#34;]
+    ref_rsl_npy_fn = re.sub(&#34;.surf.gii&#34;, &#34;&#34;, surf_depth_mni_dict[0][&#34;depth_rsl_gii&#34;])
+    re.sub(&#34;.nii.gz&#34;, &#34;_ngh&#34;, surf_depth_mni_dict[0][&#34;depth_rsl_gii&#34;])
+    coords, faces, volume_info = load_mesh(ref_gii_fn)
+
+    if False in [os.path.exists(fn) for fn in output_list + [ref_rsl_npy_fn + &#34;.npz&#34;]]:
+        points, _, new_points_gen = upsample_over_faces(
+            ref_gii_fn, resolution, ref_rsl_npy_fn
+        )
+
+        img = nb_surf.load(ref_vol_fn)
+        steps = img.affine[[0, 1, 2], [0, 1, 2]]
+        starts = img.affine[[0, 1, 2], 3]
+        dimensions = img.shape
+        interp_vol, _ = mesh_to_volume(
+            points, np.ones(points.shape[0]), dimensions, starts, steps
+        )
+        nib.Nifti1Image(
+            interp_vol, nib.load(ref_vol_fn).affine, direction_order=&#34;lpi&#34;
+        ).to_filename(f&#34;{output_dir}/surf_{resolution}mm_{depth}_rsl.nii.gz&#34;)
+
+        print(&#34;Upsampled points&#34;, points.shape, len(new_points_gen))
+
+        ref_points = np.load(ref_rsl_npy_fn + &#34;.npz&#34;)[&#34;points&#34;]
+        n_points = ref_points.shape[0]
+
+        for in_fn, out_fn in zip(input_list, output_list):
+            points, old_points = resample_points(in_fn, new_points_gen)
+            # full = np.arange(points.shape[0]).astype(int)
+
+            assert (
+                n_points == points.shape[0]
+            ), f&#34;Error: mismatch in number of points in mesh between {n_points} and {points.shape[0]}&#34;
+
+            nii_fn = os.path.splitext(out_fn)[0] + &#34;.nii.gz&#34;
+            nib.Nifti1Image(
+                interp_vol, nib.load(ref_vol_fn).affine, direction_order=&#34;lpi&#34;
+            ).to_filename(nii_fn)
+            print(&#34;\tWriting (nifti):&#34;, nii_fn)
+            assert points.shape[1], (
+                &#34;Error: shape of points is incorrect &#34; + points.shape
+            )
+            np.savez(out_fn, points=points)
+            print(&#34;\tWriting (npz)&#34;, out_fn)
+    return surf_depth_mni_dict</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="brainbuilder.interp" href="index.html">brainbuilder.interp</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="brainbuilder.interp.prepare_surfaces.generate_cortical_depth_surfaces" href="#brainbuilder.interp.prepare_surfaces.generate_cortical_depth_surfaces">generate_cortical_depth_surfaces</a></code></li>
+<li><code><a title="brainbuilder.interp.prepare_surfaces.generate_face_and_coord_mask" href="#brainbuilder.interp.prepare_surfaces.generate_face_and_coord_mask">generate_face_and_coord_mask</a></code></li>
+<li><code><a title="brainbuilder.interp.prepare_surfaces.get_surf_base" href="#brainbuilder.interp.prepare_surfaces.get_surf_base">get_surf_base</a></code></li>
+<li><code><a title="brainbuilder.interp.prepare_surfaces.inflate_surfaces" href="#brainbuilder.interp.prepare_surfaces.inflate_surfaces">inflate_surfaces</a></code></li>
+<li><code><a title="brainbuilder.interp.prepare_surfaces.prepare_surfaces" href="#brainbuilder.interp.prepare_surfaces.prepare_surfaces">prepare_surfaces</a></code></li>
+<li><code><a title="brainbuilder.interp.prepare_surfaces.resample_points" href="#brainbuilder.interp.prepare_surfaces.resample_points">resample_points</a></code></li>
+<li><code><a title="brainbuilder.interp.prepare_surfaces.transform_surface_to_chunks" href="#brainbuilder.interp.prepare_surfaces.transform_surface_to_chunks">transform_surface_to_chunks</a></code></li>
+<li><code><a title="brainbuilder.interp.prepare_surfaces.transfrom_depth_surf_to_chunk_space" href="#brainbuilder.interp.prepare_surfaces.transfrom_depth_surf_to_chunk_space">transfrom_depth_surf_to_chunk_space</a></code></li>
+<li><code><a title="brainbuilder.interp.prepare_surfaces.upsample_surfaces" href="#brainbuilder.interp.prepare_surfaces.upsample_surfaces">upsample_surfaces</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

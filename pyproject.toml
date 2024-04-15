@@ -5,7 +5,7 @@ description = "3D reconstruction of 2D brain sections"
 authors = ["Thomas Funck <thomas.funck@childmind.org>"]
 license = "LGPL-2.1"
 readme = "README.md"
-packages = [{include = "APP_NAME", from = "src"}]
+packages = [{include = "brainbuilder", from = "./"}]
 
 [tool.poetry.dependencies]
 python = "~3.11"

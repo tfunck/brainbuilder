@@ -50,7 +50,6 @@ def load_mesh_ext(in_fn:str, faces_fn:str="", correct_offset:bool=False)->np.nda
     ext = os.path.splitext(in_fn)[1]
     faces = None
     volume_info = None
-
     if ext in [".pial", ".white", ".gii", ".sphere", ".inflated"]:
         coords, faces, volume_info = load_mesh(in_fn, correct_offset=correct_offset)
     elif ext == ".npz":

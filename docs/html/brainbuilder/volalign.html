@@ -1,0 +1,1043 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>brainbuilder.volalign API documentation</title>
+<meta name="description" content="This module contains functions for multiresolution alignment of autoradiographs to MRI." />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>brainbuilder.volalign</code></h1>
+</header>
+<section id="section-intro">
+<p>This module contains functions for multiresolution alignment of autoradiographs to MRI.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;This module contains functions for multiresolution alignment of autoradiographs to MRI.&#34;&#34;&#34;
+import os
+
+import matplotlib.pyplot as plt
+import nibabel
+import numpy as np
+import pandas as pd
+import seaborn as sns
+
+from brainbuilder.align.align_2d import align_2d
+from brainbuilder.align.align_3d import align_3d
+from brainbuilder.align.intervolume import create_intermediate_volume
+from brainbuilder.utils import utils
+from brainbuilder.utils import validate_inputs as valinpts
+
+global output_tuples
+
+output_tuples = (
+    (&#34;seg_rsl_fn&#34;, &#34;seg_dir&#34;, &#34;_seg.nii.gz&#34;),
+    (&#34;rec_3d_rsl_fn&#34;, &#34;align_3d_dir&#34;, &#34;_rec_space-mri.nii.gz&#34;),
+    (&#34;ref_3d_rsl_fn&#34;, &#34;align_3d_dir&#34;, &#34;_mri_gm_space-rec.nii.gz&#34;),
+    (&#34;nl_3d_tfm_fn&#34;, &#34;align_3d_dir&#34;, &#34;_rec_to_mri_SyN_CC_Composite.h5&#34;),
+    (&#34;nl_3d_tfm_inv_fn&#34;, &#34;align_3d_dir&#34;, &#34;_rec_to_mri_SyN_CC_InverseComposite.h5&#34;),
+    (&#34;nl_2d_vol_fn&#34;, &#34;nl_2d_dir&#34;, &#34;_nl_2d.nii.gz&#34;),
+    (&#34;nl_2d_vol_cls_fn&#34;, &#34;nl_2d_dir&#34;, &#34;_nl_2d_cls.nii.gz&#34;),  # ,
+    # (&#34;ref_space_rec_fn&#34;,&#34;nl_2d_dir&#34;,&#34;_ref_space-rec.nii.gz&#34;),
+    # (&#34;ref_iso_space_rec_fn&#34;,&#34;nl_2d_dir&#34;,&#34;_ref_space-rec_iso.nii.gz&#34;)
+)
+
+
+def get_multiresolution_filenames(
+    row: pd.DataFrame,
+    sub: str,
+    hemisphere: str,
+    chunk: int,
+    resolution: float,
+    out_dir: str,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Set filenames for each stage of multiresolution stages.
+
+    :param row: row of dataframe
+    :param sub: subject name
+    :param hemisphere: hemisphere name
+    :param chunk: chunk name
+    :param resolution: resolution of chunk
+    :param out_dir: output directory
+    :return row: row of dataframe with filenames
+    &#34;&#34;&#34;
+    # Set directory names for multi-resolution alignment
+    cur_out_dir = f&#34;{out_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/{resolution}mm/&#34;
+    prefix = f&#34;sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm&#34;
+
+    row[&#34;cur_out_dir&#34;] = cur_out_dir
+    row[&#34;seg_dir&#34;] = &#34;{}/3.1_intermediate_volume/&#34;.format(row[&#34;cur_out_dir&#34;])
+    row[&#34;align_3d_dir&#34;] = &#34;{}/3.2_align_3d/&#34;.format(row[&#34;cur_out_dir&#34;])
+    row[&#34;nl_2d_dir&#34;] = &#34;{}/3.3_align_2d&#34;.format(row[&#34;cur_out_dir&#34;])
+
+    output_list = []
+
+    for output in output_tuples:
+        out_fn = f&#34;{row[output[1]]}/{prefix}{output[2]}&#34;
+        row[output[0]] = out_fn
+        output_list.append(out_fn)
+
+    return row
+
+
+def check_chunk_outputs(chunk_csv: str) -&gt; None:
+    &#34;&#34;&#34;Check if chunk outputs exist, if not remove the chunk output csv and the chunk output directory.
+
+    :param chunk_output_csv: path to chunk output csv
+    :return: None
+    &#34;&#34;&#34;
+    chunk_info = pd.read_csv(chunk_csv, index_col=None)
+
+    for output, _, _ in output_tuples:
+        for fn in chunk_info[output]:
+            if not os.path.exists(fn):
+                print(&#34;\t\tMissing&#34;, fn)
+                os.remove(chunk_csv)
+                return None
+    return None
+
+
+def multiresolution_alignment(
+    hemi_info_csv: pd.DataFrame,
+    chunk_info_csv: pd.DataFrame,
+    sect_info_csv: pd.DataFrame,
+    resolution_list: list,
+    output_dir: str,
+    sect_output_csv: str = &#34;&#34;,
+    chunk_output_csv: str = &#34;&#34;,
+    max_resolution_3d: float = 0.3,
+    dice_threshold: float = 0.5,
+    num_cores: int = 0,
+    clobber: bool = False,
+) -&gt; str:
+    &#34;&#34;&#34;Multiresolution alignment of chunks.
+
+    params: df: dataframe containing chunk information
+    params: sub: subject name
+    params: hemisphere: hemisphere name
+    params: resolution_list: list of resolutions to align
+    params: max_resolution_3d: maximum resolution to align in 3d
+    returns: csv file containing chunk information
+    &#34;&#34;&#34;
+    num_cores = utils.set_cores(num_cores)
+
+    # Validate Inputs for &lt;align_chunk&gt;
+    multi_resolution_required_columns = valinpts.chunk_info_required_columns + [
+        valinpts.Column(&#34;init_volume&#34;, &#34;volume&#34;)
+    ]
+
+    assert valinpts.validate_csv(hemi_info_csv, valinpts.hemi_info_required_columns)
+    assert valinpts.validate_csv(sect_info_csv, valinpts.sect_info_required_columns)
+    assert valinpts.validate_csv(chunk_info_csv, multi_resolution_required_columns)
+
+    if sect_output_csv == &#34;&#34;:
+        sect_output_csv = f&#34;{output_dir}/sect_info_multiresolution_alignment.csv&#34;
+
+    if chunk_output_csv == &#34;&#34;:
+        chunk_output_csv = f&#34;{output_dir}/chunk_info_multiresolution_alignment.csv&#34;
+
+    if os.path.exists(chunk_output_csv):
+        # Check if the outputs in chunk_info exist, if not delete current &lt;chunk_output_csv&gt;
+        check_chunk_outputs(chunk_output_csv)
+
+    if (
+        not os.path.exists(sect_output_csv)
+        or not os.path.exists(chunk_output_csv)
+        or clobber
+    ):
+        hemi_info = pd.read_csv(hemi_info_csv, index_col=None)
+
+        sect_info = pd.read_csv(sect_info_csv, index_col=None)
+
+        chunk_info = pd.read_csv(chunk_info_csv, index_col=None)
+
+        sect_info[&#34;nl_2d_rsl&#34;] = [&#34;empty&#34;] * sect_info.shape[0]
+        sect_info[&#34;nl_2d_cls_rsl&#34;] = [&#34;empty&#34;] * sect_info.shape[0]
+
+        # create_directories(args, files, sub, hemisphere, resolution_list)
+
+        # We create a second list of 3d resolutions that replaces values below the maximum 3D resolution with the maximum 3D resolution, because it may not be possible to perform the 3D alignment at the highest resolution due to the large memory requirements.
+        resolution_list_3d = [
+            float(resolution)
+            for resolution in resolution_list + [max_resolution_3d]
+            if float(resolution) &gt;= max_resolution_3d
+        ]
+
+        sect_info_out = pd.DataFrame({})
+        chunk_info_out = pd.DataFrame({})
+
+        ### Reconstruct chunk for each sub, hemisphere, chunk
+        groups = [&#34;sub&#34;, &#34;hemisphere&#34;, &#34;chunk&#34;]
+        for (sub, hemisphere, chunk), curr_sect_info in sect_info.groupby(groups):
+            print(&#34;HELLO!&#34;)
+            print(sub, hemisphere, chunk)
+            idx = (
+                (chunk_info[&#34;sub&#34;] == sub)
+                &amp; (chunk_info[&#34;hemisphere&#34;] == hemisphere)
+                &amp; (chunk_info[&#34;chunk&#34;] == chunk)
+            )
+
+            # get chunk_info for current chunk
+            curr_chunk_info = chunk_info.loc[idx]
+
+            # get structural reference volume
+            ref_vol_fn = (
+                hemi_info[&#34;struct_ref_vol&#34;]
+                .loc[
+                    (hemi_info[&#34;sub&#34;] == sub) &amp; (hemi_info[&#34;hemisphere&#34;] == hemisphere)
+                ]
+                .values[0]
+            )
+
+            curr_chunk_info, curr_sect_info = align_chunk(
+                curr_chunk_info,
+                curr_sect_info,
+                resolution_list,
+                resolution_list_3d,
+                ref_vol_fn,
+                output_dir,
+                num_cores=num_cores,
+                clobber=clobber,
+            )
+
+            chunk_info_out = pd.concat([chunk_info_out, curr_chunk_info])
+            sect_info_out = pd.concat([sect_info_out, curr_sect_info])
+
+        chunk_info_out.to_csv(chunk_output_csv, index=False)
+
+        sect_info_out.to_csv(sect_output_csv, index=False)
+
+    # alignment_qc(sect_output_csv, output_dir)
+
+    return chunk_output_csv, sect_output_csv
+
+
+def verify_chunk_limits(
+    ref_rsl_fn: str, chunk_info: pd.DataFrame, verbose: bool = False
+) -&gt; tuple:
+    &#34;&#34;&#34;Get the start and end of the chunk in the reference space.
+
+    :param ref_rsl_fn: reference space file name
+    :param verbose: verbose
+    :return: (y0w, y1w) --&gt; world coordinates; (y0, y1) --&gt; voxel coordinates
+    &#34;&#34;&#34;
+    img = nibabel.load(ref_rsl_fn)
+
+    ystart = img.affine[1, 3]
+    ystep = img.affine[1, 1]
+    if &#34;caudal_limit&#34; in chunk_info.columns and &#34;rostral_limit&#34; in chunk_info.columns:
+        y0w = chunk_info[&#34;caudal_limit&#34;].values[0]
+        y1w = chunk_info[&#34;rostral_limit&#34;].values[0]
+
+        y0 = (y0w - ystart) / ystep
+        y1 = (y1w - ystart) / ystep
+
+        y0_temp = min(y0, y1)
+        y1_temp = max(y0, y1)
+        y0 = np.floor(y0_temp).astype(int)
+        y1 = np.ceil(y1_temp).astype(int)
+
+        assert y0 &gt; 0, f&#34;Error: y0 is negative: {y0}&#34;
+        assert y1 &gt; 0, f&#34;Error: y1 is negatove: {y1}&#34;
+        if verbose:
+            print(y0w, y1w, y0, y1)
+
+    else:
+        y0w = ystart
+        y1w = ystart + ystep * img.shape[1]
+        y0 = 0
+        y1 = img.shape[1]
+
+    return [y0, y1], [y0w, y1w]
+
+
+def alignment_qc(
+    sect_output_csv: str, output_dir: str, cutoff: float = 0.7, clobber: bool = False
+) -&gt; None:
+    &#34;&#34;&#34;Create a scatter plot of dice values for each section and save the plot to &lt;output_dir&gt;/alignment_dice.png.
+
+    :param sect_output_csv: path to section output csv
+    :param output_dir: output directory
+    :param cutoff: cutoff for bad sections
+    :param clobber: clobber
+    :return: None
+    &#34;&#34;&#34;
+    png_fn = f&#34;{output_dir}/alignment_dice.png&#34;
+    global_dice_csv = f&#34;{output_dir}/global_dice.csv&#34;
+
+    if (
+        not os.path.exists(sect_output_csv)
+        or not os.path.exists(png_fn)
+        or not os.path.exists(global_dice_csv)
+        or not os.path.exists(png_fn)
+        or utils.newer_than(sect_output_csv, png_fn)
+        or utils.newer_than(sect_output_csv, global_dice_csv)
+        or clobber
+    ):
+        df = pd.read_csv(sect_output_csv, index_col=None)
+
+        def normalize(x: float) -&gt; float:
+            &#34;&#34;&#34;Normalize dice values to 0-100.
+
+            :param x: dice values
+            :return: normalized dice values
+            &#34;&#34;&#34;
+            return (x - x.min()) / (x.max() - x.min()) * 100
+
+        normalized_sample = df.groupby(&#34;chunk&#34;)[&#34;sample&#34;].transform(normalize)
+        df[&#34;Coronal Section %&#34;] = normalized_sample
+        print(&#34;Coronal Section&#34;)
+        df[&#34;Dice&#34;] = df[&#34;dice&#34;]
+        df[&#34;Slab&#34;] = df[&#34;chunk&#34;]
+
+        plt.clf()
+        plt.close()
+        plt.figure(figsize=(10, 10))
+        sns.scatterplot(
+            x=&#34;Coronal Section %&#34;,
+            y=&#34;Dice&#34;,
+            data=df,
+            hue=&#34;Slab&#34;,
+            palette=&#34;Set1&#34;,
+            alpha=0.4,
+        )
+        sns.despine()
+        plt.savefig(png_fn, dpi=300, bbox_inches=&#34;tight&#34;)
+
+        dice_df = df.groupby([&#34;sub&#34;, &#34;hemisphere&#34;, &#34;chunk&#34;])
+        print(dice_df[&#34;dice&#34;].mean())
+        print(dice_df[&#34;dice&#34;].std())
+
+        m = df[&#34;dice&#34;].mean()
+        s = df[&#34;dice&#34;].std()
+
+        print(&#34;\t\tDice of Aligned Sections:&#34;, m, s)
+        dice_df[&#34;dice&#34;].mean().to_csv(global_dice_csv)
+        with open(f&#34;{output_dir}/global_dice.csv&#34;, &#34;w&#34;) as f:
+            f.write(f&#34;{m},{s}\n&#34;)
+
+        bad_sections_df = df.loc[df[&#34;dice&#34;] &lt; cutoff]
+        os.makedirs(f&#34;{output_dir}/bad_sections/&#34;, exist_ok=True)
+
+        for i, row in bad_sections_df.iterrows():
+            mv = row[&#34;nl_2d_cls_rsl&#34;]
+            out_fn = f&#34;{output_dir}/bad_sections/{os.path.basename(mv)}.jpg&#34;
+            ar = nibabel.load(mv).get_fdata()
+            plt.clf()
+            plt.close()
+            plt.title(&#34;Dice: {:.2f}&#34;.format(row[&#34;dice&#34;]))
+            plt.imshow(ar, cmap=&#34;gray&#34;)
+            plt.savefig(out_fn, dpi=300, bbox_inches=&#34;tight&#34;)
+            print(&#34;\t\tBad section:&#34;, out_fn)
+    return None
+
+
+def align_chunk(
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    resolution_list: list,
+    resolution_list_3d: list,
+    ref_vol_fn: str,
+    output_dir: str,
+    num_cores: int = 1,
+    clobber: bool = False,
+) -&gt; tuple:
+    &#34;&#34;&#34;3D-2D mutliresolution scheme.
+
+      Steps:
+      a) segments autoradiographs,
+      b) aligns these to the donor mri in 3D, and then 2d.
+      c) This schema is repeated for each resolution in the resolution heiarchy.
+
+    :param chunk_info:  data frame with info for current chunk
+    :param sect_info:    data frame with info for autoradiographs in current chunk
+    :param files:       dictionary with all the filenames used in reconstruction
+    :param resolution_list:    heirarchy of resolutions for 2d alignment
+    :param resolution_list_3d: heirarchy of resolutions for 3d alignment
+    :param output_dir:         output directory
+    :return sect_info: updated sect_info data frame with filenames for nonlinearly 2d aligned autoradiographs
+    &#34;&#34;&#34;
+    sub, hemisphere, chunk = utils.get_values_from_df(chunk_info)
+
+    chunk_info_out = pd.DataFrame()
+    sect_info_out = pd.DataFrame()
+    print(&#34;\tMultiresolution:&#34;, sub, hemisphere, chunk)
+
+    ### Iterate over progressively finer resolution
+    for resolution_itr, resolution in enumerate(resolution_list):
+        resolution_3d = resolution_list_3d[resolution_itr]
+        print(f&#34;\tMulti-Resolution Alignement: {resolution}mm&#34;)
+
+        row = chunk_info.iloc[0, :].squeeze()
+        row[&#34;resolution&#34;] = resolution
+
+        row = get_multiresolution_filenames(
+            row, sub, hemisphere, chunk, resolution, output_dir
+        )
+
+        dirs_to_create = [
+            row[&#34;cur_out_dir&#34;],
+            row[&#34;align_3d_dir&#34;],
+            row[&#34;seg_dir&#34;],
+            row[&#34;nl_2d_dir&#34;],
+        ]
+        for dir_name in dirs_to_create:
+            os.makedirs(dir_name, exist_ok=True)
+
+        # downsample the original ref gm mask to current 3d resolution
+        ref_rsl_fn = (
+            row[&#34;seg_dir&#34;]
+            + f&#34;/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_mri_gm.nii.gz&#34;
+        )
+
+        if not os.path.exists(ref_rsl_fn):
+            utils.resample_to_resolution(ref_vol_fn, [resolution_3d] * 3, ref_rsl_fn)
+
+        world_chunk_limits, vox_chunk_limits = verify_chunk_limits(
+            ref_rsl_fn, chunk_info
+        )
+
+        ###
+        ### Stage 3.1 : Create intermediate 3d volume
+        ###
+        print(&#34;\t\tCreate intermediate 3d volume&#34;)
+        [row[&#34;init_volume&#34;]]
+        create_intermediate_volume(
+            chunk_info,
+            sect_info,
+            resolution_itr,
+            resolution,
+            resolution_3d,
+            row[&#34;seg_dir&#34;],
+            row[&#34;seg_rsl_fn&#34;],
+            row[&#34;init_volume&#34;],
+            num_cores=num_cores,
+            clobber=clobber,
+        )
+
+        ###
+        ### Stage 3.2 : Align chunks to MRI
+        ###
+        print(&#34;\t\tAlign chunks to MRI&#34;)
+        align_3d(
+            sub,
+            hemisphere,
+            chunk,
+            row[&#34;seg_rsl_fn&#34;],
+            ref_rsl_fn,
+            row[&#34;align_3d_dir&#34;],
+            row[&#34;nl_3d_tfm_fn&#34;],
+            row[&#34;nl_3d_tfm_inv_fn&#34;],
+            row[&#34;rec_3d_rsl_fn&#34;],
+            row[&#34;ref_3d_rsl_fn&#34;],
+            resolution_3d,
+            resolution_list_3d,
+            world_chunk_limits,
+            vox_chunk_limits,
+            use_masks=False,
+            clobber=clobber,
+        )
+
+        ###
+        ### Stage 3.3 : 2D alignment of receptor to resample MRI GM vol
+        ###
+        print(&#34;\t\t2D alignment of receptor to resample MRI GM vol&#34;)
+        sect_info, ref_space_nat_fn = align_2d(
+            sect_info,
+            row[&#34;nl_2d_dir&#34;],
+            row[&#34;seg_dir&#34;],
+            ref_rsl_fn,
+            resolution,
+            resolution_itr,
+            resolution_list,
+            row[&#34;seg_rsl_fn&#34;],
+            row[&#34;nl_3d_tfm_inv_fn&#34;],
+            row[&#34;nl_2d_vol_fn&#34;],
+            row[&#34;nl_2d_vol_cls_fn&#34;],
+            row[&#34;section_thickness&#34;],
+            file_to_align=&#34;seg&#34;,
+            num_cores=num_cores,
+            clobber=clobber,
+        )
+        row[&#34;ref_space_nat&#34;] = ref_space_nat_fn
+        chunk_info_out = pd.concat([chunk_info_out, row.to_frame().T])
+        sect_info_out = pd.concat([sect_info_out, sect_info])
+
+    # sect_info = validate_section_alignment(sect_info, output_dir)
+
+    return chunk_info_out, sect_info</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="brainbuilder.volalign.align_chunk"><code class="name flex">
+<span>def <span class="ident">align_chunk</span></span>(<span>chunk_info: pandas.core.frame.DataFrame, sect_info: pandas.core.frame.DataFrame, resolution_list: list, resolution_list_3d: list, ref_vol_fn: str, output_dir: str, num_cores: int = 1, clobber: bool = False) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>3D-2D mutliresolution scheme.</p>
+<p>Steps:
+a) segments autoradiographs,
+b) aligns these to the donor mri in 3D, and then 2d.
+c) This schema is repeated for each resolution in the resolution heiarchy.</p>
+<p>:param chunk_info:
+data frame with info for current chunk
+:param sect_info:
+data frame with info for autoradiographs in current chunk
+:param files:
+dictionary with all the filenames used in reconstruction
+:param resolution_list:
+heirarchy of resolutions for 2d alignment
+:param resolution_list_3d: heirarchy of resolutions for 3d alignment
+:param output_dir:
+output directory
+:return sect_info: updated sect_info data frame with filenames for nonlinearly 2d aligned autoradiographs</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def align_chunk(
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    resolution_list: list,
+    resolution_list_3d: list,
+    ref_vol_fn: str,
+    output_dir: str,
+    num_cores: int = 1,
+    clobber: bool = False,
+) -&gt; tuple:
+    &#34;&#34;&#34;3D-2D mutliresolution scheme.
+
+      Steps:
+      a) segments autoradiographs,
+      b) aligns these to the donor mri in 3D, and then 2d.
+      c) This schema is repeated for each resolution in the resolution heiarchy.
+
+    :param chunk_info:  data frame with info for current chunk
+    :param sect_info:    data frame with info for autoradiographs in current chunk
+    :param files:       dictionary with all the filenames used in reconstruction
+    :param resolution_list:    heirarchy of resolutions for 2d alignment
+    :param resolution_list_3d: heirarchy of resolutions for 3d alignment
+    :param output_dir:         output directory
+    :return sect_info: updated sect_info data frame with filenames for nonlinearly 2d aligned autoradiographs
+    &#34;&#34;&#34;
+    sub, hemisphere, chunk = utils.get_values_from_df(chunk_info)
+
+    chunk_info_out = pd.DataFrame()
+    sect_info_out = pd.DataFrame()
+    print(&#34;\tMultiresolution:&#34;, sub, hemisphere, chunk)
+
+    ### Iterate over progressively finer resolution
+    for resolution_itr, resolution in enumerate(resolution_list):
+        resolution_3d = resolution_list_3d[resolution_itr]
+        print(f&#34;\tMulti-Resolution Alignement: {resolution}mm&#34;)
+
+        row = chunk_info.iloc[0, :].squeeze()
+        row[&#34;resolution&#34;] = resolution
+
+        row = get_multiresolution_filenames(
+            row, sub, hemisphere, chunk, resolution, output_dir
+        )
+
+        dirs_to_create = [
+            row[&#34;cur_out_dir&#34;],
+            row[&#34;align_3d_dir&#34;],
+            row[&#34;seg_dir&#34;],
+            row[&#34;nl_2d_dir&#34;],
+        ]
+        for dir_name in dirs_to_create:
+            os.makedirs(dir_name, exist_ok=True)
+
+        # downsample the original ref gm mask to current 3d resolution
+        ref_rsl_fn = (
+            row[&#34;seg_dir&#34;]
+            + f&#34;/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_mri_gm.nii.gz&#34;
+        )
+
+        if not os.path.exists(ref_rsl_fn):
+            utils.resample_to_resolution(ref_vol_fn, [resolution_3d] * 3, ref_rsl_fn)
+
+        world_chunk_limits, vox_chunk_limits = verify_chunk_limits(
+            ref_rsl_fn, chunk_info
+        )
+
+        ###
+        ### Stage 3.1 : Create intermediate 3d volume
+        ###
+        print(&#34;\t\tCreate intermediate 3d volume&#34;)
+        [row[&#34;init_volume&#34;]]
+        create_intermediate_volume(
+            chunk_info,
+            sect_info,
+            resolution_itr,
+            resolution,
+            resolution_3d,
+            row[&#34;seg_dir&#34;],
+            row[&#34;seg_rsl_fn&#34;],
+            row[&#34;init_volume&#34;],
+            num_cores=num_cores,
+            clobber=clobber,
+        )
+
+        ###
+        ### Stage 3.2 : Align chunks to MRI
+        ###
+        print(&#34;\t\tAlign chunks to MRI&#34;)
+        align_3d(
+            sub,
+            hemisphere,
+            chunk,
+            row[&#34;seg_rsl_fn&#34;],
+            ref_rsl_fn,
+            row[&#34;align_3d_dir&#34;],
+            row[&#34;nl_3d_tfm_fn&#34;],
+            row[&#34;nl_3d_tfm_inv_fn&#34;],
+            row[&#34;rec_3d_rsl_fn&#34;],
+            row[&#34;ref_3d_rsl_fn&#34;],
+            resolution_3d,
+            resolution_list_3d,
+            world_chunk_limits,
+            vox_chunk_limits,
+            use_masks=False,
+            clobber=clobber,
+        )
+
+        ###
+        ### Stage 3.3 : 2D alignment of receptor to resample MRI GM vol
+        ###
+        print(&#34;\t\t2D alignment of receptor to resample MRI GM vol&#34;)
+        sect_info, ref_space_nat_fn = align_2d(
+            sect_info,
+            row[&#34;nl_2d_dir&#34;],
+            row[&#34;seg_dir&#34;],
+            ref_rsl_fn,
+            resolution,
+            resolution_itr,
+            resolution_list,
+            row[&#34;seg_rsl_fn&#34;],
+            row[&#34;nl_3d_tfm_inv_fn&#34;],
+            row[&#34;nl_2d_vol_fn&#34;],
+            row[&#34;nl_2d_vol_cls_fn&#34;],
+            row[&#34;section_thickness&#34;],
+            file_to_align=&#34;seg&#34;,
+            num_cores=num_cores,
+            clobber=clobber,
+        )
+        row[&#34;ref_space_nat&#34;] = ref_space_nat_fn
+        chunk_info_out = pd.concat([chunk_info_out, row.to_frame().T])
+        sect_info_out = pd.concat([sect_info_out, sect_info])
+
+    # sect_info = validate_section_alignment(sect_info, output_dir)
+
+    return chunk_info_out, sect_info</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.volalign.alignment_qc"><code class="name flex">
+<span>def <span class="ident">alignment_qc</span></span>(<span>sect_output_csv: str, output_dir: str, cutoff: float = 0.7, clobber: bool = False) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Create a scatter plot of dice values for each section and save the plot to <output_dir>/alignment_dice.png.</p>
+<p>:param sect_output_csv: path to section output csv
+:param output_dir: output directory
+:param cutoff: cutoff for bad sections
+:param clobber: clobber
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def alignment_qc(
+    sect_output_csv: str, output_dir: str, cutoff: float = 0.7, clobber: bool = False
+) -&gt; None:
+    &#34;&#34;&#34;Create a scatter plot of dice values for each section and save the plot to &lt;output_dir&gt;/alignment_dice.png.
+
+    :param sect_output_csv: path to section output csv
+    :param output_dir: output directory
+    :param cutoff: cutoff for bad sections
+    :param clobber: clobber
+    :return: None
+    &#34;&#34;&#34;
+    png_fn = f&#34;{output_dir}/alignment_dice.png&#34;
+    global_dice_csv = f&#34;{output_dir}/global_dice.csv&#34;
+
+    if (
+        not os.path.exists(sect_output_csv)
+        or not os.path.exists(png_fn)
+        or not os.path.exists(global_dice_csv)
+        or not os.path.exists(png_fn)
+        or utils.newer_than(sect_output_csv, png_fn)
+        or utils.newer_than(sect_output_csv, global_dice_csv)
+        or clobber
+    ):
+        df = pd.read_csv(sect_output_csv, index_col=None)
+
+        def normalize(x: float) -&gt; float:
+            &#34;&#34;&#34;Normalize dice values to 0-100.
+
+            :param x: dice values
+            :return: normalized dice values
+            &#34;&#34;&#34;
+            return (x - x.min()) / (x.max() - x.min()) * 100
+
+        normalized_sample = df.groupby(&#34;chunk&#34;)[&#34;sample&#34;].transform(normalize)
+        df[&#34;Coronal Section %&#34;] = normalized_sample
+        print(&#34;Coronal Section&#34;)
+        df[&#34;Dice&#34;] = df[&#34;dice&#34;]
+        df[&#34;Slab&#34;] = df[&#34;chunk&#34;]
+
+        plt.clf()
+        plt.close()
+        plt.figure(figsize=(10, 10))
+        sns.scatterplot(
+            x=&#34;Coronal Section %&#34;,
+            y=&#34;Dice&#34;,
+            data=df,
+            hue=&#34;Slab&#34;,
+            palette=&#34;Set1&#34;,
+            alpha=0.4,
+        )
+        sns.despine()
+        plt.savefig(png_fn, dpi=300, bbox_inches=&#34;tight&#34;)
+
+        dice_df = df.groupby([&#34;sub&#34;, &#34;hemisphere&#34;, &#34;chunk&#34;])
+        print(dice_df[&#34;dice&#34;].mean())
+        print(dice_df[&#34;dice&#34;].std())
+
+        m = df[&#34;dice&#34;].mean()
+        s = df[&#34;dice&#34;].std()
+
+        print(&#34;\t\tDice of Aligned Sections:&#34;, m, s)
+        dice_df[&#34;dice&#34;].mean().to_csv(global_dice_csv)
+        with open(f&#34;{output_dir}/global_dice.csv&#34;, &#34;w&#34;) as f:
+            f.write(f&#34;{m},{s}\n&#34;)
+
+        bad_sections_df = df.loc[df[&#34;dice&#34;] &lt; cutoff]
+        os.makedirs(f&#34;{output_dir}/bad_sections/&#34;, exist_ok=True)
+
+        for i, row in bad_sections_df.iterrows():
+            mv = row[&#34;nl_2d_cls_rsl&#34;]
+            out_fn = f&#34;{output_dir}/bad_sections/{os.path.basename(mv)}.jpg&#34;
+            ar = nibabel.load(mv).get_fdata()
+            plt.clf()
+            plt.close()
+            plt.title(&#34;Dice: {:.2f}&#34;.format(row[&#34;dice&#34;]))
+            plt.imshow(ar, cmap=&#34;gray&#34;)
+            plt.savefig(out_fn, dpi=300, bbox_inches=&#34;tight&#34;)
+            print(&#34;\t\tBad section:&#34;, out_fn)
+    return None</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.volalign.check_chunk_outputs"><code class="name flex">
+<span>def <span class="ident">check_chunk_outputs</span></span>(<span>chunk_csv: str) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Check if chunk outputs exist, if not remove the chunk output csv and the chunk output directory.</p>
+<p>:param chunk_output_csv: path to chunk output csv
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def check_chunk_outputs(chunk_csv: str) -&gt; None:
+    &#34;&#34;&#34;Check if chunk outputs exist, if not remove the chunk output csv and the chunk output directory.
+
+    :param chunk_output_csv: path to chunk output csv
+    :return: None
+    &#34;&#34;&#34;
+    chunk_info = pd.read_csv(chunk_csv, index_col=None)
+
+    for output, _, _ in output_tuples:
+        for fn in chunk_info[output]:
+            if not os.path.exists(fn):
+                print(&#34;\t\tMissing&#34;, fn)
+                os.remove(chunk_csv)
+                return None
+    return None</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.volalign.get_multiresolution_filenames"><code class="name flex">
+<span>def <span class="ident">get_multiresolution_filenames</span></span>(<span>row: pandas.core.frame.DataFrame, sub: str, hemisphere: str, chunk: int, resolution: float, out_dir: str) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Set filenames for each stage of multiresolution stages.</p>
+<p>:param row: row of dataframe
+:param sub: subject name
+:param hemisphere: hemisphere name
+:param chunk: chunk name
+:param resolution: resolution of chunk
+:param out_dir: output directory
+:return row: row of dataframe with filenames</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_multiresolution_filenames(
+    row: pd.DataFrame,
+    sub: str,
+    hemisphere: str,
+    chunk: int,
+    resolution: float,
+    out_dir: str,
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Set filenames for each stage of multiresolution stages.
+
+    :param row: row of dataframe
+    :param sub: subject name
+    :param hemisphere: hemisphere name
+    :param chunk: chunk name
+    :param resolution: resolution of chunk
+    :param out_dir: output directory
+    :return row: row of dataframe with filenames
+    &#34;&#34;&#34;
+    # Set directory names for multi-resolution alignment
+    cur_out_dir = f&#34;{out_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/{resolution}mm/&#34;
+    prefix = f&#34;sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm&#34;
+
+    row[&#34;cur_out_dir&#34;] = cur_out_dir
+    row[&#34;seg_dir&#34;] = &#34;{}/3.1_intermediate_volume/&#34;.format(row[&#34;cur_out_dir&#34;])
+    row[&#34;align_3d_dir&#34;] = &#34;{}/3.2_align_3d/&#34;.format(row[&#34;cur_out_dir&#34;])
+    row[&#34;nl_2d_dir&#34;] = &#34;{}/3.3_align_2d&#34;.format(row[&#34;cur_out_dir&#34;])
+
+    output_list = []
+
+    for output in output_tuples:
+        out_fn = f&#34;{row[output[1]]}/{prefix}{output[2]}&#34;
+        row[output[0]] = out_fn
+        output_list.append(out_fn)
+
+    return row</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.volalign.multiresolution_alignment"><code class="name flex">
+<span>def <span class="ident">multiresolution_alignment</span></span>(<span>hemi_info_csv: pandas.core.frame.DataFrame, chunk_info_csv: pandas.core.frame.DataFrame, sect_info_csv: pandas.core.frame.DataFrame, resolution_list: list, output_dir: str, sect_output_csv: str = '', chunk_output_csv: str = '', max_resolution_3d: float = 0.3, dice_threshold: float = 0.5, num_cores: int = 0, clobber: bool = False) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Multiresolution alignment of chunks.</p>
+<p>params: df: dataframe containing chunk information
+params: sub: subject name
+params: hemisphere: hemisphere name
+params: resolution_list: list of resolutions to align
+params: max_resolution_3d: maximum resolution to align in 3d
+returns: csv file containing chunk information</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def multiresolution_alignment(
+    hemi_info_csv: pd.DataFrame,
+    chunk_info_csv: pd.DataFrame,
+    sect_info_csv: pd.DataFrame,
+    resolution_list: list,
+    output_dir: str,
+    sect_output_csv: str = &#34;&#34;,
+    chunk_output_csv: str = &#34;&#34;,
+    max_resolution_3d: float = 0.3,
+    dice_threshold: float = 0.5,
+    num_cores: int = 0,
+    clobber: bool = False,
+) -&gt; str:
+    &#34;&#34;&#34;Multiresolution alignment of chunks.
+
+    params: df: dataframe containing chunk information
+    params: sub: subject name
+    params: hemisphere: hemisphere name
+    params: resolution_list: list of resolutions to align
+    params: max_resolution_3d: maximum resolution to align in 3d
+    returns: csv file containing chunk information
+    &#34;&#34;&#34;
+    num_cores = utils.set_cores(num_cores)
+
+    # Validate Inputs for &lt;align_chunk&gt;
+    multi_resolution_required_columns = valinpts.chunk_info_required_columns + [
+        valinpts.Column(&#34;init_volume&#34;, &#34;volume&#34;)
+    ]
+
+    assert valinpts.validate_csv(hemi_info_csv, valinpts.hemi_info_required_columns)
+    assert valinpts.validate_csv(sect_info_csv, valinpts.sect_info_required_columns)
+    assert valinpts.validate_csv(chunk_info_csv, multi_resolution_required_columns)
+
+    if sect_output_csv == &#34;&#34;:
+        sect_output_csv = f&#34;{output_dir}/sect_info_multiresolution_alignment.csv&#34;
+
+    if chunk_output_csv == &#34;&#34;:
+        chunk_output_csv = f&#34;{output_dir}/chunk_info_multiresolution_alignment.csv&#34;
+
+    if os.path.exists(chunk_output_csv):
+        # Check if the outputs in chunk_info exist, if not delete current &lt;chunk_output_csv&gt;
+        check_chunk_outputs(chunk_output_csv)
+
+    if (
+        not os.path.exists(sect_output_csv)
+        or not os.path.exists(chunk_output_csv)
+        or clobber
+    ):
+        hemi_info = pd.read_csv(hemi_info_csv, index_col=None)
+
+        sect_info = pd.read_csv(sect_info_csv, index_col=None)
+
+        chunk_info = pd.read_csv(chunk_info_csv, index_col=None)
+
+        sect_info[&#34;nl_2d_rsl&#34;] = [&#34;empty&#34;] * sect_info.shape[0]
+        sect_info[&#34;nl_2d_cls_rsl&#34;] = [&#34;empty&#34;] * sect_info.shape[0]
+
+        # create_directories(args, files, sub, hemisphere, resolution_list)
+
+        # We create a second list of 3d resolutions that replaces values below the maximum 3D resolution with the maximum 3D resolution, because it may not be possible to perform the 3D alignment at the highest resolution due to the large memory requirements.
+        resolution_list_3d = [
+            float(resolution)
+            for resolution in resolution_list + [max_resolution_3d]
+            if float(resolution) &gt;= max_resolution_3d
+        ]
+
+        sect_info_out = pd.DataFrame({})
+        chunk_info_out = pd.DataFrame({})
+
+        ### Reconstruct chunk for each sub, hemisphere, chunk
+        groups = [&#34;sub&#34;, &#34;hemisphere&#34;, &#34;chunk&#34;]
+        for (sub, hemisphere, chunk), curr_sect_info in sect_info.groupby(groups):
+            print(&#34;HELLO!&#34;)
+            print(sub, hemisphere, chunk)
+            idx = (
+                (chunk_info[&#34;sub&#34;] == sub)
+                &amp; (chunk_info[&#34;hemisphere&#34;] == hemisphere)
+                &amp; (chunk_info[&#34;chunk&#34;] == chunk)
+            )
+
+            # get chunk_info for current chunk
+            curr_chunk_info = chunk_info.loc[idx]
+
+            # get structural reference volume
+            ref_vol_fn = (
+                hemi_info[&#34;struct_ref_vol&#34;]
+                .loc[
+                    (hemi_info[&#34;sub&#34;] == sub) &amp; (hemi_info[&#34;hemisphere&#34;] == hemisphere)
+                ]
+                .values[0]
+            )
+
+            curr_chunk_info, curr_sect_info = align_chunk(
+                curr_chunk_info,
+                curr_sect_info,
+                resolution_list,
+                resolution_list_3d,
+                ref_vol_fn,
+                output_dir,
+                num_cores=num_cores,
+                clobber=clobber,
+            )
+
+            chunk_info_out = pd.concat([chunk_info_out, curr_chunk_info])
+            sect_info_out = pd.concat([sect_info_out, curr_sect_info])
+
+        chunk_info_out.to_csv(chunk_output_csv, index=False)
+
+        sect_info_out.to_csv(sect_output_csv, index=False)
+
+    # alignment_qc(sect_output_csv, output_dir)
+
+    return chunk_output_csv, sect_output_csv</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.volalign.verify_chunk_limits"><code class="name flex">
+<span>def <span class="ident">verify_chunk_limits</span></span>(<span>ref_rsl_fn: str, chunk_info: pandas.core.frame.DataFrame, verbose: bool = False) ‑> tuple</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the start and end of the chunk in the reference space.</p>
+<p>:param ref_rsl_fn: reference space file name
+:param verbose: verbose
+:return: (y0w, y1w) &ndash;&gt; world coordinates; (y0, y1) &ndash;&gt; voxel coordinates</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def verify_chunk_limits(
+    ref_rsl_fn: str, chunk_info: pd.DataFrame, verbose: bool = False
+) -&gt; tuple:
+    &#34;&#34;&#34;Get the start and end of the chunk in the reference space.
+
+    :param ref_rsl_fn: reference space file name
+    :param verbose: verbose
+    :return: (y0w, y1w) --&gt; world coordinates; (y0, y1) --&gt; voxel coordinates
+    &#34;&#34;&#34;
+    img = nibabel.load(ref_rsl_fn)
+
+    ystart = img.affine[1, 3]
+    ystep = img.affine[1, 1]
+    if &#34;caudal_limit&#34; in chunk_info.columns and &#34;rostral_limit&#34; in chunk_info.columns:
+        y0w = chunk_info[&#34;caudal_limit&#34;].values[0]
+        y1w = chunk_info[&#34;rostral_limit&#34;].values[0]
+
+        y0 = (y0w - ystart) / ystep
+        y1 = (y1w - ystart) / ystep
+
+        y0_temp = min(y0, y1)
+        y1_temp = max(y0, y1)
+        y0 = np.floor(y0_temp).astype(int)
+        y1 = np.ceil(y1_temp).astype(int)
+
+        assert y0 &gt; 0, f&#34;Error: y0 is negative: {y0}&#34;
+        assert y1 &gt; 0, f&#34;Error: y1 is negatove: {y1}&#34;
+        if verbose:
+            print(y0w, y1w, y0, y1)
+
+    else:
+        y0w = ystart
+        y1w = ystart + ystep * img.shape[1]
+        y0 = 0
+        y1 = img.shape[1]
+
+    return [y0, y1], [y0w, y1w]</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="brainbuilder" href="index.html">brainbuilder</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="brainbuilder.volalign.align_chunk" href="#brainbuilder.volalign.align_chunk">align_chunk</a></code></li>
+<li><code><a title="brainbuilder.volalign.alignment_qc" href="#brainbuilder.volalign.alignment_qc">alignment_qc</a></code></li>
+<li><code><a title="brainbuilder.volalign.check_chunk_outputs" href="#brainbuilder.volalign.check_chunk_outputs">check_chunk_outputs</a></code></li>
+<li><code><a title="brainbuilder.volalign.get_multiresolution_filenames" href="#brainbuilder.volalign.get_multiresolution_filenames">get_multiresolution_filenames</a></code></li>
+<li><code><a title="brainbuilder.volalign.multiresolution_alignment" href="#brainbuilder.volalign.multiresolution_alignment">multiresolution_alignment</a></code></li>
+<li><code><a title="brainbuilder.volalign.verify_chunk_limits" href="#brainbuilder.volalign.verify_chunk_limits">verify_chunk_limits</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

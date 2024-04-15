@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>brainbuilder.interp.acqvolume API documentation</title>
+<meta name="description" content="Create thickened volumes for each acquisition and each chunk." />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>brainbuilder.interp.acqvolume</code></h1>
+</header>
+<section id="section-intro">
+<p>Create thickened volumes for each acquisition and each chunk.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;Create thickened volumes for each acquisition and each chunk.&#34;&#34;&#34;
+import os
+from typing import Tuple
+
+import numpy as np
+import pandas as pd
+import stripy as stripy
+from scipy.interpolate import interp1d
+from scipy.ndimage import gaussian_filter, label
+
+import brainbuilder.utils.ants_nibabel as nib
+from brainbuilder.interp.adjust_section_means import (
+    calculate_section_adjustment_factors,
+)
+from brainbuilder.utils.utils import get_thicken_width
+
+
+def setup_section_normalization(
+    acquisition: str, sect_info: pd.DataFrame, array_src: np.ndarray
+) -&gt; Tuple[np.ndarray, bool]:
+    &#34;&#34;&#34;This function is not for chunk normalization but for section normalization based on surrounding sections.
+
+    :param acquisition: acquisition type
+    :param sect_info: dataframe with section information
+    :param array_src: source array
+    :return: array_src, normalize_sections
+    &#34;&#34;&#34;
+    normalize_sections = False
+    mean_list = []
+    std_list = []
+    y_list = []
+
+    sect_info = sect_info.sort_values([&#34;sample&#34;])
+    if acquisition in [] or normalize_sections:
+        print(&#34;Normalizing&#34;, acquisition)
+
+        for row_i, row in sect_info.iterrows():
+            y = int(row[&#34;sample&#34;])
+
+            # Conversion of radioactivity values to receptor density values
+            section = array_src[:, y, :]
+
+            idx = section &gt;= 0
+
+            mean_list.append(np.mean(section[idx]))
+            std_list.append(np.std(section[idx]))
+            y_list.append(y)
+
+        mean_list = np.array(mean_list)
+        pad = 2
+        new_mean_list = []
+        i_list = range(len(mean_list))
+
+        new_mean_list.append(mean_list[0])
+        for i, y, mean in zip(i_list[1:-1], y_list[1:-1], mean_list[1:-1]):
+            i0 = max(i - pad, 0)
+            i1 = min(i + pad, len(mean_list) - 1)
+            x = list(y_list[i0:i]) + list(y_list[i + 1 : i1 + 1])
+            z = list(mean_list[i0:i]) + list(mean_list[i + 1 : i1 + 1])
+            kind_dict = {
+                1: &#34;nearest&#34;,
+                2: &#34;linear&#34;,
+                3: &#34;quadratic&#34;,
+                4: &#34;cubic&#34;,
+                5: &#34;cubic&#34;,
+            }
+            interp_f = interp1d(x, z, kind=kind_dict[min(5, len(x))])
+            new_mean = interp_f(y)
+            new_mean_list.append(new_mean)
+        new_mean_list.append(mean_list[-1])
+
+        for y, new_mean in zip(y_list, new_mean_list):
+            section = array_src[:, y, :]
+            section[section &gt; 0] = (
+                new_mean + section[section &gt; 0] - np.mean(section[section &gt; 0])
+            )
+            array_src[:, y, :] = section
+
+    return array_src, normalize_sections
+
+
+def thicken_sections_within_chunk(
+    thickened_fn: str,
+    source_image_fn: str,
+    section_thickness: float,
+    acquisition: str,
+    chunk_sect_info: pd.DataFrame,
+    resolution: float,
+    tissue_type: str = &#34;&#34;,
+    gaussian_sd: float = 0,
+    use_conversion_factor=False,
+    use_adjust_section_means: bool = True,
+) -&gt; None:
+    &#34;&#34;&#34;Thicken sections within a chunk. A thickened section is simply a section that is expanded along the y axis to the resolution of the reconstruction.
+
+    :param thickened_fn: path to thickened volume
+    :param source_image_fn: path to source image
+    :param section_thickness: section thickness
+    :param acquisition: acquisition type
+    :param chunk_sect_info: dataframe with chunk information
+    :param resolution: resolution of the interpolated volumes
+    :param tissue_type: tissue type of the interpolated volumes
+    :param gaussian_sd: standard deviation of gaussian filter
+    :return: None
+    &#34;&#34;&#34;
+    print(thickened_fn)
+    print(source_image_fn)
+    array_img = nib.load(source_image_fn)
+    array_src = array_img.get_fdata()
+
+    print(array_src.shape)
+
+    assert np.sum(array_src) != 0, (
+        &#34;Error: source volume for thickening sections is empty\n&#34; + source_image_fn
+    )
+
+    if use_adjust_section_means:
+        adj_factors_dict = calculate_section_adjustment_factors(
+            chunk_sect_info[&#34;nl_2d_rsl&#34;].values,
+            chunk_sect_info[&#34;sample&#34;].values,
+            os.path.dirname(thickened_fn),
+        )
+
+    # get the thicken widith fot the section. The resolution is halfed because we are thickening in both directions
+    width = get_thicken_width(resolution, section_thickness)
+    print(&#34;\t\tThickening sections to &#34;, 0.02 * width * 2)
+
+    dim = [array_src.shape[0], 1, array_src.shape[2]]
+    rec_vol = np.zeros_like(array_src)
+    n = np.zeros_like(array_src)
+
+    for row_i, row in chunk_sect_info.iterrows():
+        y = int(row[&#34;sample&#34;])
+
+        # Conversion of radioactivity values to receptor density values
+        nl_2d_rsl = row[&#34;nl_2d_rsl&#34;]
+        section = nib.load(nl_2d_rsl).get_fdata().copy()
+
+        if use_adjust_section_means:
+            section += adj_factors_dict[y]
+
+        if np.sum(section) == 0:
+            print(f&#34;Warning: empty frame {row_i} {row}\n&#34;)
+
+        y0 = int(y) - width if int(y) - width &gt; 0 else 0
+        y1 = (
+            1 + int(y) + width
+            if 1 + int(y) + width &lt; array_src.shape[1]
+            else array_src.shape[1]
+        )
+
+        rep = np.repeat(section.reshape(dim), y1 - y0, axis=1)
+
+        rec_vol[:, y0:y1, :] += rep
+        n[:, y0:y1, :] += 1
+
+    # normalize by number of sections within range
+
+    assert np.sum(rec_vol) != 0, &#34;Error: thickened volume is empty&#34;
+
+    rec_vol[n &gt; 0] = rec_vol[n &gt; 0] / n[n &gt; 0]
+    rec_vol[n == 0] = 0
+
+    if np.sum(gaussian_sd) &gt; 0:
+        empty_voxels = rec_vol &lt; np.max(rec_vol) * 0.05
+        rec_vol = gaussian_filter(rec_vol, gaussian_sd)
+        rec_vol[empty_voxels] = 0
+
+    if &#34;batch_offset&#34; in chunk_sect_info.columns:
+        batch_offset = chunk_sect_info[&#34;batch_offset&#34;].values[0]
+        rec_vol = rec_vol + batch_offset
+
+    assert np.sum(rec_vol) != 0, &#34;Error: thickened volume is empty&#34;
+    print(
+        &#34;\t\t\tThickened volume:\t&#34;,
+        np.min(rec_vol),
+        np.mean(rec_vol[rec_vol &gt; rec_vol.min()]),
+        np.max(rec_vol),
+    )
+
+    print(&#34;\tthickened_fn&#34;, thickened_fn)
+    nib.Nifti1Image(rec_vol, array_img.affine, direction_order=&#34;lpi&#34;).to_filename(
+        thickened_fn
+    )
+
+    return rec_vol
+
+
+def check_all_thickened_files_exist(output_csv: str) -&gt; bool:
+    &#34;&#34;&#34;Check if all thickened files exist.
+
+    :param output_csv: path to csv file containing chunk information
+    :return: True if all thickened files exist, False otherwise
+    &#34;&#34;&#34;
+    chunk_info = pd.read_csv(output_csv)
+    for (chunk, acquisition), chunk_info_row in chunk_info.groupby(
+        [
+            &#34;chunk&#34;,
+            &#34;acquisition&#34;,
+        ]
+    ):
+        if not os.path.exists(chunk_info_row[&#34;thickened&#34;].values[0]):
+            return False
+    return True
+
+
+def get_section_intervals(vol: np.ndarray) -&gt; list:
+    &#34;&#34;&#34;Get the intervals of sections within a volume across y-axis of volume.
+
+    :param vol: np.array, volume
+    :return: list
+    &#34;&#34;&#34;
+    section_max = np.max(vol, axis=(0, 2))
+    section_min = np.min(vol, axis=(0, 2))
+
+    print(section_max)
+    print(section_min)
+
+    valid_sections = section_max != section_min
+
+    labeled_sections, nlabels = label(valid_sections)
+
+    if nlabels &lt; 2:
+        print(
+            &#34;Error: there must be a gap between thickened sections. Use higher resolution volumes.&#34;
+        )
+
+    intervals = [
+        (
+            np.where(labeled_sections == i)[0][0],
+            np.where(labeled_sections == i)[0][-1] + 1,
+        )
+        for i in range(1, nlabels + 1)
+    ]
+
+    assert len(intervals) &gt; 0, &#34;Error: no valid intervals found for volume.&#34;
+    return intervals
+
+
+def create_distance_volume(volume_filename, distance_filename):
+    img = nib.load(volume_filename)
+    vol = img.get_fdata()
+
+    intervals = get_section_intervals(vol)
+
+    out_vol = np.zeros(vol.shape)
+    for i in range(len(intervals) - 1):
+        j = i + 1
+        x0, x1 = intervals[i]
+        y0, y1 = intervals[j]
+        x = np.mean(vol[:, x0:x1, :], axis=1)
+        y = np.mean(vol[:, y0:y1, :], axis=1)
+        vol[:, x0:x1, :] = np.repeat(
+            x.reshape(x.shape[0], 1, x.shape[1]), x1 - x0, axis=1
+        )
+        for ii in range(x1, y0):
+            den = y0 - x1
+            assert den != 0, &#34;Error: 0 denominator when interpolating missing sections&#34;
+            d0 = (ii - x1) / den
+            d1 = (y1 - ii) / den
+            d = min(d0, d1)
+            out_vol[:, ii, :] = d
+
+    nib.Nifti1Image(out_vol, img.affine, direction_order=&#34;lpi&#34;).to_filename(
+        distance_filename
+    )
+
+    return out_vol
+
+
+def create_thickened_volumes(
+    output_dir: str,
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    resolution: float,
+    tissue_type: str = &#34;&#34;,
+    gaussian_sd: float = 0,
+    clobber: bool = False,
+) -&gt; str:
+    &#34;&#34;&#34;Create thickened volumes for each acquisition and each chunk.
+
+    A thickened volume is simply a volume consisting of the sections for a particular acquisition that are expanded along the
+    y axis to the resolution of the reconstruction.
+
+    :param output_dir: directory for interpolated volumes
+    :param chunk_info_csv: dataframe with chunk information
+    :param sect_info_csv: dataframe with section information
+    :param resolution: resolution of the interpolated volumes
+    :param tissue_type: tissue type of the interpolated volumes
+    :param gaussian_sd: standard deviation of gaussian filter
+    :param clobber: overwrite existing files
+    :return: None
+    &#34;&#34;&#34;
+    output_csv = f&#34;{output_dir}/chunk_info_thickened_{resolution}mm.csv&#34;
+
+    thickened_files_exist = False
+
+    if os.path.exists(output_csv):
+        thickened_files_exist = check_all_thickened_files_exist(output_csv)
+
+    if not os.path.exists(output_csv) or not thickened_files_exist or clobber:
+        chunk_info_out = pd.DataFrame({})
+
+        for (
+            sub,
+            hemisphere,
+            chunk,
+            acquisition,
+        ), chunk_sect_info in sect_info.groupby(
+            [
+                &#34;sub&#34;,
+                &#34;hemisphere&#34;,
+                &#34;chunk&#34;,
+                &#34;acquisition&#34;,
+            ]
+        ):
+            idx = chunk_info[&#34;chunk&#34;] == chunk
+            chunk_info_row = chunk_info[idx].iloc[0]
+
+            thickened_fn = f&#34;{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_thickened.nii.gz&#34;
+            distance_fn = f&#34;{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_distance.nii.gz&#34;
+
+            chunk_info_row[&#34;acquisition&#34;] = acquisition
+            chunk_info_row[&#34;thickened&#34;] = thickened_fn
+            chunk_info_row[&#34;distance&#34;] = distance_fn
+
+            if not os.path.exists(thickened_fn) or clobber:
+                thicken_sections_within_chunk(
+                    chunk_info_row[&#34;thickened&#34;],
+                    chunk_info_row[&#34;nl_2d_vol_fn&#34;],
+                    chunk_info_row[&#34;section_thickness&#34;],
+                    acquisition,
+                    chunk_sect_info,
+                    resolution,
+                    gaussian_sd=gaussian_sd,
+                )
+
+            if not os.path.exists(distance_fn) or clobber:
+                create_distance_volume(thickened_fn, distance_fn)
+
+            chunk_info_out = pd.concat([chunk_info_out, chunk_info_row.to_frame().T])
+
+        chunk_info_out.to_csv(output_csv, index=False)
+    return output_csv</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="brainbuilder.interp.acqvolume.check_all_thickened_files_exist"><code class="name flex">
+<span>def <span class="ident">check_all_thickened_files_exist</span></span>(<span>output_csv: str) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Check if all thickened files exist.</p>
+<p>:param output_csv: path to csv file containing chunk information
+:return: True if all thickened files exist, False otherwise</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def check_all_thickened_files_exist(output_csv: str) -&gt; bool:
+    &#34;&#34;&#34;Check if all thickened files exist.
+
+    :param output_csv: path to csv file containing chunk information
+    :return: True if all thickened files exist, False otherwise
+    &#34;&#34;&#34;
+    chunk_info = pd.read_csv(output_csv)
+    for (chunk, acquisition), chunk_info_row in chunk_info.groupby(
+        [
+            &#34;chunk&#34;,
+            &#34;acquisition&#34;,
+        ]
+    ):
+        if not os.path.exists(chunk_info_row[&#34;thickened&#34;].values[0]):
+            return False
+    return True</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.acqvolume.create_distance_volume"><code class="name flex">
+<span>def <span class="ident">create_distance_volume</span></span>(<span>volume_filename, distance_filename)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def create_distance_volume(volume_filename, distance_filename):
+    img = nib.load(volume_filename)
+    vol = img.get_fdata()
+
+    intervals = get_section_intervals(vol)
+
+    out_vol = np.zeros(vol.shape)
+    for i in range(len(intervals) - 1):
+        j = i + 1
+        x0, x1 = intervals[i]
+        y0, y1 = intervals[j]
+        x = np.mean(vol[:, x0:x1, :], axis=1)
+        y = np.mean(vol[:, y0:y1, :], axis=1)
+        vol[:, x0:x1, :] = np.repeat(
+            x.reshape(x.shape[0], 1, x.shape[1]), x1 - x0, axis=1
+        )
+        for ii in range(x1, y0):
+            den = y0 - x1
+            assert den != 0, &#34;Error: 0 denominator when interpolating missing sections&#34;
+            d0 = (ii - x1) / den
+            d1 = (y1 - ii) / den
+            d = min(d0, d1)
+            out_vol[:, ii, :] = d
+
+    nib.Nifti1Image(out_vol, img.affine, direction_order=&#34;lpi&#34;).to_filename(
+        distance_filename
+    )
+
+    return out_vol</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.acqvolume.create_thickened_volumes"><code class="name flex">
+<span>def <span class="ident">create_thickened_volumes</span></span>(<span>output_dir: str, chunk_info: pandas.core.frame.DataFrame, sect_info: pandas.core.frame.DataFrame, resolution: float, tissue_type: str = '', gaussian_sd: float = 0, clobber: bool = False) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Create thickened volumes for each acquisition and each chunk.</p>
+<p>A thickened volume is simply a volume consisting of the sections for a particular acquisition that are expanded along the
+y axis to the resolution of the reconstruction.</p>
+<p>:param output_dir: directory for interpolated volumes
+:param chunk_info_csv: dataframe with chunk information
+:param sect_info_csv: dataframe with section information
+:param resolution: resolution of the interpolated volumes
+:param tissue_type: tissue type of the interpolated volumes
+:param gaussian_sd: standard deviation of gaussian filter
+:param clobber: overwrite existing files
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def create_thickened_volumes(
+    output_dir: str,
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
+    resolution: float,
+    tissue_type: str = &#34;&#34;,
+    gaussian_sd: float = 0,
+    clobber: bool = False,
+) -&gt; str:
+    &#34;&#34;&#34;Create thickened volumes for each acquisition and each chunk.
+
+    A thickened volume is simply a volume consisting of the sections for a particular acquisition that are expanded along the
+    y axis to the resolution of the reconstruction.
+
+    :param output_dir: directory for interpolated volumes
+    :param chunk_info_csv: dataframe with chunk information
+    :param sect_info_csv: dataframe with section information
+    :param resolution: resolution of the interpolated volumes
+    :param tissue_type: tissue type of the interpolated volumes
+    :param gaussian_sd: standard deviation of gaussian filter
+    :param clobber: overwrite existing files
+    :return: None
+    &#34;&#34;&#34;
+    output_csv = f&#34;{output_dir}/chunk_info_thickened_{resolution}mm.csv&#34;
+
+    thickened_files_exist = False
+
+    if os.path.exists(output_csv):
+        thickened_files_exist = check_all_thickened_files_exist(output_csv)
+
+    if not os.path.exists(output_csv) or not thickened_files_exist or clobber:
+        chunk_info_out = pd.DataFrame({})
+
+        for (
+            sub,
+            hemisphere,
+            chunk,
+            acquisition,
+        ), chunk_sect_info in sect_info.groupby(
+            [
+                &#34;sub&#34;,
+                &#34;hemisphere&#34;,
+                &#34;chunk&#34;,
+                &#34;acquisition&#34;,
+            ]
+        ):
+            idx = chunk_info[&#34;chunk&#34;] == chunk
+            chunk_info_row = chunk_info[idx].iloc[0]
+
+            thickened_fn = f&#34;{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_thickened.nii.gz&#34;
+            distance_fn = f&#34;{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_distance.nii.gz&#34;
+
+            chunk_info_row[&#34;acquisition&#34;] = acquisition
+            chunk_info_row[&#34;thickened&#34;] = thickened_fn
+            chunk_info_row[&#34;distance&#34;] = distance_fn
+
+            if not os.path.exists(thickened_fn) or clobber:
+                thicken_sections_within_chunk(
+                    chunk_info_row[&#34;thickened&#34;],
+                    chunk_info_row[&#34;nl_2d_vol_fn&#34;],
+                    chunk_info_row[&#34;section_thickness&#34;],
+                    acquisition,
+                    chunk_sect_info,
+                    resolution,
+                    gaussian_sd=gaussian_sd,
+                )
+
+            if not os.path.exists(distance_fn) or clobber:
+                create_distance_volume(thickened_fn, distance_fn)
+
+            chunk_info_out = pd.concat([chunk_info_out, chunk_info_row.to_frame().T])
+
+        chunk_info_out.to_csv(output_csv, index=False)
+    return output_csv</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.acqvolume.get_section_intervals"><code class="name flex">
+<span>def <span class="ident">get_section_intervals</span></span>(<span>vol: numpy.ndarray) ‑> list</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the intervals of sections within a volume across y-axis of volume.</p>
+<p>:param vol: np.array, volume
+:return: list</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_section_intervals(vol: np.ndarray) -&gt; list:
+    &#34;&#34;&#34;Get the intervals of sections within a volume across y-axis of volume.
+
+    :param vol: np.array, volume
+    :return: list
+    &#34;&#34;&#34;
+    section_max = np.max(vol, axis=(0, 2))
+    section_min = np.min(vol, axis=(0, 2))
+
+    print(section_max)
+    print(section_min)
+
+    valid_sections = section_max != section_min
+
+    labeled_sections, nlabels = label(valid_sections)
+
+    if nlabels &lt; 2:
+        print(
+            &#34;Error: there must be a gap between thickened sections. Use higher resolution volumes.&#34;
+        )
+
+    intervals = [
+        (
+            np.where(labeled_sections == i)[0][0],
+            np.where(labeled_sections == i)[0][-1] + 1,
+        )
+        for i in range(1, nlabels + 1)
+    ]
+
+    assert len(intervals) &gt; 0, &#34;Error: no valid intervals found for volume.&#34;
+    return intervals</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.acqvolume.setup_section_normalization"><code class="name flex">
+<span>def <span class="ident">setup_section_normalization</span></span>(<span>acquisition: str, sect_info: pandas.core.frame.DataFrame, array_src: numpy.ndarray) ‑> Tuple[numpy.ndarray, bool]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>This function is not for chunk normalization but for section normalization based on surrounding sections.</p>
+<p>:param acquisition: acquisition type
+:param sect_info: dataframe with section information
+:param array_src: source array
+:return: array_src, normalize_sections</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def setup_section_normalization(
+    acquisition: str, sect_info: pd.DataFrame, array_src: np.ndarray
+) -&gt; Tuple[np.ndarray, bool]:
+    &#34;&#34;&#34;This function is not for chunk normalization but for section normalization based on surrounding sections.
+
+    :param acquisition: acquisition type
+    :param sect_info: dataframe with section information
+    :param array_src: source array
+    :return: array_src, normalize_sections
+    &#34;&#34;&#34;
+    normalize_sections = False
+    mean_list = []
+    std_list = []
+    y_list = []
+
+    sect_info = sect_info.sort_values([&#34;sample&#34;])
+    if acquisition in [] or normalize_sections:
+        print(&#34;Normalizing&#34;, acquisition)
+
+        for row_i, row in sect_info.iterrows():
+            y = int(row[&#34;sample&#34;])
+
+            # Conversion of radioactivity values to receptor density values
+            section = array_src[:, y, :]
+
+            idx = section &gt;= 0
+
+            mean_list.append(np.mean(section[idx]))
+            std_list.append(np.std(section[idx]))
+            y_list.append(y)
+
+        mean_list = np.array(mean_list)
+        pad = 2
+        new_mean_list = []
+        i_list = range(len(mean_list))
+
+        new_mean_list.append(mean_list[0])
+        for i, y, mean in zip(i_list[1:-1], y_list[1:-1], mean_list[1:-1]):
+            i0 = max(i - pad, 0)
+            i1 = min(i + pad, len(mean_list) - 1)
+            x = list(y_list[i0:i]) + list(y_list[i + 1 : i1 + 1])
+            z = list(mean_list[i0:i]) + list(mean_list[i + 1 : i1 + 1])
+            kind_dict = {
+                1: &#34;nearest&#34;,
+                2: &#34;linear&#34;,
+                3: &#34;quadratic&#34;,
+                4: &#34;cubic&#34;,
+                5: &#34;cubic&#34;,
+            }
+            interp_f = interp1d(x, z, kind=kind_dict[min(5, len(x))])
+            new_mean = interp_f(y)
+            new_mean_list.append(new_mean)
+        new_mean_list.append(mean_list[-1])
+
+        for y, new_mean in zip(y_list, new_mean_list):
+            section = array_src[:, y, :]
+            section[section &gt; 0] = (
+                new_mean + section[section &gt; 0] - np.mean(section[section &gt; 0])
+            )
+            array_src[:, y, :] = section
+
+    return array_src, normalize_sections</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.interp.acqvolume.thicken_sections_within_chunk"><code class="name flex">
+<span>def <span class="ident">thicken_sections_within_chunk</span></span>(<span>thickened_fn: str, source_image_fn: str, section_thickness: float, acquisition: str, chunk_sect_info: pandas.core.frame.DataFrame, resolution: float, tissue_type: str = '', gaussian_sd: float = 0, use_conversion_factor=False, use_adjust_section_means: bool = True) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Thicken sections within a chunk. A thickened section is simply a section that is expanded along the y axis to the resolution of the reconstruction.</p>
+<p>:param thickened_fn: path to thickened volume
+:param source_image_fn: path to source image
+:param section_thickness: section thickness
+:param acquisition: acquisition type
+:param chunk_sect_info: dataframe with chunk information
+:param resolution: resolution of the interpolated volumes
+:param tissue_type: tissue type of the interpolated volumes
+:param gaussian_sd: standard deviation of gaussian filter
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def thicken_sections_within_chunk(
+    thickened_fn: str,
+    source_image_fn: str,
+    section_thickness: float,
+    acquisition: str,
+    chunk_sect_info: pd.DataFrame,
+    resolution: float,
+    tissue_type: str = &#34;&#34;,
+    gaussian_sd: float = 0,
+    use_conversion_factor=False,
+    use_adjust_section_means: bool = True,
+) -&gt; None:
+    &#34;&#34;&#34;Thicken sections within a chunk. A thickened section is simply a section that is expanded along the y axis to the resolution of the reconstruction.
+
+    :param thickened_fn: path to thickened volume
+    :param source_image_fn: path to source image
+    :param section_thickness: section thickness
+    :param acquisition: acquisition type
+    :param chunk_sect_info: dataframe with chunk information
+    :param resolution: resolution of the interpolated volumes
+    :param tissue_type: tissue type of the interpolated volumes
+    :param gaussian_sd: standard deviation of gaussian filter
+    :return: None
+    &#34;&#34;&#34;
+    print(thickened_fn)
+    print(source_image_fn)
+    array_img = nib.load(source_image_fn)
+    array_src = array_img.get_fdata()
+
+    print(array_src.shape)
+
+    assert np.sum(array_src) != 0, (
+        &#34;Error: source volume for thickening sections is empty\n&#34; + source_image_fn
+    )
+
+    if use_adjust_section_means:
+        adj_factors_dict = calculate_section_adjustment_factors(
+            chunk_sect_info[&#34;nl_2d_rsl&#34;].values,
+            chunk_sect_info[&#34;sample&#34;].values,
+            os.path.dirname(thickened_fn),
+        )
+
+    # get the thicken widith fot the section. The resolution is halfed because we are thickening in both directions
+    width = get_thicken_width(resolution, section_thickness)
+    print(&#34;\t\tThickening sections to &#34;, 0.02 * width * 2)
+
+    dim = [array_src.shape[0], 1, array_src.shape[2]]
+    rec_vol = np.zeros_like(array_src)
+    n = np.zeros_like(array_src)
+
+    for row_i, row in chunk_sect_info.iterrows():
+        y = int(row[&#34;sample&#34;])
+
+        # Conversion of radioactivity values to receptor density values
+        nl_2d_rsl = row[&#34;nl_2d_rsl&#34;]
+        section = nib.load(nl_2d_rsl).get_fdata().copy()
+
+        if use_adjust_section_means:
+            section += adj_factors_dict[y]
+
+        if np.sum(section) == 0:
+            print(f&#34;Warning: empty frame {row_i} {row}\n&#34;)
+
+        y0 = int(y) - width if int(y) - width &gt; 0 else 0
+        y1 = (
+            1 + int(y) + width
+            if 1 + int(y) + width &lt; array_src.shape[1]
+            else array_src.shape[1]
+        )
+
+        rep = np.repeat(section.reshape(dim), y1 - y0, axis=1)
+
+        rec_vol[:, y0:y1, :] += rep
+        n[:, y0:y1, :] += 1
+
+    # normalize by number of sections within range
+
+    assert np.sum(rec_vol) != 0, &#34;Error: thickened volume is empty&#34;
+
+    rec_vol[n &gt; 0] = rec_vol[n &gt; 0] / n[n &gt; 0]
+    rec_vol[n == 0] = 0
+
+    if np.sum(gaussian_sd) &gt; 0:
+        empty_voxels = rec_vol &lt; np.max(rec_vol) * 0.05
+        rec_vol = gaussian_filter(rec_vol, gaussian_sd)
+        rec_vol[empty_voxels] = 0
+
+    if &#34;batch_offset&#34; in chunk_sect_info.columns:
+        batch_offset = chunk_sect_info[&#34;batch_offset&#34;].values[0]
+        rec_vol = rec_vol + batch_offset
+
+    assert np.sum(rec_vol) != 0, &#34;Error: thickened volume is empty&#34;
+    print(
+        &#34;\t\t\tThickened volume:\t&#34;,
+        np.min(rec_vol),
+        np.mean(rec_vol[rec_vol &gt; rec_vol.min()]),
+        np.max(rec_vol),
+    )
+
+    print(&#34;\tthickened_fn&#34;, thickened_fn)
+    nib.Nifti1Image(rec_vol, array_img.affine, direction_order=&#34;lpi&#34;).to_filename(
+        thickened_fn
+    )
+
+    return rec_vol</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="brainbuilder.interp" href="index.html">brainbuilder.interp</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="brainbuilder.interp.acqvolume.check_all_thickened_files_exist" href="#brainbuilder.interp.acqvolume.check_all_thickened_files_exist">check_all_thickened_files_exist</a></code></li>
+<li><code><a title="brainbuilder.interp.acqvolume.create_distance_volume" href="#brainbuilder.interp.acqvolume.create_distance_volume">create_distance_volume</a></code></li>
+<li><code><a title="brainbuilder.interp.acqvolume.create_thickened_volumes" href="#brainbuilder.interp.acqvolume.create_thickened_volumes">create_thickened_volumes</a></code></li>
+<li><code><a title="brainbuilder.interp.acqvolume.get_section_intervals" href="#brainbuilder.interp.acqvolume.get_section_intervals">get_section_intervals</a></code></li>
+<li><code><a title="brainbuilder.interp.acqvolume.setup_section_normalization" href="#brainbuilder.interp.acqvolume.setup_section_normalization">setup_section_normalization</a></code></li>
+<li><code><a title="brainbuilder.interp.acqvolume.thicken_sections_within_chunk" href="#brainbuilder.interp.acqvolume.thicken_sections_within_chunk">thicken_sections_within_chunk</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

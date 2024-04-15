@@ -1,0 +1,1155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>brainbuilder.segment API documentation</title>
+<meta name="description" content="Create GM volume from segmented images." />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>brainbuilder.segment</code></h1>
+</header>
+<section id="section-intro">
+<p>Create GM volume from segmented images.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">&#34;&#34;&#34;Create GM volume from segmented images.&#34;&#34;&#34;
+import os
+import re
+from glob import glob
+
+import numpy as np
+import pandas as pd
+import SimpleITK as sitk
+from joblib import Parallel, delayed
+from skimage.filters import threshold_otsu
+from skimage.transform import resize
+
+import brainbuilder.utils.ants_nibabel as nib
+from brainbuilder.utils import utils
+
+base_file_dir, fn = os.path.split(os.path.abspath(__file__))
+repo_dir = f&#34;{base_file_dir}/../&#34;
+
+
+def apply_threshold(img: np.ndarray, method: callable) -&gt; np.ndarray:
+    &#34;&#34;&#34;Apply thresholding method to the image.
+
+    :param img: np.ndarray, input image
+    :param method: callable, thresholding method
+    :return: np.ndarray, segmented image
+    &#34;&#34;&#34;
+    thr = method(img)
+    im = np.zeros_like(img)
+    im[img &gt; thr] = 1
+    return im
+
+
+def multi_threshold(img: np.ndarray) -&gt; np.ndarray:
+    &#34;&#34;&#34;Apply multiple thresholding methods to the image.
+
+    :param img: np.ndarray, input image
+    :return: np.ndarray, segmented image
+    &#34;&#34;&#34;
+    seg = np.zeros_like(img)
+    # methods = [threshold_li, threshold_mean, threshold_triangle, threshold_otsu]
+    methods = [threshold_otsu]
+    for method in methods:
+        im_thr = apply_threshold(img, method)
+        seg += im_thr
+
+    n = len(methods)
+    seg /= n
+    seg[seg &lt; 0.5] = 0
+    seg[seg &gt;= 0.5] = 1
+    return seg
+
+
+def histogram_threshold(
+    raw_fn: str, seg_fn: str, sd: float = 1, ref: str = None
+) -&gt; None:
+    &#34;&#34;&#34;Apply histogram thresholding to the cropped images.
+
+    param: raw_fn: raw image filename
+    param: seg_fn: segmentation filename
+    param: sd: standard deviation
+    return: None
+    &#34;&#34;&#34;
+    img = nib.load(raw_fn)
+
+    affine = img.affine
+    dimensions = img.shape
+
+    ar = img.get_fdata()
+    assert np.sum(np.abs(ar)) &gt; 0, (
+        &#34;Error: empty input image with histogram thresholding &#34; + raw_fn
+    )
+
+    out = multi_threshold(ar)
+
+    if not isinstance(ref, type(None)):
+        ref_hd = nib.load(ref)
+        dimensions = ref_hd.shape  # resize to reference image
+        affine = ref_hd.affine
+
+    out = resize(out, dimensions, order=3)
+    if len(out.shape) == 3:
+        out = out.reshape([out.shape[0], out.shape[1]])
+
+    assert np.sum(np.abs(out)) &gt; 0, (
+        &#34;Error: empty segmented image with histogram thresholding &#34; + raw_fn
+    )
+
+    nib.Nifti1Image(out, affine, direction_order=&#34;lpi&#34;).to_filename(seg_fn)
+
+    return out
+
+
+typeDataFrame = type(pd.DataFrame({}))
+
+base_file_dir, fn = os.path.split(os.path.abspath(__file__))
+
+
+def convert_2d_array_to_nifti(
+    input_filename: str,
+    output_filename: str,
+    res: list,
+    spacing: tuple = (1, 1, 1),
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Converts numpy into a series of niftis.
+
+    The image can have an arbitrary number of input channels which will be exported separately (_0000.nii.gz,
+    _0001.nii.gz, etc for images and only .nii.gz for seg).
+    Spacing can be ignored most of the time.
+    !!!2D images are often natural images which do not have a voxel spacing that could be used for resampling. These images
+    must be resampled by you prior to converting them to nifti!!!
+    Datasets converted with this utility can only be used with the 2d U-Net configuration of nnU-Net
+    If Transform is not None it will be applied to the image after loading.
+    Segmentations will be converted to np.uint32!
+
+    :param input_filename: str, path to numpy array
+    :param output_filename: str, path to output nifti file
+    :param res: list, resolution of the image
+    :param spacing: tuple, spacing of the image
+    :param clobber: bool, overwrite existing files
+    :return: None
+    &#34;&#34;&#34;
+    if (
+        not os.path.exists(output_filename)
+        or not utils.newer_than(output_filename, input_filename)
+        or clobber
+    ):
+        aff = np.eye(4)
+        aff[0, 0] = res[0]
+        aff[1, 1] = res[1]
+        nii_img = utils.resample_to_resolution(
+            input_filename, [0.2, 0.2], affine=aff, order=1
+        )
+
+        img = nii_img.get_fdata()
+
+        img = np.rot90(np.fliplr(img), -1)
+
+        assert len(img.shape) == 2
+
+        img = img[None, None]  # add dimensions
+        # image is now (c, y, x, z) where x=1 since it&#39;s 2d
+        img = img.astype(np.float32)
+
+        assert np.sum(np.abs(img)) &gt; 0
+
+        for j, i in enumerate(img):
+            itk_img = sitk.GetImageFromArray(i)
+            itk_img.SetSpacing(list(spacing)[::-1])
+            # sitk.WriteImage(itk_img, output_filename_truncated + &#34;_%04.0d.nii.gz&#34; % j)
+            sitk.WriteImage(itk_img, output_filename)
+            # nib.Nifti1Image(i, nii_img.affine).to_filename(output_filename)
+
+        print(&#34;Wrote:&#34;, output_filename)
+
+
+def assign_seg_filenames(
+    df: typeDataFrame, resolution: float, output_dir: str
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Assign segmentation filenames to the dataframe.
+
+    param: df: dataframe with columns: raw, seg_fn
+    param: resolution: resolution of the raw images
+    param: output_dir: directory to save output
+    return: dataframe with columns: raw, seg_fn
+    &#34;&#34;&#34;
+    df[&#34;seg&#34;] = df[&#34;raw&#34;].apply(
+        lambda fn: utils.gen_new_filename(fn, output_dir, f&#34;_{resolution}mm_seg.nii.gz&#34;)
+    )
+    return df
+
+
+def apply_histogram_threshold(sect_info: typeDataFrame, num_cores: int = 1) -&gt; None:
+    &#34;&#34;&#34;Apply histogram threshold to the raw images.
+
+    param: sect_info: dataframe with columns: raw, seg_fn
+    return: dataframe with columns: raw, seg_fn
+    &#34;&#34;&#34;
+    Parallel(n_jobs=num_cores)(
+        delayed(histogram_threshold)(row[&#34;raw&#34;], row[&#34;seg&#34;], ref=row[&#34;img&#34;])
+        for i, row in sect_info.iterrows()
+    )
+    return None
+
+
+def get_nnunet_filename(input_fn: str, nnunet_out_dir: str) -&gt; str:
+    &#34;&#34;&#34;Get the nnunet filename from the input filename.
+
+    param: input_fn: input filename
+    param: nnunet_out_dir: directory to save nnunet images
+    return: nnunet filename
+    &#34;&#34;&#34;
+    if &#34;.nii.gz&#34; in input_fn:
+        base = re.sub(&#34;.nii.gz&#34;, &#34;&#34;, input_fn)
+    else:
+        base = os.path.splitext(input_fn)[0]
+    base = os.path.basename(base)
+
+    print(f&#34;{nnunet_out_dir}/{base}*&#34;)
+
+    nnunet_list = glob(f&#34;{nnunet_out_dir}/{base}*&#34;)
+
+    if len(nnunet_list) &gt; 0:
+        nnunet_fn = nnunet_list[0]
+    else:
+        nnunet_fn = &#34;&#34;
+
+    return nnunet_fn
+
+
+def convert_from_nnunet_list(
+    sect_info: typeDataFrame,
+    nnunet_out_dir: str,
+    nnunet_input_str: str = &#34;img&#34;,
+    warning_flag: bool = False,
+    clobber: bool = False,
+) -&gt; list:
+    &#34;&#34;&#34;Convert the nnunet images to regular nifti images.
+
+    param: sect_info: dataframe with columns: img, seg_fn
+    param: nnunet_out_dir: directory to save nnunet images
+    param: nnunet_input_str: column name for nnunet input
+    param: clobber: overwrite existing files
+    return: list of files to convert
+    &#34;&#34;&#34;
+    to_do = []
+    for i, row in sect_info.iterrows():
+        img_fn = row[nnunet_input_str]
+        seg_fn = row[&#34;seg&#34;]
+
+        nnunet_fn = get_nnunet_filename(img_fn, nnunet_out_dir)
+
+        if utils.check_run_stage([seg_fn], [nnunet_fn], clobber=clobber):
+            if warning_flag:
+                print(&#34;\tWarning: Could not find file:&#34;, seg_fn)
+            to_do.append((nnunet_fn, img_fn, seg_fn))
+    return to_do
+
+
+def convert_to_nnunet_list(
+    chunk_info: typeDataFrame,
+    sect_info: typeDataFrame,
+    nnunet_in_dir: str,
+    nnunet_input_str: str = &#34;img&#34;,
+    clobber: bool = False,
+) -&gt; list:
+    &#34;&#34;&#34;Convert the raw images to nnunet format.
+
+    param: chunk_info: dataframe with columns: sub, hemisphere, chunk
+    param: sect_info: dataframe with columns: raw, seg_fn
+    param: nnunet_in_dir: directory to save nnunet images
+    param: nnunet_input_str: column name for nnunet input
+    param: clobber: overwrite existing files
+    return: list of files to convert
+    &#34;&#34;&#34;
+    to_do = []
+    for i, row in sect_info.iterrows():
+        f = row[nnunet_input_str]
+
+        pixel_size_0, pixel_size_1, _ = utils.get_chunk_pixel_size(
+            row[&#34;sub&#34;], row[&#34;hemisphere&#34;], row[&#34;chunk&#34;], chunk_info
+        )
+
+        fname = re.sub(&#34;.nii.gz&#34;, &#34;&#34;, os.path.basename(f))
+        output_filename_truncated = os.path.join(nnunet_in_dir, fname)
+        output_filename = output_filename_truncated + &#34;_0000.nii.gz&#34;
+        if (
+            not os.path.exists(output_filename)
+            or not utils.newer_than(output_filename, f)
+            or clobber
+        ):
+            to_do.append([f, pixel_size_0, pixel_size_1, output_filename])
+
+    return to_do
+
+
+def check_seg_files(
+    sect_info: typeDataFrame,
+    nnunet_out_dir: str,
+    warning_flag: bool = False,
+    nnunet_input_str: str = &#34;img&#34;,
+) -&gt; bool:
+    &#34;&#34;&#34;Check if all the segmentation files exist.
+
+    :param sect_info: dataframe with columns: raw, seg_fn
+    :param nnunet_out_dir: directory to save nnunet images
+    :param warning_flag: bool, optional, if True, print warning message if file is missing, default=False
+    :return: True if all files exist, False otherwise
+    &#34;&#34;&#34;
+    all_files_valid = True
+    for i, row in sect_info.iterrows():
+        # check if seg file is newer than raw file, if not the seg file must be removed
+        if os.path.exists(row[&#34;seg&#34;]) and not utils.newer_than(
+            row[&#34;seg&#34;], row[nnunet_input_str]
+        ):
+            nnunet_filename = get_nnunet_filename(row[nnunet_input_str], nnunet_out_dir)
+            os.remove(row[&#34;seg&#34;])
+            if os.path.exists(nnunet_filename):
+                os.remove(nnunet_filename)
+
+        if not os.path.exists(row[&#34;seg&#34;]):
+            all_files_valid = False
+            if warning_flag:
+                print(&#34;\tWarning: Could not find file:&#34;, row[&#34;seg&#34;])
+
+    return all_files_valid
+
+
+def segment(
+    chunk_info_csv: str,
+    sect_info_csv: str,
+    output_dir: str,
+    resolution: float,
+    model_dir: str = f&#34;{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/&#34;,
+    output_csv: str = &#34;&#34;,
+    num_cores: int = 0,
+    use_nnunet: bool = True,
+    clobber: bool = False,
+) -&gt; str:
+    &#34;&#34;&#34;Segment the raw images.
+
+    param: sect_info_csv: csv file with columns: raw, seg_fn
+    param: output_dir: directory to save output
+    param: resolution: resolution of the raw images
+    param: model_dir: directory of the nnunet model
+    param: output_csv: csv file to save output
+    param: num_cores: number of cores to use
+    param: use_nnunet: use nnunet to segment
+    param: clobber: overwrite existing files
+    return: csv file with columns: raw, seg_fn
+    &#34;&#34;&#34;
+    nnunet_input_str = &#34;img&#34;
+
+    if output_csv == &#34;&#34;:
+        output_csv = (
+            output_dir
+            + os.sep
+            + os.path.splitext(os.path.basename(sect_info_csv))[0]
+            + &#34;_segment.csv&#34;
+        )
+
+    # check it &#39;seg&#39; files are all newer than &#39;img&#39; files
+
+    sect_info = pd.read_csv(sect_info_csv, index_col=False)
+
+    sect_info = assign_seg_filenames(sect_info, resolution, output_dir)
+
+    run_stage = utils.check_run_stage(
+        sect_info[&#34;seg&#34;], sect_info[&#34;img&#34;], output_csv, clobber=clobber
+    )
+
+    if run_stage:
+        nnunet_in_dir = f&#34;{output_dir}/nnunet/&#34;
+        nnunet_out_dir = f&#34;{output_dir}/nnunet_out/&#34;
+        os.makedirs(nnunet_in_dir, exist_ok=True)
+        os.makedirs(nnunet_out_dir, exist_ok=True)
+
+        num_cores = utils.set_cores(num_cores)
+
+        chunk_info = pd.read_csv(chunk_info_csv, index_col=False)
+
+        nifti2nnunet_to_do = convert_to_nnunet_list(
+            chunk_info,
+            sect_info,
+            nnunet_in_dir,
+            nnunet_input_str=nnunet_input_str,
+            clobber=clobber,
+        )
+
+        Parallel(n_jobs=num_cores)(
+            delayed(convert_2d_array_to_nifti)(
+                ii_fn, oo_fn, [pixel_size_0, pixel_size_1], clobber=clobber
+            )
+            for ii_fn, pixel_size_0, pixel_size_1, oo_fn in nifti2nnunet_to_do
+        )
+
+        missing_segmentations = not check_seg_files(
+            sect_info, nnunet_out_dir, False, nnunet_input_str=nnunet_input_str
+        )
+
+        if missing_segmentations or clobber:
+            if use_nnunet:
+                print(&#34;\tSegmenting with nnUNet&#34;)
+                try:
+                    utils.shell(
+                        f&#34;nnUNetv2_predict_from_modelfolder --c --verbose -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir} -f 0  -d Dataset501_Brain -device cpu&#34;
+                    )
+                    use_nnunet = True
+                except Exception as e:
+                    print(&#34;Warning: nnUNet failed to segment&#34;)
+                    print(e)
+                    use_nnunet = False
+
+        if not use_nnunet:
+            apply_histogram_threshold(sect_info, num_cores=num_cores)
+
+        if use_nnunet:
+            nnunet2nifti_to_do = convert_from_nnunet_list(
+                sect_info,
+                nnunet_out_dir,
+                nnunet_input_str=nnunet_input_str,
+                warning_flag=False,
+                clobber=clobber,
+            )
+
+            if len(nnunet2nifti_to_do) &gt; 0:
+                print(&#34;\tConvert Files from nnUNet to standard nifti files&#34;)
+
+                Parallel(n_jobs=num_cores)(
+                    delayed(convert_from_nnunet)(nnunet_fn, raw_fn, seg_fn, output_dir)
+                    for nnunet_fn, raw_fn, seg_fn in nnunet2nifti_to_do
+                )
+
+        assert check_seg_files(
+            sect_info,
+            nnunet_out_dir,
+            warning_flag=True,
+            nnunet_input_str=nnunet_input_str,
+        ), &#34;Missing segmentations&#34;
+
+        sect_info.to_csv(output_csv, index=False)
+
+    return output_csv
+
+
+def convert_from_nnunet(
+    input_fn: str, reference_fn: str, output_fn: str, seg_dir: str
+) -&gt; None:
+    &#34;&#34;&#34;Convert segmented files from the nnunet output to an easier to use.
+
+    param: input_fn: input filename
+    param: reference_fn: reference filename
+    param: output_fn: output filename
+    param: seg_dir: directory to save output
+    return: None
+    &#34;&#34;&#34;
+    ref_img = nib.load(reference_fn)
+    ar = nib.load(input_fn).get_fdata()
+
+    if (np.sum(ar == 1) / np.product(ar.shape)) &lt; 0.02:
+        print(&#34;\nWarning: Found a section that nnUNet failed to segment!\n&#34;)
+        histogram_threshold(reference_fn, output_fn)
+    else:
+        if np.sum(ar) == 0:
+            print(&#34;Error: empty segmented image with nnunet&#34;)
+            exit(0)
+        ar[(ar == 3) | (ar == 4)] = 1
+
+        gm = ar == 1
+        # wm = ar == 2
+
+        ar *= 0
+        ar[gm] = 1
+
+        ar = ar.reshape([ar.shape[0], ar.shape[1]])
+        # ar = ar.T
+        ar = resize(ar, ref_img.shape, order=0)
+        ar = np.fliplr(np.flipud(ar))
+
+        print(&#34;\tWriting&#34;, output_fn)
+        nib.Nifti1Image(ar, ref_img.affine, direction_order=&#34;lpi&#34;).to_filename(
+            output_fn
+        )
+
+    return None</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="brainbuilder.segment.apply_histogram_threshold"><code class="name flex">
+<span>def <span class="ident">apply_histogram_threshold</span></span>(<span>sect_info: pandas.core.frame.DataFrame, num_cores: int = 1) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Apply histogram threshold to the raw images.</p>
+<p>param: sect_info: dataframe with columns: raw, seg_fn
+return: dataframe with columns: raw, seg_fn</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def apply_histogram_threshold(sect_info: typeDataFrame, num_cores: int = 1) -&gt; None:
+    &#34;&#34;&#34;Apply histogram threshold to the raw images.
+
+    param: sect_info: dataframe with columns: raw, seg_fn
+    return: dataframe with columns: raw, seg_fn
+    &#34;&#34;&#34;
+    Parallel(n_jobs=num_cores)(
+        delayed(histogram_threshold)(row[&#34;raw&#34;], row[&#34;seg&#34;], ref=row[&#34;img&#34;])
+        for i, row in sect_info.iterrows()
+    )
+    return None</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.segment.apply_threshold"><code class="name flex">
+<span>def <span class="ident">apply_threshold</span></span>(<span>img: numpy.ndarray, method: <built-in function callable>) ‑> numpy.ndarray</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Apply thresholding method to the image.</p>
+<p>:param img: np.ndarray, input image
+:param method: callable, thresholding method
+:return: np.ndarray, segmented image</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def apply_threshold(img: np.ndarray, method: callable) -&gt; np.ndarray:
+    &#34;&#34;&#34;Apply thresholding method to the image.
+
+    :param img: np.ndarray, input image
+    :param method: callable, thresholding method
+    :return: np.ndarray, segmented image
+    &#34;&#34;&#34;
+    thr = method(img)
+    im = np.zeros_like(img)
+    im[img &gt; thr] = 1
+    return im</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.segment.assign_seg_filenames"><code class="name flex">
+<span>def <span class="ident">assign_seg_filenames</span></span>(<span>df: pandas.core.frame.DataFrame, resolution: float, output_dir: str) ‑> pandas.core.frame.DataFrame</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Assign segmentation filenames to the dataframe.</p>
+<p>param: df: dataframe with columns: raw, seg_fn
+param: resolution: resolution of the raw images
+param: output_dir: directory to save output
+return: dataframe with columns: raw, seg_fn</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def assign_seg_filenames(
+    df: typeDataFrame, resolution: float, output_dir: str
+) -&gt; pd.DataFrame:
+    &#34;&#34;&#34;Assign segmentation filenames to the dataframe.
+
+    param: df: dataframe with columns: raw, seg_fn
+    param: resolution: resolution of the raw images
+    param: output_dir: directory to save output
+    return: dataframe with columns: raw, seg_fn
+    &#34;&#34;&#34;
+    df[&#34;seg&#34;] = df[&#34;raw&#34;].apply(
+        lambda fn: utils.gen_new_filename(fn, output_dir, f&#34;_{resolution}mm_seg.nii.gz&#34;)
+    )
+    return df</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.segment.check_seg_files"><code class="name flex">
+<span>def <span class="ident">check_seg_files</span></span>(<span>sect_info: pandas.core.frame.DataFrame, nnunet_out_dir: str, warning_flag: bool = False, nnunet_input_str: str = 'img') ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Check if all the segmentation files exist.</p>
+<p>:param sect_info: dataframe with columns: raw, seg_fn
+:param nnunet_out_dir: directory to save nnunet images
+:param warning_flag: bool, optional, if True, print warning message if file is missing, default=False
+:return: True if all files exist, False otherwise</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def check_seg_files(
+    sect_info: typeDataFrame,
+    nnunet_out_dir: str,
+    warning_flag: bool = False,
+    nnunet_input_str: str = &#34;img&#34;,
+) -&gt; bool:
+    &#34;&#34;&#34;Check if all the segmentation files exist.
+
+    :param sect_info: dataframe with columns: raw, seg_fn
+    :param nnunet_out_dir: directory to save nnunet images
+    :param warning_flag: bool, optional, if True, print warning message if file is missing, default=False
+    :return: True if all files exist, False otherwise
+    &#34;&#34;&#34;
+    all_files_valid = True
+    for i, row in sect_info.iterrows():
+        # check if seg file is newer than raw file, if not the seg file must be removed
+        if os.path.exists(row[&#34;seg&#34;]) and not utils.newer_than(
+            row[&#34;seg&#34;], row[nnunet_input_str]
+        ):
+            nnunet_filename = get_nnunet_filename(row[nnunet_input_str], nnunet_out_dir)
+            os.remove(row[&#34;seg&#34;])
+            if os.path.exists(nnunet_filename):
+                os.remove(nnunet_filename)
+
+        if not os.path.exists(row[&#34;seg&#34;]):
+            all_files_valid = False
+            if warning_flag:
+                print(&#34;\tWarning: Could not find file:&#34;, row[&#34;seg&#34;])
+
+    return all_files_valid</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.segment.convert_2d_array_to_nifti"><code class="name flex">
+<span>def <span class="ident">convert_2d_array_to_nifti</span></span>(<span>input_filename: str, output_filename: str, res: list, spacing: tuple = (1, 1, 1), clobber: bool = False) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Converts numpy into a series of niftis.</p>
+<p>The image can have an arbitrary number of input channels which will be exported separately (_0000.nii.gz,
+_0001.nii.gz, etc for images and only .nii.gz for seg).
+Spacing can be ignored most of the time.
+!!!2D images are often natural images which do not have a voxel spacing that could be used for resampling. These images
+must be resampled by you prior to converting them to nifti!!!
+Datasets converted with this utility can only be used with the 2d U-Net configuration of nnU-Net
+If Transform is not None it will be applied to the image after loading.
+Segmentations will be converted to np.uint32!</p>
+<p>:param input_filename: str, path to numpy array
+:param output_filename: str, path to output nifti file
+:param res: list, resolution of the image
+:param spacing: tuple, spacing of the image
+:param clobber: bool, overwrite existing files
+:return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def convert_2d_array_to_nifti(
+    input_filename: str,
+    output_filename: str,
+    res: list,
+    spacing: tuple = (1, 1, 1),
+    clobber: bool = False,
+) -&gt; None:
+    &#34;&#34;&#34;Converts numpy into a series of niftis.
+
+    The image can have an arbitrary number of input channels which will be exported separately (_0000.nii.gz,
+    _0001.nii.gz, etc for images and only .nii.gz for seg).
+    Spacing can be ignored most of the time.
+    !!!2D images are often natural images which do not have a voxel spacing that could be used for resampling. These images
+    must be resampled by you prior to converting them to nifti!!!
+    Datasets converted with this utility can only be used with the 2d U-Net configuration of nnU-Net
+    If Transform is not None it will be applied to the image after loading.
+    Segmentations will be converted to np.uint32!
+
+    :param input_filename: str, path to numpy array
+    :param output_filename: str, path to output nifti file
+    :param res: list, resolution of the image
+    :param spacing: tuple, spacing of the image
+    :param clobber: bool, overwrite existing files
+    :return: None
+    &#34;&#34;&#34;
+    if (
+        not os.path.exists(output_filename)
+        or not utils.newer_than(output_filename, input_filename)
+        or clobber
+    ):
+        aff = np.eye(4)
+        aff[0, 0] = res[0]
+        aff[1, 1] = res[1]
+        nii_img = utils.resample_to_resolution(
+            input_filename, [0.2, 0.2], affine=aff, order=1
+        )
+
+        img = nii_img.get_fdata()
+
+        img = np.rot90(np.fliplr(img), -1)
+
+        assert len(img.shape) == 2
+
+        img = img[None, None]  # add dimensions
+        # image is now (c, y, x, z) where x=1 since it&#39;s 2d
+        img = img.astype(np.float32)
+
+        assert np.sum(np.abs(img)) &gt; 0
+
+        for j, i in enumerate(img):
+            itk_img = sitk.GetImageFromArray(i)
+            itk_img.SetSpacing(list(spacing)[::-1])
+            # sitk.WriteImage(itk_img, output_filename_truncated + &#34;_%04.0d.nii.gz&#34; % j)
+            sitk.WriteImage(itk_img, output_filename)
+            # nib.Nifti1Image(i, nii_img.affine).to_filename(output_filename)
+
+        print(&#34;Wrote:&#34;, output_filename)</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.segment.convert_from_nnunet"><code class="name flex">
+<span>def <span class="ident">convert_from_nnunet</span></span>(<span>input_fn: str, reference_fn: str, output_fn: str, seg_dir: str) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Convert segmented files from the nnunet output to an easier to use.</p>
+<p>param: input_fn: input filename
+param: reference_fn: reference filename
+param: output_fn: output filename
+param: seg_dir: directory to save output
+return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def convert_from_nnunet(
+    input_fn: str, reference_fn: str, output_fn: str, seg_dir: str
+) -&gt; None:
+    &#34;&#34;&#34;Convert segmented files from the nnunet output to an easier to use.
+
+    param: input_fn: input filename
+    param: reference_fn: reference filename
+    param: output_fn: output filename
+    param: seg_dir: directory to save output
+    return: None
+    &#34;&#34;&#34;
+    ref_img = nib.load(reference_fn)
+    ar = nib.load(input_fn).get_fdata()
+
+    if (np.sum(ar == 1) / np.product(ar.shape)) &lt; 0.02:
+        print(&#34;\nWarning: Found a section that nnUNet failed to segment!\n&#34;)
+        histogram_threshold(reference_fn, output_fn)
+    else:
+        if np.sum(ar) == 0:
+            print(&#34;Error: empty segmented image with nnunet&#34;)
+            exit(0)
+        ar[(ar == 3) | (ar == 4)] = 1
+
+        gm = ar == 1
+        # wm = ar == 2
+
+        ar *= 0
+        ar[gm] = 1
+
+        ar = ar.reshape([ar.shape[0], ar.shape[1]])
+        # ar = ar.T
+        ar = resize(ar, ref_img.shape, order=0)
+        ar = np.fliplr(np.flipud(ar))
+
+        print(&#34;\tWriting&#34;, output_fn)
+        nib.Nifti1Image(ar, ref_img.affine, direction_order=&#34;lpi&#34;).to_filename(
+            output_fn
+        )
+
+    return None</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.segment.convert_from_nnunet_list"><code class="name flex">
+<span>def <span class="ident">convert_from_nnunet_list</span></span>(<span>sect_info: pandas.core.frame.DataFrame, nnunet_out_dir: str, nnunet_input_str: str = 'img', warning_flag: bool = False, clobber: bool = False) ‑> list</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Convert the nnunet images to regular nifti images.</p>
+<p>param: sect_info: dataframe with columns: img, seg_fn
+param: nnunet_out_dir: directory to save nnunet images
+param: nnunet_input_str: column name for nnunet input
+param: clobber: overwrite existing files
+return: list of files to convert</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def convert_from_nnunet_list(
+    sect_info: typeDataFrame,
+    nnunet_out_dir: str,
+    nnunet_input_str: str = &#34;img&#34;,
+    warning_flag: bool = False,
+    clobber: bool = False,
+) -&gt; list:
+    &#34;&#34;&#34;Convert the nnunet images to regular nifti images.
+
+    param: sect_info: dataframe with columns: img, seg_fn
+    param: nnunet_out_dir: directory to save nnunet images
+    param: nnunet_input_str: column name for nnunet input
+    param: clobber: overwrite existing files
+    return: list of files to convert
+    &#34;&#34;&#34;
+    to_do = []
+    for i, row in sect_info.iterrows():
+        img_fn = row[nnunet_input_str]
+        seg_fn = row[&#34;seg&#34;]
+
+        nnunet_fn = get_nnunet_filename(img_fn, nnunet_out_dir)
+
+        if utils.check_run_stage([seg_fn], [nnunet_fn], clobber=clobber):
+            if warning_flag:
+                print(&#34;\tWarning: Could not find file:&#34;, seg_fn)
+            to_do.append((nnunet_fn, img_fn, seg_fn))
+    return to_do</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.segment.convert_to_nnunet_list"><code class="name flex">
+<span>def <span class="ident">convert_to_nnunet_list</span></span>(<span>chunk_info: pandas.core.frame.DataFrame, sect_info: pandas.core.frame.DataFrame, nnunet_in_dir: str, nnunet_input_str: str = 'img', clobber: bool = False) ‑> list</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Convert the raw images to nnunet format.</p>
+<p>param: chunk_info: dataframe with columns: sub, hemisphere, chunk
+param: sect_info: dataframe with columns: raw, seg_fn
+param: nnunet_in_dir: directory to save nnunet images
+param: nnunet_input_str: column name for nnunet input
+param: clobber: overwrite existing files
+return: list of files to convert</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def convert_to_nnunet_list(
+    chunk_info: typeDataFrame,
+    sect_info: typeDataFrame,
+    nnunet_in_dir: str,
+    nnunet_input_str: str = &#34;img&#34;,
+    clobber: bool = False,
+) -&gt; list:
+    &#34;&#34;&#34;Convert the raw images to nnunet format.
+
+    param: chunk_info: dataframe with columns: sub, hemisphere, chunk
+    param: sect_info: dataframe with columns: raw, seg_fn
+    param: nnunet_in_dir: directory to save nnunet images
+    param: nnunet_input_str: column name for nnunet input
+    param: clobber: overwrite existing files
+    return: list of files to convert
+    &#34;&#34;&#34;
+    to_do = []
+    for i, row in sect_info.iterrows():
+        f = row[nnunet_input_str]
+
+        pixel_size_0, pixel_size_1, _ = utils.get_chunk_pixel_size(
+            row[&#34;sub&#34;], row[&#34;hemisphere&#34;], row[&#34;chunk&#34;], chunk_info
+        )
+
+        fname = re.sub(&#34;.nii.gz&#34;, &#34;&#34;, os.path.basename(f))
+        output_filename_truncated = os.path.join(nnunet_in_dir, fname)
+        output_filename = output_filename_truncated + &#34;_0000.nii.gz&#34;
+        if (
+            not os.path.exists(output_filename)
+            or not utils.newer_than(output_filename, f)
+            or clobber
+        ):
+            to_do.append([f, pixel_size_0, pixel_size_1, output_filename])
+
+    return to_do</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.segment.get_nnunet_filename"><code class="name flex">
+<span>def <span class="ident">get_nnunet_filename</span></span>(<span>input_fn: str, nnunet_out_dir: str) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get the nnunet filename from the input filename.</p>
+<p>param: input_fn: input filename
+param: nnunet_out_dir: directory to save nnunet images
+return: nnunet filename</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_nnunet_filename(input_fn: str, nnunet_out_dir: str) -&gt; str:
+    &#34;&#34;&#34;Get the nnunet filename from the input filename.
+
+    param: input_fn: input filename
+    param: nnunet_out_dir: directory to save nnunet images
+    return: nnunet filename
+    &#34;&#34;&#34;
+    if &#34;.nii.gz&#34; in input_fn:
+        base = re.sub(&#34;.nii.gz&#34;, &#34;&#34;, input_fn)
+    else:
+        base = os.path.splitext(input_fn)[0]
+    base = os.path.basename(base)
+
+    print(f&#34;{nnunet_out_dir}/{base}*&#34;)
+
+    nnunet_list = glob(f&#34;{nnunet_out_dir}/{base}*&#34;)
+
+    if len(nnunet_list) &gt; 0:
+        nnunet_fn = nnunet_list[0]
+    else:
+        nnunet_fn = &#34;&#34;
+
+    return nnunet_fn</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.segment.histogram_threshold"><code class="name flex">
+<span>def <span class="ident">histogram_threshold</span></span>(<span>raw_fn: str, seg_fn: str, sd: float = 1, ref: str = None) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Apply histogram thresholding to the cropped images.</p>
+<p>param: raw_fn: raw image filename
+param: seg_fn: segmentation filename
+param: sd: standard deviation
+return: None</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def histogram_threshold(
+    raw_fn: str, seg_fn: str, sd: float = 1, ref: str = None
+) -&gt; None:
+    &#34;&#34;&#34;Apply histogram thresholding to the cropped images.
+
+    param: raw_fn: raw image filename
+    param: seg_fn: segmentation filename
+    param: sd: standard deviation
+    return: None
+    &#34;&#34;&#34;
+    img = nib.load(raw_fn)
+
+    affine = img.affine
+    dimensions = img.shape
+
+    ar = img.get_fdata()
+    assert np.sum(np.abs(ar)) &gt; 0, (
+        &#34;Error: empty input image with histogram thresholding &#34; + raw_fn
+    )
+
+    out = multi_threshold(ar)
+
+    if not isinstance(ref, type(None)):
+        ref_hd = nib.load(ref)
+        dimensions = ref_hd.shape  # resize to reference image
+        affine = ref_hd.affine
+
+    out = resize(out, dimensions, order=3)
+    if len(out.shape) == 3:
+        out = out.reshape([out.shape[0], out.shape[1]])
+
+    assert np.sum(np.abs(out)) &gt; 0, (
+        &#34;Error: empty segmented image with histogram thresholding &#34; + raw_fn
+    )
+
+    nib.Nifti1Image(out, affine, direction_order=&#34;lpi&#34;).to_filename(seg_fn)
+
+    return out</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.segment.multi_threshold"><code class="name flex">
+<span>def <span class="ident">multi_threshold</span></span>(<span>img: numpy.ndarray) ‑> numpy.ndarray</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Apply multiple thresholding methods to the image.</p>
+<p>:param img: np.ndarray, input image
+:return: np.ndarray, segmented image</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def multi_threshold(img: np.ndarray) -&gt; np.ndarray:
+    &#34;&#34;&#34;Apply multiple thresholding methods to the image.
+
+    :param img: np.ndarray, input image
+    :return: np.ndarray, segmented image
+    &#34;&#34;&#34;
+    seg = np.zeros_like(img)
+    # methods = [threshold_li, threshold_mean, threshold_triangle, threshold_otsu]
+    methods = [threshold_otsu]
+    for method in methods:
+        im_thr = apply_threshold(img, method)
+        seg += im_thr
+
+    n = len(methods)
+    seg /= n
+    seg[seg &lt; 0.5] = 0
+    seg[seg &gt;= 0.5] = 1
+    return seg</code></pre>
+</details>
+</dd>
+<dt id="brainbuilder.segment.segment"><code class="name flex">
+<span>def <span class="ident">segment</span></span>(<span>chunk_info_csv: str, sect_info_csv: str, output_dir: str, resolution: float, model_dir: str = '/home/tfunck/projects/BrainBuilder/brainbuilder/..//nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/', output_csv: str = '', num_cores: int = 0, use_nnunet: bool = True, clobber: bool = False) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Segment the raw images.</p>
+<p>param: sect_info_csv: csv file with columns: raw, seg_fn
+param: output_dir: directory to save output
+param: resolution: resolution of the raw images
+param: model_dir: directory of the nnunet model
+param: output_csv: csv file to save output
+param: num_cores: number of cores to use
+param: use_nnunet: use nnunet to segment
+param: clobber: overwrite existing files
+return: csv file with columns: raw, seg_fn</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def segment(
+    chunk_info_csv: str,
+    sect_info_csv: str,
+    output_dir: str,
+    resolution: float,
+    model_dir: str = f&#34;{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/&#34;,
+    output_csv: str = &#34;&#34;,
+    num_cores: int = 0,
+    use_nnunet: bool = True,
+    clobber: bool = False,
+) -&gt; str:
+    &#34;&#34;&#34;Segment the raw images.
+
+    param: sect_info_csv: csv file with columns: raw, seg_fn
+    param: output_dir: directory to save output
+    param: resolution: resolution of the raw images
+    param: model_dir: directory of the nnunet model
+    param: output_csv: csv file to save output
+    param: num_cores: number of cores to use
+    param: use_nnunet: use nnunet to segment
+    param: clobber: overwrite existing files
+    return: csv file with columns: raw, seg_fn
+    &#34;&#34;&#34;
+    nnunet_input_str = &#34;img&#34;
+
+    if output_csv == &#34;&#34;:
+        output_csv = (
+            output_dir
+            + os.sep
+            + os.path.splitext(os.path.basename(sect_info_csv))[0]
+            + &#34;_segment.csv&#34;
+        )
+
+    # check it &#39;seg&#39; files are all newer than &#39;img&#39; files
+
+    sect_info = pd.read_csv(sect_info_csv, index_col=False)
+
+    sect_info = assign_seg_filenames(sect_info, resolution, output_dir)
+
+    run_stage = utils.check_run_stage(
+        sect_info[&#34;seg&#34;], sect_info[&#34;img&#34;], output_csv, clobber=clobber
+    )
+
+    if run_stage:
+        nnunet_in_dir = f&#34;{output_dir}/nnunet/&#34;
+        nnunet_out_dir = f&#34;{output_dir}/nnunet_out/&#34;
+        os.makedirs(nnunet_in_dir, exist_ok=True)
+        os.makedirs(nnunet_out_dir, exist_ok=True)
+
+        num_cores = utils.set_cores(num_cores)
+
+        chunk_info = pd.read_csv(chunk_info_csv, index_col=False)
+
+        nifti2nnunet_to_do = convert_to_nnunet_list(
+            chunk_info,
+            sect_info,
+            nnunet_in_dir,
+            nnunet_input_str=nnunet_input_str,
+            clobber=clobber,
+        )
+
+        Parallel(n_jobs=num_cores)(
+            delayed(convert_2d_array_to_nifti)(
+                ii_fn, oo_fn, [pixel_size_0, pixel_size_1], clobber=clobber
+            )
+            for ii_fn, pixel_size_0, pixel_size_1, oo_fn in nifti2nnunet_to_do
+        )
+
+        missing_segmentations = not check_seg_files(
+            sect_info, nnunet_out_dir, False, nnunet_input_str=nnunet_input_str
+        )
+
+        if missing_segmentations or clobber:
+            if use_nnunet:
+                print(&#34;\tSegmenting with nnUNet&#34;)
+                try:
+                    utils.shell(
+                        f&#34;nnUNetv2_predict_from_modelfolder --c --verbose -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir} -f 0  -d Dataset501_Brain -device cpu&#34;
+                    )
+                    use_nnunet = True
+                except Exception as e:
+                    print(&#34;Warning: nnUNet failed to segment&#34;)
+                    print(e)
+                    use_nnunet = False
+
+        if not use_nnunet:
+            apply_histogram_threshold(sect_info, num_cores=num_cores)
+
+        if use_nnunet:
+            nnunet2nifti_to_do = convert_from_nnunet_list(
+                sect_info,
+                nnunet_out_dir,
+                nnunet_input_str=nnunet_input_str,
+                warning_flag=False,
+                clobber=clobber,
+            )
+
+            if len(nnunet2nifti_to_do) &gt; 0:
+                print(&#34;\tConvert Files from nnUNet to standard nifti files&#34;)
+
+                Parallel(n_jobs=num_cores)(
+                    delayed(convert_from_nnunet)(nnunet_fn, raw_fn, seg_fn, output_dir)
+                    for nnunet_fn, raw_fn, seg_fn in nnunet2nifti_to_do
+                )
+
+        assert check_seg_files(
+            sect_info,
+            nnunet_out_dir,
+            warning_flag=True,
+            nnunet_input_str=nnunet_input_str,
+        ), &#34;Missing segmentations&#34;
+
+        sect_info.to_csv(output_csv, index=False)
+
+    return output_csv</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="brainbuilder" href="index.html">brainbuilder</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="brainbuilder.segment.apply_histogram_threshold" href="#brainbuilder.segment.apply_histogram_threshold">apply_histogram_threshold</a></code></li>
+<li><code><a title="brainbuilder.segment.apply_threshold" href="#brainbuilder.segment.apply_threshold">apply_threshold</a></code></li>
+<li><code><a title="brainbuilder.segment.assign_seg_filenames" href="#brainbuilder.segment.assign_seg_filenames">assign_seg_filenames</a></code></li>
+<li><code><a title="brainbuilder.segment.check_seg_files" href="#brainbuilder.segment.check_seg_files">check_seg_files</a></code></li>
+<li><code><a title="brainbuilder.segment.convert_2d_array_to_nifti" href="#brainbuilder.segment.convert_2d_array_to_nifti">convert_2d_array_to_nifti</a></code></li>
+<li><code><a title="brainbuilder.segment.convert_from_nnunet" href="#brainbuilder.segment.convert_from_nnunet">convert_from_nnunet</a></code></li>
+<li><code><a title="brainbuilder.segment.convert_from_nnunet_list" href="#brainbuilder.segment.convert_from_nnunet_list">convert_from_nnunet_list</a></code></li>
+<li><code><a title="brainbuilder.segment.convert_to_nnunet_list" href="#brainbuilder.segment.convert_to_nnunet_list">convert_to_nnunet_list</a></code></li>
+<li><code><a title="brainbuilder.segment.get_nnunet_filename" href="#brainbuilder.segment.get_nnunet_filename">get_nnunet_filename</a></code></li>
+<li><code><a title="brainbuilder.segment.histogram_threshold" href="#brainbuilder.segment.histogram_threshold">histogram_threshold</a></code></li>
+<li><code><a title="brainbuilder.segment.multi_threshold" href="#brainbuilder.segment.multi_threshold">multi_threshold</a></code></li>
+<li><code><a title="brainbuilder.segment.segment" href="#brainbuilder.segment.segment">segment</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>
