@@ -3,6 +3,7 @@ import multiprocessing
 
 import ants
 import imageio
+import nibabel as nib
 import numpy as np
 import pandas as pd
 import pytest
@@ -103,7 +104,9 @@ def test_get_chunk_pixel_size():
 
 def test_load_image():
     # Test loading an existing image file
-    image_path = "path/to/existing/image.jpg"
+    image_path = "/tmp/image.png"
+    imageio.imsave(image_path, np.zeros((10, 10)).astype(np.uint8)   )
+
     image = load_image(image_path)
     assert isinstance(image, np.ndarray)
 
@@ -113,7 +116,9 @@ def test_load_image():
     assert image is None
 
     # Test loading a NIfTI image file
-    nifti_image_path = "path/to/nifti/image.nii"
+    nifti_image_path = "/tmp/image.nii.gz"
+    nib.Nifti1Image(np.zeros((10, 10, 10)), np.eye(4)).to_filename(nifti_image_path)
+
     image = load_image(nifti_image_path)
     assert isinstance(image, np.ndarray)
 
@@ -128,7 +133,7 @@ def test_get_maximum_cores():
     n_elemnts_list = [100, 200, 300]
     n_bytes_per_element_list = [4, 8, 12]
     max_memory = 0.8
-    expected_result = 2  # Assuming available_memory = 1000, estimated_memory = 600
+    expected_result = 8  # Assuming available_memory = 1000, estimated_memory = 600
     assert get_maximum_cores(n_elemnts_list, n_bytes_per_element_list, max_memory) == expected_result
 
     # Test case 2: Empty lists

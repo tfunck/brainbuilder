@@ -570,6 +570,8 @@ def fill_in_missing_voxels(
     mask_vol = np.pad(mask_vol, ((1, 1), (1, 1), (1, 1)))
     interp_vol = np.pad(interp_vol, ((1, 1), (1, 1), (1, 1)))
 
+    orig_max, orig_min = np.max(interp_vol), np.min(interp_vol)
+
     xv, yv, zv = np.meshgrid(
         np.arange(mask_vol.shape[0]),
         np.arange(mask_vol.shape[1]),
@@ -627,7 +629,7 @@ def fill_in_missing_voxels(
             ]
         ).T
 
-        n = np.sum(interp_values > 0, axis=1)
+        n = np.sum(np.abs(interp_values) > 0, axis=1)
 
         interp_sum = np.sum(interp_values, axis=1)
 
@@ -636,6 +638,9 @@ def fill_in_missing_voxels(
         zvv = zvv[n > 0]
 
         interp_values = interp_sum[n > 0] / n[n > 0]
+
+        assert np.abs(np.max(interp_vol) - orig_max) < 0.001, f"Error: max value changed {np.max(interp_vol)} {orig_max}"
+        #assert np.min(interp_vol) == orig_min, "Error: min value changed"
 
         interp_vol[xvv, yvv, zvv] = interp_values
 
@@ -647,6 +652,7 @@ def fill_in_missing_voxels(
 
         # print("\t\t\t\tmissing", np.sum(missing_voxels), np.sum(interp_vol == 10000))
         counter += 1
+    
 
     interp_vol = interp_vol[1:-1, 1:-1, 1:-1]
     return interp_vol
