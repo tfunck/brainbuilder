@@ -117,8 +117,6 @@ def volumes_to_surface_profiles(
     (
         profiles_fn,
         surf_raw_values_dict,
-        distance_profiles_fn,
-        distance_dict,
         chunk_info_thickened_csv,
     ) = generate_surface_profiles(
         chunk_info,
@@ -138,9 +136,7 @@ def volumes_to_surface_profiles(
         surf_depth_mni_dict,
         surf_depth_chunk_dict,
         surf_raw_values_dict,
-        distance_dict,
         profiles_fn,
-        distance_profiles_fn,
         chunk_info_thickened_csv,
         struct_vol_rsl_fn,
     )
@@ -194,9 +190,7 @@ def get_profiles_with_batch_correction(
         batch_surf_depth_mni_dict,
         batch_surf_depth_chunk_dict,
         batch_surf_raw_values_dict,
-        batch_surf_distance_dict,
         profiles_fn,
-        distance_profiles_fn,
         chunk_info_thickened_csv,
         batch_struct_vol_rsl_fn,
     ) = volumes_to_surface_profiles(
@@ -256,7 +250,7 @@ def get_profiles_with_batch_correction(
     old_mean = np.mean(values[values > values.min()])
 
     # recreate profiles_fn with batch corrected values. The sect_info contains batch_offset correction factors
-    profiles_fn, _, distance_fn, _ = generate_surface_profiles(
+    profiles_fn, _ = generate_surface_profiles(
         chunk_info,
         sect_info,
         surf_depth_chunk_dict,
@@ -291,7 +285,7 @@ def get_profiles_with_batch_correction(
     # plot_paired_values_surf(paired_values, cortex_coords, cortex_png_fn)
     # plot_paired_values_surf(paired_values, sphere_coords, sphere_png_fn)
 
-    return sect_info, batch_surf_raw_values_dict, profiles_fn
+    return sect_info, chunk_info_thickened_csv, batch_surf_raw_values_dict, profiles_fn
 
 
 def surface_pipeline(
@@ -307,7 +301,7 @@ def surface_pipeline(
     surface_smoothing: int = 0,
     batch_correction_resolution: int = 0,
     clobber: bool = False,
-) -> None:
+) -> str:
     """Use surface-based interpolation to fill missing sections over the cortex.
 
     Volumetric interpolation is used to fill missing sections in the subcortex.
@@ -359,9 +353,7 @@ def surface_pipeline(
             surf_depth_mni_dict,
             surf_depth_chunk_dict,
             surf_raw_values_dict,
-            surf_distance_dict,
             profiles_fn,
-            distance_profiles_fn,
             chunk_info_thickened_csv,
             struct_vol_rsl_fn,
         ) = volumes_to_surface_profiles(
@@ -378,11 +370,11 @@ def surface_pipeline(
             clobber=clobber,
         )
         raw_profile_volume_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_raw_profiles.nii.gz"
-        distance_volume_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_distances.nii.gz"
 
         if batch_correction_resolution > 0:
             (
                 sect_info,
+                chunk_info_thickened_csv,
                 batch_surf_raw_values_dict,
                 final_profiles_fn,
             ) = get_profiles_with_batch_correction(
@@ -414,15 +406,6 @@ def surface_pipeline(
             surf_raw_values_dict,
             surf_depth_mni_dict,
             raw_profile_volume_fn,
-            struct_vol_rsl_fn,
-            resolution,
-            clobber=clobber,
-        )
-
-        write_raw_profiles_to_volume(
-            surf_distance_dict,
-            surf_depth_mni_dict,
-            distance_volume_fn,
             struct_vol_rsl_fn,
             resolution,
             clobber=clobber,
@@ -469,7 +452,7 @@ def surface_pipeline(
         # FIXME NOT YET IMPLEMENTED
         # combine_volumes(interp_cortex_fn, subcortex_mask_fn)
 
-        return None
+    return reconstructed_cortex_fn, smoothed_reconstructed_cortex_fn
 
 
 def volumetric_pipeline(
@@ -502,7 +485,7 @@ def interpolate_missing_sections(
     surface_smoothing: int = 0,
     batch_correction_resolution: int = 0,
     clobber: bool = False,
-) -> None:
+) -> str:
     """Interpolate missing sections in a volume.
 
     :param sect_info: a dataframe with the following columns:
@@ -517,15 +500,9 @@ def interpolate_missing_sections(
     chunk_info = pd.read_csv(chunk_info_csv, index_col=False)
     hemi_info = pd.read_csv(hemi_info_csv, index_col=False)
 
-    for (acquisition, chunk), chunk_info_row in sect_info.groupby(
-        [
-            "acquisition",
-            "chunk",
-        ]
-    ):
-        print(chunk, chunk_info_row["sample"].min(), chunk_info_row["sample"].max())
-
     surf_dir = f"{output_dir}/surfaces/"
+
+    out_chunk_info = []
 
     for (sub, hemisphere, acquisition), curr_sect_info in sect_info.groupby(
         [
@@ -538,11 +515,13 @@ def interpolate_missing_sections(
 
         os.makedirs(curr_output_dir, exist_ok=True)
 
-        curr_chunk_info = chunk_info.loc[
+        idx = (
             (chunk_info["sub"] == sub)
             & (chunk_info["hemisphere"] == hemisphere)
             & (chunk_info["resolution"] == resolution)
-        ]
+        )
+
+        curr_chunk_info = chunk_info.loc[idx]
 
         assert (
             len(curr_chunk_info) > 0
@@ -558,7 +537,7 @@ def interpolate_missing_sections(
         ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
 
         if (os.path.exists(gm_surf_fn) and os.path.exists(wm_surf_fn)) or clobber:
-            surface_pipeline(
+            reconstructed_filename, reconstructed_smoothed_filename = surface_pipeline(
                 curr_chunk_info,
                 curr_sect_info,
                 resolution,
@@ -572,12 +551,25 @@ def interpolate_missing_sections(
                 batch_correction_resolution=batch_correction_resolution,
                 clobber=clobber,
             )
+
+            curr_chunk_info["acquisition"] = acquisition
+            curr_chunk_info["reconstructed_filename"] = reconstructed_filename
+            curr_chunk_info[
+                "reconstructed_smoothed_filename"
+            ] = reconstructed_smoothed_filename
+
+            out_chunk_info.append(curr_chunk_info)
+
         else:
             print("Error: Volumetric interpolation pipeline not yet implemented")
             exit(1)
             # volumetric_pipeline(sect_info_csv, chunk_info_csv, resolution, output_dir, clobber=clobber)
 
-    return None
+    chunk_info = pd.concat(out_chunk_info, ignore_index=True)
+    chunk_info_csv = f"{output_dir}/reconstructed_chunk_info.csv"
+    chunk_info.to_csv(chunk_info_csv, index=False)
+
+    return chunk_info_csv
 
 
 if __name__ == "__main__":

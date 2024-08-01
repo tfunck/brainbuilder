@@ -213,9 +213,6 @@ def get_section_intervals(vol: np.ndarray) -> list:
     section_max = np.max(vol, axis=(0, 2))
     section_min = np.min(vol, axis=(0, 2))
 
-    print(section_max)
-    print(section_min)
-
     valid_sections = section_max != section_min
 
     labeled_sections, nlabels = label(valid_sections)
@@ -278,6 +275,7 @@ def create_thickened_volumes(
     chunk_info: pd.DataFrame,
     sect_info: pd.DataFrame,
     resolution: float,
+    output_csv: str,
     tissue_type: str = "",
     gaussian_sd: float = 0,
     clobber: bool = False,
@@ -323,11 +321,9 @@ def create_thickened_volumes(
             chunk_info_row = chunk_info[idx].iloc[0]
 
             thickened_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_thickened.nii.gz"
-            distance_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_distance.nii.gz"
 
             chunk_info_row["acquisition"] = acquisition
             chunk_info_row["thickened"] = thickened_fn
-            chunk_info_row["distance"] = distance_fn
 
             if not os.path.exists(thickened_fn) or clobber:
                 thicken_sections_within_chunk(
@@ -340,8 +336,8 @@ def create_thickened_volumes(
                     gaussian_sd=gaussian_sd,
                 )
 
-            if not os.path.exists(distance_fn) or clobber:
-                create_distance_volume(thickened_fn, distance_fn)
+            # if not os.path.exists(distance_fn) or clobber:
+            #    create_distance_volume(thickened_fn, distance_fn)
 
             chunk_info_out = pd.concat([chunk_info_out, chunk_info_row.to_frame().T])
 

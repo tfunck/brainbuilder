@@ -185,24 +185,30 @@ def interpolate_missing_sections(
         ).astype(int)
     else:
         vol_dil = vol
+
     intervals = get_section_intervals(vol_dil)
 
-    out_vol = vol.copy()  # np.zeros(vol.shape)
+    out_vol = vol.copy()
     for i in range(len(intervals) - 1):
         j = i + 1
-        x0, x1 = intervals[i]
-        y0, y1 = intervals[j]
-        x = np.mean(vol[:, x0:x1, :], axis=1)
-        y = np.mean(vol[:, y0:y1, :], axis=1)
+        x0, x1 = intervals[i]  # intervals of consecutive sections
+        y0, y1 = intervals[j]  # intervals of consecutive sections
+        x = np.mean(
+            vol[:, x0:x1, :], axis=1
+        )  # x is the average of the last consecutive acquired sections
+        y = np.mean(
+            vol[:, y0:y1, :], axis=1
+        )  # y is the average of the next consecutive acquired sections
         vol[:, x0:x1, :] = np.repeat(
             x.reshape(x.shape[0], 1, x.shape[1]), x1 - x0, axis=1
         )
         for ii in range(x1, y0):
             den = y0 - x1
             assert den != 0, "Error: 0 denominator when interpolating missing sections"
-            d = (ii - x1) / den
-            # d = np.rint(d)
+            d = float(ii - x1) / den
             z = x * (1 - d) + d * y
+            # print(x1,d,ii,y0, '-->', np.mean(x), np.mean(z), np.mean(y))
+            print(f"\t{ii}")
 
             out_vol[:, ii, :] = z
 
@@ -296,6 +302,7 @@ def volumetric_interpolation(
         )
 
         # TODO this works well for macaque but less so for human
+        print("\tInterpolation:", interpolation)
         if interpolation == "linear":
             for i, row in sect_info.iterrows():
                 s0 = int(row["sample"])
@@ -314,7 +321,7 @@ def volumetric_interpolation(
 
                 data[:, s0, :] = img_2d
 
-            data = interpolate_missing_sections(data, dilate_volume=True)
+            data = interpolate_missing_sections(data, dilate_volume=False)
         else:
             valid_slices = []
             for i, row in sect_info.iterrows():
@@ -397,7 +404,6 @@ def volumetric_interpolation(
             direction_order="lpi",
         )
         img_out.to_filename(out_fn)
-
     return 0
 
 

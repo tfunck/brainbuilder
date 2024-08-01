@@ -398,8 +398,12 @@ def align_chunk(
             row["seg_rsl_fn"],
             row["init_volume"],
             num_cores=num_cores,
+            interpolation="linear",
             clobber=clobber,
         )
+        # DEBUG
+        if resolution == resolution_list[-1]:
+            exit(0)
 
         ###
         ### Stage 3.2 : Align chunks to MRI

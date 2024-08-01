@@ -227,18 +227,13 @@ def affine_trials(
 
 def align_2d_parallel(
     tfm_dir: str,
-    mv_dir: str,
-    resolution_itr: int,
     resolution: float,
     resolution_list: list,
     row: pd.Series,
     file_to_align: str = "seg",
     use_syn: bool = True,
-    step: float = 0.5,
-    bins: int = 32,
     base_lin_itr: int = 100,
     base_nl_itr: int = 30,
-    base_cc_itr: int = 5,
     n_affine_trials: int = 5,
     verbose: bool = False,
 ) -> int:
@@ -281,22 +276,27 @@ def align_2d_parallel(
         file_to_align = "img"
 
     mv_fn = row[file_to_align]
-    print(mv_fn)
 
     verbose = False
     affine_tfm = affine_trials(
         fx_fn, mv_fn, linParams, prefix, n_trials=n_affine_trials, verbose=verbose
     )
 
-    syn_tfm, syn_vol = ants_registeration_2d_section(
+    nl_metrics = ["Mattes"]
+    if resolution == resolution_list[-1]:
+        nl_metrics = ["Mattes", "CC"]
+
+    transforms = ["SyN"] * len(nl_metrics)
+
+    syn_tfm, _ = ants_registeration_2d_section(
         fx_fn=fx_fn,
         mv_fn=mv_fn,
         itr_list=[nlParams.itr_str, 20],
         s_list=[nlParams.s_str, 0],
         f_list=[nlParams.f_str, 1],
         prefix=prefix,
-        transforms=["SyN", "SyN"],
-        metrics=["Mattes", "CC"],
+        transforms=transforms,
+        metrics=nl_metrics,
         init_tfm=affine_tfm,
         step=0.1,
         verbose=verbose,
@@ -348,7 +348,6 @@ def apply_transforms_parallel(
     fx_fn = gen_2d_fn(prefix, "_fx")
 
     img_fn = row["img"]
-    print(img_fn)
     img = nib.load(img_fn)
     img_res = np.array([img.affine[0, 0], img.affine[1, 1]])
 
@@ -490,8 +489,6 @@ def align_sections(
         Parallel(n_jobs=num_cores, backend="multiprocessing")(
             delayed(align_2d_parallel)(
                 tfm_dir,
-                mv_dir,
-                resolution_itr,
                 resolution,
                 resolution_list,
                 row,
@@ -639,6 +636,9 @@ def align_2d(
     )
 
     print("\t\tStep 4: 2d nl alignment")
+    sect_info["base"] = sect_info["raw"].apply(
+        lambda x: os.path.basename(x).split(".")[0]
+    )
 
     sect_info = align_sections(
         sect_info,

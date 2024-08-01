@@ -354,20 +354,9 @@ def generate_surface_profiles(
         interp_order=interp_order,
     )
 
-    distance_fn, distance_dict = project_volume_to_surfaces(
-        surf_depth_chunk_dict,
-        surf_depth_mni_dict,
-        chunk_info_thickened,
-        output_prefix,
-        volume_type="distance",
-        interp_order=interp_order,
-    )
-
     return (
         profiles_fn,
         surf_raw_values_dict,
-        distance_fn,
-        distance_dict,
         chunk_info_thickened_csv,
     )
 
@@ -570,7 +559,7 @@ def fill_in_missing_voxels(
     mask_vol = np.pad(mask_vol, ((1, 1), (1, 1), (1, 1)))
     interp_vol = np.pad(interp_vol, ((1, 1), (1, 1), (1, 1)))
 
-    orig_max, orig_min = np.max(interp_vol), np.min(interp_vol)
+    orig_max, _ = np.max(interp_vol), np.min(interp_vol)
 
     xv, yv, zv = np.meshgrid(
         np.arange(mask_vol.shape[0]),
@@ -639,8 +628,10 @@ def fill_in_missing_voxels(
 
         interp_values = interp_sum[n > 0] / n[n > 0]
 
-        assert np.abs(np.max(interp_vol) - orig_max) < 0.001, f"Error: max value changed {np.max(interp_vol)} {orig_max}"
-        #assert np.min(interp_vol) == orig_min, "Error: min value changed"
+        assert (
+            np.abs(np.max(interp_vol) - orig_max) < 0.001
+        ), f"Error: max value changed {np.max(interp_vol)} {orig_max}"
+        # assert np.min(interp_vol) == orig_min, "Error: min value changed"
 
         interp_vol[xvv, yvv, zvv] = interp_values
 
@@ -652,7 +643,6 @@ def fill_in_missing_voxels(
 
         # print("\t\t\t\tmissing", np.sum(missing_voxels), np.sum(interp_vol == 10000))
         counter += 1
-    
 
     interp_vol = interp_vol[1:-1, 1:-1, 1:-1]
     return interp_vol
