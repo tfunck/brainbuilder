@@ -330,7 +330,6 @@ def segment(
     return: csv file with columns: raw, seg_fn
     """
     nnunet_input_str = "img"
-
     if output_csv == "":
         output_csv = (
             output_dir

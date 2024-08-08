@@ -581,7 +581,7 @@ def unbuffered(proc: Popen, stream: str = "stdout") -> str:
             yield out
 
 
-def shell(cmd: str, verbose: bool = False, exit_on_failure: bool = True) -> tuple:
+def shell(cmd: str, verbose: bool = False, exit_on_failure: bool = True, bash:bool=True) -> tuple:
     """Run command in shell and read STDOUT, STDERR and the error code.
 
     :param cmd: str, command
@@ -589,6 +589,9 @@ def shell(cmd: str, verbose: bool = False, exit_on_failure: bool = True) -> tupl
     :param exit_on_failure: bool, optional, if True, exit on failure, default=True
     """
     stdout = ""
+    if bash :
+        cmd = f'exec bash -c \"{cmd}\"'
+    
     if verbose:
         print(cmd)
 

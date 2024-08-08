@@ -12,6 +12,16 @@ BrainBuilder is a software packagefor reconstructing 3-dimensional cortical maps
 
 ## Installation
 
+
+### Requirements
+1) Install ANTs. [Download appropriate binary][https://github.com/ANTsX/ANTs/releases] and follow ANTs installation [instructions][https://github.com/ANTsX/ANTs/wiki/Installing-ANTs-release-binaries#installing-binaries-mac-os-and-linux]. 
+
+2) Install required python packages :
+```
+python3 -m pip install requirements.txt 
+```
+
+3) Install BrainBuilder
 ```
 python3 -m pip install -e .
 ```
