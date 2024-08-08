@@ -83,7 +83,6 @@ def resample_and_transform(
     :param clobber: whether to overwrite existing files
     :return: None
     """
-    print(row)
     seg_fn = row["seg"]
 
     seg_rsl_fn = get_seg_fn(
@@ -92,7 +91,6 @@ def resample_and_transform(
     seg_rsl_tfm_fn = get_seg_fn(
         output_dir, int(row["sample"]), resolution_3d, seg_fn, "_rsl_tfm"
     )
-    print()
     if not os.path.exists(seg_rsl_tfm_fn) or clobber:
         tfm_input_fn = get_input_file(
             seg_fn, seg_rsl_fn, row, output_dir, resolution_2d, resolution_3d
@@ -104,6 +102,7 @@ def resample_and_transform(
         # get initial rigid transform
         tfm_fn = row["2d_tfm"]
         print("\tTransforming", seg_rsl_fn, "to", seg_rsl_tfm_fn)
+        print("\t\twith:", tfm_fn, "\n")
         if isinstance(tfm_fn, str):
             simple_ants_apply_tfm(
                 tfm_input_fn,
@@ -208,7 +207,6 @@ def interpolate_missing_sections(
             d = float(ii - x1) / den
             z = x * (1 - d) + d * y
             # print(x1,d,ii,y0, '-->', np.mean(x), np.mean(z), np.mean(y))
-            print(f"\t{ii}")
 
             out_vol[:, ii, :] = z
 

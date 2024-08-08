@@ -222,6 +222,7 @@ def get_profiles_with_batch_correction(
     # create a 3D volume of uncorrected values. useful for qc
     create_final_reconstructed_volume(
         uncorrected_reconstructed_cortex_fn,
+        chunk_info_thickened_csv,
         batch_struct_vol_rsl_fn,
         batch_correction_resolution,
         batch_surf_depth_mni_dict,

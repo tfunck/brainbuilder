@@ -325,6 +325,7 @@ def generate_surface_profiles(
         chunk_info,
         sect_info,
         resolution,
+        struct_vol_rsl_fn,
         gaussian_sd=gaussian_sd,
         clobber=clobber,
     )
@@ -648,8 +649,41 @@ def fill_in_missing_voxels(
     return interp_vol
 
 
+def combine_volumes(
+    volume_fns: list, output_filename: str, clobber: bool = False
+) -> None:
+    """Combine volumes.
+
+    :param volume_fns: list of volume filenames
+    :param priority: priority of volumes
+    :return: None
+    """
+    if not os.path.exists(output_filename) or clobber:
+        img = nib.load(volume_fns[0])
+        aff = img.affine
+
+        print("\tCombining volumes")
+        vol = img.get_fdata()
+
+        fixed_idx = np.where(vol > vol.min())
+
+        n = np.zeros(vol.shape)
+        for vol_fn in volume_fns[1:]:
+            curr_vol = nib.load(vol_fn).get_fdata()
+            vol[~fixed_idx] += curr_vol[~fixed_idx]
+            n[~fixed_idx] += 1
+
+        vol[~fixed_idx] /= n[~fixed_idx]
+
+        print("\tWriting", output_filename)
+        nib.Nifti1Image(vol, aff).to_filename(output_filename)
+
+    return vol
+
+
 def create_final_reconstructed_volume(
     reconstructed_cortex_fn: str,
+    chunk_info_thickened_csv: str,
     cortex_mask_fn: str,
     resolution: float,
     surf_depth_mni_dict: dict,
@@ -668,6 +702,8 @@ def create_final_reconstructed_volume(
     """
     print("\t Creating final reconstructed volume")
     if not os.path.exists(reconstructed_cortex_fn) or clobber:
+        chunk_info_thickened = pd.read_csv(chunk_info_thickened_csv)
+
         mask_vol = nib.load(cortex_mask_fn).get_fdata()
 
         depth_list = sorted(surf_depth_mni_dict.keys())
@@ -686,6 +722,11 @@ def create_final_reconstructed_volume(
 
         unfilled_volume_fn = re.sub(
             ".nii.gz", "_unfilled.nii.gz", reconstructed_cortex_fn
+        )
+
+        surf_volume_fn = re.sub(".nii.gz", "_surf.nii.gz", reconstructed_cortex_fn)
+        thickened_vol_stx_fn = re.sub(
+            ".nii.gz", "_thickened_stx.nii.gz", reconstructed_cortex_fn
         )
 
         out_vol = write_mesh_to_volume(
@@ -710,10 +751,16 @@ def create_final_reconstructed_volume(
         affine = nib.load(cortex_mask_fn).affine
         affine[[0, 1, 2], [0, 1, 2]] = resolution
 
-        print("\tWriting", reconstructed_cortex_fn)
-
         nib.Nifti1Image(out_vol, affine, direction_order="lpi").to_filename(
-            reconstructed_cortex_fn
+            surf_volume_fn
+        )
+
+        combine_volumes(
+            chunk_info_thickened["thickened_stx"].values, thickened_vol_stx_fn
+        )
+        print("\tWriting", reconstructed_cortex_fn)
+        combine_volumes(
+            [surf_volume_fn, thickened_vol_stx_fn], reconstructed_cortex_fn, priority=1
         )
 
 

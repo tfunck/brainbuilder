@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import nibabel
 import numpy as np
 import pandas as pd
-from brainbuilder.align.validate_alignment import get_section_metric
+from brainbuilder.qc.validate_section_alignment_to_ref import get_section_metric
 from brainbuilder.utils import utils
 from brainbuilder.utils.utils import (
     AntsParams,
@@ -434,23 +434,16 @@ def get_align_filenames(
 
 def align_sections(
     sect_info: pd.DataFrame,
-    rec_fn: str,
-    ref_fn: str,
     mv_dir: str,
     output_dir: str,
     resolution: float,
-    resolution_itr: float,
     resolution_list: list,
     base_lin_itr: int = 100,
     base_nl_itr: int = 30,
-    base_cc_itr: int = 5,
     file_to_align: str = "seg",
     use_syn: bool = True,
-    batch_processing: bool = False,
     num_cores: int = 0,
-    n_tries: int = 5,
     verbose: bool = False,
-    clobber: bool = False,
 ) -> None:
     """Align sections to sections from reference volume using ANTs.
 
@@ -494,7 +487,6 @@ def align_sections(
                 row,
                 base_lin_itr=base_lin_itr,
                 base_nl_itr=base_nl_itr,
-                base_cc_itr=base_cc_itr,
                 file_to_align=file_to_align,
                 use_syn=use_syn,
                 verbose=verbose,
@@ -642,19 +634,14 @@ def align_2d(
 
     sect_info = align_sections(
         sect_info,
-        ref_space_nat_fn,  # chunk_info["init_volume"],
-        ref_space_nat_fn,
         seg_dir + "/2d/",
         nl_2d_dir,
         resolution,
-        resolution_itr,
         resolution_list,
         base_lin_itr=base_lin_itr,
         base_nl_itr=base_nl_itr,
-        base_cc_itr=base_cc_itr,
         num_cores=num_cores,
         file_to_align=file_to_align,
-        clobber=clobber,
     )
 
     # Concatenate 2D nonlinear aligned sections into output volume
