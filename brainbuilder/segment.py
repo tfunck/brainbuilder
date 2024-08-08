@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import SimpleITK as sitk
 from joblib import Parallel, delayed
-from skimage.filters import threshold_otsu
+from skimage.filters import threshold_otsu, threshold_yen
 from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
@@ -50,6 +50,16 @@ def multi_threshold(img: np.ndarray) -> np.ndarray:
     return seg
 
 
+def myelin_threshold(image: np.ndarray) -> np.ndarray:
+    """Apply myelin thresholding to the image."""
+    t = threshold_yen(image)
+    knee_point = 0.90 * image.max()
+
+    seg = np.zeros_like(image)
+    seg[(image > t) & (image < knee_point)] = 1
+    return seg
+
+
 def histogram_threshold(
     raw_fn: str, seg_fn: str, sd: float = 1, ref: str = None
 ) -> None:
@@ -70,7 +80,10 @@ def histogram_threshold(
         "Error: empty input image with histogram thresholding " + raw_fn
     )
 
-    out = multi_threshold(ar)
+    if "MS" in raw_fn:  # use myelin thresholding
+        out = myelin_threshold(ar)
+    else:
+        out = multi_threshold(ar)
 
     if not isinstance(ref, type(None)):
         ref_hd = nib.load(ref)

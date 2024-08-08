@@ -1,6 +1,7 @@
 """Functions to perform 3D volumetric alignment of the inital GM volume to the reference volume."""
 import os
 import re
+from typing import List, Tuple
 
 import ants
 import brainbuilder.utils.ants_nibabel as nib
@@ -44,8 +45,8 @@ def pad_volume(
     max_factor: int,
     affine: np.ndarray,
     min_voxel_size: int = 29,
-    direction: list[int] = [1, 1, 1],
-) -> tuple[np.ndarray, np.ndarray]:
+    direction: List[int] = [1, 1, 1],
+) -> Tuple[np.ndarray, np.ndarray]:
     """Pad the volume so that it can be downsampled by the maximum downsample factor.
 
     :param vol: volume to pad
@@ -137,7 +138,7 @@ def pad_seg_vol(seg_rsl_fn: str, max_downsample_level: str) -> str:
 
 
 def get_alignment_schedule(
-    resolution_list: list[int],
+    resolution_list: List[int],
     resolution: int,
     resolution_cutoff_for_cc: float = 0.3,
     base_nl_itr: int = 200,
@@ -172,11 +173,6 @@ def get_alignment_schedule(
     print("\t\t\t\t", linParams.f_str)
     print("\t\t\t\t", linParams.s_str)
 
-    # resolution_list_lo = [ f for r in resolution_listdd ]
-    # max_GC_resolution = 1.
-    # GC_resolution = max(resolution, max_GC_resolution)
-
-    # nlParams = AntsParams(resolution_list, resolution, base_nl_itr, max_resolution=1.0)
     nlParams = AntsParams(resolution_list, resolution, base_nl_itr)
 
     print("\t\t\t", "Nonlinear")
@@ -400,9 +396,9 @@ def align_3d(
     out_fn: str,
     out_inv_fn: str,
     resolution: int,
-    resolution_list: list[int],
-    world_chunk_limits: tuple[float, float],
-    vox_chunk_limits: tuple[int, int],
+    resolution_list: List[int],
+    world_chunk_limits: Tuple[float, float],
+    vox_chunk_limits: Tuple[int, int],
     base_nl_itr: int = 200,
     base_lin_itr: int = 500,
     use_masks: bool = False,

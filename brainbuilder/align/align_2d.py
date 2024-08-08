@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import nibabel
 import numpy as np
 import pandas as pd
-from brainbuilder.align.validate_alignment import get_section_metric
+from brainbuilder.qc.validate_section_alignment_to_ref import get_section_metric
 from brainbuilder.utils import utils
 from brainbuilder.utils.utils import (
     AntsParams,
@@ -227,18 +227,13 @@ def affine_trials(
 
 def align_2d_parallel(
     tfm_dir: str,
-    mv_dir: str,
-    resolution_itr: int,
     resolution: float,
     resolution_list: list,
     row: pd.Series,
     file_to_align: str = "seg",
     use_syn: bool = True,
-    step: float = 0.5,
-    bins: int = 32,
     base_lin_itr: int = 100,
     base_nl_itr: int = 30,
-    base_cc_itr: int = 5,
     n_affine_trials: int = 5,
     verbose: bool = False,
 ) -> int:
@@ -275,32 +270,33 @@ def align_2d_parallel(
 
     prefix = f"{tfm_dir}/{base}_y-{y}"
 
-    affine_trial_dir = f"{tfm_dir}/{base}_y-{y}_affine_trial/"
-
-    affine_trial_prefix = f"{affine_trial_dir}/{base}_y-{y}"
-
     fx_fn = gen_2d_fn(prefix, "_fx")
 
     if row["acquisition"] in ["myelin", "cellbody"]:
         file_to_align = "img"
 
     mv_fn = row[file_to_align]
-    print(mv_fn)
 
     verbose = False
     affine_tfm = affine_trials(
         fx_fn, mv_fn, linParams, prefix, n_trials=n_affine_trials, verbose=verbose
     )
 
-    syn_tfm, syn_vol = ants_registeration_2d_section(
+    nl_metrics = ["Mattes"]
+    if resolution == resolution_list[-1]:
+        nl_metrics = ["Mattes", "CC"]
+
+    transforms = ["SyN"] * len(nl_metrics)
+
+    syn_tfm, _ = ants_registeration_2d_section(
         fx_fn=fx_fn,
         mv_fn=mv_fn,
         itr_list=[nlParams.itr_str, 20],
         s_list=[nlParams.s_str, 0],
         f_list=[nlParams.f_str, 1],
         prefix=prefix,
-        transforms=["SyN", "SyN"],
-        metrics=["Mattes", "CC"],
+        transforms=transforms,
+        metrics=nl_metrics,
         init_tfm=affine_tfm,
         step=0.1,
         verbose=verbose,
@@ -329,9 +325,9 @@ def align_2d_parallel(
 def apply_transforms_parallel(
     tfm_dir: str,
     mv_dir: str,
-    resolution_itr: int,
     resolution: float,
     row: pd.Series,
+    last_resolution: bool = False,
 ) -> int:
     """Apply transforms to 2d sections.
 
@@ -339,7 +335,6 @@ def apply_transforms_parallel(
 
     :param tfm_dir: directory to store intermediate files
     :param mv_dir: directory to store intermediate files
-    :param resolution_itr: current iteration
     :param resolution: resolution of the current iteration
     :param row: row
     :return: 0
@@ -352,7 +347,7 @@ def apply_transforms_parallel(
     out_fn = prefix + "_rsl.nii.gz"
     fx_fn = gen_2d_fn(prefix, "_fx")
 
-    img_fn = row["raw"]
+    img_fn = row["img"]
     img = nib.load(img_fn)
     img_res = np.array([img.affine[0, 0], img.affine[1, 1]])
 
@@ -365,7 +360,8 @@ def apply_transforms_parallel(
 
         nib.Nifti1Image(vol, img.affine, direction_order="lpi").to_filename(img_rsl_fn)
     else:
-        shutil.symlink(img_fn, img_rsl_fn)
+        if not os.path.exists(img_rsl_fn):
+            os.symlink(img_fn, img_rsl_fn)
 
     cmd = f"antsApplyTransforms -v 0 -d 2 -n BSpline -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} "
 
@@ -438,23 +434,16 @@ def get_align_filenames(
 
 def align_sections(
     sect_info: pd.DataFrame,
-    rec_fn: str,
-    ref_fn: str,
     mv_dir: str,
     output_dir: str,
     resolution: float,
-    resolution_itr: float,
     resolution_list: list,
     base_lin_itr: int = 100,
     base_nl_itr: int = 30,
-    base_cc_itr: int = 5,
     file_to_align: str = "seg",
     use_syn: bool = True,
-    batch_processing: bool = False,
     num_cores: int = 0,
-    n_tries: int = 5,
     verbose: bool = False,
-    clobber: bool = False,
 ) -> None:
     """Align sections to sections from reference volume using ANTs.
 
@@ -487,18 +476,17 @@ def align_sections(
     # get lists of files that need to be aligned and resampled
     to_do_sect_info, to_do_resample_sect_info = get_align_2d_to_do(sect_info)
 
+    last_resolution = resolution == resolution_list[-1]
+
     if len(to_do_sect_info) > 0:
         Parallel(n_jobs=num_cores, backend="multiprocessing")(
             delayed(align_2d_parallel)(
                 tfm_dir,
-                mv_dir,
-                resolution_itr,
                 resolution,
                 resolution_list,
                 row,
                 base_lin_itr=base_lin_itr,
                 base_nl_itr=base_nl_itr,
-                base_cc_itr=base_cc_itr,
                 file_to_align=file_to_align,
                 use_syn=use_syn,
                 verbose=verbose,
@@ -509,7 +497,7 @@ def align_sections(
     if len(to_do_resample_sect_info) > 0:
         Parallel(n_jobs=num_cores, backend="multiprocessing")(
             delayed(apply_transforms_parallel)(
-                tfm_dir, mv_dir, resolution_itr, resolution, row
+                tfm_dir, mv_dir, resolution, row, last_resolution=last_resolution
             )
             for row in to_do_resample_sect_info
         )
@@ -640,22 +628,20 @@ def align_2d(
     )
 
     print("\t\tStep 4: 2d nl alignment")
+    sect_info["base"] = sect_info["raw"].apply(
+        lambda x: os.path.basename(x).split(".")[0]
+    )
 
     sect_info = align_sections(
         sect_info,
-        ref_space_nat_fn,  # chunk_info["init_volume"],
-        ref_space_nat_fn,
         seg_dir + "/2d/",
         nl_2d_dir,
         resolution,
-        resolution_itr,
         resolution_list,
         base_lin_itr=base_lin_itr,
         base_nl_itr=base_nl_itr,
-        base_cc_itr=base_cc_itr,
         num_cores=num_cores,
         file_to_align=file_to_align,
-        clobber=clobber,
     )
 
     # Concatenate 2D nonlinear aligned sections into output volume

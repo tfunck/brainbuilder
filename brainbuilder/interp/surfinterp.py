@@ -325,6 +325,7 @@ def generate_surface_profiles(
         chunk_info,
         sect_info,
         resolution,
+        struct_vol_rsl_fn,
         gaussian_sd=gaussian_sd,
         clobber=clobber,
     )
@@ -354,20 +355,9 @@ def generate_surface_profiles(
         interp_order=interp_order,
     )
 
-    distance_fn, distance_dict = project_volume_to_surfaces(
-        surf_depth_chunk_dict,
-        surf_depth_mni_dict,
-        chunk_info_thickened,
-        output_prefix,
-        volume_type="distance",
-        interp_order=interp_order,
-    )
-
     return (
         profiles_fn,
         surf_raw_values_dict,
-        distance_fn,
-        distance_dict,
         chunk_info_thickened_csv,
     )
 
@@ -459,7 +449,7 @@ def project_volume_to_surfaces(
                 chunk_info_thickened,
                 interp_csv,
                 depth,
-                volume_type="thickened",
+                volume_type=volume_type,
                 clobber=clobber,
             )
 
@@ -498,7 +488,7 @@ def interpolate_over_surface(
     threshold: float = 0,
     surface_mask: np.ndarray = None,
     order: int = 1,
-):
+) -> np.ndarray:
     """Interpolate over a surface sphere.
 
     :param sphere_obj_fn: path to sphere object
@@ -570,7 +560,7 @@ def fill_in_missing_voxels(
     mask_vol = np.pad(mask_vol, ((1, 1), (1, 1), (1, 1)))
     interp_vol = np.pad(interp_vol, ((1, 1), (1, 1), (1, 1)))
 
-    orig_max, orig_min = np.max(interp_vol), np.min(interp_vol)
+    orig_max, _ = np.max(interp_vol), np.min(interp_vol)
 
     xv, yv, zv = np.meshgrid(
         np.arange(mask_vol.shape[0]),
@@ -639,8 +629,10 @@ def fill_in_missing_voxels(
 
         interp_values = interp_sum[n > 0] / n[n > 0]
 
-        assert np.abs(np.max(interp_vol) - orig_max) < 0.001, f"Error: max value changed {np.max(interp_vol)} {orig_max}"
-        #assert np.min(interp_vol) == orig_min, "Error: min value changed"
+        assert (
+            np.abs(np.max(interp_vol) - orig_max) < 0.001
+        ), f"Error: max value changed {np.max(interp_vol)} {orig_max}"
+        # assert np.min(interp_vol) == orig_min, "Error: min value changed"
 
         interp_vol[xvv, yvv, zvv] = interp_values
 
@@ -652,14 +644,46 @@ def fill_in_missing_voxels(
 
         # print("\t\t\t\tmissing", np.sum(missing_voxels), np.sum(interp_vol == 10000))
         counter += 1
-    
 
     interp_vol = interp_vol[1:-1, 1:-1, 1:-1]
     return interp_vol
 
 
+def combine_volumes(
+    volume_fns: list, output_filename: str, clobber: bool = False
+) -> None:
+    """Combine volumes.
+
+    :param volume_fns: list of volume filenames
+    :param priority: priority of volumes
+    :return: None
+    """
+    if not os.path.exists(output_filename) or clobber:
+        img = nib.load(volume_fns[0])
+        aff = img.affine
+
+        print("\tCombining volumes")
+        vol = img.get_fdata()
+
+        fixed_idx = np.where(vol > vol.min())
+
+        n = np.zeros(vol.shape)
+        for vol_fn in volume_fns[1:]:
+            curr_vol = nib.load(vol_fn).get_fdata()
+            vol[~fixed_idx] += curr_vol[~fixed_idx]
+            n[~fixed_idx] += 1
+
+        vol[~fixed_idx] /= n[~fixed_idx]
+
+        print("\tWriting", output_filename)
+        nib.Nifti1Image(vol, aff).to_filename(output_filename)
+
+    return vol
+
+
 def create_final_reconstructed_volume(
     reconstructed_cortex_fn: str,
+    chunk_info_thickened_csv: str,
     cortex_mask_fn: str,
     resolution: float,
     surf_depth_mni_dict: dict,
@@ -678,6 +702,8 @@ def create_final_reconstructed_volume(
     """
     print("\t Creating final reconstructed volume")
     if not os.path.exists(reconstructed_cortex_fn) or clobber:
+        chunk_info_thickened = pd.read_csv(chunk_info_thickened_csv)
+
         mask_vol = nib.load(cortex_mask_fn).get_fdata()
 
         depth_list = sorted(surf_depth_mni_dict.keys())
@@ -696,6 +722,11 @@ def create_final_reconstructed_volume(
 
         unfilled_volume_fn = re.sub(
             ".nii.gz", "_unfilled.nii.gz", reconstructed_cortex_fn
+        )
+
+        surf_volume_fn = re.sub(".nii.gz", "_surf.nii.gz", reconstructed_cortex_fn)
+        thickened_vol_stx_fn = re.sub(
+            ".nii.gz", "_thickened_stx.nii.gz", reconstructed_cortex_fn
         )
 
         out_vol = write_mesh_to_volume(
@@ -720,10 +751,16 @@ def create_final_reconstructed_volume(
         affine = nib.load(cortex_mask_fn).affine
         affine[[0, 1, 2], [0, 1, 2]] = resolution
 
-        print("\tWriting", reconstructed_cortex_fn)
-
         nib.Nifti1Image(out_vol, affine, direction_order="lpi").to_filename(
-            reconstructed_cortex_fn
+            surf_volume_fn
+        )
+
+        combine_volumes(
+            chunk_info_thickened["thickened_stx"].values, thickened_vol_stx_fn
+        )
+        print("\tWriting", reconstructed_cortex_fn)
+        combine_volumes(
+            [surf_volume_fn, thickened_vol_stx_fn], reconstructed_cortex_fn, priority=1
         )
 
 

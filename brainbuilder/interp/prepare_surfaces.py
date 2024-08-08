@@ -20,7 +20,6 @@ from brainbuilder.utils.utils import shell
 
 def transform_surface_to_chunks(
     chunk_info: pd.DataFrame,
-    depth: float,
     out_dir: str,
     surf_fn: str,
     ref_gii_fn: Optional[str] = None,
@@ -28,7 +27,7 @@ def transform_surface_to_chunks(
     ext: str = ".surf.gii",
 ) -> dict:
     """Transform a surface to the histological space of each chunk.
-    
+
     :param chunk_info: pd.DataFrame, chunk information
     :param depth: float, cortical depth
     :param out_dir: str, path to output directory
@@ -81,9 +80,8 @@ def prepare_surfaces(
     depth_list: list,
     output_dir: str,
     resolution: float,
-    verbose: bool = False,
     clobber: bool = False,
-)-> tuple:
+) -> tuple:
     """Prepare surfaces for surface-based interpolation.
 
     :param chunk_info_csv: path to the chunk info csv
@@ -135,7 +133,7 @@ def prepare_surfaces(
 
 def transfrom_depth_surf_to_chunk_space(
     chunk_info: pd.DataFrame, surf_depth_mni_dict: dict, surf_rsl_dir: str
-)-> dict:
+) -> dict:
     """For each chunk, transform the mesh surface to the histological space.
 
     :param chunk_info: pd.DataFrame, chunk information
@@ -146,18 +144,23 @@ def transfrom_depth_surf_to_chunk_space(
     surf_depth_chunk_dict = {}
 
     for depth, depth_dict in surf_depth_mni_dict.items():
-        faces_fn = None
-
         ref_gii_fn = depth_dict["depth_surf_fn"]
 
         surf_fn = depth_dict["depth_rsl_fn"]
 
         surf_chunk_dict = transform_surface_to_chunks(
             chunk_info,
-            depth,
             surf_rsl_dir,
             surf_fn,
-            faces_fn=faces_fn,
+            ref_gii_fn=ref_gii_fn,
+        )
+
+        # Transform gifit images to chunk space for QC purposes
+        surf_gii_fn = depth_dict["depth_rsl_gii"]
+        transform_surface_to_chunks(
+            chunk_info,
+            surf_rsl_dir,
+            surf_gii_fn,
             ref_gii_fn=ref_gii_fn,
         )
 
@@ -204,8 +207,8 @@ def generate_cortical_depth_surfaces(
     steps = img.affine[[0, 1, 2], [0, 1, 2]]
     starts = img.affine[[0, 1, 2], [3, 3, 3]]
 
-    gm_coords, gm_faces, gm_info = load_mesh(gm_surf_fn, correct_offset=True)
-    wm_coords, wm_faces, wm_info = load_mesh(wm_surf_fn, correct_offset=True)
+    gm_coords, gm_faces, _ = load_mesh(gm_surf_fn, correct_offset=True)
+    wm_coords, _, _ = load_mesh(wm_surf_fn, correct_offset=True)
 
     d_coords = wm_coords - gm_coords
 
@@ -296,10 +299,8 @@ def inflate_surfaces(
 
 
 def generate_face_and_coord_mask(
-        edge_mask_idx: np.ndarray,
-        faces: np.ndarray,
-        coords: np.ndarray
-        ) -> Tuple[np.ndarray, np.ndarray]:
+    edge_mask_idx: np.ndarray, faces: np.ndarray, coords: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray]:
     """Generate face and coordinate masks.
 
     :param edge_mask_idx: np.ndarray, indices of the edge mask
@@ -329,12 +330,12 @@ def generate_face_and_coord_mask(
     return face_mask, coord_mask
 
 
-def resample_points(surf_fn:str, new_points_gen: list)-> tuple:
+def resample_points(surf_fn: str, new_points_gen: list) -> tuple:
     """Resample points on a mesh surface using the new points generator class.
 
     Basically the new points generator class generates new points on the surface of the mesh based on
     the surface triangle around the point.
-    
+
     :param surf_fn: str, path to surface file
     :param new_points_gen: list, new points generator class
     :return np.ndarray: new_points
@@ -406,14 +407,13 @@ def upsample_surfaces(
     surf_depth_mni_dict[depth_list[0]]["depth_rsl_gii"] = upsample_0_fn
     surf_depth_mni_dict[depth_list[-1]]["depth_rsl_gii"] = upsample_1_fn
 
-    # DEBUG put the next few lines incase want to try face upsampling instead of full surf upsampling
     ref_gii_fn = surf_depth_mni_dict[0]["depth_surf_fn"]
-    surf_depth_mni_dict[0]["depth_rsl_gii"]
     ref_rsl_npy_fn = re.sub(".surf.gii", "", surf_depth_mni_dict[0]["depth_rsl_gii"])
-    re.sub(".nii.gz", "_ngh", surf_depth_mni_dict[0]["depth_rsl_gii"])
-    coords, faces, volume_info = load_mesh(ref_gii_fn)
 
-    if False in [os.path.exists(fn) for fn in output_list + [ref_rsl_npy_fn + ".npz"]]:
+    if (
+        False in [os.path.exists(fn) for fn in output_list + [ref_rsl_npy_fn + ".npz"]]
+        or clobber
+    ):
         points, _, new_points_gen = upsample_over_faces(
             ref_gii_fn, resolution, ref_rsl_npy_fn
         )
@@ -435,8 +435,7 @@ def upsample_surfaces(
         n_points = ref_points.shape[0]
 
         for in_fn, out_fn in zip(input_list, output_list):
-            points, old_points = resample_points(in_fn, new_points_gen)
-            # full = np.arange(points.shape[0]).astype(int)
+            points, _ = resample_points(in_fn, new_points_gen)
 
             assert (
                 n_points == points.shape[0]

@@ -60,6 +60,7 @@ def downsample_sections(
             sub = row["sub"]
             hemi = row["hemisphere"]
             chunk = row["chunk"]
+            conversion_factor = row["conversion_factor"]
 
             pixel_size_0, pixel_size_1, section_thickness = utils.get_chunk_pixel_size(
                 sub, hemi, chunk, chunk_info
@@ -70,7 +71,9 @@ def downsample_sections(
             )
 
             if utils.check_run_stage([downsample_file], [raw_file], clobber=clobber):
-                to_do.append((raw_file, downsample_file, affine, resolution))
+                to_do.append(
+                    (raw_file, downsample_file, affine, resolution, conversion_factor)
+                )
 
         num_cores = cpu_count()
 
@@ -81,8 +84,9 @@ def downsample_sections(
                 downsample_file,
                 affine=affine,
                 order=1,
+                factor=factor,
             )
-            for raw_file, downsample_file, affine, resolution in to_do
+            for raw_file, downsample_file, affine, resolution, factor in to_do
         )
 
         sect_info.to_csv(sect_info_csv, index=False)
@@ -107,6 +111,7 @@ def downsample_sections(
             for acq, tdf in chunk_sect_info.groupby(["acquisition"]):
                 for i, row in tdf.iterrows():
                     y = row["sample"]
+                    print(row["img"])
                     vol[:, y, :] = nib.load(row["img"]).get_fdata()
 
             pixel_size_0, pixel_size_1, section_thickness = utils.get_chunk_pixel_size(

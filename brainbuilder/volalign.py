@@ -10,6 +10,10 @@ import seaborn as sns
 from brainbuilder.align.align_2d import align_2d
 from brainbuilder.align.align_3d import align_3d
 from brainbuilder.align.intervolume import create_intermediate_volume
+from brainbuilder.qc.inter_section_dice import inter_section_dice
+from brainbuilder.qc.validate_section_alignment_to_ref import (
+    validate_section_alignment_to_ref,
+)
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
 
@@ -34,6 +38,7 @@ def get_multiresolution_filenames(
     hemisphere: str,
     chunk: int,
     resolution: float,
+    pass_step: int,
     out_dir: str,
 ) -> pd.DataFrame:
     """Set filenames for each stage of multiresolution stages.
@@ -43,11 +48,12 @@ def get_multiresolution_filenames(
     :param hemisphere: hemisphere name
     :param chunk: chunk name
     :param resolution: resolution of chunk
+    :param pass_step: pass step within current iteration
     :param out_dir: output directory
     :return row: row of dataframe with filenames
     """
     # Set directory names for multi-resolution alignment
-    cur_out_dir = f"{out_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/{resolution}mm/"
+    cur_out_dir = f"{out_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/{resolution}mm/pass_{pass_step}/"
     prefix = f"sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm"
 
     row["cur_out_dir"] = cur_out_dir
@@ -91,7 +97,6 @@ def multiresolution_alignment(
     sect_output_csv: str = "",
     chunk_output_csv: str = "",
     max_resolution_3d: float = 0.3,
-    dice_threshold: float = 0.5,
     num_cores: int = 0,
     clobber: bool = False,
 ) -> str:
@@ -139,13 +144,12 @@ def multiresolution_alignment(
         sect_info["nl_2d_rsl"] = ["empty"] * sect_info.shape[0]
         sect_info["nl_2d_cls_rsl"] = ["empty"] * sect_info.shape[0]
 
-        # create_directories(args, files, sub, hemisphere, resolution_list)
-
         # We create a second list of 3d resolutions that replaces values below the maximum 3D resolution with the maximum 3D resolution, because it may not be possible to perform the 3D alignment at the highest resolution due to the large memory requirements.
         resolution_list_3d = [
             float(resolution)
-            for resolution in resolution_list + [max_resolution_3d]
             if float(resolution) >= max_resolution_3d
+            else max_resolution_3d
+            for resolution in resolution_list
         ]
 
         sect_info_out = pd.DataFrame({})
@@ -154,8 +158,6 @@ def multiresolution_alignment(
         ### Reconstruct chunk for each sub, hemisphere, chunk
         groups = ["sub", "hemisphere", "chunk"]
         for (sub, hemisphere, chunk), curr_sect_info in sect_info.groupby(groups):
-            print("HELLO!")
-            print(sub, hemisphere, chunk)
             idx = (
                 (chunk_info["sub"] == sub)
                 & (chunk_info["hemisphere"] == hemisphere)
@@ -191,8 +193,6 @@ def multiresolution_alignment(
         chunk_info_out.to_csv(chunk_output_csv, index=False)
 
         sect_info_out.to_csv(sect_output_csv, index=False)
-
-    # alignment_qc(sect_output_csv, output_dir)
 
     return chunk_output_csv, sect_output_csv
 
@@ -317,6 +317,124 @@ def alignment_qc(
     return None
 
 
+def alignment_iteration(
+    sub: str,
+    hemisphere: str,
+    chunk: int,
+    output_dir: str,
+    sect_info: pd.DataFrame,
+    chunk_info: pd.DataFrame,
+    ref_vol_fn: str,
+    resolution_itr: int,
+    resolution_list: list,
+    resolution: float,
+    resolution_3d: float,
+    resolution_list_3d: list,
+    pass_step: int = 0,
+    num_cores: int = 1,
+    clobber: bool = False,
+) -> tuple:
+    """Perform 3D-2D alignment for each resolution.
+
+    1) Create intermediate GM volume using best availble 2D transforms
+    2) Align GM volume to MRI in 3D
+    3) Align autoradiographs to GM volume in 2D.
+    """
+    print("\t\tCreate intermediate 3d volume")
+    row = chunk_info.iloc[0, :].squeeze()
+    row["resolution"] = resolution
+
+    chunk_info_out = pd.DataFrame()
+    sect_info_out = pd.DataFrame()
+
+    row = get_multiresolution_filenames(
+        row, sub, hemisphere, chunk, resolution, pass_step, output_dir
+    )
+
+    dirs_to_create = [
+        row["cur_out_dir"],
+        row["align_3d_dir"],
+        row["seg_dir"],
+        row["nl_2d_dir"],
+    ]
+    for dir_name in dirs_to_create:
+        os.makedirs(dir_name, exist_ok=True)
+
+    # downsample the original ref gm mask to current 3d resolution
+    ref_rsl_fn = (
+        row["seg_dir"]
+        + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_mri_gm.nii.gz"
+    )
+
+    if not os.path.exists(ref_rsl_fn):
+        utils.resample_to_resolution(ref_vol_fn, [resolution_3d] * 3, ref_rsl_fn)
+
+    world_chunk_limits, vox_chunk_limits = verify_chunk_limits(ref_rsl_fn, chunk_info)
+    create_intermediate_volume(
+        chunk_info,
+        sect_info,
+        resolution_itr,
+        resolution,
+        resolution_3d,
+        row["seg_dir"],
+        row["seg_rsl_fn"],
+        row["init_volume"],
+        num_cores=num_cores,
+        interpolation="linear",
+        clobber=clobber,
+    )
+
+    ###
+    ### Stage 3.2 : Align chunks to MRI
+    ###
+    print("\t\tAlign chunks to MRI")
+    align_3d(
+        sub,
+        hemisphere,
+        chunk,
+        row["seg_rsl_fn"],
+        ref_rsl_fn,
+        row["align_3d_dir"],
+        row["nl_3d_tfm_fn"],
+        row["nl_3d_tfm_inv_fn"],
+        row["rec_3d_rsl_fn"],
+        row["ref_3d_rsl_fn"],
+        resolution_3d,
+        resolution_list_3d,
+        world_chunk_limits,
+        vox_chunk_limits,
+        use_masks=False,
+        clobber=clobber,
+    )
+
+    ###
+    ### Stage 3.3 : 2D alignment of receptor to resample MRI GM vol
+    ###
+    print("\t\t2D alignment of receptor to resample MRI GM vol")
+    sect_info, ref_space_nat_fn = align_2d(
+        sect_info,
+        row["nl_2d_dir"],
+        row["seg_dir"],
+        ref_rsl_fn,
+        resolution,
+        resolution_itr,
+        resolution_list,
+        row["seg_rsl_fn"],
+        row["nl_3d_tfm_inv_fn"],
+        row["nl_2d_vol_fn"],
+        row["nl_2d_vol_cls_fn"],
+        row["section_thickness"],
+        file_to_align="seg",
+        num_cores=num_cores,
+        clobber=clobber,
+    )
+    row["ref_space_nat"] = ref_space_nat_fn
+    chunk_info_out = pd.concat([chunk_info_out, row.to_frame().T])
+    sect_info_out = pd.concat([sect_info_out, sect_info])
+
+    return chunk_info_out, sect_info_out
+
+
 def align_chunk(
     chunk_info: pd.DataFrame,
     sect_info: pd.DataFrame,
@@ -324,6 +442,7 @@ def align_chunk(
     resolution_list_3d: list,
     ref_vol_fn: str,
     output_dir: str,
+    n_passes: int = 1,
     num_cores: int = 1,
     clobber: bool = False,
 ) -> tuple:
@@ -340,114 +459,67 @@ def align_chunk(
     :param resolution_list:    heirarchy of resolutions for 2d alignment
     :param resolution_list_3d: heirarchy of resolutions for 3d alignment
     :param output_dir:         output directory
+    :param n_passes:           number of passes for 3d-2d alignment
+    :param num_cores:          number of cores to use
     :return sect_info: updated sect_info data frame with filenames for nonlinearly 2d aligned autoradiographs
     """
     sub, hemisphere, chunk = utils.get_values_from_df(chunk_info)
 
-    chunk_info_out = pd.DataFrame()
-    sect_info_out = pd.DataFrame()
     print("\tMultiresolution:", sub, hemisphere, chunk)
+
+    qc_dir = f"{output_dir}/qc/"
+    os.makedirs(qc_dir, exist_ok=True)
+
+    chunk_pass_df = pd.DataFrame()
+    sect_pass_df = pd.DataFrame()
+
+    sect_info_out = sect_info
+    chunk_info_out = chunk_info
 
     ### Iterate over progressively finer resolution
     for resolution_itr, resolution in enumerate(resolution_list):
         resolution_3d = resolution_list_3d[resolution_itr]
         print(f"\tMulti-Resolution Alignement: {resolution}mm")
 
-        row = chunk_info.iloc[0, :].squeeze()
-        row["resolution"] = resolution
+        for pass_step in range(n_passes):
+            # Perform alignment for each resolution, including:
+            # 1) Create intermediate GM volume using best availble 2D transforms
+            # 2) Align GM volume to MRI in 3D
+            # 3) Align autoradiographs to GM volume in 2D
+            chunk_info_out, sect_info_out = alignment_iteration(
+                sub,
+                hemisphere,
+                chunk,
+                output_dir,
+                sect_info_out,
+                chunk_info_out,
+                ref_vol_fn,
+                resolution_itr,
+                resolution_list,
+                resolution,
+                resolution_3d,
+                resolution_list_3d,
+                pass_step=pass_step,
+                num_cores=num_cores,
+                clobber=clobber,
+            )
+            chunk_info_out["pass"] = pass_step
+            sect_info_out["pass"] = pass_step
 
-        row = get_multiresolution_filenames(
-            row, sub, hemisphere, chunk, resolution, output_dir
-        )
+            # For each pass, append the current chunk and section info to the pass dataframes
+            chunk_pass_df = pd.concat([chunk_pass_df, chunk_info_out])
+            sect_pass_df = pd.concat([sect_pass_df, sect_info_out])
 
-        dirs_to_create = [
-            row["cur_out_dir"],
-            row["align_3d_dir"],
-            row["seg_dir"],
-            row["nl_2d_dir"],
-        ]
-        for dir_name in dirs_to_create:
-            os.makedirs(dir_name, exist_ok=True)
+            output_prefix = f"sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_pass-{pass_step}_"
 
-        # downsample the original ref gm mask to current 3d resolution
-        ref_rsl_fn = (
-            row["seg_dir"]
-            + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_mri_gm.nii.gz"
-        )
+            # Calculate Dice between sections
+            inter_section_dice(
+                sect_info_out, qc_dir, output_prefix=output_prefix, clobber=clobber
+            )
 
-        if not os.path.exists(ref_rsl_fn):
-            utils.resample_to_resolution(ref_vol_fn, [resolution_3d] * 3, ref_rsl_fn)
-
-        world_chunk_limits, vox_chunk_limits = verify_chunk_limits(
-            ref_rsl_fn, chunk_info
-        )
-
-        ###
-        ### Stage 3.1 : Create intermediate 3d volume
-        ###
-        print("\t\tCreate intermediate 3d volume")
-        [row["init_volume"]]
-        create_intermediate_volume(
-            chunk_info,
-            sect_info,
-            resolution_itr,
-            resolution,
-            resolution_3d,
-            row["seg_dir"],
-            row["seg_rsl_fn"],
-            row["init_volume"],
-            num_cores=num_cores,
-            clobber=clobber,
-        )
-
-        ###
-        ### Stage 3.2 : Align chunks to MRI
-        ###
-        print("\t\tAlign chunks to MRI")
-        align_3d(
-            sub,
-            hemisphere,
-            chunk,
-            row["seg_rsl_fn"],
-            ref_rsl_fn,
-            row["align_3d_dir"],
-            row["nl_3d_tfm_fn"],
-            row["nl_3d_tfm_inv_fn"],
-            row["rec_3d_rsl_fn"],
-            row["ref_3d_rsl_fn"],
-            resolution_3d,
-            resolution_list_3d,
-            world_chunk_limits,
-            vox_chunk_limits,
-            use_masks=False,
-            clobber=clobber,
-        )
-
-        ###
-        ### Stage 3.3 : 2D alignment of receptor to resample MRI GM vol
-        ###
-        print("\t\t2D alignment of receptor to resample MRI GM vol")
-        sect_info, ref_space_nat_fn = align_2d(
-            sect_info,
-            row["nl_2d_dir"],
-            row["seg_dir"],
-            ref_rsl_fn,
-            resolution,
-            resolution_itr,
-            resolution_list,
-            row["seg_rsl_fn"],
-            row["nl_3d_tfm_inv_fn"],
-            row["nl_2d_vol_fn"],
-            row["nl_2d_vol_cls_fn"],
-            row["section_thickness"],
-            file_to_align="seg",
-            num_cores=num_cores,
-            clobber=clobber,
-        )
-        row["ref_space_nat"] = ref_space_nat_fn
-        chunk_info_out = pd.concat([chunk_info_out, row.to_frame().T])
-        sect_info_out = pd.concat([sect_info_out, sect_info])
-
-    # sect_info = validate_section_alignment(sect_info, output_dir)
+            # Calculate Dice between sections and reference volume
+            validate_section_alignment_to_ref(
+                sect_info_out, qc_dir, output_prefix=output_prefix, clobber=clobber
+            )
 
     return chunk_info_out, sect_info

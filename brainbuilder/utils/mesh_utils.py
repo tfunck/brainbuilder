@@ -23,9 +23,9 @@ from brainbuilder.utils.mesh_io import load_mesh_ext, write_gifti
 from brainbuilder.utils.utils import shell
 
 
-def interleve(x:np.ndarray, step:float) -> np.ndarray:
+def interleve(x: np.ndarray, step: float) -> np.ndarray:
     """Interleve array.
-    
+
     :param x: array
     :param step: step
     :return: interleved array
@@ -33,9 +33,9 @@ def interleve(x:np.ndarray, step:float) -> np.ndarray:
     return np.concatenate([x[i : x.shape[0] + 1 : step] for i in range(step)])
 
 
-def magnitude(V:np.ndarray) -> np.ndarray:
+def magnitude(V: np.ndarray) -> np.ndarray:
     """Calculate the magnitude of a vector.
-    
+
     :param V: vector
     :return: magnitude
     """
@@ -47,9 +47,9 @@ def magnitude(V:np.ndarray) -> np.ndarray:
     return np.sqrt(D)
 
 
-def difference(V:np.ndarray) -> np.ndarray:
+def difference(V: np.ndarray) -> np.ndarray:
     """Calculate the difference of a vector.
-    
+
     :param V: vector
     :return: difference
     """
@@ -61,9 +61,9 @@ def difference(V:np.ndarray) -> np.ndarray:
     return D
 
 
-def pair_vectors(c0:np.ndarray, c1:np.ndarray)->np.ndarray:
+def pair_vectors(c0: np.ndarray, c1: np.ndarray) -> np.ndarray:
     """Pair vectors between two sets of coordinates.
-    
+
     :param c0: coordinates
     :param c1: coordinates
     :return: paired vectors
@@ -73,7 +73,8 @@ def pair_vectors(c0:np.ndarray, c1:np.ndarray)->np.ndarray:
     Y = interleve(np.repeat(c1, c0.shape[0], axis=0), c0.shape[0])
     return X, Y
 
-def spherical_distance(v0:np.ndarray, v1:np.ndarray)->np.ndarray:
+
+def spherical_distance(v0: np.ndarray, v1: np.ndarray) -> np.ndarray:
     """Caclulate radius from points.
 
     :param v0: points
@@ -88,7 +89,7 @@ def spherical_distance(v0:np.ndarray, v1:np.ndarray)->np.ndarray:
     p0 = magnitude(v0)  # magnitude of points in p0 in 3d
     p1 = magnitude(v1)  # magnitude of points in p0 in 3d
 
-    #r = np.mean(np.array([r0, r1]))
+    # r = np.mean(np.array([r0, r1]))
     p = np.mean(np.array([p0, p1]))
 
     phi0 = np.arccos(v0[:, 2] / p0)
@@ -111,7 +112,9 @@ def spherical_distance(v0:np.ndarray, v1:np.ndarray)->np.ndarray:
     return dist
 
 
-def pairwise_coord_distances(c0: np.ndarray, c1: np.ndarray, method:str='l2') -> np.ndarray:
+def pairwise_coord_distances(
+    c0: np.ndarray, c1: np.ndarray, method: str = "l2"
+) -> np.ndarray:
     """Calculate the pairwise distance between two sets of coordinates.
 
     :param c0: 3d coordinates
@@ -147,7 +150,9 @@ def pairwise_coord_distances(c0: np.ndarray, c1: np.ndarray, method:str='l2') ->
     return D
 
 
-def smooth_surface(coords: np.ndarray, values: np.ndarray, sigma: float, sigma_n:int=5) -> np.ndarray:
+def smooth_surface(
+    coords: np.ndarray, values: np.ndarray, sigma: float, sigma_n: int = 5
+) -> np.ndarray:
     """Precaculate the denominator and sigma squared for the normal distribution.
 
     :param coords: coordinates, xyz
@@ -160,9 +165,9 @@ def smooth_surface(coords: np.ndarray, values: np.ndarray, sigma: float, sigma_n
     sigma_sq = np.power(sigma, 2)
 
     # define the normal distribution
-    def normal_pdf(dist: np.ndarray)->np.ndarray:
+    def normal_pdf(dist: np.ndarray) -> np.ndarray:
         """Calculate the normal pdf.
-        
+
         :param dist: distance
         :return: normal pdf
         """
@@ -210,10 +215,10 @@ def local_smooth_surf(
     zparams: Tuple[float, float, float],
     x: float,
     y: float,
-    z: float
+    z: float,
 ) -> np.ndarray:
     """Smooth a local region of the surface.
-    
+
     :param coords: coordinates, xyz
     :param values: values to smooth
     :param sigma: smoothing sigma
@@ -275,7 +280,13 @@ def local_smooth_surf(
     return core_idx, smoothed_local_values[local_core_idx]
 
 
-def smooth_surface_by_parts(coords: np.ndarray, values: np.ndarray, sigma: float, n_sigma: int = 3, step: int = 10) -> np.ndarray:
+def smooth_surface_by_parts(
+    coords: np.ndarray,
+    values: np.ndarray,
+    sigma: float,
+    n_sigma: int = 3,
+    step: int = 10,
+) -> np.ndarray:
     """Smooth the surface by parts.
 
     :param coords: coordinates, xyz
@@ -359,11 +370,13 @@ def smooth_surface_by_parts(coords: np.ndarray, values: np.ndarray, sigma: float
     return smoothed_values
 
 
-def smooth_surface_profiles(profiles_fn:str, surf_depth_mni_dict:dict, sigma:float, clobber:bool=False)->str:
+def smooth_surface_profiles(
+    profiles_fn: str, surf_depth_mni_dict: dict, sigma: float, clobber: bool = False
+) -> str:
     """Smooth surface profiles.
-    
+
     :param profiles_fn: profiles filename
-    :param surf_depth_mni_dict: dictionary of surface depths in stereotaxic space 
+    :param surf_depth_mni_dict: dictionary of surface depths in stereotaxic space
     :param sigma: smoothing sigma
     :param clobber: clobber
     """
@@ -392,9 +405,9 @@ def smooth_surface_profiles(profiles_fn:str, surf_depth_mni_dict:dict, sigma:flo
     return smoothed_profiles_fn
 
 
-def get_edges_from_faces(faces:np.ndarray)->np.ndarray:
+def get_edges_from_faces(faces: np.ndarray) -> np.ndarray:
     """Get edges from faces.
-    
+
     :param faces: faces
     :return: edges
     """
@@ -440,18 +453,19 @@ def get_edges_from_faces(faces:np.ndarray)->np.ndarray:
     return edges
 
 
-def volume_filename_to_mesh(coords:np.ndarray, filename:str, sigma:int=0, zscore:bool=False)->np.ndarray:
-    """Read volumetric file and project to mesh"""
+def volume_filename_to_mesh(
+    coords: np.ndarray, filename: str, sigma: int = 0, zscore: bool = False
+) -> np.ndarray:
+    """Read volumetric file and project to mesh."""
     img = nb.load(filename)
     starts = img.affine[0:3, 3]
-    steps = np.diag(img.affine)[0:3]    
+    steps = np.diag(img.affine)[0:3]
     dimensions = img.shape
 
     vol = img.get_fdata()
-    if sigma > 0 :
-        print('Smoothing sigma:', sigma)
+    if sigma > 0:
+        print("Smoothing sigma:", sigma)
         vol = gaussian_filter(vol, sigma=sigma)
-
 
     if zscore:
         idx = vol > vol.min()
@@ -470,6 +484,7 @@ def volume_filename_to_mesh(coords:np.ndarray, filename:str, sigma:int=0, zscore
 
     return vtr
 
+
 def volume_to_mesh(
     coords: np.ndarray,
     vol: np.ndarray,
@@ -478,7 +493,7 @@ def volume_to_mesh(
     dimensions: np.ndarray,
 ) -> np.ndarray:
     """Interpolate volume values to mesh vertices.
-    
+
     :param coords: coordinates
     :param vol: volume
     :param starts: starts
@@ -515,10 +530,15 @@ def volume_to_mesh(
 
 
 def write_mesh_to_volume(
-    profiles:np.ndarray, surfaces:np.ndarray, volume_fn:str, output_fn:str, resolution:float, clobber:bool=False
-)->np.ndarray:
+    profiles: np.ndarray,
+    surfaces: np.ndarray,
+    volume_fn: str,
+    output_fn: str,
+    resolution: float,
+    clobber: bool = False,
+) -> np.ndarray:
     """Write mesh to volume.
-    
+
     :param profiles: profiles
     :param surfaces: surfaces
     :param volume_fn: volume filename
@@ -558,12 +578,12 @@ def mesh_to_volume(
     dimensions: np.ndarray,
     starts: np.ndarray,
     steps: np.ndarray,
-    interp_vol:np.ndarray=None,
-    n_vol:int=None,
-    validate:bool=True,
-)->np.ndarray:
+    interp_vol: np.ndarray = None,
+    n_vol: int = None,
+    validate: bool = True,
+) -> np.ndarray:
     """Interpolate mesh values into a volume.
-    
+
     :param coords: coordinates
     :param vertex_values: vertex values
     :param dimensions: dimensions
@@ -611,15 +631,15 @@ def mesh_to_volume(
 
 
 def multi_mesh_to_volume(
-    profiles:np.ndarray,
-    surfaces:np.ndarray,
-    dimensions:np.ndarray,
-    starts:np.ndarray,
-    steps:np.ndarray,
-    resolution:float,
-)->np.ndarray:
+    profiles: np.ndarray,
+    surfaces: np.ndarray,
+    dimensions: np.ndarray,
+    starts: np.ndarray,
+    steps: np.ndarray,
+    resolution: float,
+) -> np.ndarray:
     """Interpolate multiple meshes to volume.
-    
+
     :param profiles: profiles
     :param surfaces: surfaces
     :param dimensions: dimensions
@@ -664,9 +684,9 @@ def multi_mesh_to_volume(
     return interp_vol
 
 
-def unique_points(points:np.ndarray, scale:int=1000000000)->np.ndarray:
+def unique_points(points: np.ndarray, scale: int = 1000000000) -> np.ndarray:
     """Get unique points.
-    
+
     :param points: points
     :param scale: scale
     :return: unique points
@@ -690,9 +710,9 @@ def upsample_over_faces(
     chunk_start: Optional[float] = None,
     chunk_end: Optional[float] = None,
     ref_faces: Optional[np.ndarray] = None,
-)->Tuple[np.ndarray, np.ndarray, dict]:
+) -> Tuple[np.ndarray, np.ndarray, dict]:
     """Upsample surface mesh over faces.
-    
+
     :param surf_fn: surface filename
     :param resolution: resolution
     :param out_fn: output filename
@@ -762,12 +782,6 @@ def upsample_over_faces(
 
     new_points_gen = [new_points_gen[i] for i in unique_index]
 
-    # for i in range(points.shape[0]):
-    #    new_points_gen[i].idx = i
-    #    print(points[i])
-    #    print( new_points_gen[i].generate_point(coords) )
-    #    print()
-
     print("\t\tSaved", out_fn)
     assert (
         len(new_points_gen) == points.shape[0]
@@ -775,9 +789,10 @@ def upsample_over_faces(
 
     return points, values, new_points_gen
 
-def get_triangle_vectors(points:np.ndarray)->np.ndarray:
+
+def get_triangle_vectors(points: np.ndarray) -> np.ndarray:
     """Get vectors that define a given triangle.
-    
+
     :param points: points
     :return: vectors
     """
@@ -791,10 +806,10 @@ def volume_to_surface(
     volume_fn: str,
     values_fn: str = "",
     use_ants_image_reader: bool = True,
-    gauss_sd: float = 0
+    gauss_sd: float = 0,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Interpolate volume values to surface vertices.
-    
+
     :param coords: coordinates
     :param volume_fn: volume filename
     :param values_fn: values filename
@@ -850,7 +865,9 @@ def volume_to_surface(
     return values, idx
 
 
-def mult_vector(v0:np.ndarray, v1:np.ndarray, x:np.ndarray, y:np.ndarray, p:np.ndarray)->np.ndarray:
+def mult_vector(
+    v0: np.ndarray, v1: np.ndarray, x: np.ndarray, y: np.ndarray, p: np.ndarray
+) -> np.ndarray:
     """Scale vectors and them to a point, p.
 
     :param v0: vector
@@ -866,14 +883,15 @@ def mult_vector(v0:np.ndarray, v1:np.ndarray, x:np.ndarray, y:np.ndarray, p:np.n
     y = y.astype(np.float128)
     p = p.astype(np.float128)
 
-    def mult(a:np.ndarray, b:np.ndarray)->np.ndarray:
+    def mult(a: np.ndarray, b: np.ndarray) -> np.ndarray:
         """Multiply two vectors.
-        
+
         :param a: vector
         :param b: vector
         :return: vector
         """
         return np.multiply(np.repeat(a.reshape(a.shape[0], 1), b.shape, axis=1), b).T
+
     w0 = mult(v0, x).astype(np.float128)
     w1 = mult(v1, y).astype(np.float128)
     # add the two vector components to create points within triangle
@@ -882,13 +900,13 @@ def mult_vector(v0:np.ndarray, v1:np.ndarray, x:np.ndarray, y:np.ndarray, p:np.n
 
 
 def interpolate_face(
-        points: np.ndarray, 
-        values: np.ndarray, 
-        resolution: float, 
-        new_points_only: bool = False
-        ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    points: np.ndarray,
+    values: np.ndarray,
+    resolution: float,
+    new_points_only: bool = False,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Interpolate values over a face.
-    
+
     :param points: points
     :param values: values
     :param resolution: resolution
@@ -900,13 +918,14 @@ def interpolate_face(
 
     # calculate the magnitude of the vector and divide by the resolution to get number of
     # points along edge
-    def calc_n(v:np.ndarray)->np.ndarray:
+    def calc_n(v: np.ndarray) -> np.ndarray:
         """Calculate magnitude, scaled by resolution. Gives you n points along edge.
-        
+
         :param v: vector
         :return: magnitude
         """
         return np.ceil(np.sqrt(np.sum(np.power(v, 2))) / resolution).astype(int)
+
     mag_0 = calc_n(v0)
     mag_1 = calc_n(v1)
 
@@ -942,14 +961,12 @@ def interpolate_face(
 
 class NewPointGenerator:
     """New point generator."""
-    def __init__(self,
-                 idx:int,
-                 face:np.ndarray,
-                 x:np.ndarray,
-                 y:np.ndarray
-                 ) -> None:
+
+    def __init__(
+        self, idx: int, face: np.ndarray, x: np.ndarray, y: np.ndarray
+    ) -> None:
         """Initialize.
-        
+
         :param idx: index
         :param face: face
         :param x: x
@@ -961,9 +978,9 @@ class NewPointGenerator:
         self.x = x.astype(np.float128)
         self.y = y.astype(np.float128)
 
-    def generate_point(self, points:np.ndarray)->np.ndarray:
+    def generate_point(self, points: np.ndarray) -> np.ndarray:
         """Generate a point.
-        
+
         :param points: points
         :return: point
         """
@@ -988,7 +1005,7 @@ def calculate_upsampled_points(
     new_points_only: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, Dict[int, NewPointGenerator]]:
     """Calculate upsampled pointsfor a mesh.
-    
+
     :param faces: faces
     :param face_coords: face coordinates
     :param face_vertex_values: face vertex values
@@ -1037,7 +1054,6 @@ def calculate_upsampled_points(
 
 def transform_surface_to_chunks(
     chunk_info: pd.DataFrame,
-    depth: int,
     out_dir: str,
     surf_fn: str,
     ref_gii_fn: Optional[str] = None,
@@ -1081,15 +1097,19 @@ def transform_surface_to_chunks(
 
     return surf_chunk_dict
 
-def visualization(surf_coords_filename:str, values:np.ndarray, output_filename:str)->None:
+
+def visualization(
+    surf_coords_filename: str, values: np.ndarray, output_filename: str
+) -> None:
     """Visualize surface coordinates with values.
-    
+
     :param surf_coords_filename: surface coordinates filename
     :param values: values
     :param output_filename: output filename
     :return: None
     """
-    def get_valid_idx(c:np.ndarray, r:float)->np.ndarray:
+
+    def get_valid_idx(c: np.ndarray, r: float) -> np.ndarray:
         """Threshold array by mean and std.
 
         :param c: array
@@ -1145,16 +1165,16 @@ def visualization(surf_coords_filename:str, values:np.ndarray, output_filename:s
 
 
 def apply_ants_transform_to_gii(
-    in_gii_fn:str,
-    tfm_list:List[str],
-    out_gii_fn:str,
-    invert:int,
-    ref_gii_fn:str=None,
-    faces_fn:str=None,
-    ref_vol_fn:str=None,
-)->None:
+    in_gii_fn: str,
+    tfm_list: List[str],
+    out_gii_fn: str,
+    invert: int,
+    ref_gii_fn: str = None,
+    faces_fn: str = None,
+    ref_vol_fn: str = None,
+) -> None:
     """Apply ANTs transform to gii.
-    
+
     :param in_gii_fn: input gii filename
     :param tfm_list: transform list
     :param out_gii_fn: output gii filename

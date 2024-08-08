@@ -40,7 +40,7 @@ def estimate_memory_usage(n_elements: int, n_bytes_per_element: int) -> int:
 
 
 def get_maximum_cores(
-    n_elemnts_list: list, n_bytes_per_element_list: list, max_memory: float = 0.8
+    n_elemnts_list: list, n_bytes_per_element_list: list, max_memory: float = 0.5
 ) -> int:
     """Get the maximum number of cores to use for a given memory limit.
 
@@ -100,26 +100,26 @@ def get_chunk_pixel_size(sub: str, hemi: str, chunk: str, chunk_info: str) -> tu
         & (chunk_info["hemisphere"] == hemi)
         & (chunk_info["chunk"] == chunk)
     )
-    
+
     pixel_size_0 = None
     pixel_size_1 = None
     section_thickeness = None
 
-    try :
+    try:
         pixel_size_0 = chunk_info["pixel_size_0"][idx].values[0]
-    except IndexError :
+    except IndexError:
         pass
 
-    try :
+    try:
         pixel_size_1 = chunk_info["pixel_size_1"][idx].values[0]
-    except IndexError :
+    except IndexError:
         pass
 
-    try :
+    try:
         section_thickeness = chunk_info["section_thickness"][idx].values[0]
-    except IndexError :
+    except IndexError:
         pass
-        
+
     return pixel_size_0, pixel_size_1, section_thickeness
 
 
@@ -493,7 +493,7 @@ def get_to_do_list(
     to_do_list = []
     for idx, (i, row) in enumerate(df.iterrows()):
         y = int(row["sample"])
-        base = row["base"]
+        base = os.path.basename(row["raw"]).split(".")[0]
         assert int(y) >= 0, f"Error: negative y value found {y}"
         prefix = f"{out_dir}/{base}_y-{y}"
         fn = gen_2d_fn(prefix, str_var, ext=ext)
@@ -855,7 +855,7 @@ def check_run_stage(
     return run_stage
 
 
-def calculate_sigma_for_downsampling(new_pixel_spacing):
+def calculate_sigma_for_downsampling(new_pixel_spacing: float) -> float:
     """Calculate the standard deviation of a Gaussian pre-filter for downsampling.
 
     Parameters:
@@ -882,6 +882,7 @@ def resample_to_resolution(
     affine: Optional[np.ndarray] = None,
     direction_order: str = "lpi",
     order: int = 1,
+    factor: float = 1,
 ) -> nib.Nifti1Image:
     """Resample a volume to a new resolution.
 
@@ -916,6 +917,8 @@ def resample_to_resolution(
     vol = resize(
         vol, new_dims, order=order, anti_aliasing=True, anti_aliasing_sigma=sigma
     )
+
+    vol *= factor
 
     assert np.sum(np.abs(vol)) > 0, (
         "Error: empty output array for prefilter_and_downsample\n" + output_filename

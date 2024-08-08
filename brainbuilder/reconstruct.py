@@ -9,6 +9,7 @@ import brainbuilder.qc.quality_control as qc
 from brainbuilder.downsample import downsample_sections
 from brainbuilder.initalign import initalign
 from brainbuilder.interpsections import interpolate_missing_sections
+from brainbuilder.qc.validate_interp_error import validate_interp_error
 from brainbuilder.segment import segment
 from brainbuilder.utils import utils
 from brainbuilder.utils.validate_inputs import validate_inputs
@@ -126,7 +127,6 @@ def reconstruct(
         downsample_dir,
         clobber=clobber,
     )
-    print(sect_info_csv)
     qc.data_set_quality_control(sect_info_csv, qc_dir, column="img")
 
     # Stage: Segment
@@ -161,7 +161,7 @@ def reconstruct(
 
     # Stage: Interpolate missing sections
     if not skip_interp:
-        interpolate_missing_sections(
+        reconstructed_chunk_info_csv = interpolate_missing_sections(
             hemi_info_csv,
             align_chunk_info_csv,
             align_sect_info_csv,
@@ -173,7 +173,14 @@ def reconstruct(
             clobber=clobber,
         )
 
+        validate_interp_error(
+            hemi_info_csv, reconstructed_chunk_info_csv, interp_dir, clobber=clobber
+        )
     return output_csv
+
+
+global ju_atlas_fn
+global mni_template_fn
 
 
 def setup_argparse() -> argparse.ArgumentParser:

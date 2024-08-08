@@ -1,5 +1,6 @@
 """Create thickened volumes for each acquisition and each chunk."""
 import os
+import re
 from typing import Tuple
 
 import numpy as np
@@ -12,7 +13,10 @@ import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.interp.adjust_section_means import (
     calculate_section_adjustment_factors,
 )
-from brainbuilder.utils.utils import get_thicken_width
+from brainbuilder.utils.utils import (
+    get_thicken_width,
+    simple_ants_apply_tfm,
+)
 
 
 def setup_section_normalization(
@@ -88,7 +92,7 @@ def thicken_sections_within_chunk(
     resolution: float,
     tissue_type: str = "",
     gaussian_sd: float = 0,
-    use_conversion_factor=False,
+    use_conversion_factor: bool = False,
     use_adjust_section_means: bool = True,
 ) -> None:
     """Thicken sections within a chunk. A thickened section is simply a section that is expanded along the y axis to the resolution of the reconstruction.
@@ -213,9 +217,6 @@ def get_section_intervals(vol: np.ndarray) -> list:
     section_max = np.max(vol, axis=(0, 2))
     section_min = np.min(vol, axis=(0, 2))
 
-    print(section_max)
-    print(section_min)
-
     valid_sections = section_max != section_min
 
     labeled_sections, nlabels = label(valid_sections)
@@ -237,7 +238,13 @@ def get_section_intervals(vol: np.ndarray) -> list:
     return intervals
 
 
-def create_distance_volume(volume_filename, distance_filename):
+def create_distance_volume(volume_filename: str, distance_filename: str) -> np.ndarray:
+    """Create a volume that represents distances from acquired sections.
+
+    :param volume_filename: path to volume
+    :param distance_filename: path to distance volume
+    :return: np.array
+    """
     img = nib.load(volume_filename)
     vol = img.get_fdata()
 
@@ -249,15 +256,14 @@ def create_distance_volume(volume_filename, distance_filename):
         x0, x1 = intervals[i]
         y0, y1 = intervals[j]
         x = np.mean(vol[:, x0:x1, :], axis=1)
-        y = np.mean(vol[:, y0:y1, :], axis=1)
         vol[:, x0:x1, :] = np.repeat(
             x.reshape(x.shape[0], 1, x.shape[1]), x1 - x0, axis=1
         )
         for ii in range(x1, y0):
             den = y0 - x1
             assert den != 0, "Error: 0 denominator when interpolating missing sections"
-            d0 = (ii - x1) / den
-            d1 = (y1 - ii) / den
+            d0 = ii - x1
+            d1 = y1 - ii
             d = min(d0, d1)
             out_vol[:, ii, :] = d
 
@@ -268,11 +274,50 @@ def create_distance_volume(volume_filename, distance_filename):
     return out_vol
 
 
+def transform_chunk_volumes(
+    df: pd.DataFrame, struct_vol_rsl_fn: str, output_dir: str, clobber: bool = False
+) -> str:
+    """Transform thickened chunk volumes to structural volume."""
+    output_csv = f"{output_dir}/chunk_info_thickened_stx.csv"
+
+    if not os.path.exists(output_csv) or clobber:
+        df["thickened_stx"] = None
+
+        for (sub, hemisphere, chunk, acquisition), chunk_df in df.groupby(
+            ["sub", "hemisphere", "chunk", "acquisition"]
+        ):
+            thickened_fn = chunk_df["thickened"].values[0]
+            nl_3d_tfm_fn = chunk_df["nl_3d_tfm_inv_fn"].values[0]
+
+            thickened_stx_fn = re.sub(".nii.gz", "_space-stx.nii.gz", thickened_fn)
+
+            if not os.path.exists(thickened_stx_fn):
+                print(f"\tTransforming {thickened_fn} to stx space")
+
+                simple_ants_apply_tfm(
+                    thickened_fn, struct_vol_rsl_fn, nl_3d_tfm_fn, thickened_stx_fn
+                )
+
+            idx = (
+                (df["sub"] == sub)
+                & (df["hemisphere"] == hemisphere)
+                & (df["chunk"] == chunk)
+                & (df["acquisition"] == acquisition)
+            )
+
+            df["thickened_stx"].loc[idx] = thickened_stx_fn
+        df.to_csv(output_csv, index=False)
+
+    return output_csv
+
+
 def create_thickened_volumes(
     output_dir: str,
     chunk_info: pd.DataFrame,
     sect_info: pd.DataFrame,
     resolution: float,
+    struct_vol_rsl_fn: str,
+    output_csv: str,
     tissue_type: str = "",
     gaussian_sd: float = 0,
     clobber: bool = False,
@@ -318,11 +363,9 @@ def create_thickened_volumes(
             chunk_info_row = chunk_info[idx].iloc[0]
 
             thickened_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_thickened.nii.gz"
-            distance_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_distance.nii.gz"
 
             chunk_info_row["acquisition"] = acquisition
             chunk_info_row["thickened"] = thickened_fn
-            chunk_info_row["distance"] = distance_fn
 
             if not os.path.exists(thickened_fn) or clobber:
                 thicken_sections_within_chunk(
@@ -335,10 +378,14 @@ def create_thickened_volumes(
                     gaussian_sd=gaussian_sd,
                 )
 
-            if not os.path.exists(distance_fn) or clobber:
-                create_distance_volume(thickened_fn, distance_fn)
+            # if not os.path.exists(distance_fn) or clobber:
+            #    create_distance_volume(thickened_fn, distance_fn)
 
             chunk_info_out = pd.concat([chunk_info_out, chunk_info_row.to_frame().T])
+
+        chunk_info_out = transform_chunk_volumes(
+            chunk_info_out, struct_vol_rsl_fn, output_dir, clobber=clobber
+        )
 
         chunk_info_out.to_csv(output_csv, index=False)
     return output_csv

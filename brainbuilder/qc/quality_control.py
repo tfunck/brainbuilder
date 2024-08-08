@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from brainbuilder.utils import ants_nibabel as nib
 from brainbuilder.utils import utils
-from joblib import Parallel, cpu_count, delayed
+from joblib import Parallel, delayed
 
 
 def get_min_max(fn: str) -> str:
@@ -34,8 +34,6 @@ def get_min_max_parallel(
     :param column: column name
     :return: min, max
     """
-    n_jobs = int(cpu_count())
-
     min_max = Parallel(n_jobs=num_cores, backend="multiprocessing")(
         delayed(get_min_max)(row[column]) for i, (_, row) in enumerate(df.iterrows())
     )
@@ -93,11 +91,19 @@ def data_set_quality_control(
 
             for i, (_, row) in enumerate(df.iterrows()):
 
+                print(
+                    row["sub"],
+                    row["hemisphere"],
+                    row["chunk"],
+                    row["acquisition"],
+                    row["sample"],
+                )
                 plt.subplot(n_rows, n_cols, i + 1)
                 img = nib.load(row[column]).get_fdata()
                 plt.imshow(img, cmap="nipy_spectral", vmin=vmin, vmax=vmax)
                 plt.axis("off")
                 title_string = f'{row["chunk"]} {row["sample"]}'
+                title_string = f'{row["chunk"]} {row["acquisition"]} {row["sample"]}'
                 plt.title(title_string)
 
             plt.tight_layout()
