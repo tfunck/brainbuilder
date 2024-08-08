@@ -92,21 +92,12 @@ def data_set_quality_control(
             df.sort_values(by=["sample"], inplace=True)
 
             for i, (_, row) in enumerate(df.iterrows()):
-                print(
-                    row["sub"],
-                    row["hemisphere"],
-                    row["chunk"],
-                    row["acquisition"],
-                    row["old_repeat"],
-                    row["sample"],
-                )
-                print(row["base"])
-                print()
+
                 plt.subplot(n_rows, n_cols, i + 1)
                 img = nib.load(row[column]).get_fdata()
                 plt.imshow(img, cmap="nipy_spectral", vmin=vmin, vmax=vmax)
                 plt.axis("off")
-                title_string = f'{row["old_repeat"]} {row["sample"]}'
+                title_string = f'{row["chunk"]} {row["sample"]}'
                 plt.title(title_string)
 
             plt.tight_layout()

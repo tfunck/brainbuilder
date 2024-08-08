@@ -98,6 +98,22 @@ def reconstruct(
 
     maximum_resolution = resolution_list[-1]
 
+    print('Reconstructing 2D sections to 3D volume')
+    print('\tInput files:')
+    print(f'\t\tHemisphere info: {hemi_info_csv}')
+    print(f'\t\tChunk info: {chunk_info_csv}')
+    print(f'\t\tSection info: {sect_info_csv}')
+    print(f'\t\tResolution list: {resolution_list}')
+    print('\tOutput directories:')
+    print(f'\t\tDownsample: {downsample_dir}')
+    print(f'\t\tSegment: {seg_dir}')
+    print(f'\t\tInitial alignment: {initalign_dir}')
+    print(f'\t\tMultiresolution alignment: {multires_align_dir}')
+    print(f'\t\tInterpolation: {interp_dir}')
+    print(f'\t\tQuality control: {qc_dir}')
+
+
+
     valid_inputs = validate_inputs(
         hemi_info_csv, chunk_info_csv, sect_info_csv, valid_inputs_npz
     )
@@ -272,7 +288,6 @@ if __name__ == "__main__":
         args.hemi_info_csv,
         args.chunk_info_csv,
         args.sect_info_csv,
-        args.ref_vol_fn,
         resolution_list=args.resolution_list,
         output_dir=args.output_dir,
         pytorch_model_dir=args.pytorch_model_dir,

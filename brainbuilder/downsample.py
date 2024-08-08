@@ -104,7 +104,7 @@ def downsample_sections(
 
             vol = np.zeros((xdim, ydim, zdim))
 
-            for acq, tdf in chunk_sect_info.groupby("acquisition"):
+            for acq, tdf in chunk_sect_info.groupby(["acquisition"]):
                 for i, row in tdf.iterrows():
                     y = row["sample"]
                     vol[:, y, :] = nib.load(row["img"]).get_fdata()

@@ -383,7 +383,8 @@ def segment(
                 print("\tSegmenting with nnUNet")
                 try:
                     utils.shell(
-                        f"nnUNetv2_predict_from_modelfolder --c --verbose -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir} -f 0  -d Dataset501_Brain -device cpu"
+                        f"nnUNetv2_predict_from_modelfolder --c --verbose -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir} -f 0  -d Dataset501_Brain -device cpu",
+                        exit_on_error=False,
                     )
                     use_nnunet = True
                 except Exception as e:
