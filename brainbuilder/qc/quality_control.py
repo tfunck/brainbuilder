@@ -19,6 +19,8 @@ def get_min_max(fn: str) -> str:
     """
     print("qc read ", fn)
     ar = utils.load_image(fn)
+    print(fn)
+    print(ar)
     if isinstance(ar, np.ndarray):
         return np.min(ar), np.max(ar)
     else:
@@ -99,7 +101,7 @@ def data_set_quality_control(
                     row["sample"],
                 )
                 plt.subplot(n_rows, n_cols, i + 1)
-                img = nib.load(row[column]).get_fdata()
+                img = utils.load_image(row[column]) #.get_fdata()
                 plt.imshow(img, cmap="nipy_spectral", vmin=vmin, vmax=vmax)
                 plt.axis("off")
                 title_string = f'{row["chunk"]} {row["sample"]}'

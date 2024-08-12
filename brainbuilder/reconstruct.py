@@ -174,7 +174,7 @@ def reconstruct(
         )
 
         validate_interp_error(
-            hemi_info_csv, reconstructed_chunk_info_csv, interp_dir, clobber=clobber
+            align_sect_info_csv, reconstructed_chunk_info_csv, interp_dir+'/qc', clobber=clobber
         )
     return output_csv
 

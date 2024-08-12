@@ -472,6 +472,8 @@ def align_chunk(
 
     chunk_pass_df = pd.DataFrame()
     sect_pass_df = pd.DataFrame()
+    chunk_pass_last_df = pd.DataFrame()
+    sect_pass_last_df = pd.DataFrame()
 
     sect_info_out = sect_info
     chunk_info_out = chunk_info
@@ -506,9 +508,12 @@ def align_chunk(
             chunk_info_out["pass"] = pass_step
             sect_info_out["pass"] = pass_step
 
-            # For each pass, append the current chunk and section info to the pass dataframes
             chunk_pass_df = pd.concat([chunk_pass_df, chunk_info_out])
             sect_pass_df = pd.concat([sect_pass_df, sect_info_out])
+
+            if pass_step == n_passes - 1 and resolution == resolution_list[-1]:
+                chunk_pass_last_df = pd.concat([chunk_pass_last_df, chunk_info_out])
+                sect_pass_last_df = pd.concat([sect_pass_last_df, sect_info_out])
 
             output_prefix = f"sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_pass-{pass_step}_"
 
@@ -521,5 +526,5 @@ def align_chunk(
             validate_section_alignment_to_ref(
                 sect_info_out, qc_dir, output_prefix=output_prefix, clobber=clobber
             )
-
-    return chunk_info_out, sect_info
+    #print(sect_pass_last_df['nl_2d_rsl'].values); exit(0)
+    return chunk_pass_last_df, sect_pass_last_df 

@@ -71,13 +71,19 @@ def get_maximum_cores(
     return max_cores
 
 
+
+
 def load_image(fn: str) -> np.ndarray:
     """Load an image from a file.
 
     :param fn: str, filename
     :return: np.ndarray
     """
-    if isinstance(fn, str) and os.path.exists(fn):
+    if isinstance(fn, str) and os.path.exists(fn) or os.path.islink(fn):
+
+        if os.path.islink(fn):
+            fn = os.readlink(fn)
+
         if ".nii" in fn:
             return ants.image_read(fn).numpy()
         else:
@@ -372,7 +378,9 @@ def check_transformation_not_empty(
     :param empty_ok: bool, whether empty files are allowed
     :return: None
     """
+    
     assert os.path.exists(out_fn), f"Error: transformed file does not exist {out_fn}"
+
     assert (
         np.sum(np.abs(nib.load(out_fn).dataobj)) > 0 or empty_ok
     ), f"Error in applying transformation: \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n"
@@ -386,6 +394,7 @@ def simple_ants_apply_tfm(
     ndim: int = 3,
     n: str = "Linear",
     empty_ok: bool = False,
+    clobber:bool = False
 ) -> None:
     """Apply transformation using ANTs.
 
@@ -398,7 +407,7 @@ def simple_ants_apply_tfm(
     :param empty_ok: bool, whether empty files are allowed
     :return: None
     """
-    if not os.path.exists(out_fn):
+    if not os.path.exists(out_fn) or clobber:
         str0 = f"antsApplyTransforms -n {n} -v 0 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}"
         shell(str0, verbose=True)
         check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn, empty_ok=empty_ok)
@@ -742,6 +751,10 @@ def newer_than(fn1: str, fn2: str) -> bool:
     :param fn2: str, filename
     :return: bool
     """
+
+    fn1 = os.readlink(fn1) if os.path.islink(fn1) else fn1
+    fn2 = os.readlink(fn2) if os.path.islink(fn2) else fn2
+
     if pd.isnull(fn1):
         return False
     elif not os.path.exists(fn1):

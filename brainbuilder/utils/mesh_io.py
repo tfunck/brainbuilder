@@ -70,7 +70,7 @@ def write_gifti(surf_mesh:str, coords:np.ndarray, faces:np.ndarray)->None:
     :return: None
     """
     coord_array = nb.gifti.GiftiDataArray(
-        data=coords, intent=nb.nifti1.intent_codes["NIFTI_INTENT_POINTSET"]
+        data=coords.astype(np.float32), intent=nb.nifti1.intent_codes["NIFTI_INTENT_POINTSET"]
     )
     face_array = nb.gifti.GiftiDataArray(
         data=faces, intent=nb.nifti1.intent_codes["NIFTI_INTENT_TRIANGLE"]

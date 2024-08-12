@@ -1,4 +1,6 @@
 """Module for reading and writing nifti files using ANTsPy."""
+import os
+
 import ants
 import nibabel as nb
 import numpy as np
@@ -71,7 +73,9 @@ def safe_image_read(fn:str)->ants.core.ants_image.ANTsImage:
     :param fn: Filename of the nifti file
     :return: ANTsPy image object
     """
-    img = ants.image_read(fn)
+    if os.path.islink(fn) :
+        fn = os.readlink(fn)
+
     try:
         img = ants.image_read(fn)
     except RuntimeError:

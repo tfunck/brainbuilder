@@ -24,12 +24,15 @@ def calculate_regional_averages(
     # Read Atlas file
     atlas_img = nib.load(atlas_fn)
     atlas_volume = atlas_img.get_fdata().astype(int)
+    assert np.sum(atlas_volume) > 0, "Error: empty atlas volume"
 
-    print("Atlas:", os.path.basename(atlas_fn), os.path.basename(acquisition_fn))
+    print("Atlas:", atlas_fn, acquisition_fn)
+
 
     # Read file with receptor density info
     acquisition_img = nib.load(acquisition_fn)
     reconstructed_volume = acquisition_img.get_fdata()
+    assert np.sum(reconstructed_volume) > 0, "Error: empty reconstructed volume"
 
     atlas_volume[reconstructed_volume == 0] = 0
 
@@ -59,15 +62,17 @@ def calculate_regional_averages_by_row(
     row: pd.Series,
     section_str: str,
     label_str: str,
-    use_conversion_factor: bool = False,
+    conversion_factor: float = 1,
 ) -> pd.DataFrame:
     """Calculate regional averages for each label in the 2d images."""
     acquisition_fn = row[section_str]
     atlas_fn = row[label_str]
 
     avg_df = calculate_regional_averages(
-        acquisition_fn, atlas_fn, use_conversion_factor=use_conversion_factor
+        acquisition_fn, atlas_fn, conversion_factor=conversion_factor
     )
+    print('Average DF')
+    print(avg_df)
 
     # Create dataframe that repeats rows for each label
     df = row.to_frame().T
@@ -76,6 +81,7 @@ def calculate_regional_averages_by_row(
     df["average"] = avg_df["average"]
     df["volume"] = avg_df["volume"]
 
+    print('hello', acquisition_fn)
     return df
 
 
@@ -173,7 +179,7 @@ def regional_averages(
     labels_string: str,
     output_dir: str,
     source: str = None,
-    use_conversion_factor: bool = False,
+    conversion_factor: float = 1,
     clobber: bool = False,
 ) -> pd.DataFrame:
     """Calculate regional values."""
@@ -189,18 +195,18 @@ def regional_averages(
             for i, row in sect_info.iterrows():
                 print(row["cluster_volume_3d"])
                 print(row["reconstructed_filename"])
-
+        
         # Define regional values function
         res = Parallel(n_jobs=-1)(
             delayed(calculate_regional_averages_by_row)(
                 row,
                 section_string,
                 labels_string,
-                use_conversion_factor=use_conversion_factor,
+                conversion_factor=conversion_factor,
             )
             for i, row in sect_info.iterrows()
         )
-
+        print(res[0])
         # Concatenate results
         print("Concatenating results")
         regional_values_df = pd.concat(res)
@@ -256,8 +262,11 @@ def apply_3d_transformations(
         ref_volume_filename = row["reconstructed_filename"]
         if not os.path.exists(out_fn) or clobber:
             shell(
-                f"antsApplyTransforms -v 1 -n NearestNeighbor -d 3 -i {img} -o {out_fn} -t {tfm} -r {ref_volume_filename}"
+                f"antsApplyTransforms -v 1 -n NearestNeighbor -d 3 -i {img} -o {out_fn} -t {tfm} -r {ref_volume_filename}", verbose=True
             )
+        
+        assert os.path.exists(out_fn), f"Error: {out_fn} does not exist"
+        assert np.sum(nib.load(out_fn).get_fdata()) > 0, "Error: empty output volume"
 
     return chunk_info
 
@@ -394,7 +403,7 @@ def plot_validation_interp_error(
     for i, (_, row) in enumerate(sect_info_orig.iterrows()):
         if i % 100 == 0:
             print(f"\t{np.round(100.*i/sect_info_orig.shape[0],1)}", end="\r")
-
+        print(i)
         sub = row["sub"]
         hemisphere = row["hemisphere"]
         chunk = row["chunk"]
@@ -403,6 +412,7 @@ def plot_validation_interp_error(
         average_orig = row["average"]
         volume = row["volume"]
 
+        print('\tA',volume, average_orig)
         if volume < min_volume or average_orig < min_average:
             continue
 
@@ -412,13 +422,14 @@ def plot_validation_interp_error(
             & (sect_info_2d["chunk"] == chunk)
             & (sect_info_2d["label"] == label)
         )
-
+        print('\tB',idx2d.sum())
         if idx2d.sum() == 0:
             continue
 
         average_2d = sect_info_2d.loc[idx2d, "average"].values[0]
         volume_2d = sect_info_2d.loc[idx2d, "volume"].values[0]
 
+        print('\tC',average_2d, volume_2d)
         if average_2d < min_average and volume_2d < min_volume:
             continue
 
@@ -428,7 +439,12 @@ def plot_validation_interp_error(
             & (chunk_info_3d["chunk"] == chunk)
             & (chunk_info_3d["label"] == label)
         )
-
+        print(sub, hemisphere, chunk, label)
+        print(chunk_info_3d["sub"].unique())
+        print(chunk_info_3d["hemisphere"].unique())
+        print(chunk_info_3d["chunk"].unique())
+        print(chunk_info_3d["label"].unique())
+        print('\tD',idx3d.sum())
         if idx3d.sum() == 0:
             continue
 
@@ -438,6 +454,7 @@ def plot_validation_interp_error(
         if average_3d < min_average and volume_3d < min_volume:
             continue
 
+        print('hello')
         row = pd.DataFrame(
             {
                 "sub": [sub],
@@ -452,6 +469,7 @@ def plot_validation_interp_error(
             }
         )
         df = pd.concat([df, row])
+    assert df.shape[0] > 0, "Error: empty dataframe"
 
     df.to_csv(f"{output_dir}/validation_interp_error.csv")
     print(f"{output_dir}/validation_interp_error.csv")
@@ -508,7 +526,7 @@ def validate_interp_error(
         "cluster_2d",
         output_dir,
         "2d",
-        use_conversion_factor=True,
+        conversion_factor=1,
         clobber=clobber,
     )
 
@@ -521,11 +539,13 @@ def validate_interp_error(
     chunk_info = create_3d_chunk_volumes(
         sect_info_2d.copy(), chunk_info, output_dir, clobber=clobber
     )
-
+    print(chunk_info.columns)
+    print(chunk_info['cluster_volume_2d'].values)
+    clobber=True
     # Apply 3D transformations to 3D volumes of 2D warped classified autoradiographs
     chunk_info = apply_3d_transformations(chunk_info, clobber=clobber)
+    print(chunk_info['cluster_volume_3d'].values)
 
-    clobber = True
     # Calculate regional averages for each label in the 3D volumes
     chunk_info_3d = regional_averages(
         chunk_info,
@@ -533,7 +553,7 @@ def validate_interp_error(
         "cluster_volume_3d",
         output_dir,
         "3d",
-        clobber=clobber,
+        clobber=True,
     )
 
     # Plot original label values versus 2d warped label values

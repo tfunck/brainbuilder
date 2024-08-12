@@ -351,6 +351,7 @@ def apply_transforms_parallel(
     img = nib.load(img_fn)
     img_res = np.array([img.affine[0, 0], img.affine[1, 1]])
 
+    # if we're not at the final resolution, we need to downsample the image
     if resolution != img_res[0] and resolution != img_res[1]:
         sigma = utils.calculate_sigma_for_downsampling(resolution / img_res)
 
@@ -360,8 +361,14 @@ def apply_transforms_parallel(
 
         nib.Nifti1Image(vol, img.affine, direction_order="lpi").to_filename(img_rsl_fn)
     else:
-        if not os.path.exists(img_rsl_fn):
+        # if we're at the final resolution, we need to symlink the image
+        # check if the symlink exists
+        if not os.path.islink(img_rsl_fn):
             os.symlink(img_fn, img_rsl_fn)
+
+        #the symlink is just created to help qc if the user needs to check the moving image before alignment
+        # however ITK does not support symlinks so we rename img_rsl_fn to the actual file name
+        img_rsl_fn = img_fn
 
     cmd = f"antsApplyTransforms -v 0 -d 2 -n BSpline -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} "
 
@@ -423,11 +430,11 @@ def get_align_filenames(
         tfm_fn = prefix + "_Composite.h5"
         tfm_affine_fn = prefix + "_Affine_Composite.h5"
 
-        sect_info["2d_tfm"].iloc[idx] = tfm_fn
-        sect_info["2d_tfm_affine"].iloc[idx] = tfm_affine_fn
+        sect_info.loc[idx, "2d_tfm"] = tfm_fn
+        sect_info.loc[idx, "2d_tfm_affine"] = tfm_affine_fn
 
-        sect_info["2d_align_cls"].iloc[idx] = cls_fn
-        sect_info["2d_align"].iloc[idx] = out_fn
+        sect_info.loc[idx, "2d_align_cls"] = cls_fn
+        sect_info.loc[idx, "2d_align"] = out_fn
 
     return sect_info
 

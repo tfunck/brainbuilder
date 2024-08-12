@@ -107,12 +107,9 @@ def thicken_sections_within_chunk(
     :param gaussian_sd: standard deviation of gaussian filter
     :return: None
     """
-    print(thickened_fn)
-    print(source_image_fn)
+    print('source', source_image_fn)
     array_img = nib.load(source_image_fn)
     array_src = array_img.get_fdata()
-
-    print(array_src.shape)
 
     assert np.sum(array_src) != 0, (
         "Error: source volume for thickening sections is empty\n" + source_image_fn
@@ -138,6 +135,7 @@ def thicken_sections_within_chunk(
 
         # Conversion of radioactivity values to receptor density values
         nl_2d_rsl = row["nl_2d_rsl"]
+        print('nl_2d_rsl', nl_2d_rsl)
         section = nib.load(nl_2d_rsl).get_fdata().copy()
 
         if use_adjust_section_means:
@@ -153,7 +151,7 @@ def thicken_sections_within_chunk(
             else array_src.shape[1]
         )
 
-        rep = np.repeat(section.reshape(dim), y1 - y0, axis=1)
+        rep = np.repeat(section.reshape(dim) , y1 - y0, axis=1)
 
         rec_vol[:, y0:y1, :] += rep
         n[:, y0:y1, :] += 1
@@ -287,7 +285,7 @@ def transform_chunk_volumes(
             ["sub", "hemisphere", "chunk", "acquisition"]
         ):
             thickened_fn = chunk_df["thickened"].values[0]
-            nl_3d_tfm_fn = chunk_df["nl_3d_tfm_inv_fn"].values[0]
+            nl_3d_tfm_fn = chunk_df["nl_3d_tfm_fn"].values[0]
 
             thickened_stx_fn = re.sub(".nii.gz", "_space-stx.nii.gz", thickened_fn)
 
@@ -295,7 +293,7 @@ def transform_chunk_volumes(
                 print(f"\tTransforming {thickened_fn} to stx space")
 
                 simple_ants_apply_tfm(
-                    thickened_fn, struct_vol_rsl_fn, nl_3d_tfm_fn, thickened_stx_fn
+                    thickened_fn, struct_vol_rsl_fn, nl_3d_tfm_fn, thickened_stx_fn, clobber=clobber
                 )
 
             idx = (
@@ -307,8 +305,10 @@ def transform_chunk_volumes(
 
             df["thickened_stx"].loc[idx] = thickened_stx_fn
         df.to_csv(output_csv, index=False)
+    else :
+        df = pd.read_csv(output_csv)
 
-    return output_csv
+    return df
 
 
 def create_thickened_volumes(
@@ -317,7 +317,6 @@ def create_thickened_volumes(
     sect_info: pd.DataFrame,
     resolution: float,
     struct_vol_rsl_fn: str,
-    output_csv: str,
     tissue_type: str = "",
     gaussian_sd: float = 0,
     clobber: bool = False,
@@ -388,4 +387,5 @@ def create_thickened_volumes(
         )
 
         chunk_info_out.to_csv(output_csv, index=False)
+
     return output_csv

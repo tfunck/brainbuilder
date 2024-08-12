@@ -156,7 +156,8 @@ def transfrom_depth_surf_to_chunk_space(
         )
 
         # Transform gifit images to chunk space for QC purposes
-        surf_gii_fn = depth_dict["depth_rsl_gii"]
+        surf_gii_fn = depth_dict["depth_surf_fn"]
+
         transform_surface_to_chunks(
             chunk_info,
             surf_rsl_dir,
@@ -226,7 +227,7 @@ def generate_cortical_depth_surfaces(
         depth_vol_fn = "{}/{}_{}mm_{}.nii.gz".format(
             output_dir, surf_base, resolution, depth
         )
-
+        print(depth_surf_fn)
         surf_depth_mni_dict[depth] = {"depth_surf_fn": depth_surf_fn}
 
         coords = gm_coords + depth * d_coords
@@ -377,8 +378,8 @@ def upsample_surfaces(
     surf_base = get_surf_base(gm_surf_fn)
 
     "{}/{}_{}mm_{}_rsl.obj".format(output_dir, surf_base, resolution, 0)
-    upsample_0_fn = "{}/surf_{}mm_{}_rsl.surf.gii".format(
-        output_dir, resolution, depth_list[0]
+    upsample_0_fn = "{}/{}_{}mm_{}_rsl.surf.gii".format(
+        output_dir, surf_base, resolution, depth_list[0]
     )
     upsample_1_fn = "{}/{}_{}mm_{}_rsl.surf.gii".format(
         output_dir, surf_base, resolution, depth_list[-1]
@@ -387,15 +388,12 @@ def upsample_surfaces(
     output_list = []
 
     for depth in depth_list:
-        depth_rsl_gii = "{}/{}_{}mm_{}_rsl.surf.gii".format(
-            output_dir, surf_base, resolution, depth
-        )
+
         depth_rsl_fn = "{}/{}_{}mm_{}_rsl.npz".format(
             output_dir, surf_base, resolution, depth
         )
 
         surf_depth_mni_dict[depth]["depth_rsl_fn"] = depth_rsl_fn
-        surf_depth_mni_dict[depth]["depth_rsl_gii"] = depth_rsl_gii
 
         depth_surf_fn = surf_depth_mni_dict[depth]["depth_surf_fn"]
         sphere_fn = surf_depth_mni_dict[depth]["sphere_fn"]
@@ -403,12 +401,9 @@ def upsample_surfaces(
 
         input_list += [depth_surf_fn, sphere_fn]
         output_list += [depth_rsl_fn, sphere_rsl_fn]
-
-    surf_depth_mni_dict[depth_list[0]]["depth_rsl_gii"] = upsample_0_fn
-    surf_depth_mni_dict[depth_list[-1]]["depth_rsl_gii"] = upsample_1_fn
-
+    
     ref_gii_fn = surf_depth_mni_dict[0]["depth_surf_fn"]
-    ref_rsl_npy_fn = re.sub(".surf.gii", "", surf_depth_mni_dict[0]["depth_rsl_gii"])
+    ref_rsl_npy_fn = surf_depth_mni_dict[0]["depth_surf_fn"].split('.')[0]
 
     if (
         False in [os.path.exists(fn) for fn in output_list + [ref_rsl_npy_fn + ".npz"]]

@@ -318,8 +318,10 @@ def generate_surface_profiles(
     :param clobber: if True, overwrite existing files
     :return: path to profiles file
     """
+
     os.makedirs(output_dir, exist_ok=True)
 
+    print(sect_info['nl_2d_rsl'].values);
     chunk_info_thickened_csv = create_thickened_volumes(
         output_dir,
         chunk_info,
@@ -665,18 +667,20 @@ def combine_volumes(
         print("\tCombining volumes")
         vol = img.get_fdata()
 
-        fixed_idx = np.where(vol > vol.min())
+        idx_replace = vol == vol.min()
 
         n = np.zeros(vol.shape)
         for vol_fn in volume_fns[1:]:
             curr_vol = nib.load(vol_fn).get_fdata()
-            vol[~fixed_idx] += curr_vol[~fixed_idx]
-            n[~fixed_idx] += 1
+            vol[ idx_replace ] += curr_vol[ idx_replace ]
+            n[ idx_replace ] += 1
 
-        vol[~fixed_idx] /= n[~fixed_idx]
+        vol[idx_replace] /= n[idx_replace]
 
         print("\tWriting", output_filename)
-        nib.Nifti1Image(vol, aff).to_filename(output_filename)
+        nib.Nifti1Image(vol, aff, direction_order='lpi').to_filename(output_filename)
+    else :
+        vol = nib.load(output_filename).get_fdata()
 
     return vol
 
@@ -758,9 +762,10 @@ def create_final_reconstructed_volume(
         combine_volumes(
             chunk_info_thickened["thickened_stx"].values, thickened_vol_stx_fn
         )
+
         print("\tWriting", reconstructed_cortex_fn)
         combine_volumes(
-            [surf_volume_fn, thickened_vol_stx_fn], reconstructed_cortex_fn, priority=1
+            [thickened_vol_stx_fn, surf_volume_fn], reconstructed_cortex_fn,
         )
 
 

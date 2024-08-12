@@ -114,6 +114,7 @@ def volumes_to_surface_profiles(
         ref_vol_fn, resolution, output_dir, clobber=clobber
     )
 
+    #print(sect_info['nl_2d_rsl'].values); exit(0)
     (
         profiles_fn,
         surf_raw_values_dict,
@@ -416,6 +417,7 @@ def surface_pipeline(
         # do surface based interpolation to fill missing sections
         create_final_reconstructed_volume(
             reconstructed_cortex_fn,
+            chunk_info_thickened_csv,
             struct_vol_rsl_fn,
             resolution,
             surf_depth_mni_dict,
@@ -433,6 +435,7 @@ def surface_pipeline(
             # do surface based interpolation to fill missing sections
             create_final_reconstructed_volume(
                 smoothed_reconstructed_cortex_fn,
+                chunk_info_thickened_csv,
                 struct_vol_rsl_fn,
                 resolution,
                 surf_depth_mni_dict,
