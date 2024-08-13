@@ -9,12 +9,16 @@ import SimpleITK as sitk
 from joblib import Parallel, delayed
 from skimage.filters import threshold_otsu, threshold_yen
 from skimage.transform import resize
+f
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
 
 base_file_dir, fn = os.path.split(os.path.abspath(__file__))
 repo_dir = f"{base_file_dir}/../"
+
+nnUNet_dir = f"{repo_dir}/nnUNet/"
+
 
 
 def apply_threshold(img: np.ndarray, method: callable) -> np.ndarray:
@@ -141,11 +145,18 @@ def convert_2d_array_to_nifti(
         aff = np.eye(4)
         aff[0, 0] = res[0]
         aff[1, 1] = res[1]
-        nii_img = utils.resample_to_resolution(
-            input_filename, [0.2, 0.2], affine=aff, order=1
-        )
 
-        img = nii_img.get_fdata()
+        # Commented out because this possible produces the wrong sized dimensinos for the the unet
+        #nii_img = utils.resample_to_resolution(
+        #    input_filename, [0.2, 0.2], affine=aff, order=1
+        #)
+        #img = nii_img.get_fdata()
+
+        # testing this downsampling for nnUNet
+        scale = 414 / img.shape[0]
+        xdim = int(img.shape[0] * scale)
+        ydim = int(img.shape[1] * scale)
+        img = resize(img, (xdim, ydim), anti_aliasing=True)
 
         img = np.rot90(np.fliplr(img), -1)
 
@@ -327,7 +338,7 @@ def segment(
     model_dir: str = f"{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/",
     output_csv: str = "",
     num_cores: int = 0,
-    use_nnunet: bool = True,
+    use_nnunet: int = 1,
     clobber: bool = False,
 ) -> str:
     """Segment the raw images.
@@ -391,18 +402,31 @@ def segment(
         )
 
         if missing_segmentations or clobber:
-            if use_nnunet:
+            if use_nnunet == 2:
                 print("\tSegmenting with nnUNet")
                 try:
                     utils.shell(
                         f"nnUNetv2_predict_from_modelfolder --c --verbose -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir} -f 0  -d Dataset501_Brain -device cpu",
                         exit_on_error=False,
                     )
-                    use_nnunet = True
                 except Exception as e:
                     print("Warning: nnUNet failed to segment")
                     print(e)
-                    use_nnunet = False
+                    use_nnunet = 0
+            elif use_nnunet == 1:
+                print("\tSegmenting with nnUNet")
+                try:
+
+                    # Export to environment variable
+                    os.environ["RESULTS_FOLDER"] = f"{nnUNet_dir}/"
+                    utils.shell(
+                        f"nnUNet_predict -i {nnunet_in_dir} -o {nnunet_out_dir} -t 'Task502_cortex'  -m '2d'",
+                        exit_on_error=False,
+                    )
+                except Exception as e:
+                    print("Warning: nnUNet failed to segment")
+                    print(e)
+                    use_nnunet = 0
 
         if not use_nnunet:
             apply_histogram_threshold(sect_info, num_cores=num_cores)

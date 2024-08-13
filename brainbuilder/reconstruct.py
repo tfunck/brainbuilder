@@ -60,7 +60,7 @@ def reconstruct(
     interp_type: str = "surf",
     output_csv: str = "",
     n_depths: int = 0,
-    use_nnunet: bool = True,
+    use_nnunet: int = 1,
     num_cores: int = 0,
     surface_smoothing: int = 0,
     batch_correction_resolution: float = 0,
@@ -231,11 +231,10 @@ def setup_argparse() -> argparse.ArgumentParser:
         help="number of cores to use for multiprocessing",
     )
     parser.add_argument(
-        "--no-nnunet",
+        "--use-nnunet",
         dest="use_nnunet",
-        default=True,
-        action="store_false",
-        help="Do not use nnUNet for segmentation",
+        default=1,
+        help="Use nnUNet for segmentation: 0 = no, use Otsu thresholding; 1 = nnUNET V1 (Default); 2 = nnUNET V2",
     )
     parser.add_argument(
         "--ndepths",

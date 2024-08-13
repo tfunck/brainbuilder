@@ -27,3 +27,5 @@ pre-commit
 webcolors
 ruff
 pre-commit
+nnunet
+nnunetv2
