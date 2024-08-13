@@ -9,7 +9,6 @@ import SimpleITK as sitk
 from joblib import Parallel, delayed
 from skimage.filters import threshold_otsu, threshold_yen
 from skimage.transform import resize
-f
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
@@ -18,7 +17,6 @@ base_file_dir, fn = os.path.split(os.path.abspath(__file__))
 repo_dir = f"{base_file_dir}/../"
 
 nnUNet_dir = f"{repo_dir}/nnUNet/"
-
 
 
 def apply_threshold(img: np.ndarray, method: callable) -> np.ndarray:
@@ -147,12 +145,13 @@ def convert_2d_array_to_nifti(
         aff[1, 1] = res[1]
 
         # Commented out because this possible produces the wrong sized dimensinos for the the unet
-        #nii_img = utils.resample_to_resolution(
+        # nii_img = utils.resample_to_resolution(
         #    input_filename, [0.2, 0.2], affine=aff, order=1
-        #)
-        #img = nii_img.get_fdata()
+        # )
+        # img = nii_img.get_fdata()
 
         # testing this downsampling for nnUNet
+        img = nib.load(input_filename).get_fdata()
         scale = 414 / img.shape[0]
         xdim = int(img.shape[0] * scale)
         ydim = int(img.shape[1] * scale)
@@ -416,7 +415,6 @@ def segment(
             elif use_nnunet == 1:
                 print("\tSegmenting with nnUNet")
                 try:
-
                     # Export to environment variable
                     os.environ["RESULTS_FOLDER"] = f"{nnUNet_dir}/"
                     utils.shell(
