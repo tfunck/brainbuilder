@@ -61,7 +61,7 @@ def reconstruct(
     output_csv: str = "",
     n_depths: int = 0,
     use_nnunet: int = 1,
-    num_cores: int = 0,
+    num_cores: int = None,
     surface_smoothing: int = 0,
     batch_correction_resolution: float = 0,
     skip_interp: bool = False,
@@ -95,7 +95,8 @@ def reconstruct(
 
     valid_inputs_npz = f"{output_dir}/valid_inputs"
 
-    num_cores = int(utils.set_cores(num_cores) / 2)
+    if num_cores is None :
+        num_cores = int(utils.set_cores(num_cores) / 2)
 
     maximum_resolution = resolution_list[-1]
 
@@ -116,7 +117,7 @@ def reconstruct(
 
 
     valid_inputs = validate_inputs(
-        hemi_info_csv, chunk_info_csv, sect_info_csv, valid_inputs_npz
+        hemi_info_csv, chunk_info_csv, sect_info_csv, valid_inputs_npz, n_jobs=num_cores, clobber=clobber
     )
     assert valid_inputs, "Error: invalid inputs"
 
@@ -125,6 +126,7 @@ def reconstruct(
         sect_info_csv,
         min(resolution_list),
         downsample_dir,
+        num_cores=num_cores,
         clobber=clobber,
     )
     qc.data_set_quality_control(sect_info_csv, qc_dir, column="img")

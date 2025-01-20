@@ -27,7 +27,7 @@ class Column:
         self.kind = kind
         self.required = required
 
-    def validate_rows_in_column(self, rows: pd.DataFrame) -> bool:
+    def validate_rows_in_column(self, rows: pd.DataFrame, n_jobs:int=None) -> bool:
         """Validate that the rows in a column based on whether they are volumes or surfaces.
 
         :param rows: list of rows in the column
@@ -58,7 +58,8 @@ class Column:
             else:
                 return True
 
-            n_jobs = int(cpu_count() / 2)
+            if n_jobs is None :
+                n_jobs = int(cpu_count() / 2)
 
             validated_rows = Parallel(n_jobs=n_jobs)(
                 delayed(val_func)(var) for var in rows
@@ -108,7 +109,7 @@ sect_info_required_columns = [acquisition, sub, hemisphere, chunk, raw, sample]
 hemi_info_required_columns = [sub, hemisphere, struct_ref_vol, gm_surf, wm_surf]
 
 
-def validate_dataframe(df: pd.DataFrame, required_columns: list) -> bool:
+def validate_dataframe(df: pd.DataFrame, required_columns: list, n_jobs:int=None) -> bool:
     """Validate that the dataframe has the required columns.
 
     :param df: dataframe to validate
@@ -121,14 +122,14 @@ def validate_dataframe(df: pd.DataFrame, required_columns: list) -> bool:
             valid_inputs = False
             print(f"\tMissing input: required field <{column.name}> not found in .csv")
         else:
-            validated = column.validate_rows_in_column(df[column.name].values)
+            validated = column.validate_rows_in_column(df[column.name].values, n_jobs=n_jobs)
             valid_columns.append(validated)
 
     valid_inputs = np.product(np.array(valid_columns))
     return valid_inputs
 
 
-def validate_csv(df_csv: str, required_columns: list) -> bool:
+def validate_csv(df_csv: str, required_columns: list, n_jobs:int=None) -> bool:
     """Validate the entries of a .csv file.
 
     :param df_csv:             Path to .csv file with information on sections to reconstruct
@@ -143,7 +144,7 @@ def validate_csv(df_csv: str, required_columns: list) -> bool:
     else:
         print(f"\tValidating {df_csv}")
         df = pd.read_csv(df_csv)
-        valid_inputs = validate_dataframe(df, required_columns)
+        valid_inputs = validate_dataframe(df, required_columns, n_jobs=n_jobs)
 
     return valid_inputs
 
@@ -210,6 +211,7 @@ def validate_inputs(
     chunk_info_csv: str,
     sect_info_csv: str,
     valid_inputs_npz: str = "",
+    n_jobs:int=None,
     clobber: bool = False,
 ) -> bool:
     """Validate that the inputs to reconstruct are valid.
@@ -232,15 +234,15 @@ def validate_inputs(
 
     if not valid_inputs:
         print("\nValidating Hemi Info")
-        hemi_info_valid = validate_csv(hemi_info_csv, hemi_info_required_columns)
+        hemi_info_valid = validate_csv(hemi_info_csv, hemi_info_required_columns, n_jobs=n_jobs)
         print("\tHemi Info Valid =", bool(hemi_info_valid))
 
         print("\nValidating Chunk Info")
-        chunk_info_valid = validate_csv(chunk_info_csv, chunk_info_required_columns)
+        chunk_info_valid = validate_csv(chunk_info_csv, chunk_info_required_columns, n_jobs=n_jobs)
         print("\tChunk Info Valid =", bool(chunk_info_valid))
 
         print("\nValidating Sect Info")
-        sect_info_valid = validate_csv(sect_info_csv, sect_info_required_columns)
+        sect_info_valid = validate_csv(sect_info_csv, sect_info_required_columns, n_jobs=n_jobs)
         print("\tSect Info Valid =", bool(sect_info_valid))
 
         valid_inputs = sect_info_valid * chunk_info_valid * hemi_info_valid

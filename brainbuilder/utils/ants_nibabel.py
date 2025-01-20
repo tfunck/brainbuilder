@@ -41,13 +41,12 @@ class Nifti1Image:
         elif direction_order == "lpi" and len(direction) == 0:
             direction = lpi
         elif len(direction) != 0:
-            pass
+            direction=direction
         else:
             print(
                 "Error: <direction_order> not supported, specify <direction> directly"
             )
             exit(0)
-
         self.direction = list(np.array(direction)[0:ndim, 0:ndim])
 
     def to_filename(self, filename:str)->None:
