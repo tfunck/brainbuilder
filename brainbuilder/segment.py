@@ -178,7 +178,7 @@ def convert_2d_array_to_nifti(
 
 
 def assign_seg_filenames(
-    df: typeDataFrame, resolution: float, output_dir: str
+    df: pd.DataFrame, resolution: float, output_dir: str
 ) -> pd.DataFrame:
     """Assign segmentation filenames to the dataframe.
 
@@ -193,7 +193,7 @@ def assign_seg_filenames(
     return df
 
 
-def apply_histogram_threshold(sect_info: typeDataFrame, num_cores: int = 1) -> None:
+def apply_histogram_threshold(sect_info: pd.DataFrame, num_cores: int = 1) -> None:
     """Apply histogram threshold to the raw images.
 
     param: sect_info: dataframe with columns: raw, seg_fn
@@ -213,13 +213,7 @@ def get_nnunet_filename(input_fn: str, nnunet_out_dir: str) -> str:
     param: nnunet_out_dir: directory to save nnunet images
     return: nnunet filename
     """
-    if ".nii.gz" in input_fn:
-        base = re.sub(".nii.gz", "", input_fn)
-    else:
-        base = os.path.splitext(input_fn)[0]
-    base = os.path.basename(base)
-
-    print(f"{nnunet_out_dir}/{base}*")
+    base = os.path.basename(input_fn).replace(".nii.gz", "").replace(".nii", "")
 
     nnunet_list = glob(f"{nnunet_out_dir}/{base}*")
 
@@ -247,16 +241,22 @@ def convert_from_nnunet_list(
     return: list of files to convert
     """
     to_do = []
+
     for i, row in sect_info.iterrows():
         img_fn = row[nnunet_input_str]
         seg_fn = row["seg"]
 
         nnunet_fn = get_nnunet_filename(img_fn, nnunet_out_dir)
 
+        if nnunet_fn == "":
+            continue
+
         if utils.check_run_stage([seg_fn], [nnunet_fn], clobber=clobber):
             if warning_flag:
                 print("\tWarning: Could not find file:", seg_fn)
+
             to_do.append((nnunet_fn, img_fn, seg_fn))
+
     return to_do
 
 
@@ -298,7 +298,7 @@ def convert_to_nnunet_list(
 
 
 def check_seg_files(
-    sect_info: typeDataFrame,
+    sect_info: pd.DataFrame,
     nnunet_out_dir: str,
     warning_flag: bool = False,
     nnunet_input_str: str = "img",
@@ -406,7 +406,7 @@ def segment(
                 try:
                     utils.shell(
                         f"nnUNetv2_predict_from_modelfolder --c --verbose -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir} -f 0  -d Dataset501_Brain -device cpu",
-                        exit_on_error=False,
+                        exit_on_failure=False,
                     )
                 except Exception as e:
                     print("Warning: nnUNet failed to segment")
@@ -416,10 +416,12 @@ def segment(
                 print("\tSegmenting with nnUNet")
                 try:
                     # Export to environment variable
-                    os.environ["RESULTS_FOLDER"] = f"{nnUNet_dir}/"
+                    #'/home/tfunck/projects/caps/data/nnUNet_results/' #nnUNet/'
+                    os.environ["RESULTS_FOLDER"] = f"{nnUNet_dir}/../"
+                    utils.shell("echo results_folder $RESULTS_FOLDER")
                     utils.shell(
                         f"nnUNet_predict -i {nnunet_in_dir} -o {nnunet_out_dir} -t 'Task502_cortex'  -m '2d'",
-                        exit_on_error=False,
+                        exit_on_failure=False,
                     )
                 except Exception as e:
                     print("Warning: nnUNet failed to segment")

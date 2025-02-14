@@ -21,6 +21,30 @@ from brainbuilder.utils.utils import (
 )
 from joblib import Parallel, cpu_count, delayed
 from scipy.ndimage.filters import gaussian_filter
+from skimage.filters import threshold_otsu
+from skimage.transform import resize
+
+
+def threshold(fn: str) -> str:
+    """Threshold image.
+
+    Description: Threshold image to create mask.
+
+    :param fn: filename
+    :return: mask_fn
+    """
+    img = nib.load(fn)
+    vol = img.get_fdata()
+
+    mask = np.zeros(vol.shape)
+    t = threshold_otsu(vol) * 0.8
+    mask[vol > t] = 1
+
+    mask_fn = fn.replace(".nii.gz", "_mask.nii.gz")
+
+    nib.Nifti1Image(mask, img.affine).to_filename(mask_fn)
+
+    return mask_fn
 
 
 def resample_reference_to_sections(
@@ -30,6 +54,7 @@ def resample_reference_to_sections(
     tfm_inv_fn: str,
     section_thickeness: float,
     output_dir: str,
+    ymax: int = None,
     clobber: bool = False,
 ) -> tuple:
     """Apply 3d transformation and resample volume into the same coordinate space as 3d receptor volume.
@@ -88,6 +113,12 @@ def resample_reference_to_sections(
             order=1,
             dtype=np.uint16,
         )
+
+        if ymax is not None:
+            vol = img3.get_fdata()
+            vol = resize(vol, (vol.shape[0], ymax + 1, vol.shape[2]), order=1)
+            img3 = nib.Nifti1Image(vol, img3.affine)
+
         img3.to_filename(output_fn)
 
         os.remove(rand_fn)
@@ -95,7 +126,7 @@ def resample_reference_to_sections(
     return iso_output_fn, output_fn
 
 
-def ants_registeration_2d_section(
+def ants_registration_2d_section(
     fx_fn: str,
     mv_fn: str,
     itr_list: str,
@@ -107,8 +138,10 @@ def ants_registeration_2d_section(
     bins: int = 32,
     sampling: float = 0.9,
     step: float = 0.5,
+    masks: bool = False,
     init_tfm: str = None,
     verbose: bool = False,
+    clobber: bool = False,
 ) -> tuple:
     """Use ANTs to register 2d sections.
 
@@ -131,33 +164,52 @@ def ants_registeration_2d_section(
     """
     last_transform = None
     last_metric = None
-
-    for transform, metric, f_str, s_str, itr_str in zip(
-        transforms, metrics, f_list, s_list, itr_list
-    ):
-        mv_rsl_fn = f"{prefix}_{transform}_{metric}_cls_rsl.nii.gz"
-
-        if not isinstance(last_transform, type(None)):
-            init_str = f"--initial-moving-transform {prefix}_{last_transform}_{last_metric}_Composite.h5"
-        elif isinstance(init_tfm, str) and os.path.exists(init_tfm):
-            init_str = f"--initial-moving-transform {init_tfm}"
-        else:
-            init_str = f"--initial-moving-transform [{fx_fn},{mv_fn},1]"
-
-        command_str = f"antsRegistration -v {int(verbose)} -d 2    --write-composite-transform 1 {init_str} -o [{prefix}_{transform}_{metric}_,{mv_rsl_fn},/tmp/out_inv.nii.gz] -t {transform}[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} "
-
-        last_transform = transform
-        last_metric = metric
-
-        if verbose:
-            print(command_str)
-
-        with open(prefix + f"{transform}_{metric}_command.txt", "w") as f:
-            f.write(command_str)
-
-        shell(command_str)
-
     final_tfm = f"{prefix}_{transforms[-1]}_{metrics[-1]}_Composite.h5"
+
+    mv_rsl_fn = f"{prefix}_{transforms[-1]}_{metrics[-1]}_cls_rsl.nii.gz"
+
+    if not os.path.exists(final_tfm) or not os.path.exists(mv_rsl_fn) or clobber:
+        for transform, metric, f_str, s_str, itr_str in zip(
+            transforms, metrics, f_list, s_list, itr_list
+        ):
+            mv_rsl_fn = f"{prefix}_{transform}_{metric}_cls_rsl.nii.gz"
+
+            if not isinstance(last_transform, type(None)):
+                init_str = f"--initial-moving-transform {prefix}_{last_transform}_{last_metric}_Composite.h5"
+            elif isinstance(init_tfm, str) and os.path.exists(init_tfm):
+                init_str = f"--initial-moving-transform {init_tfm}"
+            elif init_tfm == "identity":
+                init_str = ""
+            else:
+                init_str = f"--initial-moving-transform [{fx_fn},{mv_fn},1]"
+
+            command_str = f"antsRegistration -v {max(int(verbose),0)} -d 2 --write-composite-transform 1 {init_str} -o [{prefix}_{transform}_{metric}_,{mv_rsl_fn},/tmp/out_inv.nii.gz] -t {transform}[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} "
+
+            if int(verbose) < 0:
+                command_str += " > /dev/null 2>&1"
+
+            if masks:
+                mask_fx = threshold(fx_fn)
+                mask_mv = threshold(mv_fn)
+                command_str += f" -x [{mask_fx},{mask_mv}] "
+
+            last_transform = transform
+            last_metric = metric
+
+            if verbose:
+                print(command_str)
+
+            with open(prefix + f"{transform}_{metric}_command.txt", "w") as f:
+                f.write(command_str)
+
+            shell(command_str)
+
+            assert (
+                np.sum(np.abs(nib.load(mv_rsl_fn).dataobj)) > 0
+            ), f"Error: empty volume {mv_rsl_fn}"
+
+    assert os.path.exists(final_tfm), f"Error: output does not exist {final_tfm}"
+    assert os.path.exists(mv_rsl_fn), f"Error: output does not exist {mv_rsl_fn}"
 
     return final_tfm, mv_rsl_fn
 
@@ -193,7 +245,8 @@ def affine_trials(
         f_list = [linParams.f_str] * n
 
         trial_prefix = prefix + f"_trial-{trial}"
-        affine_tfm, mv_rsl_fn = ants_registeration_2d_section(
+
+        affine_tfm, mv_rsl_fn = ants_registration_2d_section(
             fx_fn=fx_fn,
             mv_fn=mv_fn,
             itr_list=itr_list,
@@ -206,7 +259,7 @@ def affine_trials(
             verbose=verbose,
         )
 
-        trial_dice, _, _ = get_section_metric(
+        trial_dice, _ = get_section_metric(
             fx_fn, mv_rsl_fn, trial_prefix + "_dice.png", 0, verbose=False
         )
 
@@ -241,7 +294,7 @@ def align_2d_parallel(
 
     Description: Calculate affine and non-linear transformations using ANTs to register 2d sections.
 
-    :param tfm_dir: directory to store intermediate files
+    :param output_dir: directory to store intermediate files
     :param mv_dir: directory to store intermediate files
     :param resolution_itr: current iteration
     :param resolution: resolution of the current iteration
@@ -272,9 +325,6 @@ def align_2d_parallel(
 
     fx_fn = gen_2d_fn(prefix, "_fx")
 
-    if row["acquisition"] in ["myelin", "cellbody"]:
-        file_to_align = "img"
-
     mv_fn = row[file_to_align]
 
     verbose = False
@@ -288,7 +338,7 @@ def align_2d_parallel(
 
     transforms = ["SyN"] * len(nl_metrics)
 
-    syn_tfm, _ = ants_registeration_2d_section(
+    syn_tfm, _ = ants_registration_2d_section(
         fx_fn=fx_fn,
         mv_fn=mv_fn,
         itr_list=[nlParams.itr_str, 20],
@@ -366,7 +416,7 @@ def apply_transforms_parallel(
         if not os.path.islink(img_rsl_fn):
             os.symlink(img_fn, img_rsl_fn)
 
-        #the symlink is just created to help qc if the user needs to check the moving image before alignment
+        # the symlink is just created to help qc if the user needs to check the moving image before alignment
         # however ITK does not support symlinks so we rename img_rsl_fn to the actual file name
         img_rsl_fn = img_fn
 
@@ -399,6 +449,7 @@ def get_align_2d_to_do(sect_info: pd.DataFrame, clobber: bool = False) -> tuple:
             to_do_sect_info.append(row)
 
         if not os.path.exists(out_fn):
+            print("ADding ", out_fn)
             to_do_resample_sect_info.append(row)
 
     return to_do_sect_info, to_do_resample_sect_info
@@ -621,6 +672,8 @@ def align_2d(
     :param target_str: target string
     :return: sect_info
     """
+    ymax = sect_info["sample"].max()
+
     ref_iso_space_nat_fn, ref_space_nat_fn = resample_reference_to_sections(
         float(resolution),
         ref_rsl_fn,
@@ -628,7 +681,10 @@ def align_2d(
         nl_3d_tfm_inv_fn,
         section_thickness,
         nl_2d_dir,
+        ymax=ymax,
     )
+    print("SEG", seg_rsl_fn)
+    print("REF", ref_rsl_fn)
 
     utils.create_2d_sections(
         sect_info, ref_space_nat_fn, float(resolution), nl_2d_dir, dtype=np.uint8

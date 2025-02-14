@@ -114,7 +114,6 @@ def volumes_to_surface_profiles(
         ref_vol_fn, resolution, output_dir, clobber=clobber
     )
 
-    #print(sect_info['nl_2d_rsl'].values); exit(0)
     (
         profiles_fn,
         surf_raw_values_dict,
@@ -322,6 +321,9 @@ def surface_pipeline(
     hemisphere = sect_info["hemisphere"].values[0]
     acquisition = sect_info["acquisition"].values[0]
 
+    if n_depths == 0:
+        n_depths = np.ceil(5 / resolution).astype(int)
+
     reconstructed_cortex_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_cortex.nii.gz"
     smoothed_reconstructed_cortex_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_cortex_smoothed.nii.gz"
 
@@ -332,6 +334,7 @@ def surface_pipeline(
             and not os.path.exists(smoothed_reconstructed_cortex_fn)
         )
         or clobber
+        # or True # DEBUG DELETEME
     ):
         os.makedirs(output_dir, exist_ok=True)
 
@@ -342,9 +345,6 @@ def surface_pipeline(
         assert (
             len(np.unique(sect_info["acquisition"])) == 1
         ), "Error: multiple acquisitions"
-
-        if n_depths == 0:
-            n_depths = np.ceil(5 / resolution).astype(int)
 
         batch_correction_dir = output_dir + "/batch_correction"
         os.makedirs(batch_correction_dir, exist_ok=True)
@@ -368,7 +368,7 @@ def surface_pipeline(
             gm_surf_fn,
             wm_surf_fn,
             depth_list,
-            interp_order=0,
+            interp_order=1,
             clobber=clobber,
         )
         raw_profile_volume_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_raw_profiles.nii.gz"

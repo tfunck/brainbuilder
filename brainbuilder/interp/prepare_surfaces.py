@@ -388,7 +388,6 @@ def upsample_surfaces(
     output_list = []
 
     for depth in depth_list:
-
         depth_rsl_fn = "{}/{}_{}mm_{}_rsl.npz".format(
             output_dir, surf_base, resolution, depth
         )
@@ -401,9 +400,9 @@ def upsample_surfaces(
 
         input_list += [depth_surf_fn, sphere_fn]
         output_list += [depth_rsl_fn, sphere_rsl_fn]
-    
+
     ref_gii_fn = surf_depth_mni_dict[0]["depth_surf_fn"]
-    ref_rsl_npy_fn = surf_depth_mni_dict[0]["depth_surf_fn"].split('.')[0]
+    ref_rsl_npy_fn = surf_depth_mni_dict[0]["depth_surf_fn"].split(".")[0]
 
     if (
         False in [os.path.exists(fn) for fn in output_list + [ref_rsl_npy_fn + ".npz"]]

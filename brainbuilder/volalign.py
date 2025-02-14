@@ -130,6 +130,9 @@ def multiresolution_alignment(
         # Check if the outputs in chunk_info exist, if not delete current <chunk_output_csv>
         check_chunk_outputs(chunk_output_csv)
 
+    qc_dir = f"{output_dir}/qc/"
+    os.makedirs(qc_dir, exist_ok=True)
+
     if (
         not os.path.exists(sect_output_csv)
         or not os.path.exists(chunk_output_csv)
@@ -193,6 +196,11 @@ def multiresolution_alignment(
         chunk_info_out.to_csv(chunk_output_csv, index=False)
 
         sect_info_out.to_csv(sect_output_csv, index=False)
+
+    # Calculate Dice between sections
+    inter_section_dice(sect_output_csv, qc_dir, clobber=clobber)
+    # Calculate Dice between sections and reference volume
+    validate_section_alignment_to_ref(sect_output_csv, qc_dir, clobber=clobber)
 
     return chunk_output_csv, sect_output_csv
 
@@ -369,6 +377,20 @@ def alignment_iteration(
     if not os.path.exists(ref_rsl_fn):
         utils.resample_to_resolution(ref_vol_fn, [resolution_3d] * 3, ref_rsl_fn)
 
+    # insert 2d intersection alignment
+    use_2d_intersection = False
+    if use_2d_intersection:  # Experimental feature, not yet tested
+        from brainbuilder.align.align_2d_intersection import align_2d_intersection
+
+        sect_info = align_2d_intersection(
+            sect_info,
+            ref_vol_fn,
+            resolution_list,
+            output_dir + "/intersection/",
+            n_iters=20,
+            clobber=clobber,
+        )
+
     world_chunk_limits, vox_chunk_limits = verify_chunk_limits(ref_rsl_fn, chunk_info)
     create_intermediate_volume(
         chunk_info,
@@ -478,6 +500,8 @@ def align_chunk(
     sect_info_out = sect_info
     chunk_info_out = chunk_info
 
+    dice_df = pd.DataFrame()
+
     ### Iterate over progressively finer resolution
     for resolution_itr, resolution in enumerate(resolution_list):
         resolution_3d = resolution_list_3d[resolution_itr]
@@ -517,14 +541,4 @@ def align_chunk(
 
             output_prefix = f"sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_pass-{pass_step}_"
 
-            # Calculate Dice between sections
-            inter_section_dice(
-                sect_info_out, qc_dir, output_prefix=output_prefix, clobber=clobber
-            )
-
-            # Calculate Dice between sections and reference volume
-            validate_section_alignment_to_ref(
-                sect_info_out, qc_dir, output_prefix=output_prefix, clobber=clobber
-            )
-    #print(sect_pass_last_df['nl_2d_rsl'].values); exit(0)
-    return chunk_pass_last_df, sect_pass_last_df 
+    return chunk_pass_last_df, sect_pass_last_df

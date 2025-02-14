@@ -53,7 +53,7 @@ def get_maximum_cores(
     estimated_memory = 0
     for n_elemnts, n_bytes_per_element in zip(n_elemnts_list, n_bytes_per_element_list):
         estimated_memory += estimate_memory_usage(n_elemnts, n_bytes_per_element)
-    max_cores = int(available_memory / estimated_memory * max_memory)
+    max_cores = int(available_memory / estimated_memory)
     available_memory_gb = np.round(available_memory / 1024 / 1024 / 1024, 3)
     estimated_memory_gb = np.round(estimated_memory / 1024 / 1024 / 1024, 3)
 
@@ -71,8 +71,6 @@ def get_maximum_cores(
     return max_cores
 
 
-
-
 def load_image(fn: str) -> np.ndarray:
     """Load an image from a file.
 
@@ -80,7 +78,6 @@ def load_image(fn: str) -> np.ndarray:
     :return: np.ndarray
     """
     if isinstance(fn, str) and os.path.exists(fn) or os.path.islink(fn):
-
         if os.path.islink(fn):
             fn = os.readlink(fn)
 
@@ -180,14 +177,19 @@ def set_cores(num_cores: int) -> int:
     return num_cores
 
 
-def get_thicken_width(resolution: float, section_thickness: float = 0.02) -> int:
+def get_thicken_width(
+    resolution: float, section_thickness: float = 0.02, scale: float = 1
+) -> int:
     """Get the thicken width.
 
     :param resolution: float, resolution
     :param section_thickness: float, section thickness
-    :return: float
+    :param scale : float
+    :return: float, scale the width
     """
-    return np.round(1 * (1 + float(resolution) / (section_thickness * 2))).astype(int)
+    return np.round(scale * (1 + float(resolution) / (section_thickness * 2))).astype(
+        int
+    )
 
 
 def get_section_intervals(vol: np.ndarray) -> list:
@@ -378,7 +380,6 @@ def check_transformation_not_empty(
     :param empty_ok: bool, whether empty files are allowed
     :return: None
     """
-    
     assert os.path.exists(out_fn), f"Error: transformed file does not exist {out_fn}"
 
     assert (
@@ -394,7 +395,7 @@ def simple_ants_apply_tfm(
     ndim: int = 3,
     n: str = "Linear",
     empty_ok: bool = False,
-    clobber:bool = False
+    clobber: bool = False,
 ) -> None:
     """Apply transformation using ANTs.
 
@@ -536,6 +537,10 @@ def create_2d_sections(
     os.makedirs(output_dir, exist_ok=True)
 
     fx_to_do = get_to_do_list(df, tfm_dir, "_fx")
+    print(fx_to_do)
+    if len(fx_to_do) > 0:
+        print(max([i for _, i in fx_to_do]))
+    print(srv_fn)
 
     if len(fx_to_do) > 0:
         srv_img = nib.load(srv_fn)
@@ -590,7 +595,9 @@ def unbuffered(proc: Popen, stream: str = "stdout") -> str:
             yield out
 
 
-def shell(cmd: str, verbose: bool = False, exit_on_failure: bool = True, bash:bool=True) -> tuple:
+def shell(
+    cmd: str, verbose: bool = False, exit_on_failure: bool = True, bash: bool = True
+) -> tuple:
     """Run command in shell and read STDOUT, STDERR and the error code.
 
     :param cmd: str, command
@@ -598,9 +605,9 @@ def shell(cmd: str, verbose: bool = False, exit_on_failure: bool = True, bash:bo
     :param exit_on_failure: bool, optional, if True, exit on failure, default=True
     """
     stdout = ""
-    if bash :
-        cmd = f'exec bash -c \"{cmd}\"'
-    
+    if bash:
+        cmd = f'exec bash -c "{cmd}"'
+
     if verbose:
         print(cmd)
 
@@ -751,10 +758,8 @@ def newer_than(fn1: str, fn2: str) -> bool:
     :param fn2: str, filename
     :return: bool
     """
-
     fn1 = os.readlink(fn1) if os.path.islink(fn1) else fn1
     fn2 = os.readlink(fn2) if os.path.islink(fn2) else fn2
-
     if pd.isnull(fn1):
         return False
     elif not os.path.exists(fn1):

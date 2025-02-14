@@ -92,7 +92,6 @@ def thicken_sections_within_chunk(
     resolution: float,
     tissue_type: str = "",
     gaussian_sd: float = 0,
-    use_conversion_factor: bool = False,
     use_adjust_section_means: bool = True,
 ) -> None:
     """Thicken sections within a chunk. A thickened section is simply a section that is expanded along the y axis to the resolution of the reconstruction.
@@ -107,7 +106,6 @@ def thicken_sections_within_chunk(
     :param gaussian_sd: standard deviation of gaussian filter
     :return: None
     """
-    print('source', source_image_fn)
     array_img = nib.load(source_image_fn)
     array_src = array_img.get_fdata()
 
@@ -122,8 +120,7 @@ def thicken_sections_within_chunk(
             os.path.dirname(thickened_fn),
         )
 
-    # get the thicken widith fot the section. The resolution is halfed because we are thickening in both directions
-    width = get_thicken_width(resolution, section_thickness)
+    width = get_thicken_width(resolution, section_thickness, scale=2)
     print("\t\tThickening sections to ", 0.02 * width * 2)
 
     dim = [array_src.shape[0], 1, array_src.shape[2]]
@@ -135,7 +132,7 @@ def thicken_sections_within_chunk(
 
         # Conversion of radioactivity values to receptor density values
         nl_2d_rsl = row["nl_2d_rsl"]
-        print('nl_2d_rsl', nl_2d_rsl)
+        print("nl_2d_rsl", nl_2d_rsl)
         section = nib.load(nl_2d_rsl).get_fdata().copy()
 
         if use_adjust_section_means:
@@ -151,7 +148,7 @@ def thicken_sections_within_chunk(
             else array_src.shape[1]
         )
 
-        rep = np.repeat(section.reshape(dim) , y1 - y0, axis=1)
+        rep = np.repeat(section.reshape(dim), y1 - y0, axis=1)
 
         rec_vol[:, y0:y1, :] += rep
         n[:, y0:y1, :] += 1
@@ -202,6 +199,9 @@ def check_all_thickened_files_exist(output_csv: str) -> bool:
         ]
     ):
         if not os.path.exists(chunk_info_row["thickened"].values[0]):
+            return False
+
+        if not os.path.exists(chunk_info_row["thickened_stx"].values[0]):
             return False
     return True
 
@@ -278,22 +278,30 @@ def transform_chunk_volumes(
     """Transform thickened chunk volumes to structural volume."""
     output_csv = f"{output_dir}/chunk_info_thickened_stx.csv"
 
-    if not os.path.exists(output_csv) or clobber:
-        df["thickened_stx"] = None
+    if not os.path.exists(output_csv) or clobber or True:
+        # df["thickened_stx"] = None #DEBUG probably redudnant and should be deleted
 
         for (sub, hemisphere, chunk, acquisition), chunk_df in df.groupby(
             ["sub", "hemisphere", "chunk", "acquisition"]
         ):
             thickened_fn = chunk_df["thickened"].values[0]
+            thickened_stx_fn = chunk_df["thickened_stx"].values[0]
             nl_3d_tfm_fn = chunk_df["nl_3d_tfm_fn"].values[0]
 
-            thickened_stx_fn = re.sub(".nii.gz", "_space-stx.nii.gz", thickened_fn)
+            # thickened_stx_fn = re.sub(".nii.gz", "_space-stx.nii.gz", thickened_fn)#DEBUG probably redudnant and should be deleted
 
-            if not os.path.exists(thickened_stx_fn):
-                print(f"\tTransforming {thickened_fn} to stx space")
+            if not os.path.exists(thickened_stx_fn) or clobber:
+                print(
+                    f"\tTransforming {thickened_fn} to stx space:\n\t {thickened_stx_fn}"
+                )
 
                 simple_ants_apply_tfm(
-                    thickened_fn, struct_vol_rsl_fn, nl_3d_tfm_fn, thickened_stx_fn, clobber=clobber
+                    thickened_fn,
+                    struct_vol_rsl_fn,
+                    nl_3d_tfm_fn,
+                    thickened_stx_fn,
+                    n="NearestNeighbor",
+                    clobber=clobber,
                 )
 
             idx = (
@@ -305,7 +313,7 @@ def transform_chunk_volumes(
 
             df["thickened_stx"].loc[idx] = thickened_stx_fn
         df.to_csv(output_csv, index=False)
-    else :
+    else:
         df = pd.read_csv(output_csv)
 
     return df
@@ -339,7 +347,7 @@ def create_thickened_volumes(
 
     thickened_files_exist = False
 
-    if os.path.exists(output_csv):
+    if os.path.exists(output_csv) or clobber:
         thickened_files_exist = check_all_thickened_files_exist(output_csv)
 
     if not os.path.exists(output_csv) or not thickened_files_exist or clobber:
@@ -362,9 +370,11 @@ def create_thickened_volumes(
             chunk_info_row = chunk_info[idx].iloc[0]
 
             thickened_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_thickened.nii.gz"
+            thickened_stx_fn = re.sub(".nii.gz", "_space-stx.nii.gz", thickened_fn)
 
             chunk_info_row["acquisition"] = acquisition
             chunk_info_row["thickened"] = thickened_fn
+            chunk_info_row["thickened_stx"] = thickened_stx_fn
 
             if not os.path.exists(thickened_fn) or clobber:
                 thicken_sections_within_chunk(
@@ -375,6 +385,7 @@ def create_thickened_volumes(
                     chunk_sect_info,
                     resolution,
                     gaussian_sd=gaussian_sd,
+                    use_adjust_section_means=True,
                 )
 
             # if not os.path.exists(distance_fn) or clobber:

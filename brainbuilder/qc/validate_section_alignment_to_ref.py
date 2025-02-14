@@ -1,5 +1,6 @@
 """Validate alignment of histological sections to structural reference volume."""
 import os
+from multiprocessing import cpu_count
 from typing import Callable, Tuple
 
 import matplotlib.pyplot as plt
@@ -36,7 +37,7 @@ ligand_receptor_dict = {
 }
 
 
-def dice(x: float, y: float) -> float:
+def dice(x: np.array, y: np.array) -> float:
     """Calculate the Dice coefficient between two binary arrays.
 
     Args:
@@ -100,6 +101,31 @@ def global_dice(
     return dice_score, np.sum(mv_vol)
 
 
+def process_pixel(
+    x: int, y: int, fx_vol: np.ndarray, mv_vol: np.ndarray, offset: int
+) -> float:
+    """Process a pixel in the volume.
+
+    Args:
+        x (int): x-coordinate.
+        y (int): y-coordinate.
+        fx_vol (np.ndarray): Fixed volume.
+        mv_vol (np.ndarray): Moving volume.
+        offset (int): Offset.
+    """
+    x0 = max(0, x - offset)
+    x1 = min(fx_vol.shape[1], x + offset)
+    y0 = max(0, y - offset)
+    y1 = min(fx_vol.shape[0], y + offset)
+
+    fx_sub = fx_vol[y0:y1, x0:x1]
+    mv_sub = mv_vol[y0:y1, x0:x1]
+    m = dice(fx_sub, mv_sub)
+    m = m if not np.isnan(m) else 0
+
+    return (x, y, m)
+
+
 def local_metric(
     fx_vol: np.ndarray, mv_vol: np.ndarray, metric: Callable, offset: int = 5
 ) -> np.ndarray:
@@ -116,22 +142,19 @@ def local_metric(
 
     local_dice_section = np.zeros(fx_vol.shape)
 
-    for y in range(fx_vol.shape[0]):
-        for x in range(fx_vol.shape[1]):
-            x0 = max(0, x - offset)
-            x1 = min(fx_vol.shape[1], x + offset)
-            y0 = max(0, y - offset)
-            y1 = min(fx_vol.shape[0], y + offset)
+    xy = [
+        (x, y)
+        for y in range(fx_vol.shape[0])
+        for x in range(fx_vol.shape[1])
+        if mv_vol[y, x] > 0
+    ]
 
-            # if  mv_vol[y, x] > mv_min: #only consider overlap in moving image
-            if mv_vol[y, x] > 0:
-                fx_sub = fx_vol[y0:y1, x0:x1]
-                mv_sub = mv_vol[y0:y1, x0:x1]
-
-                m = metric(fx_sub, mv_sub)
-                m = m if not np.isnan(m) else 0
-
-                local_dice_section[y, x] = m
+    num_cores = cpu_count()
+    res = Parallel(n_jobs=1)(
+        delayed(process_pixel)(x, y, fx_vol, mv_vol, offset) for x, y in xy
+    )
+    res = np.array(res)
+    local_dice_section[res[:, 1].astype(int), res[:, 0].astype(int)] = res[:, 2]
 
     return local_dice_section
 
@@ -177,6 +200,16 @@ def qc_low_dice_section(
         plt.clf()
 
 
+def dice_local(fx: np.array, mv: np.array, offset: int = 5):
+    """Calculate the local dice score between two volumes with kernel windows of size <offset>."""
+    fx_vol = prepare_volume(fx)
+    mv_vol = prepare_volume(mv)
+
+    section_dice = local_metric(fx_vol, mv_vol, dice, offset=offset)
+    section_dice_mean = np.mean(section_dice[mv_vol > 0])
+    return section_dice_mean
+
+
 def get_section_metric(
     fx_fn: str, mv_fn: str, out_png: str, idx: int, verbose: bool = False
 ) -> None:
@@ -189,17 +222,15 @@ def get_section_metric(
     :param verbose: Whether to enable verbose mode.
     :return: None
     """
-    # Add your code here
     img0 = nib.load(fx_fn)
+    fx_vol = img0.get_fdata()
+    img1 = nib.load(mv_fn)
+    mv_vol = img1.get_fdata()
+
+    section_dice_mean = dice_local(fx_vol, mv_vol, offset=5)
+
     fx_vol = prepare_volume(img0.get_fdata())
     mv_vol = prepare_volume(nib.load(mv_fn).get_fdata())
-
-    # section_dice_mean, fx_sum = global_dice(fx_vol, mv_vol)
-    section_dice = local_metric(fx_vol, mv_vol, dice, offset=2)
-    section_dice_mean = np.mean(section_dice[mv_vol > 0])
-
-    fx_sum = np.sum(fx_vol)
-
     plt.cla()
     plt.clf()
     plt.title(f"Dice: {section_dice_mean:.3f}")
@@ -213,11 +244,14 @@ def get_section_metric(
     dice_vol[fx_vol * mv_vol > 0] = 2
     plt.imshow(mv_vol * fx_vol)
     plt.savefig(out_png)
+    plt.cla()
+    plt.clf()
+    plt.close()
 
     if verbose:
         print("\tValidation: ", out_png)
 
-    return section_dice_mean, fx_sum, idx
+    return section_dice_mean, idx
 
 
 def section_to_ref_dice(
@@ -260,7 +294,7 @@ def section_to_ref_dice(
 
     sect_info["dice"] = [0] * len(sect_info)
 
-    for dice, total, idx in parrallel_results:
+    for dice, idx in parrallel_results:
         sect_info["dice"].iloc[idx] = dice
 
     return sect_info
@@ -315,7 +349,7 @@ def output_stats(in_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def validate_section_alignment_to_ref(
-    sect_info: pd.DataFrame, qc_dir: str, output_prefix: str = "", clobber: bool = False
+    sect_info_csv: str, qc_dir: str, output_prefix: str = "", clobber: bool = False
 ) -> pd.DataFrame:
     """Validate alignment of histological sections to structural reference volume.
 
@@ -324,12 +358,12 @@ def validate_section_alignment_to_ref(
     :param clobber: bool
     :return: pd.DataFrame
     """
-    print("\n\t\tValidate Alignment to Reference\n")
-
     out_csv = f"{qc_dir}/{output_prefix}section_to_ref_dice.csv"
-    print(out_csv)
+    out_summary_csv = f"{qc_dir}/{output_prefix}section_to_ref_dice_summary.csv"
 
-    if not os.path.exists(out_csv) or clobber:
+    if not os.path.exists(out_csv) or not os.path.exists(out_summary_csv) or clobber:
+        print("\n\t\tValidate Alignment to Reference\n")
+        sect_info = pd.read_csv(sect_info_csv, index_col=False)
         os.makedirs(qc_dir, exist_ok=True)
 
         cls_newer_than_out_csv = False
@@ -342,14 +376,20 @@ def validate_section_alignment_to_ref(
                 clobber = True
 
         out_df = section_to_ref_dice(sect_info, qc_dir, clobber=clobber)
+
         out_df.to_csv(out_csv, index=True)
 
     out_df = pd.read_csv(out_csv)
 
     m = out_df.groupby(["sub", "hemisphere", "chunk"])["dice"].mean()
     s = out_df.groupby(["sub", "hemisphere", "chunk"])["dice"].std()
-    print(m)
-    print(s)
+    c = out_df.groupby(["sub", "hemisphere", "chunk"])["dice"].count()
 
-    # plot
+    # create a data frame with sub, hemisphere,  chunk, mean, std
+    summary_df = pd.DataFrame({"mean": m, "std": s, "count": c})
+    summary_df.to_csv(out_summary_csv)
+    print(summary_df)
+    print("Global Mean:", np.sum((m * c) / np.sum(c)))
+    print("Global Std:", np.sum((s * c) / np.sum(c)))
+
     return out_df

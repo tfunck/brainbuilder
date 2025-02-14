@@ -5,7 +5,6 @@ import os
 
 import pandas as pd
 
-import brainbuilder.qc.quality_control as qc
 from brainbuilder.downsample import downsample_sections
 from brainbuilder.initalign import initalign
 from brainbuilder.interpsections import interpolate_missing_sections
@@ -62,6 +61,7 @@ def reconstruct(
     n_depths: int = 0,
     use_nnunet: int = 1,
     num_cores: int = 0,
+    max_resolution_3d: float = 0.3,
     surface_smoothing: int = 0,
     batch_correction_resolution: float = 0,
     skip_interp: bool = False,
@@ -99,21 +99,19 @@ def reconstruct(
 
     maximum_resolution = resolution_list[-1]
 
-    print('Reconstructing 2D sections to 3D volume')
-    print('\tInput files:')
-    print(f'\t\tHemisphere info: {hemi_info_csv}')
-    print(f'\t\tChunk info: {chunk_info_csv}')
-    print(f'\t\tSection info: {sect_info_csv}')
-    print(f'\t\tResolution list: {resolution_list}')
-    print('\tOutput directories:')
-    print(f'\t\tDownsample: {downsample_dir}')
-    print(f'\t\tSegment: {seg_dir}')
-    print(f'\t\tInitial alignment: {initalign_dir}')
-    print(f'\t\tMultiresolution alignment: {multires_align_dir}')
-    print(f'\t\tInterpolation: {interp_dir}')
-    print(f'\t\tQuality control: {qc_dir}')
-
-
+    print("Reconstructing 2D sections to 3D volume")
+    print("\tInput files:")
+    print(f"\t\tHemisphere info: {hemi_info_csv}")
+    print(f"\t\tChunk info: {chunk_info_csv}")
+    print(f"\t\tSection info: {sect_info_csv}")
+    print(f"\t\tResolution list: {resolution_list}")
+    print("\tOutput directories:")
+    print(f"\t\tDownsample: {downsample_dir}")
+    print(f"\t\tSegment: {seg_dir}")
+    print(f"\t\tInitial alignment: {initalign_dir}")
+    print(f"\t\tMultiresolution alignment: {multires_align_dir}")
+    print(f"\t\tInterpolation: {interp_dir}")
+    print(f"\t\tQuality control: {qc_dir}")
 
     valid_inputs = validate_inputs(
         hemi_info_csv, chunk_info_csv, sect_info_csv, valid_inputs_npz
@@ -127,7 +125,7 @@ def reconstruct(
         downsample_dir,
         clobber=clobber,
     )
-    qc.data_set_quality_control(sect_info_csv, qc_dir, column="img")
+    # qc.data_set_quality_control(sect_info_csv, qc_dir, column="img")
 
     # Stage: Segment
     seg_df_csv = segment(
@@ -138,8 +136,7 @@ def reconstruct(
         use_nnunet=use_nnunet,
         clobber=clobber,
     )
-
-    qc.data_set_quality_control(seg_df_csv, qc_dir, column="seg")
+    # qc.data_set_quality_control(seg_df_csv, qc_dir, column="seg")
 
     # Stage: Initial rigid aligment of sections
     init_sect_csv, init_chunk_csv = initalign(
@@ -153,11 +150,11 @@ def reconstruct(
         init_sect_csv,
         resolution_list,
         multires_align_dir,
+        max_resolution_3d=max_resolution_3d,
         num_cores=num_cores,
         clobber=clobber,
     )
-
-    qc.data_set_quality_control(align_sect_info_csv, qc_dir, column="init_img")
+    # qc.data_set_quality_control(align_sect_info_csv, qc_dir, column="init_img")
 
     # Stage: Interpolate missing sections
     if not skip_interp:
@@ -174,7 +171,10 @@ def reconstruct(
         )
 
         validate_interp_error(
-            align_sect_info_csv, reconstructed_chunk_info_csv, interp_dir+'/qc', clobber=clobber
+            align_sect_info_csv,
+            reconstructed_chunk_info_csv,
+            interp_dir + "/qc",
+            clobber=clobber,
         )
     return output_csv
 

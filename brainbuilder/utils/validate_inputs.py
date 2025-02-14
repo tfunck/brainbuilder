@@ -58,7 +58,7 @@ class Column:
             else:
                 return True
 
-            n_jobs = int(cpu_count() / 2)
+            n_jobs = int(cpu_count() / 2)  # Some kind of bug with parallelization
 
             validated_rows = Parallel(n_jobs=n_jobs)(
                 delayed(val_func)(var) for var in rows
