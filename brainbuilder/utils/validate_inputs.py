@@ -236,6 +236,9 @@ def validate_inputs(
     else:
         valid_inputs = False
 
+    if n_jobs == None or n_jobs == 0 :
+        n_jobs = int(cpu_count() / 2)
+
     if not valid_inputs:
         print("\nValidating Hemi Info")
         hemi_info_valid = validate_csv(
