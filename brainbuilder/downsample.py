@@ -16,6 +16,7 @@ def downsample_sections(
     sect_info_csv: str,
     resolution: str,
     output_dir: str,
+    num_cores: int = None,
     clobber: bool = False,
 ) -> str:
     """Downsample sections to the lowest resolution in the resolution list.
@@ -79,7 +80,8 @@ def downsample_sections(
                     (raw_file, downsample_file, affine, resolution, conversion_factor)
                 )
 
-        num_cores = cpu_count()
+        if num_cores is None:
+            num_cores = cpu_count()
 
         Parallel(n_jobs=num_cores, backend="multiprocessing")(
             delayed(utils.resample_to_resolution)(
@@ -110,10 +112,11 @@ def downsample_sections(
             example_img = chunk_sect_info["img"].iloc[0]
             xdim, zdim = nib.load(example_img).shape
 
-            vol = np.zeros((xdim, ydim, zdim))
+            print("Allocate Volume")
+            vol = np.zeros((xdim, ydim, zdim), dtype=np.float32)
 
-            for acq, tdf in chunk_sect_info.groupby(["acquisition"]):
-                for i, row in tdf.iterrows():
+            for _, tdf in chunk_sect_info.groupby(["acquisition"]):
+                for _, row in tdf.iterrows():
                     y = row["sample"]
                     vol[:, y, :] = nib.load(row["img"]).get_fdata()
 

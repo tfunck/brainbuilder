@@ -95,7 +95,8 @@ def reconstruct(
 
     valid_inputs_npz = f"{output_dir}/valid_inputs"
 
-    num_cores = int(utils.set_cores(num_cores) / 2)
+    if num_cores is None:
+        num_cores = int(utils.set_cores(num_cores) / 2)
 
     maximum_resolution = resolution_list[-1]
 
@@ -104,6 +105,7 @@ def reconstruct(
     print(f"\t\tHemisphere info: {hemi_info_csv}")
     print(f"\t\tChunk info: {chunk_info_csv}")
     print(f"\t\tSection info: {sect_info_csv}")
+    print(f"\t\tMax 3D resolution: {max_resolution_3d}")
     print(f"\t\tResolution list: {resolution_list}")
     print("\tOutput directories:")
     print(f"\t\tDownsample: {downsample_dir}")
@@ -114,7 +116,12 @@ def reconstruct(
     print(f"\t\tQuality control: {qc_dir}")
 
     valid_inputs = validate_inputs(
-        hemi_info_csv, chunk_info_csv, sect_info_csv, valid_inputs_npz
+        hemi_info_csv,
+        chunk_info_csv,
+        sect_info_csv,
+        valid_inputs_npz,
+        n_jobs=num_cores,
+        clobber=clobber,
     )
     assert valid_inputs, "Error: invalid inputs"
 
@@ -123,6 +130,7 @@ def reconstruct(
         sect_info_csv,
         min(resolution_list),
         downsample_dir,
+        num_cores=num_cores,
         clobber=clobber,
     )
     # qc.data_set_quality_control(sect_info_csv, qc_dir, column="img")
@@ -142,7 +150,6 @@ def reconstruct(
     init_sect_csv, init_chunk_csv = initalign(
         seg_df_csv, chunk_info_csv, initalign_dir, resolution_list, clobber=clobber
     )
-
     # Stage: Multiresolution alignment of sections to structural reference volume
     align_chunk_info_csv, align_sect_info_csv = multiresolution_alignment(
         hemi_info_csv,
