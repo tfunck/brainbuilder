@@ -19,17 +19,15 @@ from brainbuilder.utils import validate_inputs as valinpts
 
 global output_tuples
 
-output_tuples = (
-    ("seg_rsl_fn", "seg_dir", "_seg.nii.gz"),
-    ("rec_3d_rsl_fn", "align_3d_dir", "_rec_space-mri.nii.gz"),
-    ("ref_3d_rsl_fn", "align_3d_dir", "_mri_gm_space-rec.nii.gz"),
-    ("nl_3d_tfm_fn", "align_3d_dir", "_rec_to_mri_SyN_CC_Composite.h5"),
-    ("nl_3d_tfm_inv_fn", "align_3d_dir", "_rec_to_mri_SyN_CC_InverseComposite.h5"),
-    ("nl_2d_vol_fn", "nl_2d_dir", "_nl_2d.nii.gz"),
-    ("nl_2d_vol_cls_fn", "nl_2d_dir", "_nl_2d_cls.nii.gz"),  # ,
-    # ("ref_space_rec_fn","nl_2d_dir","_ref_space-rec.nii.gz"),
-    # ("ref_iso_space_rec_fn","nl_2d_dir","_ref_space-rec_iso.nii.gz")
-)
+output_tuples = [
+    ["seg_rsl_fn", "seg_dir", "_seg.nii.gz"],
+    ["rec_3d_rsl_fn", "align_3d_dir", "_rec_space-mri.nii.gz"],
+    ["ref_3d_rsl_fn", "align_3d_dir", "_mri_gm_space-rec.nii.gz"],
+    ["nl_3d_tfm_fn", "align_3d_dir", "_rec_to_mri_SyN_CC_Composite.h5"],
+    ["nl_3d_tfm_inv_fn", "align_3d_dir", "_rec_to_mri_SyN_CC_InverseComposite.h5"],
+    ["nl_2d_vol_fn", "nl_2d_dir", "_nl_2d.nii.gz"],
+    ["nl_2d_vol_cls_fn", "nl_2d_dir", "_nl_2d_cls.nii.gz"],  # ,
+]
 
 
 def get_multiresolution_filenames(
@@ -40,6 +38,7 @@ def get_multiresolution_filenames(
     resolution: float,
     pass_step: int,
     out_dir: str,
+    use_3d_syn_cc: bool = True,
 ) -> pd.DataFrame:
     """Set filenames for each stage of multiresolution stages.
 
@@ -64,6 +63,10 @@ def get_multiresolution_filenames(
     output_list = []
 
     for output in output_tuples:
+        if "CC" in output[2]:
+            if not use_3d_syn_cc:
+                output[2] = output[2].replace("CC", "Mattes")
+
         out_fn = f"{row[output[1]]}/{prefix}{output[2]}"
         row[output[0]] = out_fn
         output_list.append(out_fn)
@@ -97,6 +100,8 @@ def multiresolution_alignment(
     sect_output_csv: str = "",
     chunk_output_csv: str = "",
     max_resolution_3d: float = 0.3,
+    use_3d_syn_cc: bool = True,
+    use_syn: bool = True,
     num_cores: int = 0,
     clobber: bool = False,
 ) -> str:
@@ -171,6 +176,10 @@ def multiresolution_alignment(
             curr_chunk_info = chunk_info.loc[idx]
 
             # get structural reference volume
+            print(hemi_info.columns)
+            print(sub)
+            print(hemisphere)
+            print(hemi_info["struct_ref_vol"])
             ref_vol_fn = (
                 hemi_info["struct_ref_vol"]
                 .loc[
@@ -187,6 +196,8 @@ def multiresolution_alignment(
                 ref_vol_fn,
                 output_dir,
                 num_cores=num_cores,
+                use_3d_syn_cc=use_3d_syn_cc,
+                use_syn=use_syn,
                 clobber=clobber,
             )
 
@@ -338,8 +349,10 @@ def alignment_iteration(
     resolution: float,
     resolution_3d: float,
     resolution_list_3d: list,
+    use_syn: bool = False,
     pass_step: int = 0,
     num_cores: int = 1,
+    use_3d_syn_cc: bool = True,
     clobber: bool = False,
 ) -> tuple:
     """Perform 3D-2D alignment for each resolution.
@@ -356,7 +369,14 @@ def alignment_iteration(
     sect_info_out = pd.DataFrame()
 
     row = get_multiresolution_filenames(
-        row, sub, hemisphere, chunk, resolution, pass_step, output_dir
+        row,
+        sub,
+        hemisphere,
+        chunk,
+        resolution,
+        pass_step,
+        output_dir,
+        use_3d_syn_cc=use_3d_syn_cc,
     )
 
     dirs_to_create = [
@@ -390,6 +410,8 @@ def alignment_iteration(
             n_iters=20,
             clobber=clobber,
         )
+
+    section_thickness = chunk_info["section_thickness"]
 
     world_chunk_limits, vox_chunk_limits = verify_chunk_limits(ref_rsl_fn, chunk_info)
     create_intermediate_volume(
@@ -425,7 +447,7 @@ def alignment_iteration(
         resolution_list_3d,
         world_chunk_limits,
         vox_chunk_limits,
-        use_masks=False,
+        use_3d_syn_cc=use_3d_syn_cc,
         clobber=clobber,
     )
 
@@ -447,6 +469,7 @@ def alignment_iteration(
         row["nl_2d_vol_cls_fn"],
         row["section_thickness"],
         file_to_align="seg",
+        use_syn=use_syn,
         num_cores=num_cores,
         clobber=clobber,
     )
@@ -466,6 +489,8 @@ def align_chunk(
     output_dir: str,
     n_passes: int = 1,
     num_cores: int = 1,
+    use_3d_syn_cc: bool = True,
+    use_syn: bool = True,
     clobber: bool = False,
 ) -> tuple:
     """3D-2D mutliresolution scheme.
@@ -526,6 +551,8 @@ def align_chunk(
                 resolution_3d,
                 resolution_list_3d,
                 pass_step=pass_step,
+                use_3d_syn_cc=use_3d_syn_cc,
+                use_syn=use_syn,
                 num_cores=num_cores,
                 clobber=clobber,
             )

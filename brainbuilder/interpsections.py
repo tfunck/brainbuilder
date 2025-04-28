@@ -13,6 +13,7 @@ from brainbuilder.interp.surfinterp import (
     generate_surface_profiles,
     write_raw_profiles_to_volume,
 )
+from brainbuilder.interp.volinterp import volumetric_pipeline
 from brainbuilder.utils import utils
 from brainbuilder.utils.mesh_utils import smooth_surface_profiles
 
@@ -290,6 +291,76 @@ def get_profiles_with_batch_correction(
 
 
 def surface_pipeline(
+    sect_info,
+    chunk_info,
+    hemi_info,
+    resolution,
+    output_dir,
+    surf_dir,
+    ref_vol_fn,
+    n_depths,
+    surface_smoothing: float = 0,
+    clobber: bool = False,
+):
+    for (sub, hemisphere, acquisition), curr_sect_info in sect_info.groupby(
+        [
+            "sub",
+            "hemisphere",
+            "acquisition",
+        ]
+    ):
+        curr_output_dir = f"{output_dir}/sub-{sub}/hemi-{hemisphere}/acq-{acquisition}/"
+
+        os.makedirs(curr_output_dir, exist_ok=True)
+
+        idx = (
+            (chunk_info["sub"] == sub)
+            & (chunk_info["hemisphere"] == hemisphere)
+            & (chunk_info["resolution"] == resolution)
+        )
+
+        curr_chunk_info = chunk_info.loc[idx]
+
+        assert (
+            len(curr_chunk_info) > 0
+        ), f"Error: no chunk info found, sub: {sub}, hemisphere: {hemisphere}, resolution: {resolution}, \n{chunk_info}"
+
+        curr_hemi_info = hemi_info.loc[
+            (hemi_info["sub"] == sub) & (hemi_info["hemisphere"] == hemisphere)
+        ]
+        assert len(curr_hemi_info) > 0, "Error: no hemisphere info found"
+
+        gm_surf_fn = curr_hemi_info["gm_surf"].values[0]
+        wm_surf_fn = curr_hemi_info["wm_surf"].values[0]
+        ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
+
+        (
+            reconstructed_filename,
+            reconstructed_smoothed_filename,
+        ) = create_surface_interpolated_volume(
+            curr_chunk_info,
+            curr_sect_info,
+            resolution,
+            curr_output_dir,
+            surf_dir,
+            ref_vol_fn,
+            gm_surf_fn,
+            wm_surf_fn,
+            n_depths,
+            surface_smoothing=surface_smoothing,
+            clobber=clobber,
+        )
+
+        curr_chunk_info["acquisition"] = acquisition
+        curr_chunk_info["reconstructed_filename"] = reconstructed_filename
+        curr_chunk_info[
+            "reconstructed_smoothed_filename"
+        ] = reconstructed_smoothed_filename
+
+    return curr_chunk_info
+
+
+def create_surface_interpolated_volume(
     chunk_info: pd.DataFrame,
     sect_info: pd.DataFrame,
     resolution: float,
@@ -442,41 +513,14 @@ def surface_pipeline(
                 smoothed_final_profiles_fn,
                 clobber=clobber,
             )
-        # create a mask of the subcortex that can be used for volumetric interpolation
-        # FIXME NOT YET IMPLEMENTED
-        # subcortex_mask_fn = utils.create_subcortex_mask(wm_surf_fn)
-
-        # perform volumetric interpolation to fill missing sections in the subcortex
-        # FIXME NOT YET IMPLEMENTED
-        # subcortex_interp_fn = volinterp.volumetric_interpolation(
-        #    sect_info, brain_mask_fn, clobber=clobber
-        # )
-
-        # combine the interpolated cortex and subcortex
-        # FIXME NOT YET IMPLEMENTED
-        # combine_volumes(interp_cortex_fn, subcortex_mask_fn)
 
     return reconstructed_cortex_fn, smoothed_reconstructed_cortex_fn
 
 
-def volumetric_pipeline(
-    chunk_info_csv: str,
-    sect_info_csv: str,
-    resolution: float,
-    output_dir: str,
-    clobber: bool = False,
-) -> None:
-    """Use volumetric interpolation to fill missing sections over the entire brain."""
-    # chunk_info_thickened_csv = create_thickened_volumes(
-    #    curr_output_dir, chunk_info, sect_info, resolution
-    # )
-    # do volumetric interpolation to fill missing sections through whole brain
-    # final_interp_fn = volinterp.volumetric_interpolation(
-    #    sect_info, brain_mask_fn, clobber=clobber
-    # )
-    raise NotImplementedError
-
-    return None
+global METHOD_SURFACE
+global METHOD_VOLUMETRIC
+METHOD_SURFACE = "surface"
+METHOD_VOLUMETRIC = "volumetric"
 
 
 def interpolate_missing_sections(
@@ -484,10 +528,13 @@ def interpolate_missing_sections(
     chunk_info_csv: str,
     sect_info_csv: str,
     resolution: float,
+    resolution_3d: float,
+    resolution_list: list,
     output_dir: str,
     n_depths: int = 0,
     surface_smoothing: int = 0,
     batch_correction_resolution: int = 0,
+    interp_method: str = METHOD_SURFACE,
     clobber: bool = False,
 ) -> str:
     """Interpolate missing sections in a volume.
@@ -506,72 +553,41 @@ def interpolate_missing_sections(
 
     surf_dir = f"{output_dir}/surfaces/"
 
-    out_chunk_info = []
+    curr_chunk_info = chunk_info.copy()
 
-    for (sub, hemisphere, acquisition), curr_sect_info in sect_info.groupby(
-        [
-            "sub",
-            "hemisphere",
-            "acquisition",
-        ]
-    ):
-        curr_output_dir = f"{output_dir}/sub-{sub}/hemi-{hemisphere}/acq-{acquisition}/"
-
-        os.makedirs(curr_output_dir, exist_ok=True)
-
-        idx = (
-            (chunk_info["sub"] == sub)
-            & (chunk_info["hemisphere"] == hemisphere)
-            & (chunk_info["resolution"] == resolution)
+    if interp_method == METHOD_SURFACE:
+        curr_chunk_info = surface_pipeline(
+            sect_info,
+            chunk_info,
+            hemi_info,
+            resolution,
+            output_dir,
+            surf_dir,
+            ref_vol_fn=hemi_info["struct_ref_vol"].values[0],
+            n_depths=n_depths,
+            surface_smoothing=surface_smoothing,
+            batch_correction_resolution=batch_correction_resolution,
+            clobber=clobber,
         )
 
-        curr_chunk_info = chunk_info.loc[idx]
+    elif interp_method == METHOD_VOLUMETRIC:
+        curr_chunk_info = volumetric_pipeline(
+            sect_info,
+            chunk_info,
+            hemi_info,
+            resolution,
+            resolution_3d,
+            resolution_list,
+            output_dir,
+            clobber=clobber,
+        )
+    else:
+        raise ValueError(
+            f"Error: {interp_method} is not a valid method. Use either {METHOD_SURFACE} or {METHOD_VOLUMETRIC}"
+        )
 
-        assert (
-            len(curr_chunk_info) > 0
-        ), f"Error: no chunk info found, sub: {sub}, hemisphere: {hemisphere}, resolution: {resolution}, \n{chunk_info}"
-
-        curr_hemi_info = hemi_info.loc[
-            (hemi_info["sub"] == sub) & (hemi_info["hemisphere"] == hemisphere)
-        ]
-        assert len(curr_hemi_info) > 0, "Error: no hemisphere info found"
-
-        gm_surf_fn = curr_hemi_info["gm_surf"].values[0]
-        wm_surf_fn = curr_hemi_info["wm_surf"].values[0]
-        ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
-
-        if (os.path.exists(gm_surf_fn) and os.path.exists(wm_surf_fn)) or clobber:
-            reconstructed_filename, reconstructed_smoothed_filename = surface_pipeline(
-                curr_chunk_info,
-                curr_sect_info,
-                resolution,
-                curr_output_dir,
-                surf_dir,
-                ref_vol_fn,
-                gm_surf_fn,
-                wm_surf_fn,
-                n_depths,
-                surface_smoothing=surface_smoothing,
-                batch_correction_resolution=batch_correction_resolution,
-                clobber=clobber,
-            )
-
-            curr_chunk_info["acquisition"] = acquisition
-            curr_chunk_info["reconstructed_filename"] = reconstructed_filename
-            curr_chunk_info[
-                "reconstructed_smoothed_filename"
-            ] = reconstructed_smoothed_filename
-
-            out_chunk_info.append(curr_chunk_info)
-
-        else:
-            print("Error: Volumetric interpolation pipeline not yet implemented")
-            exit(1)
-            # volumetric_pipeline(sect_info_csv, chunk_info_csv, resolution, output_dir, clobber=clobber)
-
-    chunk_info = pd.concat(out_chunk_info, ignore_index=True)
     chunk_info_csv = f"{output_dir}/reconstructed_chunk_info.csv"
-    chunk_info.to_csv(chunk_info_csv, index=False)
+    curr_chunk_info.to_csv(chunk_info_csv, index=False)
 
     return chunk_info_csv
 

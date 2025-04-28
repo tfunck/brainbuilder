@@ -537,10 +537,6 @@ def create_2d_sections(
     os.makedirs(output_dir, exist_ok=True)
 
     fx_to_do = get_to_do_list(df, tfm_dir, "_fx")
-    print(fx_to_do)
-    if len(fx_to_do) > 0:
-        print(max([i for _, i in fx_to_do]))
-    print(srv_fn)
 
     if len(fx_to_do) > 0:
         srv_img = nib.load(srv_fn)

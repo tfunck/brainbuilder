@@ -134,6 +134,7 @@ def pad_seg_vol(seg_rsl_fn: str, max_downsample_level: str) -> str:
     assert (
         com_error < 0.1
     ), f"Error: change in ceter of mass after padding {com0}, {com1}"
+
     return seg_rsl_pad_fn
 
 
@@ -153,8 +154,6 @@ def get_alignment_schedule(
     :param base_lin_itr: base number of iterations for linear alignment
     :return: max_downsample_level, linParams, nlParams, ccParams.
     """
-    # cur_res/res = 2^(f-1) --> f = 1+ log2(cur_res/res)
-    # min_nl_itr = len( [ resolution for resolution in resolution_list[0:resolution_itr] if  float(resolution) <= .1 ] ) # I gues this is to limit nl alignment above 0.1mm
     base_cc_itr = np.rint(base_nl_itr / 2)
 
     resolution_list = [float(r) for r in resolution_list]
@@ -269,12 +268,11 @@ def run_alignment(
     linParams: AntsParams,
     nlParams: AntsParams,
     ccParams: AntsParams,
-    resolution: float,
     metric: str = "GC",
     nbins: int = 32,
-    use_init_tfm: bool = False,
-    use_masks: bool = True,
+    init_tfm: str = None,
     sampling: float = 0.9,
+    use_3d_syn_cc: bool = True,
     clobber: bool = False,
 ) -> None:
     """Run the alignment of the tissue chunk to the chunk from the reference volume.
@@ -293,12 +291,19 @@ def run_alignment(
     :param metric: metric to use for registration
     :param nbins: number of bins for registration
     :param use_init_tfm: use initial transformation
-    :param use_masks: use masks for registration
     :param sampling: sampling for registration
     :param clobber: overwrite existing files
     :return: None.
     """
-    prefix = re.sub("_SyN_CC_Composite.h5", "", out_tfm_fn)  # FIXME this is bad coding
+    if use_3d_syn_cc:
+        prefix = re.sub(
+            "_SyN_CC_Composite.h5", "", out_tfm_fn
+        )  # FIXME this is bad coding
+    else:
+        prefix = re.sub(
+            "_SyN_Mattes_Composite.h5", "", out_tfm_fn
+        )  # FIXME this is bad coding
+
     f"{prefix}/log.txt"
 
     prefix + "_init_"
@@ -331,7 +336,10 @@ def run_alignment(
     # set initial transform
     # calculate rigid registration
 
-    init_str = f" --initial-moving-transform [{ref_chunk_fn},{seg_rsl_fn},1] "
+    if init_tfm is None:
+        init_str = f" --initial-moving-transform [{ref_chunk_fn},{seg_rsl_fn},1] "
+    else:
+        init_str = f" --initial-moving-transform {init_tfm} "
 
     # calculate rigid registration
     if not os.path.exists(f"{prefix_rigid}Composite.h5"):
@@ -368,14 +376,17 @@ def run_alignment(
         shell(nl_base, verbose=True)
         write_log(out_dir, "syn-mattes", nl_base)
 
-    if not os.path.exists(f"{prefix_cc_syn}Composite.h5"):
+    prefix_syn = prefix_mattes_syn
+
+    if not os.path.exists(f"{prefix_cc_syn}Composite.h5") and use_3d_syn_cc:
         f"{prefix_mattes_syn}Composite.h5"
         nl_base = f"{base}  --initial-moving-transform {prefix_affine}Composite.h5 -o [{prefix_cc_syn},{cc_syn_out_fn},{cc_syn_inv_fn}] "
         nl_base += f" -t SyN[{syn_rate}] -m {cc_metric} -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str}"
         shell(nl_base, verbose=True)
         write_log(out_dir, "syn-cc", nl_base)
 
-    prefix_syn = prefix_cc_syn
+        prefix_syn = prefix_cc_syn
+
     simple_ants_apply_tfm(seg_rsl_fn, ref_rsl_fn, prefix_syn + "Composite.h5", out_fn)
     simple_ants_apply_tfm(
         ref_rsl_fn, seg_rsl_fn, prefix_syn + "InverseComposite.h5", out_inv_fn
@@ -399,9 +410,11 @@ def align_3d(
     resolution_list: List[int],
     world_chunk_limits: Tuple[float, float],
     vox_chunk_limits: Tuple[int, int],
+    init_tfm: str = None,
     base_nl_itr: int = 200,
     base_lin_itr: int = 500,
-    use_masks: bool = False,
+    use_3d_syn_cc: bool = True,
+    use_pad_volume: bool = True,
     clobber: bool = False,
     verbose: bool = True,
 ) -> int:
@@ -423,7 +436,6 @@ def align_3d(
     :param vox_chunk_limits: voxel chunk limits
     :param base_nl_itr: base number of iterations for nonlinear alignment
     :param base_lin_itr: base number of iterations for linear alignment
-    :param use_masks: use masks for registration
     :param clobber: overwrite existing files
     :param verbose: verbose output
     :return: 0.
@@ -451,7 +463,10 @@ def align_3d(
 
         # pad the segmented volume so that it can be downsampled by the
         # ammount of times specified by max_downsample_level
-        seg_pad_fn = pad_seg_vol(seg_rsl_fn, max_downsample_level)
+        if use_pad_volume:
+            seg_pad_fn = pad_seg_vol(seg_rsl_fn, max_downsample_level)
+        else:
+            seg_pad_fn = seg_rsl_fn
 
         img = nib.load(ref_rsl_fn)
         img.shape[1]
@@ -484,9 +499,9 @@ def align_3d(
             linParams,
             nlParams,
             ccParams,
-            resolution,
-            use_masks=use_masks,
             sampling=0.95,
+            init_tfm=init_tfm,
+            use_3d_syn_cc=use_3d_syn_cc,
             metric="Mattes",
         )
 

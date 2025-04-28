@@ -20,9 +20,10 @@ freesurfer_ext = [
     ".label",
 ]
 
-def load_values(in_fn:str, data_str:str="data")->np.ndarray:
+
+def load_values(in_fn: str, data_str: str = "data") -> np.ndarray:
     """Load values from a file.
-    
+
     :param in_fn: Filename of the file
     :param data_str: Data string to load, defaults to "data"
     :return: Values from the file
@@ -39,11 +40,13 @@ def load_values(in_fn:str, data_str:str="data")->np.ndarray:
     return values
 
 
-def load_mesh_ext(in_fn:str, faces_fn:str="", correct_offset:bool=False)->np.ndarray:
+def load_mesh_ext(
+    in_fn: str, faces_fn: str = "", correct_offset: bool = False
+) -> np.ndarray:
     """Load a mesh file with the correct function based on the file extension.
-    
+
     :param in_fn: Filename of the mesh
-    :param faces_fn: Filename of the faces file, defaults to 
+    :param faces_fn: Filename of the faces file, defaults to
     :param correct_offset: Whether to correct the offset of the mesh, defaults to False
     :return: Coordinates and faces of the mesh
     """
@@ -61,16 +64,18 @@ def load_mesh_ext(in_fn:str, faces_fn:str="", correct_offset:bool=False)->np.nda
             faces = faces_h5["data"][:]
     return coords, faces
 
-def write_gifti(surf_mesh:str, coords:np.ndarray, faces:np.ndarray)->None:
+
+def write_gifti(surf_mesh: str, coords: np.ndarray, faces: np.ndarray) -> None:
     """Write a mesh to a GIFTI file.
-    
+
     :param surf_mesh: Filename of the mesh
     :param coords: Coordinates of the mesh
     :param faces: Faces of the mesh
     :return: None
     """
     coord_array = nb.gifti.GiftiDataArray(
-        data=coords.astype(np.float32), intent=nb.nifti1.intent_codes["NIFTI_INTENT_POINTSET"]
+        data=coords.astype(np.float32),
+        intent=nb.nifti1.intent_codes["NIFTI_INTENT_POINTSET"],
     )
     face_array = nb.gifti.GiftiDataArray(
         data=faces, intent=nb.nifti1.intent_codes["NIFTI_INTENT_TRIANGLE"]
@@ -80,9 +85,10 @@ def write_gifti(surf_mesh:str, coords:np.ndarray, faces:np.ndarray)->None:
     nb.save(gii, surf_mesh)
     return None
 
-def load_mesh(surf_mesh:str, correct_offset:bool=False)->np.ndarray:
+
+def load_mesh(surf_mesh: str, correct_offset: bool = False) -> np.ndarray:
     """Load a mesh file.
-    
+
     :param surf_mesh: Filename of the mesh
     :param correct_offset: Whether to correct the offset of the mesh, defaults to False
     :return: Coordinates and faces of the mesh
@@ -102,9 +108,9 @@ def load_mesh(surf_mesh:str, correct_offset:bool=False)->np.ndarray:
                     yras = np.array(volume_info["yras"])
                     zras = np.array(volume_info["zras"])
 
-                    def get_sign(ar:np.ndarray)->np.ndarray:
+                    def get_sign(ar: np.ndarray) -> np.ndarray:
                         """Get the sign of the array.
-                        
+
                         :param ar: Array to get the sign of
                         :return: Sign of the array
                         """
@@ -114,8 +120,7 @@ def load_mesh(surf_mesh:str, correct_offset:bool=False)->np.ndarray:
                     ydir = get_sign(yras)
                     zdir = get_sign(zras)
                     xdir = ydir = zdir = 1
-                    print("Adding origin to surface", origin)
-                    print("\tDirections:", xdir, ydir, zdir)
+
                     coords[:, 0] = coords[:, 0] + xdir * origin[0]
                     coords[:, 1] = coords[:, 1] + ydir * origin[1]
                     coords[:, 2] = coords[:, 2] + zdir * origin[2]
@@ -133,7 +138,7 @@ def load_mesh(surf_mesh:str, correct_offset:bool=False)->np.ndarray:
             )
             coords = coords_class.data
             faces = faces_class.data
-            print(correct_offset, volume_info)
+
             if correct_offset:
                 try:
                     string_list = ["VolGeomC_R", "VolGeomC_A", "VolGeomC_S"]
@@ -141,9 +146,9 @@ def load_mesh(surf_mesh:str, correct_offset:bool=False)->np.ndarray:
                         float(coords_class.meta[string]) for string in string_list
                     ]
 
-                    def get_sign(ar:np.ndarray)->np.ndarray:
+                    def get_sign(ar: np.ndarray) -> np.ndarray:
                         """Get the sign of the array.
-                        
+
                         :param ar: Array to get the sign of
                         :return: Sign of the array
                         """
@@ -152,8 +157,7 @@ def load_mesh(surf_mesh:str, correct_offset:bool=False)->np.ndarray:
                     # xdir = get_sign(xras), ydir = get_sign(yras), zdir = get_sign(zras)
                     # xdir = ydir = -1 ; zdir = 1
                     xdir = ydir = zdir = 1
-                    print("Adding origin to surface", origin)
-                    print("\tDirections:", xdir, ydir, zdir)
+
                     coords[:, 0] = coords[:, 0] + xdir * origin[0]
                     coords[:, 1] = coords[:, 1] + ydir * origin[1]
                     coords[:, 2] = coords[:, 2] + zdir * origin[2]
@@ -178,7 +182,7 @@ def load_mesh(surf_mesh:str, correct_offset:bool=False)->np.ndarray:
 
 
 # function to load mesh geometry
-def load_mesh_geometry(surf_mesh:np.ndarray)->dict:
+def load_mesh_geometry(surf_mesh: np.ndarray) -> dict:
     """Returns coords, numbers of neighbours per vertex, and indices of neighbours.
 
     :param surf_mesh: Filename of the mesh
@@ -189,9 +193,9 @@ def load_mesh_geometry(surf_mesh:np.ndarray)->dict:
     return {"coords": coords, "neighbour_count": counts, "neighbours": neighbours}
 
 
-def get_neighbours(triangles:np.ndarray)->list:
+def get_neighbours(triangles: np.ndarray) -> list:
     """Get neighbours from triangles.
-    
+
     :param triangles: Triangles of the mesh
     :return: Neighbours of the mesh
     """
@@ -209,7 +213,7 @@ def get_neighbours(triangles:np.ndarray)->list:
     return neighbours, counts
 
 
-def f7(seq:list)->list:
+def f7(seq: list) -> list:
     """Returns uniques but in order to retain neighbour triangle relationship.
 
     :param seq: Sequence to get uniques from
@@ -218,8 +222,3 @@ def f7(seq:list)->list:
     seen = set()
     seen_add = seen.add
     return [x for x in seq if not (x in seen or seen_add(x))]
-
-
-
-
-

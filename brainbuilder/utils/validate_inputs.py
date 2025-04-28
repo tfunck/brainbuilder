@@ -69,9 +69,6 @@ class Column:
             if not valid_inputs:
                 invalid_rows = rows[~np.array(validated_rows)]
                 invalid_row_types = [type(row) for row in invalid_rows]
-                print("Error with the following rows:")
-                print("Expected type:", self.kind, "Got type:", invalid_row_types[0:5])
-                print(rows[~np.array(validated_rows)])
 
         return valid_inputs
 
@@ -236,7 +233,7 @@ def validate_inputs(
     else:
         valid_inputs = False
 
-    if n_jobs == None or n_jobs == 0 :
+    if n_jobs == None or n_jobs == 0:
         n_jobs = int(cpu_count() / 2)
 
     if not valid_inputs:

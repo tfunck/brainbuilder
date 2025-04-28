@@ -141,6 +141,8 @@ def local_metric(
     mv_vol = prepare_volume(mv_vol)
 
     local_dice_section = np.zeros(fx_vol.shape)
+    print("Move Volume SHape", mv_vol.shape)
+    print(fx_vol.shape)
 
     xy = [
         (x, y)
@@ -153,8 +155,11 @@ def local_metric(
     res = Parallel(n_jobs=1)(
         delayed(process_pixel)(x, y, fx_vol, mv_vol, offset) for x, y in xy
     )
-    res = np.array(res)
-    local_dice_section[res[:, 1].astype(int), res[:, 0].astype(int)] = res[:, 2]
+
+    if len(res) > 0:
+        res = np.array(res)
+
+        local_dice_section[res[:, 1].astype(int), res[:, 0].astype(int)] = res[:, 2]
 
     return local_dice_section
 

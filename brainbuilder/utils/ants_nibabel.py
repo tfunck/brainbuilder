@@ -11,15 +11,17 @@ lpi = np.array([[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]])
 
 class Nifti1Image:
     """Class for Nifti1Image object with ANTSPy interface."""
+
     def __init__(
-        self, dataobj:np.ndarray,
-        affine:np.ndarray,
-        direction:list=[], 
-        direction_order:list="ras", 
-        dtype:int=None
-    )->None :
+        self,
+        dataobj: np.ndarray,
+        affine: np.ndarray,
+        direction: list = [],
+        direction_order: list = "ras",
+        dtype: int = None,
+    ) -> None:
         """Constructor for Nifti1Image class.
-        
+
         :param dataobj: Data object
         :param affine: Affine matrix
         :param direction: Direction matrix, defaults to []
@@ -41,7 +43,7 @@ class Nifti1Image:
         elif direction_order == "lpi" and len(direction) == 0:
             direction = lpi
         elif len(direction) != 0:
-            direction=direction
+            direction = direction
         else:
             print(
                 "Error: <direction_order> not supported, specify <direction> directly"
@@ -49,7 +51,7 @@ class Nifti1Image:
             exit(0)
         self.direction = list(np.array(direction)[0:ndim, 0:ndim])
 
-    def to_filename(self, filename:str)->None:
+    def to_filename(self, filename: str) -> None:
         """Write the image to a nifti file.
 
         :param filename: Filename of the nifti file
@@ -57,22 +59,22 @@ class Nifti1Image:
         """
         write_nifti(self.dataobj, self.affine, filename, direction=self.direction)
 
-    def get_fdata(self)->np.ndarray:
+    def get_fdata(self) -> np.ndarray:
         """Get the data object."""
         return self.dataobj
 
-    def get_data(self)->np.ndarray:
+    def get_data(self) -> np.ndarray:
         """Get the data object."""
         return self.dataobj
 
 
-def safe_image_read(fn:str)->ants.core.ants_image.ANTsImage:
+def safe_image_read(fn: str) -> ants.core.ants_image.ANTsImage:
     """Read a nifti file using ANTsPy.
-    
+
     :param fn: Filename of the nifti file
     :return: ANTsPy image object
     """
-    if os.path.islink(fn) :
+    if os.path.islink(fn):
         fn = os.readlink(fn)
 
     try:
@@ -84,17 +86,15 @@ def safe_image_read(fn:str)->ants.core.ants_image.ANTsImage:
     return img
 
 
-def read_affine_antspy(fn:str)->np.ndarray:
+def read_affine_antspy(fn: str) -> np.ndarray:
     """Read affine matrix from a nifti file using ANTsPy.
-    
+
     :param fn: Filename of the nifti file
     :return: Affine matrix
     """
     img = safe_image_read(fn)
     spacing = img.spacing
     origin = img.origin
-    # print('spacing', spacing)
-    # print('origin',origin)
 
     affine = np.eye(4)
 
@@ -109,9 +109,9 @@ def read_affine_antspy(fn:str)->np.ndarray:
     return affine
 
 
-def read_affine(fn:str, use_antspy:bool=True)->np.ndarray:
+def read_affine(fn: str, use_antspy: bool = True) -> np.ndarray:
     """Read affine matrix from a nifti file.
-    
+
     :param fn: Filename of the nifti file
     :param use_antspy: Whether to use ANTsPy to read the affine matrix, defaults to True
     :return: Affine matrix
@@ -120,12 +120,11 @@ def read_affine(fn:str, use_antspy:bool=True)->np.ndarray:
         affine = read_affine_antspy(fn)
     else:
         affine = nb.load(fn).affine
-        # print('reading', affine)
 
     return affine
 
 
-def load(fn:str)->Nifti1Image:
+def load(fn: str) -> Nifti1Image:
     """Load a nifti file.
 
     :param fn: Filename of the nifti file
@@ -141,7 +140,9 @@ def load(fn:str)->Nifti1Image:
     return nii_obj
 
 
-def write_nifti(vol:np.ndarray, affine:np.ndarray, out_fn:str, direction:list=[])->None:
+def write_nifti(
+    vol: np.ndarray, affine: np.ndarray, out_fn: str, direction: list = []
+) -> None:
     """Write a nifti file.
 
     :param vol: Volume to write

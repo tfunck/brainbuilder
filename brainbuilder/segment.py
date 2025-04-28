@@ -7,7 +7,12 @@ import numpy as np
 import pandas as pd
 import SimpleITK as sitk
 from joblib import Parallel, delayed
-from skimage.filters import threshold_otsu, threshold_yen
+from skimage.filters import (
+    threshold_li,
+    threshold_otsu,
+    threshold_triangle,
+    threshold_yen,
+)
 from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
@@ -17,6 +22,9 @@ base_file_dir, fn = os.path.split(os.path.abspath(__file__))
 repo_dir = f"{base_file_dir}/../"
 
 nnUNet_dir = f"{repo_dir}/nnUNet/"
+
+global HISTOGRAM_METHODS
+HISTOGRAM_METHODS = ["triangle", "otsu", "yen", "li", "multi"]
 
 
 def apply_threshold(img: np.ndarray, method: callable) -> np.ndarray:
@@ -63,13 +71,15 @@ def myelin_threshold(image: np.ndarray) -> np.ndarray:
 
 
 def histogram_threshold(
-    raw_fn: str, seg_fn: str, sd: float = 1, ref: str = None
+    raw_fn: str, seg_fn: str, sd: float = 1, ref: str = None, method: str = "otsu"
 ) -> None:
     """Apply histogram thresholding to the cropped images.
 
     param: raw_fn: raw image filename
     param: seg_fn: segmentation filename
     param: sd: standard deviation
+    param: ref: reference image filename
+    param: method: thresholding method
     return: None
     """
     img = nib.load(raw_fn)
@@ -84,9 +94,14 @@ def histogram_threshold(
 
     if "MS" in raw_fn:  # use myelin thresholding
         out = myelin_threshold(ar)
+    elif method == "triangle":
+        out = apply_threshold(ar, threshold_triangle)
+    elif method == "li":
+        out = apply_threshold(ar, threshold_li)
+    elif method == "yen":
+        out = apply_threshold(ar, threshold_yen)
     else:
-        out = multi_threshold(ar)
-
+        out = apply_threshold(ar, threshold_otsu)
     if not isinstance(ref, type(None)):
         ref_hd = nib.load(ref)
         dimensions = ref_hd.shape  # resize to reference image
@@ -193,14 +208,20 @@ def assign_seg_filenames(
     return df
 
 
-def apply_histogram_threshold(sect_info: pd.DataFrame, num_cores: int = 1) -> None:
+def apply_histogram_threshold(
+    sect_info: pd.DataFrame, num_cores: int = 1, method: str = "otsu"
+) -> None:
     """Apply histogram threshold to the raw images.
 
     param: sect_info: dataframe with columns: raw, seg_fn
+    param: num_cores: number of cores to use
+    param: method: thresholding method
     return: dataframe with columns: raw, seg_fn
     """
     Parallel(n_jobs=num_cores)(
-        delayed(histogram_threshold)(row["raw"], row["seg"], ref=row["img"])
+        delayed(histogram_threshold)(
+            row["raw"], row["seg"], ref=row["img"], method=method
+        )
         for i, row in sect_info.iterrows()
     )
     return None
@@ -337,7 +358,7 @@ def segment(
     model_dir: str = f"{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/",
     output_csv: str = "",
     num_cores: int = 0,
-    use_nnunet: int = 1,
+    seg_method: str = "nnunetv1",
     clobber: bool = False,
 ) -> str:
     """Segment the raw images.
@@ -348,7 +369,7 @@ def segment(
     param: model_dir: directory of the nnunet model
     param: output_csv: csv file to save output
     param: num_cores: number of cores to use
-    param: use_nnunet: use nnunet to segment
+    param: seg_method: use nnunet to segment
     param: clobber: overwrite existing files
     return: csv file with columns: raw, seg_fn
     """
@@ -401,7 +422,7 @@ def segment(
         )
 
         if missing_segmentations or clobber:
-            if use_nnunet == 2:
+            if seg_method == "nnunetv2":
                 print("\tSegmenting with nnUNet")
                 try:
                     utils.shell(
@@ -411,8 +432,8 @@ def segment(
                 except Exception as e:
                     print("Warning: nnUNet failed to segment")
                     print(e)
-                    use_nnunet = 0
-            elif use_nnunet == 1:
+                    seg_method = None
+            elif seg_method == "nnunetv1":
                 print("\tSegmenting with nnUNet")
                 try:
                     # Export to environment variable
@@ -426,12 +447,12 @@ def segment(
                 except Exception as e:
                     print("Warning: nnUNet failed to segment")
                     print(e)
-                    use_nnunet = 0
+                    seg_method = None
 
-        if not use_nnunet:
-            apply_histogram_threshold(sect_info, num_cores=num_cores)
+        if seg_method is None or seg_method in HISTOGRAM_METHODS:
+            apply_histogram_threshold(sect_info, num_cores=num_cores, method=seg_method)
 
-        if use_nnunet:
+        if seg_method is not None:
             nnunet2nifti_to_do = convert_from_nnunet_list(
                 sect_info,
                 nnunet_out_dir,
@@ -484,10 +505,11 @@ def convert_from_nnunet(
         ar[(ar == 3) | (ar == 4)] = 1
 
         gm = ar == 1
-        # wm = ar == 2
+        wm = ar == 2
 
         ar *= 0
         ar[gm] = 1
+        ar[wm] = 2
 
         ar = ar.reshape([ar.shape[0], ar.shape[1]])
         # ar = ar.T

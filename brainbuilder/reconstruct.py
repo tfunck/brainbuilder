@@ -7,10 +7,10 @@ import pandas as pd
 
 from brainbuilder.downsample import downsample_sections
 from brainbuilder.initalign import initalign
+from brainbuilder.intensity_correction import intensity_correction
 from brainbuilder.interpsections import interpolate_missing_sections
 from brainbuilder.qc.validate_interp_error import validate_interp_error
 from brainbuilder.segment import segment
-from brainbuilder.utils import utils
 from brainbuilder.utils.validate_inputs import validate_inputs
 from brainbuilder.volalign import multiresolution_alignment
 
@@ -55,16 +55,19 @@ def reconstruct(
     sect_info_csv: str,
     resolution_list: list,
     output_dir: str,
-    pytorch_model_dir: str = f"{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/",
     interp_type: str = "surf",
     output_csv: str = "",
     n_depths: int = 0,
-    use_nnunet: int = 1,
-    num_cores: int = 0,
+    use_3d_syn_cc: bool = True,
+    use_syn: bool = True,
+    seg_method: str = "nnunetv1",
+    num_cores: int = None,
     max_resolution_3d: float = 0.3,
     surface_smoothing: int = 0,
+    interp_method: str = "surface",
     batch_correction_resolution: float = 0,
     skip_interp: bool = False,
+    use_intensity_correction: bool = False,
     clobber: bool = False,
 ) -> None:
     """Reconstruct 2D histological sections to 3D volume using a structural reference volume (e.g., T1w MRI from brain donor, stereotaxic template).
@@ -88,6 +91,7 @@ def reconstruct(
     """
     downsample_dir = f"{output_dir}/0_downsample/"
     seg_dir = f"{output_dir}/1_seg/"
+    intens_corr_dir = f"{output_dir}/1.5_intensity_corr"
     initalign_dir = f"{output_dir}/2_init_align/"
     multires_align_dir = f"{output_dir}/3_multires_align/"
     interp_dir = f"{output_dir}/4_interp/"
@@ -95,8 +99,8 @@ def reconstruct(
 
     valid_inputs_npz = f"{output_dir}/valid_inputs"
 
-    if num_cores is None:
-        num_cores = int(utils.set_cores(num_cores) / 2)
+    if num_cores is None or num_cores == 0:
+        num_cores = -1
 
     maximum_resolution = resolution_list[-1]
 
@@ -135,13 +139,18 @@ def reconstruct(
     )
     # qc.data_set_quality_control(sect_info_csv, qc_dir, column="img")
 
+    if use_intensity_correction:
+        sect_info_csv = intensity_correction(
+            sect_info_csv, chunk_info_csv, intens_corr_dir, clobber=clobber
+        )
+
     # Stage: Segment
     seg_df_csv = segment(
         chunk_info_csv,
         sect_info_csv,
         seg_dir,
         maximum_resolution,
-        use_nnunet=use_nnunet,
+        seg_method=seg_method,
         clobber=clobber,
     )
     # qc.data_set_quality_control(seg_df_csv, qc_dir, column="seg")
@@ -158,6 +167,8 @@ def reconstruct(
         resolution_list,
         multires_align_dir,
         max_resolution_3d=max_resolution_3d,
+        use_3d_syn_cc=use_3d_syn_cc,
+        use_syn=use_syn,
         num_cores=num_cores,
         clobber=clobber,
     )
@@ -170,9 +181,12 @@ def reconstruct(
             align_chunk_info_csv,
             align_sect_info_csv,
             maximum_resolution,
+            max_resolution_3d,
+            resolution_list,
             interp_dir,
             n_depths=n_depths,
             surface_smoothing=surface_smoothing,
+            interp_method=interp_method,
             batch_correction_resolution=batch_correction_resolution,
             clobber=clobber,
         )
@@ -238,10 +252,17 @@ def setup_argparse() -> argparse.ArgumentParser:
         help="number of cores to use for multiprocessing",
     )
     parser.add_argument(
-        "--use-nnunet",
-        dest="use_nnunet",
-        default=1,
-        help="Use nnUNet for segmentation: 0 = no, use Otsu thresholding; 1 = nnUNET V1 (Default); 2 = nnUNET V2",
+        "--seg-method",
+        dest="seg_method",
+        default="nnunetv1",
+        help="Use: \n\t'nnunetv1':version 1 of nnUNet segmentation,\n\t'nnunetv2': version 2 of nnUNet segmentation, \n\t'otsu': Otsu histogram thresholding, \n\t'triangle': Triangle histogram thresholding",
+    )
+
+    parser.add_argument(
+        "--interp-method",
+        dest="interp_method",
+        default="surface",
+        help="Use interpolation method: \n\t'surface': surface interpolation, \n\t'volumetric': volumetric interpolation",
     )
     parser.add_argument(
         "--ndepths",
@@ -278,6 +299,21 @@ def setup_argparse() -> argparse.ArgumentParser:
         action="store_true",
         help="Overwrite existing results",
     )
+
+    parser.add_argument(
+        "--no-3d-nl-cc",
+        dest="use_3d_syn_cc",
+        default=True,
+        action="store_false",
+        help="Overwrite existing results",
+    )
+    parser.add_argument(
+        "--no-2d-nl",
+        dest="use_syn",
+        default=True,
+        action="store_false",
+        help="Overwrite existing results",
+    )
     parser.add_argument(
         "--skip-interp",
         dest="skip_interp",
@@ -305,7 +341,9 @@ if __name__ == "__main__":
         output_dir=args.output_dir,
         pytorch_model_dir=args.pytorch_model_dir,
         n_depths=args.n_depths,
-        use_nnunet=args.use_nnunet,
+        seg_method=args.seg_method,
+        use_3d_syn_cc=args.use_3d_syn_cc,
+        use_syn=args.use_syn,
         batch_correction=args.batch_correction_resolution,
         num_cores=args.num_cores,
         skip_interp=args.skip_interp,

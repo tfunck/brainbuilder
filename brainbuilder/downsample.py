@@ -80,7 +80,7 @@ def downsample_sections(
                     (raw_file, downsample_file, affine, resolution, conversion_factor)
                 )
 
-        if num_cores is None:
+        if num_cores is None or num_cores == 0:
             num_cores = cpu_count()
 
         Parallel(n_jobs=num_cores, backend="multiprocessing")(

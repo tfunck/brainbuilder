@@ -6,6 +6,7 @@ from glob import glob
 import brainbuilder.utils.ants_nibabel as nib
 import numpy as np
 import pandas as pd
+from brainbuilder.utils.nl_deformation_flow import nl_deformation_flow_3d
 from brainbuilder.utils.utils import (
     get_section_intervals,
     get_seg_fn,
@@ -68,7 +69,6 @@ def resample_and_transform(
     resolution_3d: float,
     row: pd.Series,
     tfm_ref_fn: str,
-    recenter_image: bool = False,
     clobber: bool = False,
 ) -> None:
     """Resamples and transforms the segmented images to the current resolution.
@@ -120,7 +120,6 @@ def resample_and_transform(
 
 def resample_transform_segmented_images(
     sect_info: pd.DataFrame,
-    chunk_info: pd.DataFrame,
     resolution_itr: int,
     resolution_2d: float,
     resolution_3d: float,
@@ -170,7 +169,7 @@ def resample_transform_segmented_images(
 
 
 def interpolate_missing_sections(
-    vol: np.array, dilate_volume: bool = False
+    vol: np.array, method="linear", dilate_volume: bool = False
 ) -> np.array:
     """Interpolates missing sections in a volume.
 
@@ -205,10 +204,15 @@ def interpolate_missing_sections(
             den = y0 - x1
             assert den != 0, "Error: 0 denominator when interpolating missing sections"
             d = float(ii - x1) / den
+
+            if method == "nearest":
+                d = np.rint(d)
+            print(d)
             z = x * (1 - d) + d * y
             # print(x1,d,ii,y0, '-->', np.mean(x), np.mean(z), np.mean(y))
 
             out_vol[:, ii, :] = z
+        print()
 
     return out_vol
 
@@ -245,6 +249,32 @@ def recenter(
     return vol, affine
 
 
+def load_2d_sections_to_volume(sect_info, in_dir, resolution_3d, dims):
+    data = np.zeros(
+        dims,
+        dtype=np.float32,
+    )
+
+    for i, row in sect_info.iterrows():
+        s0 = int(row["sample"])
+        fn = get_seg_fn(
+            in_dir,
+            int(row["sample"]),
+            resolution_3d,
+            row["seg"],
+            "_rsl_tfm",
+        )
+        img_2d = nib.load(fn).get_fdata()
+
+        # FIXME This is not a good way to solve issue with rsl_tfm files being the wrong size. Problem is probably in the use of nibabel's resampling function in resample
+        if img_2d.shape[0] != data.shape[0] or img_2d.shape[1] != data.shape[2]:
+            img_2d = resize(img_2d, [data.shape[0], data.shape[2]], order=0)
+
+        data[:, s0, :] = img_2d
+
+    return data
+
+
 def volumetric_interpolation(
     sect_info: pd.DataFrame,
     in_fn: str,
@@ -252,7 +282,6 @@ def volumetric_interpolation(
     out_dir: str,
     out_fn: str,
     resolution_3d: float,
-    resolution_2d: float,
     section_thickness: float,
     flip_axes: tuple[int, ...] = (),
     clobber: bool = False,
@@ -266,7 +295,6 @@ def volumetric_interpolation(
     param out_dir: output directory
     param out_fn: output filename
     param resolution_3d: 3D resolution
-    param resolution_2d: 2D resolution
     param flip_axes: flip axes
     param clobber: clobber
     param interpolation: interpolation method
@@ -288,73 +316,33 @@ def volumetric_interpolation(
         example_2d_list = glob(in_dir + f"/*{resolution_3d}*rsl_tfm.nii.gz")
 
         assert len(example_2d_list) > 0, "Error: no files found in {}".format(in_dir)
-        print("Example", example_2d_list[0])
+
         # Example image should be at maximum 2D resolution
         example_2d_img = nib.load(example_2d_list[0])
 
         ymax = sect_info["sample"].max() + 1
 
-        data = np.zeros(
-            [example_2d_img.shape[0], ymax, example_2d_img.shape[1]],
-            dtype=np.float32,
-        )
+        dims = [example_2d_img.shape[0], ymax, example_2d_img.shape[1]]
 
-        # TODO this works well for macaque but less so for human
+        data = load_2d_sections_to_volume(sect_info, in_dir, resolution_3d, dims)
+
         print("\tInterpolation:", interpolation)
-        if interpolation == "linear":
-            for i, row in sect_info.iterrows():
-                s0 = int(row["sample"])
-                fn = get_seg_fn(
-                    in_dir,
-                    int(row["sample"]),
-                    resolution_3d,
-                    row["seg"],
-                    "_rsl_tfm",
-                )
-                img_2d = nib.load(fn).get_fdata()
 
-                # FIXME This is not a good way to solve issue with rsl_tfm files being the wrong size. Problem is probably in the use of nibabel's resampling function in resample
-                if img_2d.shape[0] != data.shape[0] or img_2d.shape[1] != data.shape[2]:
-                    img_2d = resize(img_2d, [data.shape[0], data.shape[2]], order=0)
-
-                data[:, s0, :] = img_2d
-
-            data = interpolate_missing_sections(data, dilate_volume=False)
+        if interpolation == "nlflow":
+            origin = list(ref_img.affine[[0, 2], 3])
+            spacing = list(ref_img.affine[[0, 2], [0, 2]])
+            print("NL FLOW DIR:", out_dir + "/nl_flow/")
+            data = nl_deformation_flow_3d(
+                data,
+                out_dir + "/nl_flow/",
+                origin=origin,
+                spacing=spacing,
+                clobber=clobber,
+            )
         else:
-            valid_slices = []
-            for i, row in sect_info.iterrows():
-                s0 = int(row["sample"] - sect_info["sample"].min())
-                fn = get_seg_fn(
-                    in_dir,
-                    int(row["sample"]),
-                    resolution_3d,
-                    row["seg"],
-                    "_rsl_tfm",
-                )
-                img_2d = nib.load(fn).get_fdata()
-                # FIXME : Skipping frames that have been rotated
-                if img_2d.shape != example_2d_img.shape:
-                    pass
-                else:
-                    data[:, s0, :] = img_2d.reshape([img_2d.shape[0], img_2d.shape[1]])
-                valid_slices.append(int(row["sample"]))
-
-            invalid_slices = [
-                i
-                for i in range(1 + int(sect_info["sample"].max()))
-                if i not in valid_slices
-            ]
-
-            #
-            # Fill in missing slices using nearest neighbour interpolation
-            #
-            valid_slices = np.array(valid_slices)
-            for i in invalid_slices:
-                dif = np.argsort(np.absolute(valid_slices - i))
-
-                i0 = valid_slices[dif[0]]
-                # nearest neighbough interpolation
-                data[:, i, :] = data[:, i0, :]
+            data = interpolate_missing_sections(
+                data, method=interpolation, dilate_volume=False
+            )
 
         assert (
             np.sum(data) > 0
@@ -378,22 +366,21 @@ def volumetric_interpolation(
         if flip_axes != ():
             data = np.flip(data, axis=flip_axes)
 
-        aff2 = aff.copy()
-        aff2[1, 1] = 0.02
-        nib.Nifti1Image(data, aff2).to_filename("/tmp/tmp.nii.gz")
+        y_dim = data.shape[1]
+        y_dim_rsl = y_dim * (section_thickness / resolution_3d)
 
-        data = resample_to_resolution(
+        nib.Nifti1Image(
             data,
-            [resolution_3d, resolution_3d, resolution_3d],
-            dtype=np.float32,
-            affine=aff,
-        ).get_fdata()
+            aff,
+            dtype=np.uint8,
+            direction_order="lpi",
+        ).to_filename(out_fn.replace(".nii.gz", "_orig.nii.gz"))
+
+        data = resize(data, (data.shape[0], y_dim_rsl, data.shape[2]), order=2)
 
         aff[[0, 1, 2], [0, 1, 2]] = resolution_3d
 
         data, aff = recenter(data, aff)
-
-        print("\tWriting output to", out_fn)
 
         img_out = nib.Nifti1Image(
             data,
@@ -436,7 +423,6 @@ def create_intermediate_volume(
 
         resample_transform_segmented_images(
             sect_info,
-            chunk_info,
             resolution_itr,
             resolution,
             resolution_3d,
@@ -454,7 +440,6 @@ def create_intermediate_volume(
             out_dir,
             seg_rsl_fn,
             resolution_3d,
-            resolution,
             chunk_info["section_thickness"].values[0],
             interpolation=interpolation,
             clobber=clobber,

@@ -140,8 +140,10 @@ def ants_registration_2d_section(
     step: float = 0.5,
     masks: bool = False,
     init_tfm: str = None,
+    write_composite_transform: int = 1,
     verbose: bool = False,
     clobber: bool = False,
+    exit_on_failure: bool = False,
 ) -> tuple:
     """Use ANTs to register 2d sections.
 
@@ -164,7 +166,17 @@ def ants_registration_2d_section(
     """
     last_transform = None
     last_metric = None
-    final_tfm = f"{prefix}_{transforms[-1]}_{metrics[-1]}_Composite.h5"
+
+    if write_composite_transform:
+        final_tfm = f"{prefix}_{transforms[-1]}_{metrics[-1]}_Composite.h5"
+
+    else:
+        n_tfm = len(metrics) - 1
+
+        if init_tfm != "identity":
+            n_tfm += 1
+
+        final_tfm = f"{prefix}_{transforms[-1]}_{metrics[-1]}_{n_tfm}Warp.nii.gz"
 
     mv_rsl_fn = f"{prefix}_{transforms[-1]}_{metrics[-1]}_cls_rsl.nii.gz"
 
@@ -183,7 +195,7 @@ def ants_registration_2d_section(
             else:
                 init_str = f"--initial-moving-transform [{fx_fn},{mv_fn},1]"
 
-            command_str = f"antsRegistration -v {max(int(verbose),0)} -d 2 --write-composite-transform 1 {init_str} -o [{prefix}_{transform}_{metric}_,{mv_rsl_fn},/tmp/out_inv.nii.gz] -t {transform}[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} "
+            command_str = f"antsRegistration -v {max(int(verbose),0)} -d 2 --write-composite-transform {write_composite_transform} {init_str} -o [{prefix}_{transform}_{metric}_,{mv_rsl_fn},/tmp/out_inv.nii.gz] -t {transform}[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} "
 
             if int(verbose) < 0:
                 command_str += " > /dev/null 2>&1"
@@ -203,9 +215,8 @@ def ants_registration_2d_section(
                 f.write(command_str)
 
             shell(command_str)
-
             assert (
-                np.sum(np.abs(nib.load(mv_rsl_fn).dataobj)) > 0
+                not exit_on_failure or np.sum(np.abs(nib.load(mv_rsl_fn).dataobj)) > 0
             ), f"Error: empty volume {mv_rsl_fn}"
 
     assert os.path.exists(final_tfm), f"Error: output does not exist {final_tfm}"
@@ -238,13 +249,17 @@ def affine_trials(
     best_trial = 0
     affine_tfm_trials = {}
 
+    affine_dir = prefix + "_affines/"
+
+    os.makedirs(affine_dir, exist_ok=True)
+
     for trial in range(n_trials):
         n = len(lin_transforms)
         itr_list = [linParams.itr_str] * n
         s_list = [linParams.s_str] * n
         f_list = [linParams.f_str] * n
 
-        trial_prefix = prefix + f"_trial-{trial}"
+        trial_prefix = affine_dir + f"_trial-{trial}"
 
         affine_tfm, mv_rsl_fn = ants_registration_2d_section(
             fx_fn=fx_fn,
@@ -332,25 +347,28 @@ def align_2d_parallel(
         fx_fn, mv_fn, linParams, prefix, n_trials=n_affine_trials, verbose=verbose
     )
 
-    nl_metrics = ["Mattes"]
-    if resolution == resolution_list[-1]:
-        nl_metrics = ["Mattes", "CC"]
+    if use_syn:
+        nl_metrics = ["Mattes"]
+        if resolution == resolution_list[-1]:
+            nl_metrics = ["Mattes", "CC"]
 
-    transforms = ["SyN"] * len(nl_metrics)
+        transforms = ["SyN"] * len(nl_metrics)
 
-    syn_tfm, _ = ants_registration_2d_section(
-        fx_fn=fx_fn,
-        mv_fn=mv_fn,
-        itr_list=[nlParams.itr_str, 20],
-        s_list=[nlParams.s_str, 0],
-        f_list=[nlParams.f_str, 1],
-        prefix=prefix,
-        transforms=transforms,
-        metrics=nl_metrics,
-        init_tfm=affine_tfm,
-        step=0.1,
-        verbose=verbose,
-    )
+        syn_tfm, _ = ants_registration_2d_section(
+            fx_fn=fx_fn,
+            mv_fn=mv_fn,
+            itr_list=[nlParams.itr_str, 20],
+            s_list=[nlParams.s_str, 0],
+            f_list=[nlParams.f_str, 1],
+            prefix=prefix,
+            transforms=transforms,
+            metrics=nl_metrics,
+            init_tfm=affine_tfm,
+            step=0.1,
+            verbose=verbose,
+        )
+    else:
+        syn_tfm = affine_tfm
 
     cmd = f"antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {mv_fn} -r {fx_fn} -t {syn_tfm} -o {row['2d_align_cls']} "
 
@@ -644,7 +662,7 @@ def align_2d(
     section_thickness: float,
     base_lin_itr: int = 100,
     base_nl_itr: int = 20,
-    base_cc_itr: int = 5,
+    use_syn: bool = True,
     file_to_align: str = "seg",
     num_cores: int = 1,
     clobber: bool = False,
@@ -701,6 +719,7 @@ def align_2d(
         nl_2d_dir,
         resolution,
         resolution_list,
+        use_syn=use_syn,
         base_lin_itr=base_lin_itr,
         base_nl_itr=base_nl_itr,
         num_cores=num_cores,
