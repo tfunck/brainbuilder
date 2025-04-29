@@ -80,7 +80,7 @@ def compare_2d_vs_3d(receptor_df, output_dir):
     plt.ylabel("Original (2D)")
     # rename x axis as Reconstructed (3D)
     plt.xlabel("Reconstructed (3D)")
-    plt.savefig(output_png, dpi=200)
+    plt.savefig(output_png, dpi=300)
 
     print(output_png)
 
