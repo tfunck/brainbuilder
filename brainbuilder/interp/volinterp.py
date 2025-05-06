@@ -255,8 +255,7 @@ def create_mask(fn, out_fn, clobber: bool = False):
 
 
 def create_acq_atlas(chunk_info, output_dir, clobber: bool = False):
-    """
-    To save memory, for each volume :
+    """To save memory, for each volume :
         1. load and z-score it,
         2. add z-score image to sum volume.
     Then :
@@ -410,7 +409,7 @@ def create_final_transform(
     cmd = "antsRegistration --verbose 0 --dimensionality 3 --float 0 --collapse-output-transforms 1"
     cmd += f" --output [ {atlas_tfm_fn}, {rec_3d_rsl_fn}, {ref_3d_rsl_fn} ] --interpolation Linear --use-histogram-matching 0 --winsorize-image-intensities [ 0.005,0.995 ]"
     cmd += (
-        f" --transform SyN[ 0.1,3,0 ] --metric CC[ {atlas_vol_fin},{ref_vol_fin},1,4 ]"
+        f" --transform SyN[ 0.1,3,0 ] --metric CC[ {atlas_vol_fin},{ref_rsl_fin},1,4 ]"
     )
     cmd += " --convergence [ 100,1e-6,10 ] --shrink-factors 1 --smoothing-sigmas 0.1vox"
 
