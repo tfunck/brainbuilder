@@ -93,7 +93,6 @@ def thicken_sections_within_chunk(
     tissue_type: str = "",
     gaussian_sd: float = 0,
     width: int = None,
-    use_adjust_section_means: bool = True,
 ) -> None:
     """Thicken sections within a chunk. A thickened section is simply a section that is expanded along the y axis to the resolution of the reconstruction.
 
@@ -114,13 +113,6 @@ def thicken_sections_within_chunk(
         "Error: source volume for thickening sections is empty\n" + source_image_fn
     )
 
-    if use_adjust_section_means:
-        adj_factors_dict = calculate_section_adjustment_factors(
-            chunk_sect_info["nl_2d_rsl"].values,
-            chunk_sect_info["sample"].values,
-            os.path.dirname(thickened_fn),
-        )
-
     if width is None:
         width = get_thicken_width(resolution, section_thickness, scale=1)
 
@@ -137,9 +129,6 @@ def thicken_sections_within_chunk(
         nl_2d_rsl = row["nl_2d_rsl"]
         section = nib.load(nl_2d_rsl).get_fdata().copy()
 
-        if use_adjust_section_means:
-            section += adj_factors_dict[y]
-
         if np.sum(section) == 0:
             print(f"Warning: empty frame {row_i} {row}\n")
 
@@ -153,6 +142,7 @@ def thicken_sections_within_chunk(
         rep = np.repeat(section.reshape(dim), y1 - y0, axis=1)
 
         rec_vol[:, y0:y1, :] += rep
+
         n[:, y0:y1, :] += 1
 
     # normalize by number of sections within range
@@ -393,7 +383,6 @@ def create_thickened_volumes(
                     chunk_sect_info,
                     resolution,
                     gaussian_sd=gaussian_sd,
-                    use_adjust_section_means=True,
                     width=width,
                 )
 

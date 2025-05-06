@@ -11,7 +11,7 @@ from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.interp.acqvolume import create_thickened_volumes
-from brainbuilder.utils.nl_deformation_flow import nl_deformation_flow_3d
+from brainbuilder.utils.nl_deformation_flow import nlflow_isometric
 from brainbuilder.volalign import align_3d, verify_chunk_limits
 
 
@@ -80,81 +80,6 @@ def _interpolate_missing_sections(
     return vol_interp
 
 
-def nl_deformation_flow_nii(acq_fin, output_dir, interp_acq_fin, clobber=False):
-    if not os.path.exists(interp_acq_fin) or clobber:
-        """
-        Process the acq volume by applying non-linear deformation flow.
-
-        Parameters
-        ----------
-        acq_fin : str
-            Path to the acq volume file.
-        output_dir : str
-            Directory to save the output files.
-        clobber : bool, optional
-            If True, overwrite existing files. The default is False.
-
-        Returns
-        -------
-        str
-            Path to the processed acq volume file.
-        """
-        acq_img = nib.load(acq_fin)
-        acq_vol = acq_img.get_fdata()
-        acq_vol[acq_vol < 0] = 0
-
-        origin = list(acq_img.affine[[0, 2], 3])
-        spacing = list(acq_img.affine[[0, 2], [0, 2]])
-
-        interp_acq_vol = nl_deformation_flow_3d(
-            acq_vol,
-            output_dir + "/nl_flow/",
-            origin=origin,
-            spacing=spacing,
-            clobber=clobber,
-        )
-
-        interp_acq_img = nib.Nifti1Image(
-            interp_acq_vol, acq_img.affine, direction_order="lpi"
-        )
-        interp_acq_img.to_filename(interp_acq_fin)
-
-
-def resample_interp_vol_to_resolution(
-    interp_acq_orig_fin,
-    interp_acq_iso_fin: str,
-    resolution: float,
-    clobber: bool = False,
-) -> np.array:
-    """Resample the interpolated volume to the specified resolution.
-    Parameters
-    ----------
-    interp_acq_vol : np.array
-        Interpolated volume.
-    acq_img : nib.Nifti1Image
-
-    """
-    if not os.path.exists(interp_acq_iso_fin) or clobber:
-        interp_acq_img = nib.load(interp_acq_orig_fin)  # type:ignore[assignment]
-        interp_acq_vol = interp_acq_img.get_fdata()
-
-        slice_thickness = interp_acq_img.affine[1, 1]
-
-        y_new = int(np.round(interp_acq_vol.shape[1] / (resolution / slice_thickness)))
-
-        interp_acq_vol = resize(
-            interp_acq_vol,
-            (interp_acq_vol.shape[0], y_new, interp_acq_vol.shape[2]),
-            order=1,
-        )
-
-        aff_iso = interp_acq_img.affine
-
-        aff_iso[1, 1] = resolution
-
-        nib.Nifti1Image(interp_acq_vol, aff_iso, direction_order="lpi").to_filename(
-            interp_acq_iso_fin
-        )
 
 
 def volumetric_interpolation(
@@ -210,20 +135,15 @@ def volumetric_interpolation(
         chunk_info_thickened = pd.read_csv(chunk_info_thickened_csv)
 
         print(f"Interpolation Chunk: {chunk}, Acquisition: {acq}")
+        cls_fin = chunk_info_thickened["thickened_cls"].values[0]
         acq_fin = chunk_info_thickened["thickened"].values[0]
 
-        interp_acq_iso_fin = acq_fin.replace("thickened", "interp-vol_iso")
-        interp_acq_fin = acq_fin.replace("thickened", "interp-vol_orig")
+        interp_acq_iso_fin, nlflow_tfm_list = nlflow_isometric(acq_fin, curr_output_dir, resolution, clobber=clobber)
 
-        print("Resampling", interp_acq_fin)
-        nl_deformation_flow_nii(
-            acq_fin, curr_output_dir, interp_acq_fin, clobber=clobber
-        )
+        interp_cls_iso_fin = nlflow_isometric(
+            cls_fin, curr_output_dir, resolution, tfm_list = nlflow_tfm_list, clobber=clobber
+        ) 
 
-        print("Resampling", interp_acq_iso_fin)
-        resample_interp_vol_to_resolution(
-            interp_acq_fin, interp_acq_iso_fin, resolution, clobber=clobber
-        )
 
         row = pd.DataFrame(
             {
@@ -232,6 +152,7 @@ def volumetric_interpolation(
                 "chunk": [chunk],
                 "acquisition": [acq],
                 "interp_nat": [interp_acq_iso_fin],
+                "interp_cls_nat": [interp_cls_iso_fin],
             }
         )
 

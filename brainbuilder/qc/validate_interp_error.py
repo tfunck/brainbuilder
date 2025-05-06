@@ -685,7 +685,7 @@ def plot_validation_interp_error(
     print(np.mean(df["error_2d"]), "+/-", np.std(df["error_2d"]))
     print(np.mean(df["error"]), "+/-", np.std(df["error"]))
     plt.suptitle("Validation of 2D & 3D Interpolation Error", fontsize=16)
-    plt.savefig(f"{output_dir}/validation_interp_error.png")
+    plt.savefig(f"{output_dir}/validation_interp_error.png", dpi=300)
     print(f"{output_dir}/validation_interp_error.png")
     plt.close()
     plt.cla()
@@ -706,7 +706,7 @@ def plot_validation_interp_error(
     # plt.ylabel('Interpolation Error %')
     # plt.xlabel('Volume Change %')
 
-    plt.savefig(f"{output_dir}/validation_interp_error_vs_volume.png")
+    plt.savefig(f"{output_dir}/validation_interp_error_vs_volume.png", dpi=300)
     print(f"{output_dir}/validation_interp_error_vs_volume.png")
 
     # plt.subplot(2, 2, 4)

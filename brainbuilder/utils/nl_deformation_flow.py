@@ -52,6 +52,65 @@ def scale_displacement_field(
 
     return output_filename
 
+def compute_ants_alignment(
+        prefixdir:str, 
+        sec0_path:str, 
+        sec1_path:str, 
+        ymin:int, 
+        ymax:int, 
+        fwd_tfm_path:str=None, 
+        inv_tfm_path:str=None, 
+        clobber:bool=False
+        ):
+    """Compute the ANTs alignment between two sections and save the forward and inverse transforms.
+    Args:
+        prefixdir (str): Directory to save the output files.
+        sec0_path (str): Path to the first section. 
+        sec1_path (str): Path to the second section.
+        ymin (int): Minimum y-coordinate of the section.
+        ymax (int): Maximum y-coordinate of the section.
+        clobber (bool): If True, overwrite existing files.
+    Returns:
+        fwd_tfm_path (str): Path to the forward transform file.
+        inv_tfm_path (str): Path to the inverse transform file.
+    """
+    
+    outprefix = f"{prefixdir}/deformation_field_{ymin}_{ymax}"
+
+    write_composite_transform = 0
+
+    if fwd_tfm_path is None:
+        if write_composite_transform:
+            fwd_tfm_path = f"{outprefix}_Composite.h5"
+        else:
+            fwd_tfm_path = f"{outprefix}_0Warp.nii.gz"
+
+    if inv_tfm_path is None:
+        if write_composite_transform:
+            inv_tfm_path = f"{outprefix}_InverseComposite.h5"
+        else:
+            inv_tfm_path = f"{outprefix}_0InverseWarp.nii.gz"
+
+    mv_rsl_fn = f"{outprefix}_SyN_GC_cls_rsl.nii.gz"
+
+
+    if not os.path.exists(fwd_tfm_path) or os.path.exists(inv_tfm_path) or not clobber:
+        # Load the sections
+        try:
+            cmd = "antsRegistration --verbose 0 --dimensionality 2 --float 0 --collapse-output-transforms 1"
+            cmd += f" --output [ {outprefix}_,{mv_rsl_fn},/tmp/tmp.nii.gz ] --interpolation Linear --use-histogram-matching 0 --winsorize-image-intensities [ 0.005,0.995 ]"
+            cmd += f" --transform SyN[ 0.1,3,0 ] --metric CC[ {sec1_path},{sec0_path},1,4 ]"
+            cmd += " --convergence [ 300x200x150x100x50,1e-6,10 ] --shrink-factors 8x4x3x2x1 --smoothing-sigmas 4x2x1.5x1x0vox"
+
+            subprocess.run(cmd, shell=True, executable="/bin/bash")
+
+        except RuntimeError as e:
+            print("Error in registration:", e)
+
+    assert os.path.exists(fwd_tfm_path), f"Error: output does not exist {fwd_tfm_path}"
+    assert os.path.exists(inv_tfm_path), f"Error: output does not exist {inv_tfm_path}"
+
+    return fwd_tfm_path, inv_tfm_path
 
 def nl_deformation_flow(
     sec0_path: str,
@@ -59,7 +118,8 @@ def nl_deformation_flow(
     ymin: int,
     ymax: int,
     output_dir: str,
-    mode: int = -1,
+    fwd_tfm_path: str = None,
+    inv_tfm_path: str = None,
     clobber: bool = False,
 ):
     """Use ANTs to calculate SyN alignment between two sections. Let the deformation field = D.
@@ -82,42 +142,18 @@ def nl_deformation_flow(
         None
     """
     qc_dir = f"{output_dir}/qc"
+
     prefixdir = f"{output_dir}/tfm_{ymin}_{ymax}"
 
     os.makedirs(prefixdir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(qc_dir, exist_ok=True)
 
-    outprefix = f"{prefixdir}/deformation_field_{ymin}_{ymax}"
-
-    write_composite_transform = 0
-
-    if write_composite_transform:
-        fwd_tfm_path = f"{outprefix}_Composite.h5"
-        inv_tfm_path = f"{outprefix}_InverseComposite.h5"
-    else:
-        fwd_tfm_path = f"{outprefix}_0Warp.nii.gz"
-        inv_tfm_path = f"{outprefix}_0InverseWarp.nii.gz"
-
-    mv_rsl_fn = f"{outprefix}_SyN_GC_cls_rsl.nii.gz"
-
+    fwd_tfm_path, inv_tfm_path = compute_ants_alignment(
+        prefixdir, sec0_path, sec1_path, ymin, ymax, fwd_tfm_path=fwd_tfm_path, inv_tfm_path=inv_tfm_path, clobber=clobber
+    )
+    
     steps = ymax - ymin
-
-    if not os.path.exists(fwd_tfm_path) or os.path.exists(inv_tfm_path) or not clobber:
-        # Load the sections
-        try:
-            cmd = "antsRegistration --verbose 0 --dimensionality 2 --float 0 --collapse-output-transforms 1"
-            cmd += f" --output [ {outprefix}_,{mv_rsl_fn},/tmp/tmp.nii.gz ] --interpolation Linear --use-histogram-matching 0 --winsorize-image-intensities [ 0.005,0.995 ]"
-            cmd += f" --transform SyN[ 0.1,3,0 ] --metric CC[ {sec1_path},{sec0_path},1,4 ]"
-            cmd += " --convergence [ 300x200x150x100x50,1e-6,10 ] --shrink-factors 8x4x3x2x1 --smoothing-sigmas 4x2x1.5x1x0vox"
-
-            subprocess.run(cmd, shell=True, executable="/bin/bash")
-
-        except RuntimeError as e:
-            print("Error in registration:", e)
-
-    assert os.path.exists(fwd_tfm_path), f"Error: output does not exist {fwd_tfm_path}"
-    assert os.path.exists(inv_tfm_path), f"Error: output does not exist {inv_tfm_path}"
 
     output_image_list = []
 
@@ -166,32 +202,7 @@ def nl_deformation_flow(
                 )
 
                 # Combine the two sections
-                if mode == 0:
-                    output_image = sec0
-                elif mode == 1:
-                    output_image = sec1
-                elif mode == 2:
-                    output_image = sec0_fwd
-                elif mode == 3:
-                    output_image = sec1_inv
-                elif mode == 4:
-                    output_image = ants.apply_transforms(
-                        sec1,
-                        sec0,
-                        interpolator="linear",
-                        transformlist=[fwd_tfm_path],
-                        verbose=False,
-                    )
-                elif mode == 5:
-                    output_image = ants.apply_transforms(
-                        sec0,
-                        sec1,
-                        interpolator="linear",
-                        transformlist=[scaled_inv_tfm_path],
-                        verbose=False,
-                    )
-                else:
-                    output_image = (sec0_fwd + sec1_inv) / 2.0
+                output_image = (sec0_fwd + sec1_inv) / 2.0
             else:
                 # apply linear interpolation
                 sec0 = ants.image_read(sec0_path)
@@ -229,15 +240,40 @@ def nl_deformation_flow(
             plt.savefig(qc_png)
             plt.close()
 
-    return y_list, output_image_list
+    return y_list, output_image_list, (fwd_tfm_path, inv_tfm_path)
 
+
+def process_section(
+        y0:int, y1:int, output_dir:str, vol:np.array, origin:np.array, spacing:np.array, fwd_tfm_path:str=None, inv_tfm_path:str=None, clobber:bool=False
+        ):
+    """Process a pair of sections and compute the deformation flow."""
+    y0_ants = ants.from_numpy(vol[:, y0, :], origin=origin, spacing=spacing)
+    y1_ants = ants.from_numpy(vol[:, y1, :], origin=origin, spacing=spacing)
+
+    orig_dir = f"{output_dir}/orig"
+
+    os.makedirs(orig_dir, exist_ok=True)
+
+    y0_ants_path = f"{orig_dir}/flow_{y0}.nii.gz"
+    if not os.path.exists(y0_ants_path) or clobber:
+        y0_ants.to_filename(y0_ants_path)
+
+    y1_ants_path = f"{orig_dir}/flow_{y1}.nii.gz"
+    if not os.path.exists(y1_ants_path) or clobber:
+        y1_ants.to_filename(y1_ants_path)
+
+    print("\t", y0, y1)
+
+    return nl_deformation_flow(
+        y0_ants_path, y1_ants_path, y0, y1, output_dir, fwd_tfm_path=fwd_tfm_path, inv_tfm_path=inv_tfm_path, clobber=clobber
+    )
 
 def nl_deformation_flow_3d(
     vol: np.array,
     output_dir: str,
+    tfm_list: list = None,
     origin: tuple = None,
     spacing: tuple = None,
-    mode: int = -1,
     clobber: bool = False,
 ):
     """Apply  nl intersection_flow to a volume where there are missing sections along axis=1"""
@@ -254,36 +290,140 @@ def nl_deformation_flow_3d(
 
     out_vol = vol.copy()
 
-    def process_section(y0, y1, output_dir, clobber):
-        y0_ants = ants.from_numpy(vol[:, y0, :], origin=origin, spacing=spacing)
-        y1_ants = ants.from_numpy(vol[:, y1, :], origin=origin, spacing=spacing)
-
-        orig_dir = f"{output_dir}/orig"
-
-        os.makedirs(orig_dir, exist_ok=True)
-
-        y0_ants_path = f"{orig_dir}/flow_{y0}.nii.gz"
-        if not os.path.exists(y0_ants_path) or clobber:
-            y0_ants.to_filename(y0_ants_path)
-
-        y1_ants_path = f"{orig_dir}/flow_{y1}.nii.gz"
-        if not os.path.exists(y1_ants_path) or clobber:
-            y1_ants.to_filename(y1_ants_path)
-
-        print("\t", y0, y1)
-
-        return nl_deformation_flow(
-            y0_ants_path, y1_ants_path, y0, y1, output_dir, mode=mode, clobber=clobber
-        )
+    if tfm_list is None:
+        args_list = zip(valid_idx[:-1], valid_idx[1:])
+    else :
+        args_list = zip(valid_idx[:-1], valid_idx[1:], tfm_list)
 
     results = Parallel(n_jobs=-1)(
-        delayed(process_section)(y0, y1, output_dir, clobber)
-        for y0, y1 in zip(valid_idx[:-1], valid_idx[1:])
+        delayed(process_section)(y0, y1, output_dir, vol, origin, spacing, tfm_fwd_path=tfm_fwd_path, tfm_inv_path=tfm_inv_path, clobber=clobber)
+        for y0, y1, (tfm_fwd_path, tfm_inv_path) in args_list
         if y1 > y0 + 1
     )
 
-    for y_list, inter_images in results:
+    out_index_tfm_list = [ [i[0], r] for i, _, r in results ]
+
+    # sort out_tfm_list by i
+    out_index_tfm_list = sorted(out_index_tfm_list, key=lambda x: x[0])
+
+    out_tfm_list = [ r for _, r in out_index_tfm_list  ]
+
+    for y_list, inter_images, tfm_list in results:
         for y, image_path in zip(y_list, inter_images):
             out_vol[:, y, :] = ants.image_read(image_path).numpy()
 
-    return out_vol
+    return out_vol, out_tfm_list
+
+
+
+def nl_deformation_flow_nii(acq_fin:str, output_dir:str, interp_acq_fin:str, tfm_list:list=None, clobber:bool=False):
+    if not os.path.exists(interp_acq_fin) or clobber:
+        """
+        Process the acq volume by applying non-linear deformation flow.
+
+        Parameters
+        ----------
+        acq_fin : str
+            Path to the acq volume file.
+        output_dir : str
+            Directory to save the output files.
+        clobber : bool, optional
+            If True, overwrite existing files. The default is False.
+
+        Returns
+        -------
+        str
+            Path to the processed acq volume file.
+        """
+        acq_img = nib.load(acq_fin)
+        acq_vol = acq_img.get_fdata()
+        acq_vol[acq_vol < 0] = 0
+
+        origin = list(acq_img.affine[[0, 2], 3])
+        spacing = list(acq_img.affine[[0, 2], [0, 2]])
+
+        interp_acq_vol, nlflow_tfm_list = nl_deformation_flow_3d(
+            acq_vol,
+            output_dir + "/nl_flow/",
+            origin=origin,
+            spacing=spacing,
+            tfm_list=tfm_list,
+            clobber=clobber,
+        )
+
+        interp_acq_img = nib.Nifti1Image(
+            interp_acq_vol, acq_img.affine, direction_order="lpi"
+        )
+        interp_acq_img.to_filename(interp_acq_fin)
+    
+    return nlflow_tfm_list
+
+
+def resample_interp_vol_to_resolution(
+    interp_acq_orig_fin,
+    interp_acq_iso_fin: str,
+    resolution: float,
+    clobber: bool = False,
+) -> np.array:
+    """Resample the interpolated volume to the specified resolution.
+    Parameters
+    ----------
+    interp_acq_vol : np.array
+        Interpolated volume.
+    acq_img : nib.Nifti1Image
+
+    """
+    if not os.path.exists(interp_acq_iso_fin) or clobber:
+        interp_acq_img = nib.load(interp_acq_orig_fin)  # type:ignore[assignment]
+        interp_acq_vol = interp_acq_img.get_fdata()
+
+        slice_thickness = interp_acq_img.affine[1, 1]
+
+        y_new = int(np.round(interp_acq_vol.shape[1] / (resolution / slice_thickness)))
+
+        interp_acq_vol = resize(
+            interp_acq_vol,
+            (interp_acq_vol.shape[0], y_new, interp_acq_vol.shape[2]),
+            order=1,
+        )
+
+        aff_iso = interp_acq_img.affine
+
+        aff_iso[1, 1] = resolution
+
+        nib.Nifti1Image(interp_acq_vol, aff_iso, direction_order="lpi").to_filename(
+            interp_acq_iso_fin
+        )
+
+
+
+def nlflow_isometric(ii_fin:str, curr_output_dir:str, resolution:float, tfm_list:list=None, clobber:bool=False):
+    """Apply non-linear deformation flow to the input volume and resample it to the specified resolution.
+    Parameters
+    ----------
+    ii_fin : str
+        Path to the input volume file.
+    clobber : bool, optional    
+        If True, overwrite existing files. The default is False.
+    Returns
+    -------
+    -------
+    interp_iso_fin : str
+        Path to the isomorphic interpolated volume file.
+    interp_fin : str   
+        Path to the interpolated volume file.
+    """
+
+    interp_iso_fin = ii_fin.replace("thickened", "interp-vol_iso")
+    interp_fin = ii_fin.replace("thickened", "interp-vol_orig")
+
+    nlflow_tfm_list = nl_deformation_flow_nii(
+        ii_fin, curr_output_dir, interp_fin, tfm_list=tfm_list, clobber=clobber
+    )
+
+    print("Resampling", interp_iso_fin)
+    resample_interp_vol_to_resolution(
+        interp_fin, interp_iso_fin, resolution, clobber=clobber
+    )
+
+    return interp_iso_fin, nlflow_tfm_list
