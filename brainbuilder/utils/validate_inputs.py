@@ -239,10 +239,10 @@ def validate_inputs(
 
     if not valid_inputs:
         print("\nValidating Hemi Info")
-        #hemi_info_valid = validate_csv(
-        #    hemi_info_csv, hemi_info_required_columns, n_jobs=n_jobs
-        #)
-        #print("\tHemi Info Valid =", bool(hemi_info_valid))
+        hemi_info_valid = validate_csv(
+            hemi_info_csv, hemi_info_required_columns, n_jobs=n_jobs
+        )
+        print("\tHemi Info Valid =", bool(hemi_info_valid))
 
         print("\nValidating Chunk Info")
         chunk_info_valid = validate_csv(
