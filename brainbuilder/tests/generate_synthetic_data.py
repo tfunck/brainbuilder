@@ -82,6 +82,7 @@ def save_coronal_sections(input_fn:str, out_dir:str, raw_dir:str, sub:str, hemis
                 continue
 
             save_section(input_vol, y, affine, raw_sec_fn)
+            print(raw_sec_fn)
 
             row_dict = {
                 "raw": [raw_sec_fn],
@@ -144,9 +145,9 @@ def generate_synthetic_data(
             "sub": [sub],
             "chunk": [chunk],
             "hemisphere": [hemisphere],
-            "pixel_size_0": [1],
-            "pixel_size_1": [1],
-            "section_thickness": [1],
+            "pixel_size_0": [1.0],
+            "pixel_size_1": [1.0],
+            "section_thickness": [1.0],
             "direction": ["caudal_to_rostral"],
         }
     )

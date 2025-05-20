@@ -5,7 +5,6 @@ from typing import Tuple
 
 import numpy as np
 import pandas as pd
-import stripy as stripy
 from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter, label
 

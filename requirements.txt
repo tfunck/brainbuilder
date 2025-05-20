@@ -1,9 +1,8 @@
-numpy
+numpy<2
+stripy
 scipy
 pandas
-stripy
 h5py
-guppy3
 psutil
 statsmodels
 configparser
@@ -11,13 +10,9 @@ scikit-learn
 scikit-image
 SimpleITK
 imageio
-keras
-pydot
 matplotlib
 nibabel
 seaborn
-torch
-torchvision
 antspyx
 pre-commit
 webcolors

@@ -6,7 +6,6 @@ import re
 import nibabel as nb_surf
 import numpy as np
 import pandas as pd
-import stripy as stripy
 from joblib import Parallel, delayed
 
 import brainbuilder.utils.ants_nibabel as nib
@@ -527,6 +526,7 @@ def interpolate_over_surface(
     )
 
     # create mesh data structure
+    import stripy as stripy
     mesh = stripy.sTriangulation(lons_src, lats_src)
 
     lats, lons = spherical_coords[:, 1] - np.pi / 2, spherical_coords[:, 2]

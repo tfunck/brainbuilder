@@ -59,7 +59,7 @@ class Column:
                 return True
 
             if n_jobs is None:
-                n_jobs = int(cpu_count() / 2)
+                n_jobs = int(cpu_count() )
 
             validated_rows = Parallel(n_jobs=n_jobs)(
                 delayed(val_func)(var) for var in rows
@@ -124,6 +124,7 @@ def validate_dataframe(
             validated = column.validate_rows_in_column(
                 df[column.name].values, n_jobs=n_jobs
             )
+            print(column.name, validated)
             valid_columns.append(validated)
 
     valid_inputs = np.product(np.array(valid_columns))
@@ -238,16 +239,17 @@ def validate_inputs(
 
     if not valid_inputs:
         print("\nValidating Hemi Info")
-        hemi_info_valid = validate_csv(
-            hemi_info_csv, hemi_info_required_columns, n_jobs=n_jobs
-        )
-        print("\tHemi Info Valid =", bool(hemi_info_valid))
+        #hemi_info_valid = validate_csv(
+        #    hemi_info_csv, hemi_info_required_columns, n_jobs=n_jobs
+        #)
+        #print("\tHemi Info Valid =", bool(hemi_info_valid))
 
         print("\nValidating Chunk Info")
         chunk_info_valid = validate_csv(
             chunk_info_csv, chunk_info_required_columns, n_jobs=n_jobs
         )
         print("\tChunk Info Valid =", bool(chunk_info_valid))
+        exit()
 
         print("\nValidating Sect Info")
         sect_info_valid = validate_csv(
