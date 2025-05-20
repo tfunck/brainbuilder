@@ -249,7 +249,6 @@ def validate_inputs(
             chunk_info_csv, chunk_info_required_columns, n_jobs=n_jobs
         )
         print("\tChunk Info Valid =", bool(chunk_info_valid))
-        exit()
 
         print("\nValidating Sect Info")
         sect_info_valid = validate_csv(

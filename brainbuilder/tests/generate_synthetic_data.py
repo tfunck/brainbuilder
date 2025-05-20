@@ -136,9 +136,7 @@ def generate_synthetic_data(
     for dir_path in [out_dir, raw_dir]:
         os.makedirs(dir_path, exist_ok=True)
 
-
     save_coronal_sections(input_fn, out_dir, raw_dir, sub, hemisphere, chunk, ystep=ystep, clobber=clobber )
-
 
     chunk_info_df = pd.DataFrame(
         {
