@@ -387,6 +387,29 @@ def check_transformation_not_empty(
     ), f"Error in applying transformation: \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n"
 
 
+def resample_struct_reference_volume(
+    orig_struct_vol_fn: str, resolution: float, output_dir: str, clobber: bool = False
+) -> str:
+    """Resample the structural reference volume to the desired resolution.
+
+    :param orig_struct_vol_fn: path to the original structural reference volume
+    :param hemisphere: hemisphere
+    :param resolution: resolution of the volume
+    :param output_dir: path to output directory
+    :param clobber: boolean indicating whether to overwrite existing files
+    :return: path to the resampled structural reference volume
+    """
+    base_name = re.sub(
+        ".nii", f"_{resolution}mm.nii", os.path.basename(orig_struct_vol_fn)
+    )
+    struct_vol_rsl_fn = f"{output_dir}/{base_name}"
+
+    if not os.path.exists(struct_vol_rsl_fn) or clobber:
+        resample_to_resolution(orig_struct_vol_fn, [resolution] * 3, struct_vol_rsl_fn)
+
+    return struct_vol_rsl_fn
+
+
 def simple_ants_apply_tfm(
     in_fn: str,
     ref_fn: str,

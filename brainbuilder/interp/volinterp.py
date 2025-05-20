@@ -5,12 +5,11 @@ from subprocess import run
 
 import numpy as np
 import pandas as pd
-from scipy.ndimage import gaussian_filter
-from skimage import exposure
-from skimage.transform import resize
+from medpy.filter.smoothing import anisotropic_diffusion
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.interp.acqvolume import create_thickened_volumes
+from brainbuilder.utils import utils
 from brainbuilder.utils.nl_deformation_flow import nlflow_isometric
 from brainbuilder.volalign import align_3d, verify_chunk_limits
 
@@ -80,14 +79,15 @@ def _interpolate_missing_sections(
     return vol_interp
 
 
-
-
 def volumetric_interpolation(
     sect_info: pd.DataFrame,
     chunk_info: pd.DataFrame,
     struct_ref_vol: str,
     output_dir: str,
     resolution: float,
+    niter: int = 20,
+    kappa: float = 100,
+    gamma: float = 0.1,
     clobber: bool = False,
 ) -> pd.DataFrame:
     """Interpolates the volumes of the sections in the chunk_info dataframe.
@@ -132,18 +132,52 @@ def volumetric_interpolation(
             width=1,
         )
 
+        chunk_info_cls_thickened_csv = create_thickened_volumes(
+            curr_output_dir + "/cls/",
+            curr_chunk_info,
+            curr_sect_info,
+            resolution,
+            struct_ref_vol,
+            tissue_type="cls",
+            clobber=clobber,
+            width=1,
+        )
+
         chunk_info_thickened = pd.read_csv(chunk_info_thickened_csv)
+        chunk_info_cls_thickened = pd.read_csv(chunk_info_cls_thickened_csv)
 
         print(f"Interpolation Chunk: {chunk}, Acquisition: {acq}")
-        cls_fin = chunk_info_thickened["thickened_cls"].values[0]
+        cls_fin = chunk_info_cls_thickened["thickened"].values[0]
         acq_fin = chunk_info_thickened["thickened"].values[0]
 
-        interp_acq_iso_fin, nlflow_tfm_list = nlflow_isometric(acq_fin, curr_output_dir, resolution, clobber=clobber)
+        interp_acq_iso_fin, nlflow_tfm_dict = nlflow_isometric(
+            acq_fin, curr_output_dir, resolution, clobber=clobber
+        )
 
-        interp_cls_iso_fin = nlflow_isometric(
-            cls_fin, curr_output_dir, resolution, tfm_list = nlflow_tfm_list, clobber=clobber
-        ) 
+        interp_cls_iso_fin, _ = nlflow_isometric(
+            cls_fin,
+            curr_output_dir + "/cls/",
+            resolution,
+            tfm_dict=nlflow_tfm_dict,
+            clobber=clobber,
+        )
 
+        interp_acq_iso_smoothed_fin = interp_acq_iso_fin.replace(
+            ".nii", f"_diff-{niter}-{kappa}-{gamma}.nii"
+        )
+
+        if not os.path.exists(interp_acq_iso_smoothed_fin) or clobber:
+            vol_cls = nib.load(interp_cls_iso_fin).get_fdata()
+            vol_acq = nib.load(interp_acq_iso_fin).get_fdata()
+            vol_acq[vol_cls < 0.05] = 0
+
+            vol_acq = anisotropic_diffusion(
+                vol_acq, niter=niter, kappa=kappa, gamma=gamma, option=2
+            )
+
+            nib.Nifti1Image(
+                vol_acq, nib.load(interp_acq_iso_fin).affine, direction_order="lpi"
+            ).to_filename(interp_acq_iso_smoothed_fin)
 
         row = pd.DataFrame(
             {
@@ -200,7 +234,8 @@ def create_acq_atlas(chunk_info, output_dir, clobber: bool = False):
         n = len(chunk_info)
 
         for i, row in chunk_info.iterrows():
-            interp_vol_fin = row["interp_nat"]
+            interp_vol_fin = row["interp_cls_nat"]
+            print("atlas file:", interp_vol_fin)
 
             img = nib.load(interp_vol_fin)
             print(i / n, interp_vol_fin)
@@ -215,9 +250,9 @@ def create_acq_atlas(chunk_info, output_dir, clobber: bool = False):
         mean_vol /= n
 
         # normalize data between -1 and 1
-        data = gaussian_filter(data, sigma=2)
-        data = 2 * (data - np.min(data)) / (np.max(data) - np.min(data)) - 1
-        data = exposure.equalize_adapthist(data, clip_limit=0.01, kernel_size=20)
+        # data = gaussian_filter(data, sigma=2)
+        # data = 2 * (data - np.min(data)) / (np.max(data) - np.min(data)) - 1
+        # data = exposure.equalize_adapthist(data, clip_limit=0.01, kernel_size=20)
 
         mean_vol = (
             255 * (mean_vol - np.min(mean_vol)) / (np.max(mean_vol) - np.min(mean_vol))
@@ -239,16 +274,27 @@ def apply_final_transform_to_files(
     chunk_info["interp_stx"] = chunk_info["interp_nat"].replace(
         "interp-vol_iso", "interp-vol_stx"
     )
+    print(chunk_info.head())
+    print(chunk_info["interp_nat"])
+    print(chunk_info["acquisition"])
 
-    for i, row in chunk_info.iterrows():
+    for _, row in chunk_info.iterrows():
         interp_nat_fin = row["interp_nat"]
         interp_stx_fin = interp_nat_fin.replace("interp-vol_iso", "interp-vol_stx")
 
+        print("interp_stx_fin:", interp_stx_fin)
+
         if not os.path.exists(interp_stx_fin) or clobber:
+            cmd = f"antsApplyTransforms -d 3 -i {interp_nat_fin} -o {interp_stx_fin} -r {ref_vol_fin} -t {nl_3d_tfm_fn} --float 1"
+
+            print(cmd)
+
             run(
-                f"antsApplyTransforms -d 3 -i {interp_nat_fin} -o {interp_stx_fin} -r {ref_vol_fin} -t {nl_3d_tfm_fn} --float 1",
+                cmd,
                 shell=True,
             )
+
+            assert nib.load(interp_stx_fin).get_fdata().sum() > 0, "Error: Empty Output"
 
 
 def create_final_transform(
@@ -270,12 +316,19 @@ def create_final_transform(
     # resample_from_to(nibabel.load(ref_fin), nibabel.load(in_ref_rsl_fin)).to_filename(ref_rsl_fin)
     ref_rsl_fin = in_ref_rsl_fin
 
+    os.makedirs(output_dir, exist_ok=True)
+
+    ref_rsl_fin = utils.resample_struct_reference_volume(
+        in_ref_rsl_fin, resolution, output_dir, clobber=clobber
+    )
+
     world_chunk_limits, vox_chunk_limits = verify_chunk_limits(ref_rsl_fin, chunk_info)
 
     print("Create Acquisition Atlas")
-    atlas_vol_fin, mask_vol_fin = create_acq_atlas(
-        chunk_info, output_dir, clobber=clobber
-    )
+    atlas_vol_fin, _ = create_acq_atlas(chunk_info, output_dir, clobber=clobber)
+
+    # drop rows with Nan
+    chunk_info = chunk_info.dropna()
 
     resolution_3d = min(resolution_list_3d)
 
@@ -300,8 +353,8 @@ def create_final_transform(
         sub,
         hemisphere,
         chunk,
-        mask_vol_fin,
-        ref_rsl_fin,
+        atlas_vol_fin,  # moving
+        ref_rsl_fin,  # fixed
         mask_out_dir,
         nl_3d_tfm_fn,
         nl_3d_tfm_inv_fn,
@@ -315,28 +368,9 @@ def create_final_transform(
         use_pad_volume=False,
         clobber=clobber,
     )
+    print("atlas_vol_fn:", atlas_vol_fin)
 
-    atlas_tfm_fn = (
-        f"{atlas_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_SyN_CC_Composite.h5"
-    )
-    atlas_tfm_inv_fn = f"{atlas_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_SyN_CC_InverseComposite.h5"
-    rec_3d_rsl_fn = (
-        f"{atlas_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_rec_3d_rsl.nii.gz"
-    )
-    ref_3d_rsl_fn = (
-        f"{atlas_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_ref_3d_rsl.nii.gz"
-    )
-
-    cmd = "antsRegistration --verbose 0 --dimensionality 3 --float 0 --collapse-output-transforms 1"
-    cmd += f" --output [ {atlas_tfm_fn}, {rec_3d_rsl_fn}, {ref_3d_rsl_fn} ] --interpolation Linear --use-histogram-matching 0 --winsorize-image-intensities [ 0.005,0.995 ]"
-    cmd += (
-        f" --transform SyN[ 0.1,3,0 ] --metric CC[ {atlas_vol_fin},{ref_rsl_fin},1,4 ]"
-    )
-    cmd += " --convergence [ 100,1e-6,10 ] --shrink-factors 1 --smoothing-sigmas 0.1vox"
-
-    apply_final_transform_to_files(
-        chunk_info, rec_3d_rsl_fn, nl_3d_tfm_fn, clobber=True
-    )
+    apply_final_transform_to_files(chunk_info, ref_rsl_fin, nl_3d_tfm_fn, clobber=False)
 
 
 def volumetric_pipeline(
@@ -371,7 +405,6 @@ def volumetric_pipeline(
         assert len(curr_hemi_info) > 0, "Error: no hemisphere info found"
 
         ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
-        print(chunk_info.columns)
 
         # Volumetric interpolation
         curr_chunk_info = volumetric_interpolation(
@@ -385,7 +418,7 @@ def volumetric_pipeline(
 
         curr_chunk_info = pd.merge(
             chunk_info, curr_chunk_info, how="left", on=["sub", "hemisphere", "chunk"]
-        )
+        ).dropna()
 
         resolution_3d = 0.4
         resolution_list_3d = [r for r in resolution_list if r >= resolution_3d]
@@ -405,3 +438,5 @@ def volumetric_pipeline(
             resolution_list_3d,
             clobber=clobber,
         )
+
+    return curr_chunk_info

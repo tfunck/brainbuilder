@@ -152,7 +152,7 @@ def local_metric(
     ]
 
     num_cores = cpu_count()
-    res = Parallel(n_jobs=1)(
+    res = Parallel(n_jobs=num_cores)(
         delayed(process_pixel)(x, y, fx_vol, mv_vol, offset) for x, y in xy
     )
 

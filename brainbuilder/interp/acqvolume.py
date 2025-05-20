@@ -10,9 +10,6 @@ from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter, label
 
 import brainbuilder.utils.ants_nibabel as nib
-from brainbuilder.interp.adjust_section_means import (
-    calculate_section_adjustment_factors,
-)
 from brainbuilder.utils.utils import (
     get_thicken_width,
     simple_ants_apply_tfm,
@@ -90,7 +87,7 @@ def thicken_sections_within_chunk(
     acquisition: str,
     chunk_sect_info: pd.DataFrame,
     resolution: float,
-    tissue_type: str = "",
+    tissue_type: str = None,
     gaussian_sd: float = 0,
     width: int = None,
 ) -> None:
@@ -126,7 +123,13 @@ def thicken_sections_within_chunk(
         y = int(row["sample"])
 
         # Conversion of radioactivity values to receptor density values
-        nl_2d_rsl = row["nl_2d_rsl"]
+        if tissue_type != None:
+            target_section = f"nl_2d_{tissue_type}_rsl"
+        else:
+            target_section = "nl_2d_rsl"
+
+        nl_2d_rsl = row[target_section]
+
         section = nib.load(nl_2d_rsl).get_fdata().copy()
 
         if np.sum(section) == 0:
@@ -322,7 +325,7 @@ def create_thickened_volumes(
     sect_info: pd.DataFrame,
     resolution: float,
     struct_vol_rsl_fn: str,
-    tissue_type: str = "",
+    tissue_type: str = None,
     gaussian_sd: float = 0,
     width: int = None,
     clobber: bool = False,
@@ -341,6 +344,8 @@ def create_thickened_volumes(
     :param clobber: overwrite existing files
     :return: None
     """
+    os.makedirs(output_dir, exist_ok=True)
+
     output_csv = f"{output_dir}/chunk_info_thickened_{resolution}mm.csv"
 
     thickened_files_exist = False
@@ -367,7 +372,11 @@ def create_thickened_volumes(
             idx = chunk_info["chunk"] == chunk
             chunk_info_row = chunk_info[idx].iloc[0]
 
-            thickened_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}{tissue_type}_thickened.nii.gz"
+            if tissue_type is not None:
+                thickened_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}_{tissue_type}_thickened.nii.gz"
+            else:
+                thickened_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}_thickened.nii.gz"
+
             thickened_stx_fn = re.sub(".nii.gz", "_space-stx.nii.gz", thickened_fn)
 
             chunk_info_row["acquisition"] = acquisition
@@ -382,6 +391,7 @@ def create_thickened_volumes(
                     acquisition,
                     chunk_sect_info,
                     resolution,
+                    tissue_type=tissue_type,
                     gaussian_sd=gaussian_sd,
                     width=width,
                 )

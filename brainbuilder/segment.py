@@ -9,6 +9,7 @@ import SimpleITK as sitk
 from joblib import Parallel, delayed
 from skimage.filters import (
     threshold_li,
+    threshold_mean,
     threshold_otsu,
     threshold_triangle,
     threshold_yen,
@@ -47,16 +48,23 @@ def multi_threshold(img: np.ndarray) -> np.ndarray:
     :return: np.ndarray, segmented image
     """
     seg = np.zeros_like(img)
-    # methods = [threshold_li, threshold_mean, threshold_triangle, threshold_otsu]
-    methods = [threshold_otsu]
+    methods = [
+        threshold_li,
+        threshold_yen,
+        threshold_mean,
+        threshold_triangle,
+        threshold_otsu,
+    ]
+
     for method in methods:
         im_thr = apply_threshold(img, method)
         seg += im_thr
 
-    n = len(methods)
-    seg /= n
-    seg[seg < 0.5] = 0
-    seg[seg >= 0.5] = 1
+    # n = len(methods)
+    # seg /= n
+    # seg[seg < 0.5] = 0
+    # seg[seg >= 0.5] = 1
+
     return seg
 
 
@@ -422,7 +430,7 @@ def segment(
         )
 
         if missing_segmentations or clobber:
-            if seg_method == "nnunetv2":
+            if "nnunetv2" in seg_method:
                 print("\tSegmenting with nnUNet")
                 try:
                     utils.shell(
@@ -433,7 +441,7 @@ def segment(
                     print("Warning: nnUNet failed to segment")
                     print(e)
                     seg_method = None
-            elif seg_method == "nnunetv1":
+            elif "nnunetv1" in seg_method:
                 print("\tSegmenting with nnUNet")
                 try:
                     # Export to environment variable
@@ -465,7 +473,9 @@ def segment(
                 print("\tConvert Files from nnUNet to standard nifti files")
 
                 Parallel(n_jobs=num_cores)(
-                    delayed(convert_from_nnunet)(nnunet_fn, raw_fn, seg_fn, output_dir)
+                    delayed(convert_from_nnunet)(
+                        nnunet_fn, raw_fn, seg_fn, seg_method=seg_method
+                    )
                     for nnunet_fn, raw_fn, seg_fn in nnunet2nifti_to_do
                 )
 
@@ -482,7 +492,7 @@ def segment(
 
 
 def convert_from_nnunet(
-    input_fn: str, reference_fn: str, output_fn: str, seg_dir: str
+    input_fn: str, reference_fn: str, output_fn: str, seg_method: str = "nnunetv1"
 ) -> None:
     """Convert segmented files from the nnunet output to an easier to use.
 
@@ -495,6 +505,12 @@ def convert_from_nnunet(
     ref_img = nib.load(reference_fn)
     ar = nib.load(input_fn).get_fdata()
 
+    def _nnunet(ar):
+        gm = ar == 1
+        ar *= 0
+        ar[gm] = 1
+        return ar
+
     if (np.sum(ar == 1) / np.product(ar.shape)) < 0.02:
         print("\nWarning: Found a section that nnUNet failed to segment!\n")
         histogram_threshold(reference_fn, output_fn)
@@ -502,19 +518,21 @@ def convert_from_nnunet(
         if np.sum(ar) == 0:
             print("Error: empty segmented image with nnunet")
             exit(0)
-        ar[(ar == 3) | (ar == 4)] = 1
 
-        gm = ar == 1
-        wm = ar == 2
-
-        ar *= 0
-        ar[gm] = 1
-        ar[wm] = 2
+        ar = _nnunet(ar)
 
         ar = ar.reshape([ar.shape[0], ar.shape[1]])
         # ar = ar.T
         ar = resize(ar, ref_img.shape, order=0)
         ar = np.fliplr(np.flipud(ar))
+
+        if "hybrid" in seg_method:
+            print("\tUsing nnUNet hybrid segmentation")
+            ar_thr = multi_threshold(ref_img.get_fdata())
+            ar = ar + ar_thr
+            ar /= ar.max()
+        else:
+            exit()
 
         print("\tWriting", output_fn)
         nib.Nifti1Image(ar, ref_img.affine, direction_order="lpi").to_filename(

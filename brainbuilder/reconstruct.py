@@ -139,11 +139,6 @@ def reconstruct(
     )
     # qc.data_set_quality_control(sect_info_csv, qc_dir, column="img")
 
-    if use_intensity_correction:
-        sect_info_csv = intensity_correction(
-            sect_info_csv, chunk_info_csv, intens_corr_dir, clobber=clobber
-        )
-
     # Stage: Segment
     seg_df_csv = segment(
         chunk_info_csv,
@@ -153,6 +148,12 @@ def reconstruct(
         seg_method=seg_method,
         clobber=clobber,
     )
+
+    if use_intensity_correction:
+        sect_info_csv = intensity_correction(
+            seg_df_csv, chunk_info_csv, intens_corr_dir, clobber=clobber
+        )
+
     # qc.data_set_quality_control(seg_df_csv, qc_dir, column="seg")
 
     # Stage: Initial rigid aligment of sections
