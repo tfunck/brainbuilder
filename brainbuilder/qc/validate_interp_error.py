@@ -726,8 +726,6 @@ def validate_interp_error(
     output_sect_info_csv = f"{output_dir}/validate_interp_error_sect_info.csv"
     sect_info = pd.read_csv(sect_info_csv)
     chunk_info = pd.read_csv(chunk_info_csv)
-    print(sect_info["img"].values[0:10])
-    exit(0)
 
     # Only keep highest resolution in chunk_info
     chunk_info = chunk_info.loc[

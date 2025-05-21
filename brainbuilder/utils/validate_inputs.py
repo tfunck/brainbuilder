@@ -59,7 +59,7 @@ class Column:
                 return True
 
             if n_jobs is None:
-                n_jobs = int(cpu_count() / 2)
+                n_jobs = int(cpu_count() )
 
             validated_rows = Parallel(n_jobs=n_jobs)(
                 delayed(val_func)(var) for var in rows
@@ -124,6 +124,7 @@ def validate_dataframe(
             validated = column.validate_rows_in_column(
                 df[column.name].values, n_jobs=n_jobs
             )
+            print(column.name, validated)
             valid_columns.append(validated)
 
     valid_inputs = np.product(np.array(valid_columns))

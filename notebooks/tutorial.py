@@ -1,20 +1,27 @@
 # CELL 1
 from brainbuilder.tests.generate_synthetic_data import generate_synthetic_data
-   
+import os
+
+default_path = os.path.realpath(os.path.dirname(os.path.abspath(__file__))+'/../')+'/'
+
 generate_synthetic_data( 
-    input_fn = '../data/mni_icbm152_01_tal_nlin_asym_09c.nii.gz',
-    out_dir = '../data/mni152_test',
-    gm_surf_fn = '../data/MR1_gray_surface_R_81920.surf.gii',
-    wm_surf_fn = '../data/MR1_white_surface_R_81920.surf.gii',
-    clobber = False
+    input_fn = f'{default_path}data/mni_icbm152_01_tal_nlin_asym_09c.nii.gz',
+    out_dir = f'{default_path}data/mni152_test',
+    gm_surf_fn = f'{default_path}data/MR1_gray_surface_R_81920.surf.gii',
+    wm_surf_fn = f'{default_path}data/MR1_white_surface_R_81920.surf.gii',
+    clobber = True
     )
+
+
+def realpath(x) : return os.path.realpath(default_path+x)
 
 # CELL 2
 import pandas as pd
 
-sect_info_csv = "../data/mni152_test/sect_info.csv"
-chunk_info_csv = "../data/mni152_test/chunk_info.csv"
-hemi_info_csv = "../data/mni152_test/hemi_info.csv"
+sect_info_csv = f"{default_path}data/mni152_test/sect_info.csv"
+chunk_info_csv = f"{default_path}data/mni152_test/chunk_info.csv"
+hemi_info_csv = f"{default_path}data/mni152_test/hemi_info.csv"
+
 
 # Load the sect_info csv and visualize contents. Stores section-wise information
 print('Sect Info:')
@@ -43,6 +50,6 @@ df = reconstruct(
         chunk_info_csv,
         sect_info_csv,
         [4, 3, 2, 1],
-        "tests/data/mni152_test_output/",
+        f"{default_path}/data/mni152_test_output/",
         clobber=False,
     )
