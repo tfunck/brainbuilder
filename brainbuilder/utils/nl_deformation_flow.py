@@ -80,6 +80,7 @@ def compute_ants_alignment(
         inv_tfm_path (str): Path to the inverse transform file.
     """
     outprefix = f"{prefixdir}/deformation_field_{ymin}_{ymax}"
+    os.makedirs(prefixdir, exist_ok=True)
 
     write_composite_transform = 0
 
@@ -101,10 +102,12 @@ def compute_ants_alignment(
         # Load the sections
 
         try:
-            cmd = "antsRegistration --verbose 0 --dimensionality 2 --float 0 --collapse-output-transforms 1"
+            cmd = "antsRegistration --verbose 1 --dimensionality 2 --float 0 --collapse-output-transforms 1"
             cmd += f" --output [ {outprefix}_,{mv_rsl_fn},/tmp/tmp.nii.gz ] --interpolation Linear --use-histogram-matching 0 --winsorize-image-intensities [ 0.005,0.995 ]"
             cmd += f" --transform SyN[ 0.1,3,0 ] --metric CC[ {sec1_path},{sec0_path},1,4 ]"
             cmd += " --convergence [ 300x200x150x100x50,1e-6,10 ] --shrink-factors 8x4x3x2x1 --smoothing-sigmas 4x2x1.5x1x0vox"
+
+            print(cmd)
 
             subprocess.run(cmd, shell=True, executable="/bin/bash")
 
@@ -226,7 +229,7 @@ def nl_deformation_flow(
 
         qc_png = f"{qc_dir}/qc_flow_{y}.png"
 
-        if not os.path.exists(qc_png):
+        if not os.path.exists(qc_png) and False:
             # create qc image
             img = nib.load(output_image_path).get_fdata()
             sec1 = nib.load(sec1_path).get_fdata()
@@ -264,11 +267,13 @@ def process_section(
     clobber: bool = False,
 ):
     """Process a pair of sections and compute the deformation flow."""
-    print("Processing sections:", y0, y1)
+    print("\t>>> Processing sections:", y0, y1)
     if fwd_tfm_path is not None:
+        assert os.path.exists(fwd_tfm_path)
         print("Using fwd_tfm_path:", fwd_tfm_path)
 
     if inv_tfm_path is not None:
+        assert os.path.exists(inv_tfm_path)
         print("Using inv_tfm_path:", inv_tfm_path)
 
     orig_dir = f"{output_dir}/orig"
@@ -325,7 +330,7 @@ def nl_deformation_flow_3d(
         # cast all keys to str
         tfm_dict = {str(k): i for k, i in tfm_dict.items()}
 
-    results = Parallel(n_jobs=-1)(
+    results = Parallel(n_jobs=4)(
         delayed(process_section)(
             y0,
             y1,

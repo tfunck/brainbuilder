@@ -1,7 +1,5 @@
-numpy
-scipy
-pandas
 stripy
+pandas
 h5py
 guppy3
 psutil
@@ -26,3 +24,5 @@ pre-commit
 nnunet
 nnunetv2
 medpy
+numpy<2
+scipy

@@ -308,29 +308,29 @@ def create_final_transform(
     resolution_list_3d,
     clobber: bool = False,
 ):
-    # DEBUG
-    # ref_fin = "/data/receptor/macaque/templates/MEBRAINS_T1_masked_left.nii.gz"
-    # ref_rsl_fin=output_dir+'/'+os.path.basename(in_ref_rsl_fin).replace('.nii.gz', f'_{resolution}mm.nii.gz')
-    # import nibabel
-    # from nibabel.processing import resample_from_to
-    # resample_from_to(nibabel.load(ref_fin), nibabel.load(in_ref_rsl_fin)).to_filename(ref_rsl_fin)
     ref_rsl_fin = in_ref_rsl_fin
 
     os.makedirs(output_dir, exist_ok=True)
 
-    ref_rsl_fin = utils.resample_struct_reference_volume(
+    resolution_3d = min(resolution_list_3d)
+
+    ref_rsl_3d_fin = utils.resample_struct_reference_volume(
+        in_ref_rsl_fin, resolution_3d, output_dir, clobber=clobber
+    )
+
+    ref_rsl_2d_fin = utils.resample_struct_reference_volume(
         in_ref_rsl_fin, resolution, output_dir, clobber=clobber
     )
 
-    world_chunk_limits, vox_chunk_limits = verify_chunk_limits(ref_rsl_fin, chunk_info)
+    world_chunk_limits, vox_chunk_limits = verify_chunk_limits(
+        ref_rsl_3d_fin, chunk_info
+    )
 
     print("Create Acquisition Atlas")
     atlas_vol_fin, _ = create_acq_atlas(chunk_info, output_dir, clobber=clobber)
 
     # drop rows with Nan
     chunk_info = chunk_info.dropna()
-
-    resolution_3d = min(resolution_list_3d)
 
     mask_out_dir = f"{output_dir}/mask/"
     atlas_out_dir = f"{output_dir}/atlas/"
@@ -354,7 +354,7 @@ def create_final_transform(
         hemisphere,
         chunk,
         atlas_vol_fin,  # moving
-        ref_rsl_fin,  # fixed
+        ref_rsl_3d_fin,  # fixed
         mask_out_dir,
         nl_3d_tfm_fn,
         nl_3d_tfm_inv_fn,
@@ -370,7 +370,9 @@ def create_final_transform(
     )
     print("atlas_vol_fn:", atlas_vol_fin)
 
-    apply_final_transform_to_files(chunk_info, ref_rsl_fin, nl_3d_tfm_fn, clobber=False)
+    apply_final_transform_to_files(
+        chunk_info, ref_rsl_2d_fin, nl_3d_tfm_fn, clobber=False
+    )
 
 
 def volumetric_pipeline(
