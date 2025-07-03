@@ -70,7 +70,7 @@ def resample_and_transform(
     row: pd.Series,
     tfm_ref_fn: str,
     clobber: bool = False,
-) -> None:
+) -> pd.Series:
     """Resamples and transforms the segmented images to the current resolution.
 
     :param output_dir: output directory
@@ -117,6 +117,11 @@ def resample_and_transform(
             print("\tNo transform for", seg_rsl_fn)
             shutil.copy(tfm_input_fn, seg_rsl_tfm_fn)
 
+    row["nl_2d_cls_rsl"] = seg_rsl_tfm_fn
+    row["nl_2d_rsl"] = seg_rsl_tfm_fn
+
+    return row
+
 
 def resample_transform_segmented_images(
     sect_info: pd.DataFrame,
@@ -153,7 +158,7 @@ def resample_transform_segmented_images(
             order=0,
         )
 
-    Parallel(n_jobs=num_cores, backend="multiprocessing")(
+    results = Parallel(n_jobs=num_cores, backend="multiprocessing")(
         delayed(resample_and_transform)(
             output_dir,
             resolution_itr,
@@ -165,7 +170,10 @@ def resample_transform_segmented_images(
         )
         for i, row in sect_info.iterrows()
     )
-    return None
+
+    sect_info = pd.DataFrame(results)
+
+    return sect_info
 
 
 def interpolate_missing_sections(
@@ -397,6 +405,7 @@ def create_intermediate_volume(
     sect_info: pd.DataFrame,
     resolution_itr: int,
     resolution: float,
+    resolution_list: list,
     resolution_3d: float,
     out_dir: str,
     seg_rsl_fn: str,
@@ -417,32 +426,84 @@ def create_intermediate_volume(
     param: init_align_fn: filename of the initial alignment volume
     return: None
     """
+    out_2d_dir = out_dir + "/2d/"
+
+    os.makedirs(out_2d_dir, exist_ok=True)
+
     print("\t\tStep 2: Autoradiograph segmentation")
     if not os.path.exists(seg_rsl_fn) or clobber:
         print("\t\t\tResampling segemented sections")
 
-        resample_transform_segmented_images(
+        sect_info = resample_transform_segmented_images(
             sect_info,
             resolution_itr,
             resolution,
             resolution_3d,
-            out_dir + "/2d/",
+            out_2d_dir,
             num_cores=num_cores,
             clobber=clobber,
         )
 
         # write 2d segmented sections at current resolution. apply initial transform
         print("\t\t\tInterpolating between segemented sections")
-        volumetric_interpolation(
+        # volumetric_interpolation(
+        #    sect_info,
+        #    init_align_fn,
+        #    out_dir + "/2d/",
+        #    out_dir,
+        #    seg_rsl_fn,
+        #    resolution_3d,
+        #    chunk_info["section_thickness"].values[0],
+        #    interpolation=interpolation,
+        #    clobber=clobber,
+        # )
+        from brainbuilder.align.align_2d import concatenate_sections_to_volume
+        from brainbuilder.interp.volinterp import (
+            create_acq_atlas,
+            volumetric_interpolation,
+        )
+
+        curr_align_fn = (
+            out_dir
+            + "/"
+            + os.path.basename(seg_rsl_fn).replace(".nii.gz", "_rsl_2d.nii.gz")
+        )
+
+        img = nib.load(init_align_fn)
+
+        example_2d_list = glob(f"{out_2d_dir}/*{resolution_3d}*rsl_tfm.nii.gz")
+
+        assert len(example_2d_list) > 0, "Error: no files found in {}".format(
+            out_2d_dir
+        )
+
+        # Example image should be at maximum 2D resolution
+        example_2d_img = nib.load(example_2d_list[0])
+
+        dims = [example_2d_img.shape[0], img.shape[1], example_2d_img.shape[1]]
+
+        affine = img.affine.copy()
+        affine[0, 0] = resolution_3d
+        affine[1, 1] = img.affine[1, 1]
+        affine[2, 2] = resolution_3d
+
+        concatenate_sections_to_volume(
+            sect_info, "nl_2d_rsl", curr_align_fn, dims, affine
+        )
+
+        chunk_info["nl_2d_vol_fn"] = curr_align_fn
+
+        chunk_info = volumetric_interpolation(
             sect_info,
-            init_align_fn,
-            out_dir + "/2d/",
+            chunk_info,
+            curr_align_fn,
             out_dir,
-            seg_rsl_fn,
-            resolution_3d,
-            chunk_info["section_thickness"].values[0],
-            interpolation=interpolation,
+            resolution,
+            resolution_list,
             clobber=clobber,
         )
+
+        print("Create Acquisition Atlas")
+        create_acq_atlas(chunk_info, out_dir, seg_rsl_fn, clobber=clobber)
 
     return None

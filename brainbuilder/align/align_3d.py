@@ -273,6 +273,7 @@ def run_alignment(
     init_tfm: str = None,
     sampling: float = 0.9,
     use_3d_syn_cc: bool = True,
+    linear_steps: str = ["rigid", "similarity", "affine"],
     clobber: bool = False,
 ) -> None:
     """Run the alignment of the tissue chunk to the chunk from the reference volume.
@@ -342,24 +343,28 @@ def run_alignment(
         init_str = f" --initial-moving-transform {init_tfm} "
 
     # calculate rigid registration
-    if not os.path.exists(f"{prefix_rigid}Composite.h5"):
+    if not os.path.exists(f"{prefix_rigid}Composite.h5") and "rigid" in linear_steps:
         rigid_cmd = f"{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] "
         shell(rigid_cmd, verbose=True)
         write_log(out_dir, "rigid", rigid_cmd)
+        init_str = f"--initial-moving-transform  {prefix_rigid}Composite.h5"
 
     # calculate similarity registration
-    if not os.path.exists(f"{prefix_similarity}Composite.h5"):
-        similarity_cmd = f"{base}  --initial-moving-transform  {prefix_rigid}Composite.h5 -t Similarity[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] "
+    if (
+        not os.path.exists(f"{prefix_similarity}Composite.h5")
+        and "similarity" in linear_steps
+    ):
+        similarity_cmd = f"{base}  {init_str} -t Similarity[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] "
         shell(similarity_cmd, verbose=True)
         write_log(out_dir, "similarity", similarity_cmd)
-
-    affine_init = f"--initial-moving-transform {prefix_similarity}Composite.h5"
+        init_str = f"--initial-moving-transform {prefix_similarity}Composite.h5"
 
     # calculate affine registration
-    if not os.path.exists(f"{prefix_affine}Composite.h5"):
-        affine_cmd = f"{base}  {affine_init} -t Affine[{step}] -m {metric}[{ref_tgt_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] "
+    if not os.path.exists(f"{prefix_affine}Composite.h5") and "affine" in linear_steps:
+        affine_cmd = f"{base}  {init_str} -t Affine[{step}] -m {metric}[{ref_tgt_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] "
         shell(affine_cmd, verbose=True)
         write_log(out_dir, "affine", affine_cmd)
+        init_str = f"--initial-moving-transform {prefix_affine}Composite.h5"
 
     prefix_mattes_syn = f"{prefix}_SyN_Mattes_"
     mattes_syn_out_fn = f"{prefix_mattes_syn}volume.nii.gz"
@@ -369,25 +374,38 @@ def run_alignment(
     cc_syn_out_fn = f"{prefix_cc_syn}volume.nii.gz"
     cc_syn_inv_fn = f"{prefix_cc_syn}volume_inverse.nii.gz"
 
-    if not os.path.exists(f"{prefix_mattes_syn}Composite.h5"):
-        f"{prefix_affine}Composite.h5"
-        nl_base = f"{base}  --initial-moving-transform {prefix_affine}Composite.h5 -o [{prefix_mattes_syn},{mattes_syn_out_fn},{mattes_syn_inv_fn}] "
-        nl_base += f" -t SyN[{syn_rate}] -m {nl_metric}  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} "
+    prefix_syn = prefix_mattes_syn
+    syn_out_fn = mattes_syn_out_fn
+    syn_inv_fn = mattes_syn_inv_fn
+    # calculate nonlinear registration with Mattes metric
+    if use_3d_syn_cc:
+        prefix_syn = prefix_cc_syn
+        syn_out_fn = cc_syn_out_fn
+        syn_inv_fn = cc_syn_inv_fn
+
+    if not os.path.exists(f"{prefix_syn}Composite.h5"):
+        nl_base = f"{base}   {init_str} -o [{prefix_syn},{syn_out_fn},{syn_inv_fn}] "
+        # nl_base += f" -t SyN[{syn_rate}] -m {nl_metric}  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} "
+
+        # if use_3d_syn_cc:
+        nl_base += f" -t SyN[{syn_rate}] -m {cc_metric} -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str} "
+
         shell(nl_base, verbose=True)
+
         write_log(out_dir, "syn-mattes", nl_base)
 
-    prefix_syn = prefix_mattes_syn
+        init_str = f"--initial-moving-transform {prefix_syn}Composite.h5"
 
-    if not os.path.exists(f"{prefix_cc_syn}Composite.h5") and use_3d_syn_cc:
-        f"{prefix_mattes_syn}Composite.h5"
-        nl_base = f"{base}  --initial-moving-transform {prefix_affine}Composite.h5 -o [{prefix_cc_syn},{cc_syn_out_fn},{cc_syn_inv_fn}] "
-        nl_base += f" -t SyN[{syn_rate}] -m {cc_metric} -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str}"
-        shell(nl_base, verbose=True)
-        write_log(out_dir, "syn-cc", nl_base)
+        assert os.path.exists(
+            f"{prefix_syn}Composite.h5"
+        ), f"Error: {prefix_syn}Composite.h5 does not exist"
 
-        prefix_syn = prefix_cc_syn
+        assert os.path.exists(
+            f"{prefix_syn}InverseComposite.h5"
+        ), f"Error: {prefix_syn}InverseComposite.h5 does not exist"
 
     simple_ants_apply_tfm(seg_rsl_fn, ref_rsl_fn, prefix_syn + "Composite.h5", out_fn)
+
     simple_ants_apply_tfm(
         ref_rsl_fn, seg_rsl_fn, prefix_syn + "InverseComposite.h5", out_inv_fn
     )
@@ -415,6 +433,7 @@ def align_3d(
     base_lin_itr: int = 500,
     use_3d_syn_cc: bool = True,
     use_pad_volume: bool = True,
+    linear_steps: str = ["rigid", "similarity", "affine"],
     clobber: bool = False,
     verbose: bool = True,
 ) -> int:
@@ -471,6 +490,7 @@ def align_3d(
         img = nib.load(ref_rsl_fn)
         img.shape[1]
 
+        print("\n\nRESOLUTION", resolution)
         # extract chunk from srv and write it
         ref_chunk_fn = write_ref_chunk(
             sub,
@@ -502,6 +522,7 @@ def align_3d(
             sampling=0.95,
             init_tfm=init_tfm,
             use_3d_syn_cc=use_3d_syn_cc,
+            linear_steps=linear_steps,
             metric="Mattes",
         )
 

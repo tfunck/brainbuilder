@@ -507,8 +507,6 @@ def volume_to_mesh(
 
     xmax = np.max(x)
     zmax = np.max(z)
-    print(zmax)
-    print(vol.shape)
     if zmax >= vol.shape[2]:
         print(f"\nWARNING: z index {zmax} is greater than dimension {vol.shape[2]}\n")
     if xmax >= vol.shape[0]:
@@ -664,9 +662,6 @@ def multi_mesh_to_volume(
         assert (
             points.shape[0] == profiles.shape[0]
         ), f"Error mismatch in number of points ({points.shape[0]}, {profiles.shape[0]}) between {surf_fn} and vertex values file"
-
-        print("\tSURF", surf_fn)
-        print(np.sum(np.abs(profiles[:, ii])))
 
         interp_vol, n_vol = mesh_to_volume(
             points,
@@ -826,7 +821,6 @@ def volume_to_surface(
     vol = img.get_fdata()
 
     if gauss_sd > 0:
-        print("\tGaussian Smoothing, sd:", gauss_sd)
         vol = gaussian_filter(vol, gauss_sd)
 
     starts = img.affine[[0, 1, 2], 3]
@@ -1126,7 +1120,6 @@ def visualization(
             -1,
         )
 
-    print(surf_coords_filename)
     surf_coords = load_mesh_ext(surf_coords_filename)[0]
 
     x = surf_coords[:, 0]
@@ -1184,9 +1177,6 @@ def apply_ants_transform_to_gii(
     :param ref_vol_fn: reference volume filename
     :return: None
     """
-    print("transforming", in_gii_fn)
-    print("to", out_gii_fn)
-
     origin = [0, 0, 0]
     if type(ref_gii_fn) == type(None):
         ref_gii_fn = in_gii_fn
@@ -1254,7 +1244,6 @@ def apply_ants_transform_to_gii(
             steps,
             validate=False,
         )
-        print("sum", np.sum(interp_vol))
         if np.sum(interp_vol) > 0:
             interp_vol[n > 0] = interp_vol[n > 0] / n[n > 0]
             print("\tWriting surface to volume file:", nii_fn)

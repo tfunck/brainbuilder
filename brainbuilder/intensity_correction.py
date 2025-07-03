@@ -29,16 +29,33 @@ def get_section_percentiles(
         seg_vol = nib.load(seg_path).get_fdata()
         auto_vol = nib.load(img_path).get_fdata()
 
+        assert (
+            np.sum(seg_vol > 0) > 0
+        ), f"1 Segmentation volume is all zero for {img_path} and {seg_path}"
+
         # seg_vol = np.flip(resize(seg_vol, auto_vol.shape, order=0), axis=(0,1))
-        seg_vol = resize(seg_vol, auto_vol.shape, order=0)
+        seg_vol = resize(seg_vol.astype(float), auto_vol.shape, order=0)
+        assert (
+            np.sum(seg_vol > 0) > 0
+        ), f"2 Segmentation volume is all zero for {img_path} and {seg_path}"
+
         seg_vol[auto_vol <= 0] = 0
 
+        # check that the segmentation volume is not all zero
+        if np.sum(seg_vol > 0) == 0:
+            print(f" Segmentation volume is all zero for {img_path} and {seg_path}")
+            return None
+
         gm_deciles = np.zeros(9)
-        if GM_LABEL in np.unique(seg_vol):
-            # calculate deciles of gm
-            gm_deciles = np.percentile(
-                auto_vol[seg_vol == 1], [10, 20, 30, 40, 50, 60, 70, 80, 90]
-            )
+        # if GM_LABEL in np.unique(seg_vol):
+        values = auto_vol[seg_vol > 0]
+        # calculate deciles of gm
+        gm_deciles = np.percentile(values, [10, 20, 30, 40, 50, 60, 70, 80, 90])
+
+        # check that the percentiles are not all zero
+        assert not np.all(
+            gm_deciles == 0
+        ), f"4 All percentiles are zero for {img_path} and {seg_path} with {gm_deciles}"
 
         row = pd.DataFrame(
             {
@@ -78,7 +95,7 @@ def get_dataset_percentiles(
 
         print(sect_info_df.head())
 
-        results = Parallel(n_jobs=-1)(
+        results = Parallel(n_jobs=1)(
             delayed(get_section_percentiles)(
                 row["img"],
                 row["seg"],
@@ -201,8 +218,9 @@ def inter_chunk_regr(x: np.array, y: np.array, order: int = 1):
         intercept = np.median(y) - np.median(x)
     else:
         try:
+            print(x, y)
             slope, intercept = np.polyfit(x, y, order)
-        except SystemError:
+        except SystemError or numpy.linalg.LinAlgError:
             print("SystemError")
             slope = 1
             intercept = np.median(y) - np.median(x)

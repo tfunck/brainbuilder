@@ -10,6 +10,7 @@ from typing import List, Optional, Tuple, Union
 
 import ants
 import imageio
+import nibabel
 import numpy as np
 import pandas as pd
 import psutil
@@ -87,6 +88,34 @@ def load_image(fn: str) -> np.ndarray:
             return imageio.imread(fn)
     else:
         return None
+
+
+def concatenate_sections_to_volume(sect_info, target_name, out_fn, dims, affine):
+    """Process sections and write the 3D volume to a file."""
+    if not os.path.exists(out_fn):
+        out_vol = np.zeros(dims, dtype=np.float32)
+
+        exit_flag = False
+        for i, row in sect_info.iterrows():
+            fn = sect_info[target_name].loc[i]
+            y = int(row["sample"])
+
+            try:
+                sec = nibabel.load(fn).get_fdata()
+                out_vol[:, int(y), :] = sec
+            except EOFError:
+                print("Error:", fn)
+                os.remove(fn)
+                exit_flag = True
+
+            if exit_flag:
+                exit(1)
+
+        print("\t\tWriting 3D non-linear:", out_fn)
+
+        nib.Nifti1Image(
+            out_vol, affine, dtype=np.float32, direction_order="lpi"
+        ).to_filename(out_fn)
 
 
 def get_chunk_pixel_size(sub: str, hemi: str, chunk: str, chunk_info: str) -> tuple:

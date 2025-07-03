@@ -358,6 +358,65 @@ def check_seg_files(
     return all_files_valid
 
 
+def calculate_relative_distance(sect_info, num_cores=4):
+    """Calculate the relative position of each GM voxel in each dimension and then create a distance map
+    that is the product of the relative distances in each dimension.
+    param: sect_info: dataframe with columns: raw, seg_fn
+    param: num_cores: number of cores to use
+    return: sect_info with additional column 'seg_dist'
+    """
+
+    def _calculate_distance(seg_fn, y, out_fn):
+        if not os.path.exists(out_fn):
+            seg_img = nib.load(seg_fn)
+            seg_data = seg_img.get_fdata()
+
+            t = threshold_otsu(seg_data)  # Use Otsu's method for thresholding
+
+            seg_data[seg_data <= t] = 0
+            seg_data[seg_data > t] = 1  # Ensure binary segmentation
+
+            # Find min and max GM indices for each dimension
+            min_x, max_x = (
+                np.min(np.where(seg_data > 0)[0]),
+                np.max(np.where(seg_data > 0)[0]),
+            )
+            # min_y, max_y = np.min(np.where(seg_data > 0)[1]), np.max(np.where(seg_data > 0)[1])
+            min_z, max_z = (
+                np.min(np.where(seg_data > 0)[1]),
+                np.max(np.where(seg_data > 0)[1]),
+            )
+
+            # Calculate relative distances
+            x_range = np.linspace(1, 2, max_x - min_x + 1)
+            z_range = np.linspace(1, 2, max_z - min_z + 1)
+
+            seg_data[min_x : max_x + 1, :, :] *= x_range[:, None]  # Scale x dimension
+            seg_data[:, :, min_z : max_z + 1] *= z_range[None, :]  # Scale z dimension
+
+            seg_data *= y
+
+            # Save the distance map
+            nib.Nifti1Image(
+                seg_data, seg_img.affine, direction_order="lpi"
+            ).to_filename(out_fn)
+
+    sect_info["seg_dist"] = sect_info["seg"].apply(  # Test
+        lambda x: x.replace(".nii.gz", "_dist.nii.gz")  # Test
+    )
+
+    ymax = sect_info["sample"].max()  # Get the maximum value of the 'sample' column
+
+    Parallel(n_jobs=num_cores)(
+        _calculate_distance(row["seg"], row["sample"] / ymax, row["seg_dist"])
+        for _, row in sect_info.iterrows()
+    )
+
+    sect_info["seg"] = sect_info["seg_dist"]
+
+    return sect_info
+
+
 def segment(
     chunk_info_csv: str,
     sect_info_csv: str,
@@ -400,7 +459,7 @@ def segment(
         sect_info["seg"], sect_info["img"], output_csv, clobber=clobber
     )
 
-    if run_stage:
+    if run_stage:  # or True: # Debugging, remove True later
         nnunet_in_dir = f"{output_dir}/nnunet/"
         nnunet_out_dir = f"{output_dir}/nnunet_out/"
         os.makedirs(nnunet_in_dir, exist_ok=True)
@@ -485,6 +544,8 @@ def segment(
             warning_flag=True,
             nnunet_input_str=nnunet_input_str,
         ), "Missing segmentations"
+
+        # sect_info = calculate_relative_distance(sect_info, num_cores=num_cores)
 
         sect_info.to_csv(output_csv, index=False)
 

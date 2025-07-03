@@ -6,14 +6,12 @@ import nibabel
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from skimage.filters import threshold_otsu
 
+import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import align_2d
 from brainbuilder.align.align_3d import align_3d
 from brainbuilder.align.intervolume import create_intermediate_volume
-from brainbuilder.qc.inter_section_dice import inter_section_dice
-from brainbuilder.qc.validate_section_alignment_to_ref import (
-    validate_section_alignment_to_ref,
-)
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
 
@@ -102,6 +100,7 @@ def multiresolution_alignment(
     max_resolution_3d: float = 0.3,
     use_3d_syn_cc: bool = True,
     use_syn: bool = True,
+    linear_steps: list = ["rigid", "similarity", "affine"],
     num_cores: int = 0,
     clobber: bool = False,
 ) -> str:
@@ -187,7 +186,6 @@ def multiresolution_alignment(
                 ]
                 .values[0]
             )
-
             curr_chunk_info, curr_sect_info = align_chunk(
                 curr_chunk_info,
                 curr_sect_info,
@@ -198,6 +196,7 @@ def multiresolution_alignment(
                 num_cores=num_cores,
                 use_3d_syn_cc=use_3d_syn_cc,
                 use_syn=use_syn,
+                linear_steps=linear_steps,
                 clobber=clobber,
             )
 
@@ -209,9 +208,10 @@ def multiresolution_alignment(
         sect_info_out.to_csv(sect_output_csv, index=False)
 
     # Calculate Dice between sections
-    inter_section_dice(sect_output_csv, qc_dir, clobber=clobber)
+    # DEBUG
+    # inter_section_dice(sect_output_csv, qc_dir, clobber=clobber)
     # Calculate Dice between sections and reference volume
-    validate_section_alignment_to_ref(sect_output_csv, qc_dir, clobber=clobber)
+    # validate_section_alignment_to_ref(sect_output_csv, qc_dir, clobber=clobber)
 
     return chunk_output_csv, sect_output_csv
 
@@ -336,6 +336,45 @@ def alignment_qc(
     return None
 
 
+def calculate_distance_vol(seg_fn, out_fn):
+    if not os.path.exists(out_fn):
+        seg_img = nib.load(seg_fn)
+        seg_data = seg_img.get_fdata()
+
+        t = threshold_otsu(seg_data)  # Use Otsu's method for thresholding
+
+        seg_data[seg_data <= t] = 0
+        seg_data[seg_data > t] = 1  # Ensure binary segmentation
+
+        # Find min and max GM indices for each dimension
+        min_x, max_x = (
+            np.min(np.where(seg_data > 0)[0]),
+            np.max(np.where(seg_data > 0)[0]),
+        )
+        min_y, max_y = (
+            np.min(np.where(seg_data > 0)[1]),
+            np.max(np.where(seg_data > 0)[1]),
+        )
+        min_z, max_z = (
+            np.min(np.where(seg_data > 0)[2]),
+            np.max(np.where(seg_data > 0)[2]),
+        )
+
+        # Calculate relative distances
+        x_range = np.linspace(1, 2, max_x - min_x + 1)
+        y_range = np.linspace(1, 2, max_y - min_y + 1)
+        z_range = np.linspace(1, 2, max_z - min_z + 1)
+
+        seg_data[min_x : max_x + 1, :, :] *= x_range[:, None, None]  # Scale x dimension
+        seg_data[:, min_y : max_y + 1, :] *= y_range[None, :, None]  # Scale y dimension
+        seg_data[:, :, min_z : max_z + 1] *= z_range[None, None, :]  # Scale z dimension
+
+        # Save the distance map
+        nib.Nifti1Image(seg_data, seg_img.affine, direction_order="lpi").to_filename(
+            out_fn
+        )
+
+
 def alignment_iteration(
     sub: str,
     hemisphere: str,
@@ -353,6 +392,7 @@ def alignment_iteration(
     pass_step: int = 0,
     num_cores: int = 1,
     use_3d_syn_cc: bool = True,
+    linear_steps: list = ["rigid", "similarity", "affine"],
     clobber: bool = False,
 ) -> tuple:
     """Perform 3D-2D alignment for each resolution.
@@ -394,6 +434,11 @@ def alignment_iteration(
         + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_mri_gm.nii.gz"
     )
 
+    ref_dist_fn = (
+        row["align_3d_dir"]
+        + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_mri_gm_dist.nii.gz"
+    )
+
     if not os.path.exists(ref_rsl_fn):
         utils.resample_to_resolution(ref_vol_fn, [resolution_3d] * 3, ref_rsl_fn)
 
@@ -414,11 +459,13 @@ def alignment_iteration(
     section_thickness = chunk_info["section_thickness"]
 
     world_chunk_limits, vox_chunk_limits = verify_chunk_limits(ref_rsl_fn, chunk_info)
+
     create_intermediate_volume(
         chunk_info,
         sect_info,
         resolution_itr,
         resolution,
+        resolution_list,
         resolution_3d,
         row["seg_dir"],
         row["seg_rsl_fn"],
@@ -448,6 +495,7 @@ def alignment_iteration(
         world_chunk_limits,
         vox_chunk_limits,
         use_3d_syn_cc=use_3d_syn_cc,
+        linear_steps=linear_steps,
         clobber=clobber,
     )
 
@@ -490,6 +538,7 @@ def align_chunk(
     n_passes: int = 1,
     num_cores: int = 1,
     use_3d_syn_cc: bool = True,
+    linear_steps: list = ["rigid", "similarity", "affine"],
     use_syn: bool = True,
     clobber: bool = False,
 ) -> tuple:
@@ -530,7 +579,9 @@ def align_chunk(
     ### Iterate over progressively finer resolution
     for resolution_itr, resolution in enumerate(resolution_list):
         resolution_3d = resolution_list_3d[resolution_itr]
-        print(f"\tMulti-Resolution Alignement: {resolution}mm")
+        print(
+            f"\tMulti-Resolution Alignement: {resolution}mm, 3D max = {resolution_3d}"
+        )
 
         for pass_step in range(n_passes):
             # Perform alignment for each resolution, including:
@@ -553,6 +604,7 @@ def align_chunk(
                 pass_step=pass_step,
                 use_3d_syn_cc=use_3d_syn_cc,
                 use_syn=use_syn,
+                linear_steps=linear_steps,
                 num_cores=num_cores,
                 clobber=clobber,
             )

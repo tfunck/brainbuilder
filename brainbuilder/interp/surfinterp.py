@@ -10,7 +10,10 @@ from joblib import Parallel, delayed
 
 import brainbuilder.utils.ants_nibabel as nib
 import brainbuilder.utils.utils as utils
-from brainbuilder.interp.acqvolume import create_thickened_volumes
+from brainbuilder.interp.acqvolume import (
+    create_thickened_volumes,
+    transform_chunk_volumes,
+)
 from brainbuilder.utils.mesh_io import load_mesh_ext
 from brainbuilder.utils.mesh_utils import (
     volume_to_mesh,
@@ -329,13 +332,20 @@ def generate_surface_profiles(
         clobber=clobber,
     )
 
+    chunk_info_thickened = transform_chunk_volumes(
+        pd.read_csv(chunk_info_thickened_csv),
+        struct_vol_rsl_fn,
+        output_dir,
+        clobber=clobber,
+    )
+
     sub = sect_info["sub"].values[0]
     hemisphere = sect_info["hemisphere"].values[0]
     acquisition = sect_info["acquisition"].values[0]
 
     n_depths = len(depth_list)
 
-    chunk_info_thickened = pd.read_csv(chunk_info_thickened_csv, index_col=None)
+    # chunk_info_thickened = pd.read_csv(chunk_info_thickened_csv, index_col=None)
 
     output_prefix = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm{tissue_type}_l{n_depths}"
 
@@ -527,6 +537,7 @@ def interpolate_over_surface(
 
     # create mesh data structure
     import stripy as stripy
+
     mesh = stripy.sTriangulation(lons_src, lats_src)
 
     lats, lons = spherical_coords[:, 1] - np.pi / 2, spherical_coords[:, 2]

@@ -34,6 +34,7 @@ class Nifti1Image:
                 dataobj = (
                     255 * (dataobj - dataobj.min()) / (dataobj.max() - dataobj.min())
                 ).astype(np.uint8)
+
         self.affine = affine
         self.dataobj = dataobj
         self.shape = dataobj.shape
@@ -168,4 +169,5 @@ def write_nifti(
         vol, origin=origin, spacing=spacing, direction=direction
     )
     assert True not in np.isnan(affine.ravel()), "Bad affine matrix. NaN detected"
+
     ants.image_write(ants_image, out_fn)

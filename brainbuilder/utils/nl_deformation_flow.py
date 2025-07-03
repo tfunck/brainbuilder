@@ -63,6 +63,8 @@ def compute_ants_alignment(
     ymax: int,
     fwd_tfm_path: str = None,
     inv_tfm_path: str = None,
+    resolution_list: list = [4, 2, 1, 0.5],
+    resolution: float = 0.5,
     clobber: bool = False,
 ):
     """Compute the ANTs alignment between two sections and save the forward and inverse transforms.
@@ -73,6 +75,8 @@ def compute_ants_alignment(
         sec1_path (str): Path to the second section.
         ymin (int): Minimum y-coordinate of the section.
         ymax (int): Maximum y-coordinate of the section.
+        resolution_list (list): List of resolutions for multi-resolution registration.
+        resolution (float): Final resolution for the registration.
         clobber (bool): If True, overwrite existing files.
 
     Returns:
@@ -101,13 +105,17 @@ def compute_ants_alignment(
     if not os.path.exists(fwd_tfm_path) or not os.path.exists(inv_tfm_path) or clobber:
         # Load the sections
 
+        from brainbuilder.utils.utils import AntsParams
+
+        nlParams = AntsParams(resolution_list, resolution, 30)
+
         try:
-            cmd = "antsRegistration --verbose 1 --dimensionality 2 --float 0 --collapse-output-transforms 1"
+            cmd = "antsRegistration --verbose 0 --dimensionality 2 --float 0 --collapse-output-transforms 1"
             cmd += f" --output [ {outprefix}_,{mv_rsl_fn},/tmp/tmp.nii.gz ] --interpolation Linear --use-histogram-matching 0 --winsorize-image-intensities [ 0.005,0.995 ]"
             cmd += f" --transform SyN[ 0.1,3,0 ] --metric CC[ {sec1_path},{sec0_path},1,4 ]"
-            cmd += " --convergence [ 300x200x150x100x50,1e-6,10 ] --shrink-factors 8x4x3x2x1 --smoothing-sigmas 4x2x1.5x1x0vox"
+            cmd += f" --convergence  {nlParams.itr_str} --shrink-factors {nlParams.f_str} --smoothing-sigmas {nlParams.s_str} "
 
-            print(cmd)
+            # print(cmd)
 
             subprocess.run(cmd, shell=True, executable="/bin/bash")
 
@@ -128,6 +136,8 @@ def nl_deformation_flow(
     output_dir: str,
     fwd_tfm_path: str = None,
     inv_tfm_path: str = None,
+    resolution_list: list = [4, 2, 1, 0.5],
+    resolution: float = 0.5,
     clobber: bool = False,
 ):
     """Use ANTs to calculate SyN alignment between two sections. Let the deformation field = D.
@@ -162,6 +172,8 @@ def nl_deformation_flow(
         ymax,
         fwd_tfm_path=fwd_tfm_path,
         inv_tfm_path=inv_tfm_path,
+        resolution_list=resolution_list,
+        resolution=resolution,
         clobber=clobber,
     )
 
@@ -264,6 +276,8 @@ def process_section(
     spacing: np.array,
     fwd_tfm_path: str = None,
     inv_tfm_path: str = None,
+    resolution_list: list = [4, 2, 1, 0.5],
+    resolution: float = 0.5,
     clobber: bool = False,
 ):
     """Process a pair of sections and compute the deformation flow."""
@@ -298,6 +312,8 @@ def process_section(
         output_dir,
         fwd_tfm_path=fwd_tfm_path,
         inv_tfm_path=inv_tfm_path,
+        resolution_list=resolution_list,
+        resolution=resolution,
         clobber=clobber,
     )
 
@@ -308,6 +324,8 @@ def nl_deformation_flow_3d(
     tfm_dict: list = None,
     origin: tuple = None,
     spacing: tuple = None,
+    resolution_list: list = [4, 2, 1, 0.5],
+    resolution: float = 0.5,
     clobber: bool = False,
 ):
     """Apply  nl intersection_flow to a volume where there are missing sections along axis=1"""
@@ -330,7 +348,7 @@ def nl_deformation_flow_3d(
         # cast all keys to str
         tfm_dict = {str(k): i for k, i in tfm_dict.items()}
 
-    results = Parallel(n_jobs=4)(
+    results = Parallel(n_jobs=16)(
         delayed(process_section)(
             y0,
             y1,
@@ -340,6 +358,8 @@ def nl_deformation_flow_3d(
             spacing,
             fwd_tfm_path=tfm_dict[str(y0)][0],
             inv_tfm_path=tfm_dict[str(y0)][1],
+            resolution_list=resolution_list,
+            resolution=resolution,
             clobber=clobber,
         )
         for y0, y1 in zip(valid_idx[:-1], valid_idx[1:])
@@ -360,6 +380,8 @@ def nl_deformation_flow_nii(
     output_dir: str,
     interp_acq_fin: str,
     tfm_dict: list = None,
+    resolution_list: list = [4, 2, 1, 0.5],
+    resolution: float = 0.5,
     clobber: bool = False,
 ):
     nlflow_tfm_json = interp_acq_fin.replace(".nii.gz", "") + "nlflow_tfm.json"
@@ -399,6 +421,8 @@ def nl_deformation_flow_nii(
             origin=origin,
             spacing=spacing,
             tfm_dict=tfm_dict,
+            resolution_list=resolution_list,
+            resolution=resolution,
             clobber=clobber,
         )
 
@@ -459,6 +483,7 @@ def nlflow_isometric(
     ii_fin: str,
     curr_output_dir: str,
     resolution: float,
+    resolution_list: list = None,
     tfm_dict: dict = None,
     clobber: bool = False,
 ):
@@ -478,6 +503,10 @@ def nlflow_isometric(
     interp_fin : str
         Path to the interpolated volume file.
     """
+    if resolution_list is None:
+        # Default resolution list if not provided, create resolution list with 4 levels starting with resolution
+        resolution_list = [resolution * i for i in range(1, 5)]
+
     interp_iso_fin = ii_fin.replace(
         "thickened", "interp-vol_iso"
     )  # FIXME: shouldn't assume 'thickened'
@@ -486,7 +515,13 @@ def nlflow_isometric(
     )  # FIXME: shouldn't assume 'thickened'
 
     nlflow_tfm_dict = nl_deformation_flow_nii(
-        ii_fin, curr_output_dir, interp_fin, tfm_dict=tfm_dict, clobber=clobber
+        ii_fin,
+        curr_output_dir,
+        interp_fin,
+        tfm_dict=tfm_dict,
+        resolution_list=resolution_list,
+        resolution=resolution,
+        clobber=clobber,
     )
 
     print("Resampling", interp_iso_fin)

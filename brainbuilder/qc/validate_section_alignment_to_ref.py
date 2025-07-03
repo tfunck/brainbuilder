@@ -141,8 +141,6 @@ def local_metric(
     mv_vol = prepare_volume(mv_vol)
 
     local_dice_section = np.zeros(fx_vol.shape)
-    print("Move Volume SHape", mv_vol.shape)
-    print(fx_vol.shape)
 
     xy = [
         (x, y)

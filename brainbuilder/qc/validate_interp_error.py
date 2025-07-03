@@ -406,6 +406,7 @@ def create_3d_chunk_volumes(
                 target_string=target_string,
                 clobber=clobber,
             )
+
             print("\t", cluster_2d_volume_filename)
             temp_chunk_info = chunk_info.loc[idx].copy()
             temp_chunk_info["acquisition"] = acquisition

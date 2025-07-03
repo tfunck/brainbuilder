@@ -115,6 +115,7 @@ def thicken_sections_within_chunk(
     print("\t\tThickening sections to ", 0.02 * width * 2)
 
     dim = [array_src.shape[0], 1, array_src.shape[2]]
+
     rec_vol = np.zeros_like(array_src)
     n = np.zeros_like(array_src)
 
@@ -128,6 +129,12 @@ def thicken_sections_within_chunk(
             target_section = "nl_2d_rsl"
 
         nl_2d_rsl = row[target_section]
+        print(target_section)
+        print(nl_2d_rsl)
+
+        assert os.path.exists(
+            nl_2d_rsl
+        ), f"Error: thickened section file {nl_2d_rsl} does not exist\n"
 
         section = nib.load(nl_2d_rsl).get_fdata().copy()
 
@@ -286,6 +293,7 @@ def transform_chunk_volumes(
         ):
             thickened_fn = chunk_df[vol_str].values[0]
             thickened_stx_fn = chunk_df[vol_stx_str].values[0]
+
             nl_3d_tfm_fn = chunk_df["nl_3d_tfm_fn"].values[0]
 
             if not os.path.exists(thickened_stx_fn) or clobber:
@@ -396,10 +404,6 @@ def create_thickened_volumes(
                 )
 
             chunk_info_out = pd.concat([chunk_info_out, chunk_info_row.to_frame().T])
-
-        chunk_info_out = transform_chunk_volumes(
-            chunk_info_out, struct_vol_rsl_fn, output_dir, clobber=clobber
-        )
 
         chunk_info_out.to_csv(output_csv, index=False)
 

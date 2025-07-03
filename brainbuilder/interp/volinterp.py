@@ -5,13 +5,12 @@ from subprocess import run
 
 import numpy as np
 import pandas as pd
-from medpy.filter.smoothing import anisotropic_diffusion
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.interp.acqvolume import create_thickened_volumes
 from brainbuilder.utils import utils
 from brainbuilder.utils.nl_deformation_flow import nlflow_isometric
-from brainbuilder.volalign import align_3d, verify_chunk_limits
+from brainbuilder.volalign import verify_chunk_limits
 
 
 def idw(vol, nearest_i, min_dist, p=2):
@@ -85,9 +84,7 @@ def volumetric_interpolation(
     struct_ref_vol: str,
     output_dir: str,
     resolution: float,
-    niter: int = 20,
-    kappa: float = 100,
-    gamma: float = 0.1,
+    resolution_list: list,
     clobber: bool = False,
 ) -> pd.DataFrame:
     """Interpolates the volumes of the sections in the chunk_info dataframe.
@@ -151,33 +148,17 @@ def volumetric_interpolation(
         acq_fin = chunk_info_thickened["thickened"].values[0]
 
         interp_acq_iso_fin, nlflow_tfm_dict = nlflow_isometric(
-            acq_fin, curr_output_dir, resolution, clobber=clobber
+            acq_fin, curr_output_dir, resolution, resolution_list, clobber=clobber
         )
 
         interp_cls_iso_fin, _ = nlflow_isometric(
             cls_fin,
             curr_output_dir + "/cls/",
             resolution,
+            resolution_list,
             tfm_dict=nlflow_tfm_dict,
             clobber=clobber,
         )
-
-        interp_acq_iso_smoothed_fin = interp_acq_iso_fin.replace(
-            ".nii", f"_diff-{niter}-{kappa}-{gamma}.nii"
-        )
-
-        if not os.path.exists(interp_acq_iso_smoothed_fin) or clobber:
-            vol_cls = nib.load(interp_cls_iso_fin).get_fdata()
-            vol_acq = nib.load(interp_acq_iso_fin).get_fdata()
-            vol_acq[vol_cls < 0.05] = 0
-
-            vol_acq = anisotropic_diffusion(
-                vol_acq, niter=niter, kappa=kappa, gamma=gamma, option=2
-            )
-
-            nib.Nifti1Image(
-                vol_acq, nib.load(interp_acq_iso_fin).affine, direction_order="lpi"
-            ).to_filename(interp_acq_iso_smoothed_fin)
 
         row = pd.DataFrame(
             {
@@ -190,6 +171,10 @@ def volumetric_interpolation(
             }
         )
 
+        # ref_rsl_2d_fin = utils.resample_struct_reference_volume(
+        #    struct_ref_vol, resolution, output_dir, clobber=clobber
+        # )
+
         chunk_info_out = pd.concat([chunk_info_out, row], ignore_index=True)
 
     return chunk_info_out
@@ -200,16 +185,16 @@ def create_mask(fn, out_fn, clobber: bool = False):
         img = nib.load(fn)
         data = img.get_fdata()
 
-        t = data.max() * 0.02
+        from skimage.filters import threshold_otsu
 
-        mask = data > t
+        t = threshold_otsu(data)  # Use Otsu's method for thresholding
+        data[data <= t] = 0
+        data[data > t] = 1  # Ensure binary segmentation
 
-        mask = mask.astype(np.uint8)
-
-        nib.Nifti1Image(mask, img.affine, direction_order="lpi").to_filename(out_fn)
+        nib.Nifti1Image(data, img.affine, direction_order="lpi").to_filename(out_fn)
 
 
-def create_acq_atlas(chunk_info, output_dir, clobber: bool = False):
+def create_acq_atlas(chunk_info, output_dir, atlas_fin, clobber: bool = False):
     """To save memory, for each volume :
         1. load and z-score it,
         2. add z-score image to sum volume.
@@ -218,8 +203,6 @@ def create_acq_atlas(chunk_info, output_dir, clobber: bool = False):
         4) otsu threshold the mean volume to create atlas mask.
         5) save the atlas mask and mean volume
     """
-    atlas_fin = f"{output_dir}/atlas.nii.gz"
-
     mask_fin = f"{output_dir}/atlas_mask.nii.gz"
 
     print("Creating atlas from interpolated volumes")
@@ -235,7 +218,7 @@ def create_acq_atlas(chunk_info, output_dir, clobber: bool = False):
 
         for i, row in chunk_info.iterrows():
             interp_vol_fin = row["interp_cls_nat"]
-            print("atlas file:", interp_vol_fin)
+            print("\n\n\n\hello file:", interp_vol_fin)
 
             img = nib.load(interp_vol_fin)
             print(i / n, interp_vol_fin)
@@ -253,6 +236,7 @@ def create_acq_atlas(chunk_info, output_dir, clobber: bool = False):
         # data = gaussian_filter(data, sigma=2)
         # data = 2 * (data - np.min(data)) / (np.max(data) - np.min(data)) - 1
         # data = exposure.equalize_adapthist(data, clip_limit=0.01, kernel_size=20)
+        mean_vol[mean_vol < mean_vol.max() * 0.2] = 0
 
         mean_vol = (
             255 * (mean_vol - np.min(mean_vol)) / (np.max(mean_vol) - np.min(mean_vol))
@@ -308,8 +292,6 @@ def create_final_transform(
     resolution_list_3d,
     clobber: bool = False,
 ):
-    ref_rsl_fin = in_ref_rsl_fin
-
     os.makedirs(output_dir, exist_ok=True)
 
     resolution_3d = min(resolution_list_3d)
@@ -318,16 +300,14 @@ def create_final_transform(
         in_ref_rsl_fin, resolution_3d, output_dir, clobber=clobber
     )
 
-    ref_rsl_2d_fin = utils.resample_struct_reference_volume(
-        in_ref_rsl_fin, resolution, output_dir, clobber=clobber
-    )
-
     world_chunk_limits, vox_chunk_limits = verify_chunk_limits(
         ref_rsl_3d_fin, chunk_info
     )
 
     print("Create Acquisition Atlas")
-    atlas_vol_fin, _ = create_acq_atlas(chunk_info, output_dir, clobber=clobber)
+    atlas_vol_fin, _ = create_acq_atlas(
+        chunk_info, output_dir, output_dir + "/atlas.nii.gz", clobber=clobber
+    )
 
     # drop rows with Nan
     chunk_info = chunk_info.dropna()
@@ -338,9 +318,15 @@ def create_final_transform(
     os.makedirs(mask_out_dir, exist_ok=True)
     os.makedirs(atlas_out_dir, exist_ok=True)
 
-    nl_3d_tfm_fn = (
+    ref_rsl_2d_fin = utils.resample_struct_reference_volume(
+        in_ref_rsl_fin, resolution, output_dir, clobber=clobber
+    )
+    nl_3d_tfm_fn = chunk_info["nl_3d_tfm_fn"].values[0]
+
+    out_nl_3d_tfm_fn = (
         f"{mask_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_SyN_CC_Composite.h5"
     )
+
     nl_3d_tfm_inv_fn = f"{mask_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_SyN_CC_InverseComposite.h5"
     rec_3d_rsl_fn = (
         f"{mask_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_rec_3d_rsl.nii.gz"
@@ -349,30 +335,33 @@ def create_final_transform(
         f"{mask_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_ref_3d_rsl.nii.gz"
     )
 
-    align_3d(
-        sub,
-        hemisphere,
-        chunk,
-        atlas_vol_fin,  # moving
-        ref_rsl_3d_fin,  # fixed
-        mask_out_dir,
-        nl_3d_tfm_fn,
-        nl_3d_tfm_inv_fn,
-        rec_3d_rsl_fn,
-        ref_3d_rsl_fn,
-        resolution_3d,
-        resolution_list_3d,
-        world_chunk_limits,
-        vox_chunk_limits,
-        use_3d_syn_cc=True,
-        use_pad_volume=False,
-        clobber=clobber,
-    )
+    # align_3d(
+    #    sub,
+    #    hemisphere,
+    #    chunk,
+    #    atlas_vol_fin,  # moving
+    #    ref_rsl_3d_fin,  # fixed
+    #    mask_out_dir,
+    #    out_nl_3d_tfm_fn,
+    #    nl_3d_tfm_inv_fn,
+    #    rec_3d_rsl_fn,
+    #    ref_3d_rsl_fn,
+    #    resolution_3d,
+    #    resolution_list_3d,
+    #    world_chunk_limits,
+    #    vox_chunk_limits,
+    #    init_tfm = nl_3d_tfm_fn,
+    #    linear_steps = [],
+    #    use_3d_syn_cc = True,
+    #    use_pad_volume = True,
+    #    clobber = clobber,
+    # )
+    out_nl_3d_tfm_fn = nl_3d_tfm_fn
     print("atlas_vol_fn:", atlas_vol_fin)
 
-    apply_final_transform_to_files(
-        chunk_info, ref_rsl_2d_fin, nl_3d_tfm_fn, clobber=False
-    )
+    # apply_final_transform_to_files(
+    #    chunk_info, ref_rsl_2d_fin, out_nl_3d_tfm_fn, clobber=False
+    # )
 
 
 def volumetric_pipeline(
@@ -415,6 +404,7 @@ def volumetric_pipeline(
             ref_vol_fn,
             output_dir,
             resolution,
+            resolution_list,
             clobber=clobber,
         )
 
@@ -422,13 +412,14 @@ def volumetric_pipeline(
             chunk_info, curr_chunk_info, how="left", on=["sub", "hemisphere", "chunk"]
         ).dropna()
 
-        resolution_3d = 0.4
         resolution_list_3d = [r for r in resolution_list if r >= resolution_3d]
         print("resolution_list_3d:", resolution_list_3d)
 
         curr_output_dir = f"{output_dir}/sub-{sub}/hemi-{hemisphere}/atlas/"
 
         print("Create final transform")
+        output_csv = f"{output_dir}/chunk_info_thickened_stx.csv"
+
         create_final_transform(
             sub,
             hemisphere,

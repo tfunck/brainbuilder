@@ -345,7 +345,6 @@ def create_surface_interpolated_volume(
     wm_surf_fn: str,
     n_depths: int = 0,
     surface_smoothing: int = 0,
-    batch_correction_resolution: int = 0,
     clobber: bool = False,
 ) -> str:
     """Use surface-based interpolation to fill missing sections over the cortex.
@@ -418,36 +417,6 @@ def create_surface_interpolated_volume(
         )
         raw_profile_volume_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm_l{n_depths}_raw_profiles.nii.gz"
 
-        if batch_correction_resolution > 0:
-            (
-                sect_info,
-                chunk_info_thickened_csv,
-                batch_surf_raw_values_dict,
-                final_profiles_fn,
-            ) = get_profiles_with_batch_correction(
-                chunk_info,
-                sect_info,
-                chunk_info_thickened_csv,
-                sub,
-                hemisphere,
-                acquisition,
-                resolution,
-                surf_depth_chunk_dict,
-                surf_depth_mni_dict,
-                struct_vol_rsl_fn,
-                output_dir,
-                surf_dir,
-                batch_correction_dir,
-                ref_vol_fn,
-                gm_surf_fn,
-                wm_surf_fn,
-                depth_list,
-                batch_correction_resolution,
-                clobber=clobber,
-            )
-        else:
-            final_profiles_fn = profiles_fn
-
         # Write the uninterpolated surface profiles to a volume. This is useful for QC
         write_raw_profiles_to_volume(
             surf_raw_values_dict,
@@ -507,7 +476,6 @@ def interpolate_missing_sections(
     output_dir: str,
     n_depths: int = 0,
     surface_smoothing: int = 0,
-    batch_correction_resolution: int = 0,
     interp_method: str = METHOD_SURFACE,
     clobber: bool = False,
 ) -> str:
@@ -540,7 +508,6 @@ def interpolate_missing_sections(
             ref_vol_fn=hemi_info["struct_ref_vol"].values[0],
             n_depths=n_depths,
             surface_smoothing=surface_smoothing,
-            batch_correction_resolution=batch_correction_resolution,
             clobber=clobber,
         )
 

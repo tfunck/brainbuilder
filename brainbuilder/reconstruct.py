@@ -9,7 +9,6 @@ from brainbuilder.downsample import downsample_sections
 from brainbuilder.initalign import initalign
 from brainbuilder.intensity_correction import intensity_correction
 from brainbuilder.interpsections import interpolate_missing_sections
-from brainbuilder.qc.validate_interp_error import validate_interp_error
 from brainbuilder.segment import segment
 from brainbuilder.utils.validate_inputs import validate_inputs
 from brainbuilder.volalign import multiresolution_alignment
@@ -60,12 +59,12 @@ def reconstruct(
     n_depths: int = 0,
     use_3d_syn_cc: bool = True,
     use_syn: bool = True,
+    linear_steps: list = ["rigid", "similarity", "affine"],
     seg_method: str = "nnunetv1",
     num_cores: int = None,
     max_resolution_3d: float = 0.3,
     surface_smoothing: int = 0,
     interp_method: str = "surface",
-    batch_correction_resolution: float = 0,
     skip_interp: bool = False,
     use_intensity_correction: bool = False,
     clobber: bool = False,
@@ -150,9 +149,13 @@ def reconstruct(
     )
 
     if use_intensity_correction:
+        # Stage: Intensity correction
+        print("Performing intensity correction")
         sect_info_csv = intensity_correction(
             seg_df_csv, chunk_info_csv, intens_corr_dir, clobber=clobber
         )
+
+    print(pd.read_csv(sect_info_csv)["img"].values)
 
     # qc.data_set_quality_control(seg_df_csv, qc_dir, column="seg")
 
@@ -160,6 +163,7 @@ def reconstruct(
     init_sect_csv, init_chunk_csv = initalign(
         seg_df_csv, chunk_info_csv, initalign_dir, resolution_list, clobber=clobber
     )
+
     # Stage: Multiresolution alignment of sections to structural reference volume
     align_chunk_info_csv, align_sect_info_csv = multiresolution_alignment(
         hemi_info_csv,
@@ -171,8 +175,10 @@ def reconstruct(
         use_3d_syn_cc=use_3d_syn_cc,
         use_syn=use_syn,
         num_cores=num_cores,
+        linear_steps=linear_steps,
         clobber=clobber,
     )
+
     # qc.data_set_quality_control(align_sect_info_csv, qc_dir, column="init_img")
 
     # Stage: Interpolate missing sections
@@ -188,16 +194,15 @@ def reconstruct(
             n_depths=n_depths,
             surface_smoothing=surface_smoothing,
             interp_method=interp_method,
-            batch_correction_resolution=batch_correction_resolution,
             clobber=clobber,
         )
 
-        validate_interp_error(
-            align_sect_info_csv,
-            reconstructed_chunk_info_csv,
-            interp_dir + "/qc",
-            clobber=clobber,
-        )
+        # validate_interp_error(
+        #    align_sect_info_csv,
+        #    reconstructed_chunk_info_csv,
+        #    interp_dir + "/qc",
+        #    clobber=clobber,
+        # )
     return output_csv
 
 
@@ -281,13 +286,6 @@ def setup_argparse() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "--batch-correction",
-        dest="batch_correction_resolution",
-        default=0,
-        help=" Resolution at which to correct batch effects (Default=0, no correction)",
-    )
-
-    parser.add_argument(
         "surface_smoothing",
         dest="surface_smoothing",
         default=0,
@@ -345,7 +343,6 @@ if __name__ == "__main__":
         seg_method=args.seg_method,
         use_3d_syn_cc=args.use_3d_syn_cc,
         use_syn=args.use_syn,
-        batch_correction=args.batch_correction_resolution,
         num_cores=args.num_cores,
         skip_interp=args.skip_interp,
     )

@@ -8,13 +8,13 @@ import tempfile
 
 import brainbuilder.utils.ants_nibabel as nib
 import matplotlib.pyplot as plt
-import nibabel
 import numpy as np
 import pandas as pd
 from brainbuilder.qc.validate_section_alignment_to_ref import get_section_metric
 from brainbuilder.utils import utils
 from brainbuilder.utils.utils import (
     AntsParams,
+    concatenate_sections_to_volume,
     gen_2d_fn,
     resample_to_resolution,
     shell,
@@ -431,9 +431,14 @@ def apply_transforms_parallel(
     else:
         # if we're at the final resolution, we need to symlink the image
         # check if the symlink exists
-        if not os.path.islink(img_rsl_fn):
-            os.symlink(img_fn, img_rsl_fn)
 
+        # Check if the symlink exists and points to the correct file
+        if os.path.islink(img_rsl_fn):
+            if os.readlink(img_rsl_fn) != img_fn:
+                os.remove(img_rsl_fn)
+                os.symlink(img_fn, img_rsl_fn)
+        elif not os.path.exists(img_rsl_fn):
+            os.symlink(img_fn, img_rsl_fn)
         # the symlink is just created to help qc if the user needs to check the moving image before alignment
         # however ITK does not support symlinks so we rename img_rsl_fn to the actual file name
         img_rsl_fn = img_fn
@@ -467,7 +472,6 @@ def get_align_2d_to_do(sect_info: pd.DataFrame, clobber: bool = False) -> tuple:
             to_do_sect_info.append(row)
 
         if not os.path.exists(out_fn):
-            print("ADding ", out_fn)
             to_do_resample_sect_info.append(row)
 
     return to_do_sect_info, to_do_resample_sect_info
@@ -581,7 +585,7 @@ def align_sections(
     return sect_info
 
 
-def concatenate_sections_to_volume(
+def concatenate_tfm_sections_to_volume(
     sect_info: pd.DataFrame,
     rec_fn: str,
     output_dir: str,
@@ -603,7 +607,6 @@ def concatenate_sections_to_volume(
     tfm_dir = output_dir + os.sep + "tfm"
 
     hires_img = nib.load(rec_fn)
-    out_vol = np.zeros(hires_img.shape)
     target_name = "nl_2d_" + target_str
 
     sect_info[target_name] = [""] * sect_info.shape[0]
@@ -616,33 +619,9 @@ def concatenate_sections_to_volume(
 
         sect_info[target_name].loc[i] = fn
 
-    if not os.path.exists(out_fn):
-        for idx, (i, row) in enumerate(sect_info.iterrows()):
-            fn = sect_info[target_name].loc[i]
-            y = int(row["sample"])
-
-            try:
-                sec = nibabel.load(fn).get_fdata()
-
-                out_vol[:, int(y), :] = sec
-            except EOFError:
-                print("Error:", fn)
-                os.remove(fn)
-                exit_flag = True
-
-            if exit_flag:
-                exit(1)
-
-        print("\t\tWriting 3D non-linear:", out_fn)
-
-        dtype = np.float32
-        if target_str == "cls_rsl":
-            dtype = np.uint8
-        print(f"Writing: {out_fn} dtype: {dtype}")
-
-        nib.Nifti1Image(
-            out_vol, hires_img.affine, dtype=np.float32, direction_order="lpi"
-        ).to_filename(out_fn)
+    concatenate_sections_to_volume(
+        sect_info, target_name, out_fn, hires_img.shape, hires_img.affine
+    )
 
     return sect_info
 
@@ -701,8 +680,6 @@ def align_2d(
         nl_2d_dir,
         ymax=ymax,
     )
-    print("SEG", seg_rsl_fn)
-    print("REF", ref_rsl_fn)
 
     utils.create_2d_sections(
         sect_info, ref_space_nat_fn, float(resolution), nl_2d_dir, dtype=np.uint8
@@ -727,12 +704,12 @@ def align_2d(
     )
 
     # Concatenate 2D nonlinear aligned sections into output volume
-    sect_info = concatenate_sections_to_volume(
+    sect_info = concatenate_tfm_sections_to_volume(
         sect_info, ref_space_nat_fn, nl_2d_dir, nl_2d_vol_fn
     )
 
     # Concatenate 2D nonlinear aligned cls sections into an output volume
-    sect_info = concatenate_sections_to_volume(
+    sect_info = concatenate_tfm_sections_to_volume(
         sect_info, ref_space_nat_fn, nl_2d_dir, nl_2d_cls_fn, target_str="cls_rsl"
     )
 
