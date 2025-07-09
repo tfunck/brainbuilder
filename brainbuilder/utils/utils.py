@@ -788,11 +788,16 @@ def parse_resample_arguments(
         f"Error: empty ({vol_sum}) input file for resample_to_resolution\n" + input_arg
     )
     ndim = len(vol.shape)
+
     if ndim == 3:
         # 2D images sometimes have dimensions (m,n,1).
         # We resample them to (m,n)
         if vol.shape[2] == 1:
             vol = vol.reshape([vol.shape[0], vol.shape[1]])
+
+        origin = origin[:ndim]
+        spacing = spacing[:ndim]
+        direction = direction[:ndim]
 
     spacing = spacing[:ndim]
 
@@ -984,6 +989,7 @@ def resample_to_resolution(
         vol, new_dims, order=order, anti_aliasing=True, anti_aliasing_sigma=sigma
     )
 
+    print("\tFactor:", factor)
     vol *= factor
 
     assert np.sum(np.abs(vol)) > 0, (

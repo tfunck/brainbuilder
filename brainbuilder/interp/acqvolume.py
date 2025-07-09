@@ -123,7 +123,7 @@ def thicken_sections_within_chunk(
         y = int(row["sample"])
 
         # Conversion of radioactivity values to receptor density values
-        if tissue_type != None:
+        if tissue_type != None:  # FIXME Not great coding
             target_section = f"nl_2d_{tissue_type}_rsl"
         else:
             target_section = "nl_2d_rsl"

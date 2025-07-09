@@ -17,6 +17,13 @@ from brainbuilder.utils.mesh_utils import (
 )
 from brainbuilder.utils.utils import shell
 
+FREESURFER_DIR = (
+    os.environ.get("FREESURFER_HOME") + "/bin"
+    if os.environ.get("FREESURFER_HOME")
+    else None
+)
+assert FREESURFER_DIR, "FREESURFER_HOME environment variable is not set. Make sure freesurfer is installed and the environment variable is set."
+
 
 def transform_surface_to_chunks(
     chunk_info: pd.DataFrame,
@@ -291,9 +298,9 @@ def inflate_surfaces(
 
         if not os.path.exists(sphere_fn) or clobber:
             print("\tInflate to sphere")
-            shell(f"~/freesurfer/bin/mris_inflate -n 100  {depth_surf_fn} {inflate_fn}")
+            shell(f"{FREESURFER_DIR}/mris_inflate -n 100  {depth_surf_fn} {inflate_fn}")
             print(f"\t\t{inflate_fn}")
-            shell(f"~/freesurfer/bin/mris_sphere -q  {inflate_fn} {sphere_fn}")
+            shell(f"{FREESURFER_DIR}/mris_sphere -q  {inflate_fn} {sphere_fn}")
             print(f"\t\t{sphere_fn}")
 
     return surf_depth_mni_dict

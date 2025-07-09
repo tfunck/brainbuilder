@@ -592,8 +592,6 @@ def convert_from_nnunet(
             ar_thr = multi_threshold(ref_img.get_fdata())
             ar = ar + ar_thr
             ar /= ar.max()
-        else:
-            exit()
 
         print("\tWriting", output_fn)
         nib.Nifti1Image(ar, ref_img.affine, direction_order="lpi").to_filename(

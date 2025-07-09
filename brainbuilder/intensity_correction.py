@@ -60,6 +60,7 @@ def get_section_percentiles(
         row = pd.DataFrame(
             {
                 "img": [img_path],
+                "seg": [seg_path],
                 "chunk": [chunk],
                 "acquisition": [acquisition],
                 "gm_10": [gm_deciles[0]],
@@ -92,8 +93,6 @@ def get_dataset_percentiles(
     """Get the percentiles of the dataset and save to csv file"""
     if not os.path.exists(percentiles_csv) or clobber:
         os.makedirs(output_dir, exist_ok=True)
-
-        print(sect_info_df.head())
 
         results = Parallel(n_jobs=1)(
             delayed(get_section_percentiles)(
@@ -140,7 +139,7 @@ def get_dataset_percentiles(
         # melt the dataframe to long format
         df = pd.melt(
             df,
-            id_vars=["img", "chunk", "acquisition", "y0"],
+            id_vars=["img", "chunk", "acquisition", "y0", "seg"],
             value_vars=[f"gm_{dec}" for dec in range(10, 100, 10)],
             var_name="type",
             value_name="density",
@@ -162,25 +161,45 @@ def plot_correction_over_chunk(
     os.makedirs(plot_dir, exist_ok=True)
 
     palette = sns.color_palette(
-        ["#1f77b4", "#ff7f0e"]
-    )  # Blue for "Uncorrected", Orange for "Batch Corrected"
+        ["#1f77b4", "#ff7f0e", "#2ca02c"]
+    )  # Blue for "Uncorrected", Orange for "Batch Corrected", and Green for "Real"
 
     df["density_corr"] = df["density"] * df["slope"] + df["intercept"]
 
-    print(df.head())
+    def get_median_density(row, i):
+        """Get the median density of the image"""
+        if i % 100 == 0:
+            print(f"{100*i/len(df)}")
+
+        img_path = row["img_corr"]
+        seg_path = row["seg"]
+        img_data = nib.load(img_path).get_fdata()
+        seg_data = nib.load(seg_path).get_fdata()
+        seg_data = resize(seg_data.astype(float), img_data.shape, order=0)
+
+        row["density_real"] = np.median(img_data[seg_data > 0])
+        return row
+
+    df["density_real"] = 0.0  # Initialize the column
+    # res = Parallel(n_jobs=-1)(
+    #    delayed(get_median_density)(row,i) for i, (_, row) in enumerate(df.iterrows())
+    # )
+    # df = pd.DataFrame(res)  # Ensure the result is a DataFrame
+    # print(df)
+
     # melt density and density_corr to long format
     df = pd.melt(
         df,
         id_vars=["chunk", "acquisition", "y0"],
-        value_vars=["density", "density_corr"],
+        value_vars=["density", "density_corr", "density_real"],
         var_name="state",
         value_name="density_value",
     )
-    print(df.head())
 
     # rename density to "Uncorrected"
     df.loc[df["state"] == "density", "state"] = "Uncorrected"
     df.loc[df["state"] == "density_corr", "state"] = "Batch Corrected"
+    df.loc[df["state"] == "density_real", "state"] = "Real"
 
     for acquisition, group in df.groupby("acquisition"):
         out_png = f"{plot_dir}/{acquisition}_{n_points}_order-{order}.png"
@@ -243,8 +262,6 @@ def get_rostral_caudal_values(chunk: int, acquisition_df: pd.DataFrame):
         dfros_t = dfros.loc[dfros["type"] == t]
         dfcau_t = dfcau.loc[dfcau["type"] == t]
 
-        print(dfros_t)
-
         if len(dfros_t) > 0 and len(dfcau_t) > 0:
             x.append(dfcau_t["density"].values)
             y.append(dfros_t["density"].values)
@@ -297,8 +314,11 @@ def correct_within_acquisition(
     for i, chunk in enumerate(np.arange(chunk_min, chunk_max)):
         next_chunk = chunk + 1
 
+        # caudal/posterior == x, rostral/anterior == y
+
         x, y = get_rostral_caudal_values(chunk, acquisition_df)
 
+        # regress caudal values onto rostral values
         slope, intercept = inter_chunk_regr(x, y, order=order)
 
         idx = acquisition_df["chunk"] == next_chunk
@@ -315,6 +335,14 @@ def correct_within_acquisition(
         x1 = acquisition_df.loc[idx, "density"]
 
         plot_regression(i, x, x1, y, slope, intercept, chunk, next_chunk, n_chunks)
+
+    # ensure that the density values are not negative
+    density_offset = min(0, acquisition_df["density"].min())
+
+    acquisition_df.loc[:, "density"] = acquisition_df["density"] - density_offset
+
+    # Update the intercept to account for the offset
+    acquisition_df.loc[:, "intercept"] = acquisition_df["intercept"] - density_offset
 
     plt.tight_layout()
     plt.savefig(plot_png)
@@ -334,7 +362,7 @@ def calculate_correction_factors(
     plot_dir = f"{output_dir}/plots/"
     os.makedirs(plot_dir, exist_ok=True)
 
-    correction_df = get_ends_of_chunk(correction_df, n_points=n_points)
+    correction_df = get_ends_of_chunk(correction_df, 0.25)
 
     out_list = []
 
@@ -348,7 +376,6 @@ def calculate_correction_factors(
             acquisition_df = correction_df.loc[
                 correction_df["acquisition"] == acquisition
             ]
-            print(acquisition_df)
 
             plot_png = f"{plot_dir}/{acquisition}_{n_points}_order-{order}_regr.png"
 
@@ -366,9 +393,13 @@ def calculate_correction_factors(
     return out_df
 
 
-def get_ends_of_chunk(df: pd.DataFrame, n_points: int = 10):
+def get_ends_of_chunk(df: pd.DataFrame, point_offset=0.25):
     # identify the first and last n rows of each chunk by "y0"
     df.sort_values(by=["y0"], inplace=True)
+
+    assert (
+        point_offset > 0 and point_offset < 0.5
+    ), "point_offset must be between 0 and 0.5"
 
     df["cluster"] = 0.0
 
@@ -376,6 +407,8 @@ def get_ends_of_chunk(df: pd.DataFrame, n_points: int = 10):
     for (chunk, _, _), groupdf in df.groupby(["chunk", "acquisition", "type"]):
         # for each chunk, get the first and last n rows
         i = float(chunk)
+
+        n_points = max(int(point_offset * len(groupdf)), 1)
 
         first_n = groupdf.head(n_points)
         last_n = groupdf.tail(n_points)
@@ -390,7 +423,9 @@ def get_ends_of_chunk(df: pd.DataFrame, n_points: int = 10):
     cluster_df = pd.concat(cluster_df_list)
 
     correction_df = (
-        cluster_df.groupby(["chunk", "acquisition", "type", "cluster"])["density"]
+        cluster_df.groupby(["chunk", "acquisition", "type", "cluster"])[
+            "density"
+        ]  # FIXME maybe we should use all density values not just median
         .median()
         .reset_index()
     )
@@ -399,14 +434,28 @@ def get_ends_of_chunk(df: pd.DataFrame, n_points: int = 10):
 
 
 def apply_correction(
-    in_path: str, slope: float, intercept: float, out_path: str, clobber: bool = False
+    in_path: str,
+    seg_path: str,
+    slope: float,
+    intercept: float,
+    out_path: str,
+    clobber: bool = False,
 ):
     """Load "img" then apply slope and intercept correction then save to output_dir"""
     if not os.path.exists(out_path) or clobber:
         auto = nib.load(in_path)
         auto_data = auto.get_fdata()
 
+        # seg_data = nib.load(seg_path).get_fdata()
+        # seg_data = resize(seg_data.astype(float), auto_data.shape, order=0)
+
+        # median0 = np.median(auto_data[seg_data > 0])
+
         auto_data = auto_data * slope + intercept
+
+        # median1 = np.median(auto_data[seg_data > 0])
+
+        # print('Slope:', slope, 'Intercept:', intercept, 'Median0:', median0, 'Median1:', median1,'Median2', median0*slope + intercept)
 
         nib.Nifti1Image(auto_data, auto.affine).to_filename(out_path)
 
@@ -444,6 +493,7 @@ def correct_batch_effect(
 
             percentiles_csv = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_percentiles_{n_points}_order-{order}.csv"
 
+            print("Getting percentiles for sub:", sub, "hemi:", hemisphere)
             df = get_dataset_percentiles(
                 curr_sect_info_df,
                 curr_chunk_info_df,
@@ -454,6 +504,7 @@ def correct_batch_effect(
 
             assert "img" in df.columns, f"img not in columns: {df.columns}"
 
+            print("Calculating correction factors for sub:", sub, "hemi:", hemisphere)
             correction_df = calculate_correction_factors(
                 df,
                 output_dir,
@@ -477,24 +528,33 @@ def correct_batch_effect(
                 how="left",
             )
 
-            plot_correction_over_chunk(
-                df, output_dir + "/qc/", n_points=n_points, order=order, clobber=clobber
-            )
-
+            # define the corrected image path
             df["img_corr"] = df["img"].apply(
-                lambda x: f"{nii_dir}/{os.path.basename(x)}"
+                lambda x: f"{nii_dir}/{os.path.basename(x).replace('.nii.gz', '_batch-corr.nii.gz')}"
             )
 
             # apply the correction to the density
+            print("Applying correction to images for sub:", sub, "hemi:", hemisphere)
             Parallel(n_jobs=-1)(
                 delayed(apply_correction)(
                     row["img"],
+                    row["seg"],
                     row["slope"],
                     row["intercept"],
                     row["img_corr"],
                     clobber=clobber,
                 )
                 for _, row in df.iterrows()
+            )
+
+            # for (chunk, acq), df0 in df.groupby(['chunk','acquisition']):
+            #    print(chunk, acq)
+            #    print(df0['slope'].values)
+            #    print(df0['acquisition'].values)
+
+            print("Plotting correction over chunk for sub:", sub, "hemi:", hemisphere)
+            plot_correction_over_chunk(
+                df, output_dir + "/qc/", n_points=n_points, order=order, clobber=clobber
             )
 
             df_list.append(df)
@@ -527,6 +587,11 @@ def correct_batch_effect(
             subset=["img", "sub", "hemisphere", "chunk", "acquisition", "y0"],
             keep="last",
         )
+
+        # check if img is nan
+        if sect_info_df["img"].isnull().any():
+            # drop rows with missing images
+            sect_info_df = sect_info_df.dropna(subset=["img"])
 
         sect_info_df.to_csv(out_sect_info_csv, index=False)
 
@@ -570,13 +635,8 @@ def correct_section_means(sect_info_csv: str, output_dir: str, clobber: bool = F
 
             density_corr = group["density_corr"].values
 
-            print(group)
-
-            print(density_corr)
-
             # use 1d linear interpolation to create density_corr array over all values in y_space
             density_corr_interp = np.interp(y_space, group["y0"], density_corr)
-            print(density_corr_interp)
 
             # apply gaussian smoothing to density_corr_interp
             density_corr_smooth_all = gaussian_filter(

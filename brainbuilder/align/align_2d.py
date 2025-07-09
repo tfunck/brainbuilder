@@ -416,7 +416,13 @@ def apply_transforms_parallel(
     fx_fn = gen_2d_fn(prefix, "_fx")
 
     img_fn = row["img"]
-    img = nib.load(img_fn)
+
+    try:
+        img = nib.load(img_fn)
+    except Exception as e:
+        print(f"Error loading image {img_fn}: {e}")
+        exit()
+
     img_res = np.array([img.affine[0, 0], img.affine[1, 1]])
 
     # if we're not at the final resolution, we need to downsample the image
@@ -443,7 +449,7 @@ def apply_transforms_parallel(
         # however ITK does not support symlinks so we rename img_rsl_fn to the actual file name
         img_rsl_fn = img_fn
 
-    cmd = f"antsApplyTransforms -v 0 -d 2 -n BSpline -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} "
+    cmd = f"antsApplyTransforms -v 1 -d 2 -n BSpline -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} "
 
     shell(cmd, True)
 
@@ -546,6 +552,8 @@ def align_sections(
     :return: None
     """
     num_cores = cpu_count() if num_cores == 0 else num_cores
+
+    # num_cores = 1
 
     sect_info.reset_index(drop=True, inplace=True)
 

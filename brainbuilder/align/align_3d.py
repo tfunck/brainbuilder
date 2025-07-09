@@ -404,10 +404,16 @@ def run_alignment(
             f"{prefix_syn}InverseComposite.h5"
         ), f"Error: {prefix_syn}InverseComposite.h5 does not exist"
 
-    simple_ants_apply_tfm(seg_rsl_fn, ref_rsl_fn, prefix_syn + "Composite.h5", out_fn)
+    simple_ants_apply_tfm(
+        seg_rsl_fn, ref_rsl_fn, prefix_syn + "Composite.h5", out_fn, n="BSpline[2]"
+    )
 
     simple_ants_apply_tfm(
-        ref_rsl_fn, seg_rsl_fn, prefix_syn + "InverseComposite.h5", out_inv_fn
+        ref_rsl_fn,
+        seg_rsl_fn,
+        prefix_syn + "InverseComposite.h5",
+        out_inv_fn,
+        n="BSpline[2]",
     )
 
     return None

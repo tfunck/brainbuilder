@@ -139,7 +139,7 @@ def reconstruct(
     # qc.data_set_quality_control(sect_info_csv, qc_dir, column="img")
 
     # Stage: Segment
-    seg_df_csv = segment(
+    sect_info_csv = segment(
         chunk_info_csv,
         sect_info_csv,
         seg_dir,
@@ -148,27 +148,26 @@ def reconstruct(
         clobber=clobber,
     )
 
+    # qc.data_set_quality_control(seg_df_csv, qc_dir, column="seg")
+
+    print("Stage: Initial rigid alignment of sections")
+    # Stage: Initial rigid aligment of sections
+    sect_info_csv, init_chunk_csv = initalign(
+        sect_info_csv, chunk_info_csv, initalign_dir, resolution_list, clobber=clobber
+    )
+
     if use_intensity_correction:
         # Stage: Intensity correction
         print("Performing intensity correction")
         sect_info_csv = intensity_correction(
-            seg_df_csv, chunk_info_csv, intens_corr_dir, clobber=clobber
+            sect_info_csv, chunk_info_csv, intens_corr_dir, clobber=clobber
         )
-
-    print(pd.read_csv(sect_info_csv)["img"].values)
-
-    # qc.data_set_quality_control(seg_df_csv, qc_dir, column="seg")
-
-    # Stage: Initial rigid aligment of sections
-    init_sect_csv, init_chunk_csv = initalign(
-        seg_df_csv, chunk_info_csv, initalign_dir, resolution_list, clobber=clobber
-    )
 
     # Stage: Multiresolution alignment of sections to structural reference volume
     align_chunk_info_csv, align_sect_info_csv = multiresolution_alignment(
         hemi_info_csv,
         init_chunk_csv,
-        init_sect_csv,
+        sect_info_csv,
         resolution_list,
         multires_align_dir,
         max_resolution_3d=max_resolution_3d,

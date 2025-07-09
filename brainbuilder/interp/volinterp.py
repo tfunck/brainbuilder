@@ -10,7 +10,6 @@ import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.interp.acqvolume import create_thickened_volumes
 from brainbuilder.utils import utils
 from brainbuilder.utils.nl_deformation_flow import nlflow_isometric
-from brainbuilder.volalign import verify_chunk_limits
 
 
 def idw(vol, nearest_i, min_dist, p=2):
@@ -112,13 +111,14 @@ def volumetric_interpolation(
     for (sub, hemisphere, chunk, acq), curr_sect_info in sect_info.groupby(
         ["sub", "hemisphere", "chunk", "acquisition"]
     ):
-        curr_output_dir = f"{output_dir}/sub-{sub}/hemi-{hemisphere}/acq-{acq}/"
+        curr_output_dir = (
+            f"{output_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/acq-{acq}/"
+        )
 
         os.makedirs(curr_output_dir, exist_ok=True)
 
         curr_chunk_info = chunk_info[(chunk_info["chunk"] == chunk)]
 
-        print("thickened")
         chunk_info_thickened_csv = create_thickened_volumes(
             curr_output_dir,
             curr_chunk_info,
@@ -170,10 +170,6 @@ def volumetric_interpolation(
                 "interp_cls_nat": [interp_cls_iso_fin],
             }
         )
-
-        # ref_rsl_2d_fin = utils.resample_struct_reference_volume(
-        #    struct_ref_vol, resolution, output_dir, clobber=clobber
-        # )
 
         chunk_info_out = pd.concat([chunk_info_out, row], ignore_index=True)
 
@@ -255,16 +251,9 @@ def create_acq_atlas(chunk_info, output_dir, atlas_fin, clobber: bool = False):
 def apply_final_transform_to_files(
     chunk_info, ref_vol_fin, nl_3d_tfm_fn, clobber: bool = False
 ):
-    chunk_info["interp_stx"] = chunk_info["interp_nat"].replace(
-        "interp-vol_iso", "interp-vol_stx"
-    )
-    print(chunk_info.head())
-    print(chunk_info["interp_nat"])
-    print(chunk_info["acquisition"])
-
     for _, row in chunk_info.iterrows():
         interp_nat_fin = row["interp_nat"]
-        interp_stx_fin = interp_nat_fin.replace("interp-vol_iso", "interp-vol_stx")
+        interp_stx_fin = row["interp_stx"]
 
         print("interp_stx_fin:", interp_stx_fin)
 
@@ -273,12 +262,11 @@ def apply_final_transform_to_files(
 
             print(cmd)
 
-            run(
-                cmd,
-                shell=True,
-            )
+            run(cmd, shell=True)
 
             assert nib.load(interp_stx_fin).get_fdata().sum() > 0, "Error: Empty Output"
+
+    return chunk_info
 
 
 def create_final_transform(
@@ -293,16 +281,6 @@ def create_final_transform(
     clobber: bool = False,
 ):
     os.makedirs(output_dir, exist_ok=True)
-
-    resolution_3d = min(resolution_list_3d)
-
-    ref_rsl_3d_fin = utils.resample_struct_reference_volume(
-        in_ref_rsl_fin, resolution_3d, output_dir, clobber=clobber
-    )
-
-    world_chunk_limits, vox_chunk_limits = verify_chunk_limits(
-        ref_rsl_3d_fin, chunk_info
-    )
 
     print("Create Acquisition Atlas")
     atlas_vol_fin, _ = create_acq_atlas(
@@ -321,20 +299,30 @@ def create_final_transform(
     ref_rsl_2d_fin = utils.resample_struct_reference_volume(
         in_ref_rsl_fin, resolution, output_dir, clobber=clobber
     )
+
     nl_3d_tfm_fn = chunk_info["nl_3d_tfm_fn"].values[0]
 
-    out_nl_3d_tfm_fn = (
-        f"{mask_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_SyN_CC_Composite.h5"
-    )
+    # resolution_3d = min(resolution_list_3d)
 
-    nl_3d_tfm_inv_fn = f"{mask_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_SyN_CC_InverseComposite.h5"
-    rec_3d_rsl_fn = (
-        f"{mask_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_rec_3d_rsl.nii.gz"
-    )
-    ref_3d_rsl_fn = (
-        f"{mask_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_ref_3d_rsl.nii.gz"
-    )
+    # ref_rsl_3d_fin = utils.resample_struct_reference_volume(
+    #    in_ref_rsl_fin, resolution_3d, output_dir, clobber=clobber
+    # )
 
+    # world_chunk_limits, vox_chunk_limits = verify_chunk_limits(
+    #    ref_rsl_3d_fin, chunk_info
+    # )
+
+    # out_nl_3d_tfm_fn = (
+    #    f"{mask_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_SyN_CC_Composite.h5"
+    # )
+
+    # nl_3d_tfm_inv_fn = f"{mask_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_SyN_CC_InverseComposite.h5"
+    # rec_3d_rsl_fn = (
+    #    f"{mask_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_rec_3d_rsl.nii.gz"
+    # )
+    # ref_3d_rsl_fn = (
+    #    f"{mask_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_ref_3d_rsl.nii.gz"
+    # )
     # align_3d(
     #    sub,
     #    hemisphere,
@@ -359,9 +347,11 @@ def create_final_transform(
     out_nl_3d_tfm_fn = nl_3d_tfm_fn
     print("atlas_vol_fn:", atlas_vol_fin)
 
-    # apply_final_transform_to_files(
-    #    chunk_info, ref_rsl_2d_fin, out_nl_3d_tfm_fn, clobber=False
-    # )
+    chunk_info = apply_final_transform_to_files(
+        chunk_info, ref_rsl_2d_fin, out_nl_3d_tfm_fn, clobber=True
+    )
+
+    return chunk_info
 
 
 def volumetric_pipeline(
@@ -374,14 +364,15 @@ def volumetric_pipeline(
     output_dir,
     clobber: bool = False,
 ):
-    for (sub, hemisphere, chunk), curr_sect_info in sect_info.groupby(
-        ["sub", "hemisphere", "chunk"]
+    chunk_info_list = []
+
+    for (sub, hemisphere), sect_info_sub_hemi in sect_info.groupby(
+        ["sub", "hemisphere"]
     ):
         idx = (
             (chunk_info["sub"] == sub)
             & (chunk_info["hemisphere"] == hemisphere)
             & (chunk_info["resolution"] == resolution)
-            & (chunk_info["chunk"] == chunk)
         )
 
         curr_chunk_info = chunk_info.loc[idx]
@@ -397,9 +388,13 @@ def volumetric_pipeline(
 
         ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
 
+        ref_vol_rsl_fn = utils.resample_struct_reference_volume(
+            ref_vol_fn, resolution, output_dir, clobber=clobber
+        )
+
         # Volumetric interpolation
         curr_chunk_info = volumetric_interpolation(
-            curr_sect_info,
+            sect_info_sub_hemi,
             curr_chunk_info,
             ref_vol_fn,
             output_dir,
@@ -412,24 +407,40 @@ def volumetric_pipeline(
             chunk_info, curr_chunk_info, how="left", on=["sub", "hemisphere", "chunk"]
         ).dropna()
 
-        resolution_list_3d = [r for r in resolution_list if r >= resolution_3d]
-        print("resolution_list_3d:", resolution_list_3d)
-
-        curr_output_dir = f"{output_dir}/sub-{sub}/hemi-{hemisphere}/atlas/"
-
-        print("Create final transform")
-        output_csv = f"{output_dir}/chunk_info_thickened_stx.csv"
-
-        create_final_transform(
-            sub,
-            hemisphere,
-            chunk,
-            curr_chunk_info,
-            ref_vol_fn,
-            curr_output_dir,
-            resolution,
-            resolution_list_3d,
-            clobber=clobber,
+        curr_chunk_info["interp_stx"] = curr_chunk_info["interp_nat"].apply(
+            lambda x: x.replace("_iso", "_stx")
         )
 
-    return curr_chunk_info
+        for _, row in curr_chunk_info.iterrows():
+            interp_nat_fin = row["interp_nat"]
+            interp_stx_fin = row["interp_stx"]
+
+            nl_3d_tfm_fn = (
+                curr_chunk_info["nl_3d_tfm_fn"]
+                .loc[curr_chunk_info["chunk"] == row["chunk"]]
+                .values[0]
+            )
+
+            print("interp_stx_fin:", interp_stx_fin)
+            print(nl_3d_tfm_fn)
+
+            if not os.path.exists(interp_stx_fin) or clobber:
+                cmd = f"antsApplyTransforms -d 3 -i {interp_nat_fin} -o {interp_stx_fin} -r {ref_vol_rsl_fn} -t {nl_3d_tfm_fn} --float 1"
+
+                print(cmd)
+
+                run(cmd, shell=True)
+
+                assert (
+                    nib.load(interp_stx_fin).get_fdata().sum() > 0
+                ), "Error: Empty Output"
+
+        chunk_info_list.append(curr_chunk_info)
+
+    chunk_info_out = pd.concat(chunk_info_list, ignore_index=True)
+
+    output_csv = f"{output_dir}/chunk_info_thickened_stx.csv"
+
+    chunk_info_out.to_csv(output_csv, index=False)
+
+    return chunk_info_out

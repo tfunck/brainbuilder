@@ -112,7 +112,7 @@ def get_profiles(
             :return: interpolated values
             """
             return depth_index, interpolate_over_surface(
-                sphere_rsl_fn, surface_val, threshold=0.02, order=interp_order
+                sphere_rsl_fn, surface_val, threshold=15, order=interp_order
             )
 
         num_cores = utils.get_maximum_cores(n_elements_list, element_size_list)
@@ -305,6 +305,7 @@ def generate_surface_profiles(
     depth_list: list,
     struct_vol_rsl_fn: str,
     output_dir: str,
+    volume_type: str = "thickened",
     tissue_type: str = "",
     gaussian_sd: float = 0,
     interp_order: int = 1,
@@ -322,22 +323,23 @@ def generate_surface_profiles(
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    chunk_info_thickened_csv = create_thickened_volumes(
-        output_dir,
-        chunk_info,
-        sect_info,
-        resolution,
-        struct_vol_rsl_fn,
-        gaussian_sd=gaussian_sd,
-        clobber=clobber,
-    )
+    if volume_type == "thickened":
+        chunk_info_thickened_csv = create_thickened_volumes(
+            output_dir,
+            chunk_info,
+            sect_info,
+            resolution,
+            struct_vol_rsl_fn,
+            gaussian_sd=gaussian_sd,
+            clobber=clobber,
+        )
 
-    chunk_info_thickened = transform_chunk_volumes(
-        pd.read_csv(chunk_info_thickened_csv),
-        struct_vol_rsl_fn,
-        output_dir,
-        clobber=clobber,
-    )
+        chunk_info = transform_chunk_volumes(
+            pd.read_csv(chunk_info_thickened_csv),
+            struct_vol_rsl_fn,
+            output_dir,
+            clobber=clobber,
+        )
 
     sub = sect_info["sub"].values[0]
     hemisphere = sect_info["hemisphere"].values[0]
@@ -345,13 +347,11 @@ def generate_surface_profiles(
 
     n_depths = len(depth_list)
 
-    # chunk_info_thickened = pd.read_csv(chunk_info_thickened_csv, index_col=None)
-
     output_prefix = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acquisition}_{resolution}mm{tissue_type}_l{n_depths}"
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # Project autoradiograph densities onto surfaces
+    # Project voxel intensities onto surfaces
     # Extract profiles from the chunks using the surfaces
     (
         profiles_fn,
@@ -359,15 +359,16 @@ def generate_surface_profiles(
     ) = project_volume_to_surfaces(
         surf_depth_chunk_dict,
         surf_depth_mni_dict,
-        chunk_info_thickened,
+        chunk_info,
         output_prefix,
+        volume_type=volume_type,
         interp_order=interp_order,
     )
 
     return (
         profiles_fn,
         surf_raw_values_dict,
-        chunk_info_thickened_csv,
+        chunk_info,
     )
 
 
@@ -520,7 +521,10 @@ def interpolate_over_surface(
 
     if not isinstance(surface_mask, np.ndarray):
         # define a mask of verticies where we have receptor densitiies
-        surface_mask = surface_val > threshold * np.max(surface_val)
+        t0, t1 = np.percentile(
+            surface_val[surface_val > 0], [threshold, 100 - threshold]
+        )
+        surface_mask = surface_val > t0  # & (surface_val < t1)
 
     assert np.sum(np.abs(surface_mask)) != 0, "Error, empty profiles {}".format(
         np.sum(surface_mask)
@@ -688,6 +692,8 @@ def combine_volumes(
         for vol_fn in volume_fns[1:]:
             curr_vol = nib.load(vol_fn).get_fdata()
             orig_vol = curr_vol.copy()
+            print("\t\tVolume files:", volume_fns)
+            print("" "\t\tReplacing volume", vol_fn)
 
             if priority == "equal":
                 idx_replace = curr_vol > 0
@@ -776,11 +782,12 @@ def create_reconstructed_cortex(
 
 def create_final_reconstructed_volume(
     reconstructed_cortex_fn: str,
-    chunk_info_thickened_csv: str,
+    chunk_info: str,
     cortex_mask_fn: str,
     resolution: float,
     surf_depth_mni_dict: dict,
     profiles_fn: str,
+    volume_type: str = "thickened_stx",
     clobber: bool = False,
 ) -> None:
     """Create final reconstructed volume from interpolated profiles and cortical surfaces.
@@ -795,12 +802,10 @@ def create_final_reconstructed_volume(
     """
     print("\t Creating final reconstructed volume")
     if not os.path.exists(reconstructed_cortex_fn) or clobber:
-        chunk_info_thickened = pd.read_csv(chunk_info_thickened_csv)
-
         print("\t\tMulti-mesh to volume")
         surf_volume_fn = re.sub(".nii.gz", "_surf.nii.gz", reconstructed_cortex_fn)
         thickened_vol_stx_fn = re.sub(
-            ".nii.gz", "_thickened_stx.nii.gz", reconstructed_cortex_fn
+            ".nii.gz", "_interp-vol_stx.nii.gz", reconstructed_cortex_fn
         )
 
         create_reconstructed_cortex(
@@ -812,10 +817,13 @@ def create_final_reconstructed_volume(
             resolution,
             clobber=clobber,
         )
+        print(volume_type)
+        print(chunk_info[volume_type].values)
 
         combine_volumes(
-            chunk_info_thickened["thickened_stx"].values,
+            chunk_info[volume_type].values,
             thickened_vol_stx_fn,
+            mask_fn=cortex_mask_fn,
             clobber=clobber,
         )
 
