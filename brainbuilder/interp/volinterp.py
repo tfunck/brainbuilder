@@ -393,6 +393,7 @@ def volumetric_pipeline(
         )
 
         # Volumetric interpolation
+        print("Volumetric Interpolation for sub:", sub, "hemi:", hemisphere)
         curr_chunk_info = volumetric_interpolation(
             sect_info_sub_hemi,
             curr_chunk_info,
@@ -406,6 +407,9 @@ def volumetric_pipeline(
         curr_chunk_info = pd.merge(
             chunk_info, curr_chunk_info, how="left", on=["sub", "hemisphere", "chunk"]
         ).dropna()
+        
+        curr_chunk_info['acquisition'] = curr_chunk_info['acquisition_y']
+        del curr_chunk_info['acquisition_y']
 
         curr_chunk_info["interp_stx"] = curr_chunk_info["interp_nat"].apply(
             lambda x: x.replace("_iso", "_stx")

@@ -64,7 +64,7 @@ def reconstruct(
     num_cores: int = None,
     max_resolution_3d: float = 0.3,
     surface_smoothing: int = 0,
-    interp_method: str = "surface",
+    interp_method: str = "volumetric",
     skip_interp: bool = False,
     use_intensity_correction: bool = False,
     clobber: bool = False,

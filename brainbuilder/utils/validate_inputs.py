@@ -64,7 +64,7 @@ class Column:
             validated_rows = Parallel(n_jobs=n_jobs)(
                 delayed(val_func)(var) for var in rows
             )
-            valid_inputs = np.product(np.array(validated_rows))
+            valid_inputs = np.prod(np.array(validated_rows))
 
             if not valid_inputs:
                 invalid_rows = rows[~np.array(validated_rows)]
@@ -127,7 +127,7 @@ def validate_dataframe(
             print(column.name, validated)
             valid_columns.append(validated)
 
-    valid_inputs = np.product(np.array(valid_columns))
+    valid_inputs = np.prod(np.array(valid_columns))
     return valid_inputs
 
 

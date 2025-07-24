@@ -404,9 +404,9 @@ def alignment_stage(
     smooth_sigma = re.sub("vox", "", linParams.s_str)
     iterations = linParams.itr_str.split(",")[0][1:]
 
-    shrink_factor = "4x3x2"
-    smooth_sigma = "2x1.5x1"
-    iterations = "10x5x2"
+    shrink_factor = "4x3x2x1"
+    smooth_sigma = ".8x0.66x.3x0"
+    iterations = "200x100x50x25"
 
     csv_fn = vol_fn_str.format(
         output_dir,

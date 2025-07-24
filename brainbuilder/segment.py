@@ -3,6 +3,7 @@ import os
 import re
 from glob import glob
 
+import shutil
 import numpy as np
 import pandas as pd
 import SimpleITK as sitk
@@ -489,7 +490,7 @@ def segment(
         )
 
         if missing_segmentations or clobber:
-            if "nnunetv2" in seg_method:
+            if isinstance(seg_method, str) and "nnunetv2" in seg_method:
                 print("\tSegmenting with nnUNet")
                 try:
                     utils.shell(
@@ -499,8 +500,8 @@ def segment(
                 except Exception as e:
                     print("Warning: nnUNet failed to segment")
                     print(e)
-                    seg_method = None
-            elif "nnunetv1" in seg_method:
+                    seg_method = -1
+            elif isinstance(seg_method, str) and "nnunetv1" in seg_method:
                 print("\tSegmenting with nnUNet")
                 try:
                     # Export to environment variable
@@ -514,12 +515,21 @@ def segment(
                 except Exception as e:
                     print("Warning: nnUNet failed to segment")
                     print(e)
-                    seg_method = None
+                    seg_method = -1
 
-        if seg_method is None or seg_method in HISTOGRAM_METHODS:
+        if seg_method == -1 or seg_method in HISTOGRAM_METHODS:
             apply_histogram_threshold(sect_info, num_cores=num_cores, method=seg_method)
+        else : # No segmentation method specified, use unsegmented images instead
+            print("\tNo segmentation method specified, using unsegmented images")
+            sect_info["seg"] = sect_info["img"].apply(
+                lambda x: x.replace(".nii.gz", f"_{resolution}mm_seg.nii.gz")
+            )
+            for seg_fn, img_fn in zip(sect_info["seg"], sect_info["img"]):
+                if not os.path.exists(seg_fn) or clobber:
+                    shutil.copy(img_fn, seg_fn)
+                    print("\tCopied", img_fn, "to", seg_fn)
 
-        if seg_method is not None:
+        if seg_method != -1 :
             nnunet2nifti_to_do = convert_from_nnunet_list(
                 sect_info,
                 nnunet_out_dir,

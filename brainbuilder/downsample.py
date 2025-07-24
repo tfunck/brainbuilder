@@ -6,9 +6,30 @@ import re
 import numpy as np
 import pandas as pd
 from joblib import Parallel, cpu_count, delayed
-
+import nibabel
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
+
+def compute_max_new_dims(files, resolution):
+    """Compute the maximum new dimensions for downsampling."""
+    new_resolution = np.array([resolution] * 2)
+    max_dim_0 = 0
+    max_dim_1 = 0
+
+    for raw_file in files:
+        vol = nib.load(raw_file).get_fdata()
+        old_resolution = nibabel.load(raw_file).header.get_zooms()[:3]
+
+        new_dims, _ = utils.get_new_dims(old_resolution, new_resolution, vol.shape)
+
+        if new_dims[0] > max_dim_0:
+            max_dim_0 = new_dims[0]
+
+        if new_dims[1] > max_dim_1:
+            max_dim_1 = new_dims[1]
+            
+    return max_dim_0, max_dim_1
+
 
 
 def downsample_sections(
@@ -83,6 +104,9 @@ def downsample_sections(
         if num_cores is None or num_cores == 0:
             num_cores = cpu_count()
 
+        # Example usage (if needed):
+        max_dim_0, max_dim_1 = compute_max_new_dims(sect_info['raw'], resolution)
+
         Parallel(n_jobs=num_cores, backend="multiprocessing")(
             delayed(utils.resample_to_resolution)(
                 raw_file,
@@ -91,9 +115,13 @@ def downsample_sections(
                 affine=affine,
                 order=1,
                 factor=factor,
+                max_dims=(max_dim_0, max_dim_1),
             )
             for raw_file, downsample_file, affine, resolution, factor in to_do
         )
+        
+    
+             
 
         sect_info.to_csv(sect_info_csv, index=False)
 

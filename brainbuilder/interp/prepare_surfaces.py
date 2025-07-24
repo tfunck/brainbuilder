@@ -17,12 +17,7 @@ from brainbuilder.utils.mesh_utils import (
 )
 from brainbuilder.utils.utils import shell
 
-FREESURFER_DIR = (
-    os.environ.get("FREESURFER_HOME") + "/bin"
-    if os.environ.get("FREESURFER_HOME")
-    else None
-)
-assert FREESURFER_DIR, "FREESURFER_HOME environment variable is not set. Make sure freesurfer is installed and the environment variable is set."
+
 
 
 def transform_surface_to_chunks(
@@ -277,6 +272,15 @@ def inflate_surfaces(
     :param clobber: bool, whether to overwrite existing files
     :return dict: surf_depth_mni_dict
     """
+    
+    
+    FREESURFER_DIR = (
+        os.environ.get("FREESURFER_HOME") + "/bin"
+        if os.environ.get("FREESURFER_HOME")
+        else None
+    )
+    assert FREESURFER_DIR, "FREESURFER_HOME environment variable is not set. Make sure freesurfer is installed and the environment variable is set."
+
     for depth in depth_list:
         depth += 0.0
         depth_surf_fn = surf_depth_mni_dict[float(depth)]["depth_surf_fn"]

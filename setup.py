@@ -10,4 +10,5 @@ setup(
     author_email="thomas.funck@childmind.org",
     url="https://github.com/tfunck/brainbuilder",
     packages=["brainbuilder"],
+    python_requires='>3.7.0'
 )

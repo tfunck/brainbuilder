@@ -329,7 +329,7 @@ def interpolate_missing_sections(
     output_dir: str,
     n_depths: int = 0,
     surface_smoothing: int = 0,
-    interp_method: str = METHOD_SURFACE,
+    interp_method: str = METHOD_VOLUMETRIC,
     clobber: bool = False,
 ) -> str:
     """Interpolate missing sections in a volume.
@@ -348,8 +348,6 @@ def interpolate_missing_sections(
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # sect_info = sect_info.loc[ sect_info['acquisition'] == 'ampa' ]
-
     interp_chunk_info = volumetric_pipeline(
         sect_info,
         chunk_info,
@@ -360,6 +358,7 @@ def interpolate_missing_sections(
         output_dir,
         clobber=clobber,
     )
+    assert 'acquisition' in interp_chunk_info.columns, "Error: 'acquisition' column not found in chunk info"
 
     if interp_method == METHOD_SURFACE:
         for (sub, hemisphere, acq), curr_sect_info in sect_info.groupby(
