@@ -1015,6 +1015,24 @@ def calculate_sigma_for_downsampling(new_pixel_spacing: float) -> float:
     return sigma
 
 
+def get_new_dims(old_resolution: Tuple[float, float, float], new_resolution: Tuple[float, float, float], old_dimensions: np.ndarray) -> np.ndarray:
+    """Calculate new dimensions based on old and new resolutions."""
+    scale = old_resolution / np.array(new_resolution)
+    downsample_factor = 1 / scale
+
+    new_dims = np.ceil(old_dimensions * scale)
+    return new_dims, downsample_factor
+
+def pad_to_max_dims(vol, max_dims):
+    offset0 = int(max_dims[0] - vol.shape[0])
+    offset1 = int(max_dims[1] - vol.shape[1])
+    offset2 = int(max_dims[2] - vol.shape[2]) if len(vol.shape) == 3 else 0
+    if len(vol.shape) == 2:
+        vol = np.pad(vol, ((0, offset0), (0, offset1)), mode='constant')
+    elif len(vol.shape) == 3:
+        vol = np.pad(vol, ((0, offset0), (0, offset1), (0, offset2)), mode='constant')
+    return vol
+
 def resample_to_resolution(
     input_arg: Union[str, np.ndarray],
     new_resolution: Tuple[float, float, float],
@@ -1024,6 +1042,7 @@ def resample_to_resolution(
     direction_order: str = "lpi",
     order: int = 1,
     factor: float = 1,
+    max_dims: Tuple[int, int] = None,
 ) -> nib.Nifti1Image:
     """Resample a volume to a new resolution.
 
@@ -1035,6 +1054,7 @@ def resample_to_resolution(
     :param order: order of interpolation
     :return: img_out
     """
+    print('hello')
     (
         vol,
         origin,
@@ -1046,10 +1066,8 @@ def resample_to_resolution(
         ndim,
     ) = parse_resample_arguments(input_arg, output_filename, affine, dtype)
 
-    scale = old_resolution / np.array(new_resolution)
-    downsample_factor = 1 / scale
 
-    new_dims = np.ceil(vol.shape * scale)
+    new_dims, downsample_factor = get_new_dims(old_resolution, new_resolution, vol.shape)
 
     sigma = calculate_sigma_for_downsampling(downsample_factor)
 
@@ -1059,7 +1077,9 @@ def resample_to_resolution(
         vol, new_dims, order=order, anti_aliasing=True, anti_aliasing_sigma=sigma
     )
 
-    print("\tFactor:", factor)
+    if max_dims is not None:
+        vol = pad_to_max_dims(vol, max_dims)
+
     vol *= factor
 
     assert np.sum(np.abs(vol)) > 0, (
@@ -1071,8 +1091,11 @@ def resample_to_resolution(
     affine[dim_range, dim_range] = new_resolution
     affine[dim_range, 3] = origin
 
+    print(vol.shape)
+
     img_out = nib.Nifti1Image(vol, affine, dtype=dtype, direction_order=direction_order)
 
     if isinstance(output_filename, str):
         img_out.to_filename(output_filename)
+    print('done')
     return img_out

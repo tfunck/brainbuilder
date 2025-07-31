@@ -392,10 +392,9 @@ def align_2d_parallel(
 
 def apply_transforms_parallel(
     tfm_dir: str,
-    mv_dir: str,
     resolution: float,
     row: pd.Series,
-    last_resolution: bool = False,
+    file_str:str='img'
 ) -> int:
     """Apply transforms to 2d sections.
 
@@ -415,7 +414,7 @@ def apply_transforms_parallel(
     out_fn = prefix + "_rsl.nii.gz"
     fx_fn = gen_2d_fn(prefix, "_fx")
 
-    img_fn = row["img"]
+    img_fn = row[file_str]
 
     try:
         img = nib.load(img_fn)
@@ -454,7 +453,7 @@ def apply_transforms_parallel(
     shell(cmd, True)
 
     assert os.path.exists(f"{out_fn}"), "Error apply nl 2d tfm to img autoradiograph"
-    return 0
+    return out_fn
 
 
 def get_align_2d_to_do(sect_info: pd.DataFrame, clobber: bool = False) -> tuple:
@@ -585,7 +584,7 @@ def align_sections(
     if len(to_do_resample_sect_info) > 0:
         Parallel(n_jobs=num_cores, backend="multiprocessing")(
             delayed(apply_transforms_parallel)(
-                tfm_dir, mv_dir, resolution, row, last_resolution=last_resolution
+                tfm_dir, resolution, row
             )
             for row in to_do_resample_sect_info
         )

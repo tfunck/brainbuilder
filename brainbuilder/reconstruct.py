@@ -67,8 +67,8 @@ def reconstruct(
     seg_method: str = "nnunetv1",
     num_cores: int = None,
     max_resolution_3d: float = 0.3,
-    surface_smoothing: int = 0,
-    interp_method: str = "surface",
+    final_resolution: float = None,
+    interp_method: str = "volumetric",
     skip_interp: bool = False,
     use_intensity_correction: bool = False,
     clobber: bool = False,
@@ -105,7 +105,7 @@ def reconstruct(
     if num_cores is None or num_cores == 0:
         num_cores = -1
 
-    maximum_resolution = resolution_list[-1]
+    max_resolution_list = resolution_list[-1]
 
     print("Reconstructing 2D sections to 3D volume")
     print("\tInput files:")
@@ -147,7 +147,7 @@ def reconstruct(
         chunk_info_csv,
         sect_info_csv,
         seg_dir,
-        maximum_resolution,
+        max_resolution_list,
         seg_method=seg_method,
         clobber=clobber,
     )
@@ -190,13 +190,12 @@ def reconstruct(
             hemi_info_csv,
             align_chunk_info_csv,
             align_sect_info_csv,
-            maximum_resolution,
-            max_resolution_3d,
+            max_resolution_list,
             resolution_list,
             interp_dir,
             n_depths=n_depths,
-            surface_smoothing=surface_smoothing,
             interp_method=interp_method,
+            final_resolution=final_resolution,
             clobber=clobber,
         )
 
@@ -251,6 +250,13 @@ def setup_argparse() -> argparse.ArgumentParser:
         default=[4.0, 3.0, 2.0, 1.0, 0.5, 0.25],
         type=float,
         help="Resolution list.",
+    )
+    parser.add_argument(
+        "--final-resolution",
+        dest="final_resolution",
+        type=float,
+        default=None,
+        help="Final resolution for the output volume.",
     )
     parser.add_argument(
         "--num-cores",

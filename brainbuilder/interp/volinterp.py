@@ -10,6 +10,9 @@ import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.interp.acqvolume import create_thickened_volumes
 from brainbuilder.utils import utils
 from brainbuilder.utils.nl_deformation_flow import nlflow_isometric
+from brainbuilder.align.align_2d import apply_transforms_parallel
+
+from joblib import Parallel, delayed
 
 
 def idw(vol, nearest_i, min_dist, p=2):
@@ -85,6 +88,8 @@ def volumetric_interpolation(
     resolution: float,
     resolution_list: list,
     clobber: bool = False,
+    final_resolution: float = None,
+    num_cores: int = -1,
 ) -> pd.DataFrame:
     """Interpolates the volumes of the sections in the chunk_info dataframe.
     The interpolation is done in the following steps:
@@ -107,6 +112,21 @@ def volumetric_interpolation(
     chunk_info_out = pd.DataFrame(
         columns=["sub", "hemisphere", "chunk", "acquisition", "interp_nat"]
     )
+    
+    final_tfm_dir = output_dir+'/final_tfm_2d'
+    
+    os.makedirs(final_tfm_dir, exist_ok=True)
+    
+    if final_resolution is not None and isinstance(final_resolution, float) :
+        
+        Parallel(n_jobs=num_cores, backend="multiprocessing")(
+            delayed(apply_transforms_parallel)(
+                final_tfm_dir, final_resolution, row, file_str='raw' 
+            )
+            for row in sect_info.iterrows() 
+        )
+ 
+    
 
     for (sub, hemisphere, chunk, acq), curr_sect_info in sect_info.groupby(
         ["sub", "hemisphere", "chunk", "acquisition"]
@@ -355,13 +375,13 @@ def create_final_transform(
 
 
 def volumetric_pipeline(
-    sect_info,
-    chunk_info,
-    hemi_info,
-    resolution,
-    resolution_3d,
-    resolution_list,
-    output_dir,
+    sect_info:pd.DataFrame,
+    chunk_info:pd.DataFrame,
+    hemi_info:pd.DataFrame,
+    resolution:float,
+    resolution_list:list,
+    output_dir:str,
+    final_resolution:float=None,
     clobber: bool = False,
 ):
     chunk_info_list = []
@@ -393,6 +413,7 @@ def volumetric_pipeline(
         )
 
         # Volumetric interpolation
+        print("Volumetric Interpolation for sub:", sub, "hemi:", hemisphere)
         curr_chunk_info = volumetric_interpolation(
             sect_info_sub_hemi,
             curr_chunk_info,
@@ -400,12 +421,16 @@ def volumetric_pipeline(
             output_dir,
             resolution,
             resolution_list,
+            final_resolution = final_resolution,
             clobber=clobber,
         )
 
         curr_chunk_info = pd.merge(
             chunk_info, curr_chunk_info, how="left", on=["sub", "hemisphere", "chunk"]
         ).dropna()
+        
+        curr_chunk_info['acquisition'] = curr_chunk_info['acquisition_y']
+        del curr_chunk_info['acquisition_y']
 
         curr_chunk_info["interp_stx"] = curr_chunk_info["interp_nat"].apply(
             lambda x: x.replace("_iso", "_stx")
