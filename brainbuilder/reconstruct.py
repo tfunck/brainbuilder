@@ -10,6 +10,7 @@ from brainbuilder.initalign import initalign
 from brainbuilder.intensity_correction import intensity_correction
 from brainbuilder.interpsections import interpolate_missing_sections
 from brainbuilder.segment import segment
+from brainbuilder.utils import get_logger
 from brainbuilder.utils.validate_inputs import validate_inputs
 from brainbuilder.volalign import multiresolution_alignment
 
@@ -20,6 +21,9 @@ global file_dir
 base_file_dir, fn = os.path.split(os.path.abspath(__file__))
 file_dir = base_file_dir + os.sep + "section_numbers" + os.sep
 manual_dir = base_file_dir + os.sep + "manual_points" + os.sep
+
+
+logger = get_logger()
 
 
 def setup_args(args: argparse.Namespace) -> argparse.Namespace:

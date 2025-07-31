@@ -1,6 +1,7 @@
 """Utility functions for brainbuilder."""
 
 import contextlib
+import logging
 import multiprocessing
 import os
 import re
@@ -20,6 +21,75 @@ from skimage.transform import resize
 import brainbuilder.utils.ants_nibabel as nib
 
 os_info = os.uname()
+
+
+# utils.py
+
+
+def get_logger(name="brainbuilder"):
+    logger = logging.getLogger(name)
+    if not logger.hasHandlers():
+        # Prevent duplicated messages if called multiple times
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+    return logger
+
+
+def convert_gm_com_dist_map(vol: np.ndarray, voxel_sizes: np.ndarray) -> np.ndarray:
+    """Convert the volume to a distance map from the center of mass.
+
+    :param vol: np.ndarray, volume
+    :param voxel_sizes: np.ndarray, voxel size
+    :return: np.ndarray, distance map
+    """
+    assert len(vol.shape) == 3, "Error: volume must be 3D"
+    assert np.sum(vol) > 0, "Error: volume must not be empty"
+
+    idx = vol > vol.min()
+
+    # Get the center of mass
+    com = np.array(np.where(idx)).mean(axis=1)
+
+    # Create a grid of coordinates
+    coords = np.array(
+        np.meshgrid(
+            np.arange(vol.shape[0]),
+            np.arange(vol.shape[1]),
+            np.arange(vol.shape[2]),
+            indexing="ij",
+        )
+    )
+
+    coords = coords.reshape(3, -1).T
+
+    idx_rsl = idx.reshape(-1)
+
+    print(vol.shape)
+    print(coords.shape)
+    print(idx.shape)
+
+    coords = coords[idx_rsl, :]
+
+    # Calculate the distance from the center of mass
+    distances = np.linalg.norm(coords - com, axis=1)
+
+    # Scale distances in each dimension by the array of voxel size
+    # distances = distances * voxel_sizes
+
+    # Rescale distances between [0,1] in each dimension
+    distances = distances / np.max(distances, axis=0)
+
+    # Create a new volume with the same shape as the input volume
+    new_vol = np.zeros_like(vol, dtype=np.float32)
+
+    vol = (vol - vol.min()) / (vol.max() - vol.min())
+
+    new_vol[idx] = 1 + vol[idx] * distances
+
+    return new_vol
 
 
 def get_available_memory() -> int:
