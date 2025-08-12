@@ -3,12 +3,17 @@
 import os
 import re
 
+import nibabel
 import numpy as np
 import pandas as pd
 from joblib import Parallel,  delayed
 import nibabel
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
+from brainbuilder.utils.utils import get_logger
+
+logger = get_logger(__name__)
+
 
 def compute_max_new_dims(files, resolution, output_dir, num_cores=None):
     """Compute the maximum new dimensions for downsampling."""
@@ -139,6 +144,8 @@ def downsample_sections(
     :param clobber: bool, optional, if True, overwrite existing files, default=False
     :return sect_info_csv: path to updated sect_info.csv
     """
+    logger.info(f"Downsampling sections to resolution: {resolution}")
+
     chunk_info = pd.read_csv(chunk_info_csv)
     sect_info = pd.read_csv(sect_info_csv)
     

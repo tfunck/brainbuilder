@@ -2,6 +2,7 @@
 
 import glob
 import json
+import logging
 import os
 import shutil
 import tempfile
@@ -23,6 +24,8 @@ from joblib import Parallel, cpu_count, delayed
 from scipy.ndimage.filters import gaussian_filter
 from skimage.filters import threshold_otsu
 from skimage.transform import resize
+
+logger = utils.get_logger(__name__)
 
 
 def threshold(fn: str) -> str:
@@ -141,7 +144,6 @@ def ants_registration_2d_section(
     masks: bool = False,
     init_tfm: str = None,
     write_composite_transform: int = 1,
-    verbose: bool = False,
     clobber: bool = False,
     exit_on_failure: bool = False,
 ) -> tuple:
@@ -161,7 +163,6 @@ def ants_registration_2d_section(
     :param sampling: sampling
     :param step: step
     :param init_tfm: initial transform
-    :param verbose: verbose
     :return: final_tfm, mv_rsl_fn
     """
     last_transform = None
@@ -180,6 +181,8 @@ def ants_registration_2d_section(
 
     mv_rsl_fn = f"{prefix}_{transforms[-1]}_{metrics[-1]}_cls_rsl.nii.gz"
 
+    verbose = 0 if logger.getEffectiveLevel() == logging.INFO else 1
+
     if not os.path.exists(final_tfm) or not os.path.exists(mv_rsl_fn) or clobber:
         for transform, metric, f_str, s_str, itr_str in zip(
             transforms, metrics, f_list, s_list, itr_list
@@ -197,7 +200,7 @@ def ants_registration_2d_section(
 
             command_str = f"antsRegistration -v {max(int(verbose),0)} -d 2 --write-composite-transform {write_composite_transform} {init_str} -o [{prefix}_{transform}_{metric}_,{mv_rsl_fn},/tmp/out_inv.nii.gz] -t {transform}[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} "
 
-            if int(verbose) < 0:
+            if int(verbose) <= 0:
                 command_str += " > /dev/null 2>&1"
 
             if masks:
@@ -208,8 +211,7 @@ def ants_registration_2d_section(
             last_transform = transform
             last_metric = metric
 
-            if verbose:
-                print(command_str)
+            logger.debug(command_str)
 
             with open(prefix + f"{transform}_{metric}_command.txt", "w") as f:
                 f.write(command_str)
@@ -391,10 +393,7 @@ def align_2d_parallel(
 
 
 def apply_transforms_parallel(
-    tfm_dir: str,
-    resolution: float,
-    row: pd.Series,
-    file_str:str='img'
+    tfm_dir: str, resolution: float, row: pd.Series, file_str: str = "img"
 ) -> int:
     """Apply transforms to 2d sections.
 
@@ -419,8 +418,8 @@ def apply_transforms_parallel(
     try:
         img = nib.load(img_fn)
     except Exception as e:
-        print(f"Error loading image {img_fn}: {e}")
-        exit()
+        logger.critical(f"Error loading image {img_fn}: {e}")
+        exit(1)
 
     img_res = np.array([img.affine[0, 0], img.affine[1, 1]])
 
@@ -448,7 +447,7 @@ def apply_transforms_parallel(
         # however ITK does not support symlinks so we rename img_rsl_fn to the actual file name
         img_rsl_fn = img_fn
 
-    cmd = f"antsApplyTransforms -v 1 -d 2 -n BSpline -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} "
+    cmd = f"antsApplyTransforms -v {VERBOSE} -d 2 -n BSpline -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} "
 
     shell(cmd, True)
 
@@ -583,9 +582,7 @@ def align_sections(
 
     if len(to_do_resample_sect_info) > 0:
         Parallel(n_jobs=num_cores, backend="multiprocessing")(
-            delayed(apply_transforms_parallel)(
-                tfm_dir, resolution, row
-            )
+            delayed(apply_transforms_parallel)(tfm_dir, resolution, row)
             for row in to_do_resample_sect_info
         )
 
@@ -619,12 +616,14 @@ def concatenate_tfm_sections_to_volume(
     sect_info[target_name] = [""] * sect_info.shape[0]
 
     for idx, (i, row) in enumerate(sect_info.iterrows()):
+        print(row)
         y = int(row["sample"])
+
         base = row["base"]
         f"{tfm_dir}/{base}_y-{y}"
         fn = f"{tfm_dir}/{base}_y-{y}_{target_str}.nii.gz"
 
-        sect_info[target_name].loc[i] = fn
+        sect_info.loc[target_name, i] = fn
 
     concatenate_sections_to_volume(
         sect_info, target_name, out_fn, hires_img.shape, hires_img.affine
@@ -692,7 +691,7 @@ def align_2d(
         sect_info, ref_space_nat_fn, float(resolution), nl_2d_dir, dtype=np.uint8
     )
 
-    print("\t\tStep 4: 2d nl alignment")
+    logger.info("\t\tStep 4: 2d nl alignment")
     sect_info["base"] = sect_info["raw"].apply(
         lambda x: os.path.basename(x).split(".")[0]
     )

@@ -1,9 +1,9 @@
 """Create GM volume from segmented images."""
 import os
 import re
+import shutil
 from glob import glob
 
-import shutil
 import numpy as np
 import pandas as pd
 import SimpleITK as sitk
@@ -19,6 +19,8 @@ from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
+
+logger = utils.get_logger(__name__)
 
 base_file_dir, fn = os.path.split(os.path.abspath(__file__))
 repo_dir = f"{base_file_dir}/../"
@@ -198,7 +200,7 @@ def convert_2d_array_to_nifti(
             sitk.WriteImage(itk_img, output_filename)
             # nib.Nifti1Image(i, nii_img.affine).to_filename(output_filename)
 
-        print("Wrote:", output_filename)
+        logger.info("Wrote:", output_filename)
 
 
 def assign_seg_filenames(
@@ -283,7 +285,7 @@ def convert_from_nnunet_list(
 
         if utils.check_run_stage([seg_fn], [nnunet_fn], clobber=clobber):
             if warning_flag:
-                print("\tWarning: Could not find file:", seg_fn)
+                logger.warning("\Could not find file:", seg_fn)
 
             to_do.append((nnunet_fn, img_fn, seg_fn))
 
@@ -337,7 +339,7 @@ def check_seg_files(
 
     :param sect_info: dataframe with columns: raw, seg_fn
     :param nnunet_out_dir: directory to save nnunet images
-    :param warning_flag: bool, optional, if True, print warning message if file is missing, default=False
+    :param warning_flag: bool, optional, if True, logger.info warning message if file is missing, default=False
     :return: True if all files exist, False otherwise
     """
     all_files_valid = True
@@ -354,7 +356,7 @@ def check_seg_files(
         if not os.path.exists(row["seg"]):
             all_files_valid = False
             if warning_flag:
-                print("\tWarning: Could not find file:", row["seg"])
+                logger.warning("\Could not find file:", row["seg"])
 
     return all_files_valid
 
@@ -491,18 +493,18 @@ def segment(
 
         if missing_segmentations or clobber:
             if isinstance(seg_method, str) and "nnunetv2" in seg_method:
-                print("\tSegmenting with nnUNet")
+                logger.info("\tSegmenting with nnUNet")
                 try:
                     utils.shell(
                         f"nnUNetv2_predict_from_modelfolder --c --verbose -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir} -f 0  -d Dataset501_Brain -device cpu",
                         exit_on_failure=False,
                     )
                 except Exception as e:
-                    print("Warning: nnUNet failed to segment")
-                    print(e)
+                    logger.warning("nnUNet failed to segment")
+                    logger.warning(e)
                     seg_method = -1
             elif isinstance(seg_method, str) and "nnunetv1" in seg_method:
-                print("\tSegmenting with nnUNet")
+                logger.info("\tSegmenting with nnUNet")
                 try:
                     # Export to environment variable
                     #'/home/tfunck/projects/caps/data/nnUNet_results/' #nnUNet/'
@@ -513,23 +515,23 @@ def segment(
                         exit_on_failure=False,
                     )
                 except Exception as e:
-                    print("Warning: nnUNet failed to segment")
-                    print(e)
+                    logger.warning("Warning: nnUNet failed to segment")
+                    logger.warning(e)
                     seg_method = -1
 
         if seg_method == -1 or seg_method in HISTOGRAM_METHODS:
             apply_histogram_threshold(sect_info, num_cores=num_cores, method=seg_method)
-        else : # No segmentation method specified, use unsegmented images instead
-            print("\tNo segmentation method specified, using unsegmented images")
+        else:  # No segmentation method specified, use unsegmented images instead
+            logger.info("\tNo segmentation method specified, using unsegmented images")
             sect_info["seg"] = sect_info["img"].apply(
                 lambda x: x.replace(".nii.gz", f"_{resolution}mm_seg.nii.gz")
             )
             for seg_fn, img_fn in zip(sect_info["seg"], sect_info["img"]):
                 if not os.path.exists(seg_fn) or clobber:
                     shutil.copy(img_fn, seg_fn)
-                    print("\tCopied", img_fn, "to", seg_fn)
+                    logger.info("\tCopied", img_fn, "to", seg_fn)
 
-        if seg_method != -1 :
+        if seg_method != -1:
             nnunet2nifti_to_do = convert_from_nnunet_list(
                 sect_info,
                 nnunet_out_dir,
@@ -539,7 +541,7 @@ def segment(
             )
 
             if len(nnunet2nifti_to_do) > 0:
-                print("\tConvert Files from nnUNet to standard nifti files")
+                logger.info("\tConvert Files from nnUNet to standard nifti files")
 
                 Parallel(n_jobs=num_cores)(
                     delayed(convert_from_nnunet)(
@@ -583,11 +585,11 @@ def convert_from_nnunet(
         return ar
 
     if (np.sum(ar == 1) / np.product(ar.shape)) < 0.02:
-        print("\nWarning: Found a section that nnUNet failed to segment!\n")
+        logger.info("\nWarning: Found a section that nnUNet failed to segment!\n")
         histogram_threshold(reference_fn, output_fn)
     else:
         if np.sum(ar) == 0:
-            print("Error: empty segmented image with nnunet")
+            logger.info("Error: empty segmented image with nnunet")
             exit(0)
 
         ar = _nnunet(ar)
@@ -598,12 +600,12 @@ def convert_from_nnunet(
         ar = np.fliplr(np.flipud(ar))
 
         if "hybrid" in seg_method:
-            print("\tUsing nnUNet hybrid segmentation")
+            logger.info("\tUsing nnUNet hybrid segmentation")
             ar_thr = multi_threshold(ref_img.get_fdata())
             ar = ar + ar_thr
             ar /= ar.max()
 
-        print("\tWriting", output_fn)
+        logger.info("\tWriting", output_fn)
         nib.Nifti1Image(ar, ref_img.affine, direction_order="lpi").to_filename(
             output_fn
         )

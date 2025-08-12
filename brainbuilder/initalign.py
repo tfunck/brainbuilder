@@ -13,7 +13,9 @@ from skimage.transform import resize
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
 from brainbuilder.utils.ANTs import ANTs
-from brainbuilder.utils.utils import AntsParams
+from brainbuilder.utils.utils import AntsParams, get_logger
+
+logger = get_logger(__name__)
 
 
 def load2d(fn: str) -> np.array:
@@ -73,16 +75,16 @@ def align_neighbours_to_fixed(
 
         # calculate rigid transform from moving to fixed images
         if not os.path.exists(tfm_fn) or not os.path.exists(qc_fn):
-            print()
-            print("\tFixed:", i, fixed_fn)
-            print("\tMoving:", j, moving_fn)
-            print("\tTfm:", tfm_fn, os.path.exists(tfm_fn))
-            print("\tQC:", qc_fn, os.path.exists(qc_fn))
-            print("\tMoving RSL:", moving_rsl_fn)
+            logger.info()
+            logger.info("\tFixed:", i, fixed_fn)
+            logger.info("\tMoving:", j, moving_fn)
+            logger.info("\tTfm:", tfm_fn, os.path.exists(tfm_fn))
+            logger.info("\tQC:", qc_fn, os.path.exists(qc_fn))
+            logger.info("\tMoving RSL:", moving_rsl_fn)
 
             if target_acquisition is not None:
                 if df["acquisition"].loc[j_idx].values[0] != target_acquisition:
-                    print("\tSkipping")
+                    logger.info("\tSkipping")
                     continue
 
             os.makedirs(outprefix, exist_ok=True)
@@ -260,7 +262,6 @@ def adjust_alignment(
             clobber=clobber,
         )
 
-    # df.to_csv('{}/df_{}-0.csv'.format(output_dir,tfm_type))
     return transforms, df
 
 
@@ -282,7 +283,7 @@ def apply_transforms_to_sections(
     :param clobber: Whether to overwrite existing files.
     :return: The DataFrame containing the section information.
     """
-    print("Applying Transforms")
+    logger.info("Applying Transforms")
     if target_acquisition is not None:
         df = df.loc[df["acquisition"] == target_acquisition]
 
@@ -310,8 +311,6 @@ def apply_transforms_to_sections(
 def combine_sections_to_vol(
     df: pd.DataFrame,
     y_mm: float,
-    z_mm: float,
-    direction: str,
     out_fn: str,
     target_tier: int = 1,
 ) -> None:
@@ -352,7 +351,7 @@ def combine_sections_to_vol(
             # vol[:,int(y),:] += int(y)
             del ar
 
-    print("\n\tWriting Volume", out_fn, "\n")
+    logger.info("\n\tWriting Volume", out_fn, "\n")
     chunk_ymin = -126 + df["sample"].min() * y_mm
 
     affine = np.array(
@@ -522,8 +521,8 @@ def create_final_outputs(
             final_tfm_dir, int(row["sample"].values[0])
         )
         final_section_fn = f'{final_tfm_dir}/{int(row["sample"].values[0])}{os.path.basename(row["img"].values[0])}'
-        print(row["init_img"].values)
-        print(row["sample"].values)
+        logger.info(row["init_img"].values)
+        logger.info(row["sample"].values)
         idx = df["sample"].values == row["sample"].values
         if not os.path.exists(final_tfm_fn) or not os.path.exists(final_section_fn):
             if isinstance(row["init_tfm"].values[0], str):
@@ -692,7 +691,7 @@ def align_chunk(
     df["original_img"] = df["img"]
 
     acquisition_contrast_order = get_acquisition_contrast_order(sect_info)
-    print("\tAcquistion contrast order: ", acquisition_contrast_order)
+    logger.info("\tAcquistion contrast order: ", acquisition_contrast_order)
 
     df["tier"] = 1
 
@@ -706,7 +705,7 @@ def align_chunk(
     ###########
     # Stage 1 #
     ###########
-    print("\t\tAlignment: Stage 1")
+    logger.info("\t\tAlignment: Stage 1")
     # Perform within acquisition alignment
     output_dir_1 = output_dir + os.sep + "stage_1"
 
@@ -744,7 +743,7 @@ def align_chunk(
             df_acquisition["acquisition"] == acquisition_contrast_order[0]
         ]
     ]
-    print("Stage 2")
+    logger.info("Stage 2")
     for i in range(1, n_acquisitions):
         current_acquisitions = [
             acquisition_contrast_order[0],
@@ -780,8 +779,8 @@ def align_chunk(
 
         concat_list.append(df_acquisition.loc[df_acquisition["tier"] == 2])
 
-        # print(target_acquisition)
-        # print(df_acquisition['init_tfm'].loc[ df['acquisition'] == target_acquisition ])
+        # logger.info(target_acquisition)
+        # logger.info(df_acquisition['init_tfm'].loc[ df['acquisition'] == target_acquisition ])
 
         # update the master dataframe, df, with new dataframe for the acquisition
         df.loc[df["acquisition"] == target_acquisition] = df_acquisition.loc[
@@ -799,14 +798,14 @@ def align_chunk(
     df = create_final_outputs(final_tfm_dir, df, 1)
     df = create_final_outputs(final_tfm_dir, df, -1)
 
-    print("Writing:", init_tfm_csv)
+    logger.info("Writing:", init_tfm_csv)
 
     df.to_csv(init_tfm_csv)
 
     df["tier"] = 1
     if not os.path.exists(init_align_fn):
-        print("\tInit Align Volume:", init_align_fn)
-        combine_sections_to_vol(df, y_mm, z_mm, direction, init_align_fn)
+        logger.info("\tInit Align Volume:", init_align_fn)
+        combine_sections_to_vol(df, y_mm, init_align_fn)
 
     sect_info["init_tfm"] = df["init_tfm"]
     sect_info["init_img"] = df["init_img"]
