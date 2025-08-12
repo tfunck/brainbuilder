@@ -3,12 +3,17 @@
 import os
 import re
 
+import nibabel
 import numpy as np
 import pandas as pd
 from joblib import Parallel, cpu_count, delayed
-import nibabel
+
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
+from brainbuilder.utils.utils import get_logger
+
+logger = get_logger(__name__)
+
 
 def compute_max_new_dims(files, resolution):
     """Compute the maximum new dimensions for downsampling."""
@@ -27,9 +32,50 @@ def compute_max_new_dims(files, resolution):
 
         if new_dims[1] > max_dim_1:
             max_dim_1 = new_dims[1]
-            
+
     return max_dim_0, max_dim_1
 
+
+def create_volume(
+    chunk_sect_info: pd.DataFrame,
+    sub: str,
+    hemisphere: str,
+    chunk: int,
+    resolution: float,
+    chunk_info: pd.DataFrame,
+    vol_fn: str,
+):
+    """Create a volume from chunk section info.
+
+    chunk_sect_info: DataFrame containing section info for the chunk
+    sub: Subject identifier
+    hemisphere: Hemisphere identifier
+    chunk: Chunk identifier
+    resolution: Resolution to downsample to
+    chunk_info: DataFrame containing chunk info
+    vol_fn: Filename for the output volume
+    """
+    ydim = chunk_sect_info["sample"].max() + 1
+
+    example_img = chunk_sect_info["img"].iloc[0]
+    xdim, zdim = nib.load(example_img).shape
+
+    vol = np.zeros((xdim, ydim, zdim), dtype=np.float32)
+
+    for _, tdf in chunk_sect_info.groupby(["acquisition"]):
+        for _, row in tdf.iterrows():
+            y = row["sample"]
+            vol[:, y, :] = nib.load(row["img"]).get_fdata()
+
+    _, _, section_thickness = utils.get_chunk_pixel_size(
+        sub, hemisphere, chunk, chunk_info
+    )
+    affine = np.eye(4)
+    affine[0, 0] = resolution
+    affine[1, 1] = section_thickness
+    affine[2, 2] = resolution
+
+    nib.Nifti1Image(vol, affine, direction_order="lpi").to_filename(vol_fn)
 
 
 def downsample_sections(
@@ -49,6 +95,8 @@ def downsample_sections(
     :param clobber: bool, optional, if True, overwrite existing files, default=False
     :return sect_info_csv: path to updated sect_info.csv
     """
+    logger.info(f"Downsampling sections to resolution: {resolution}")
+
     chunk_info = pd.read_csv(chunk_info_csv)
     sect_info = pd.read_csv(sect_info_csv)
 
@@ -105,7 +153,7 @@ def downsample_sections(
             num_cores = cpu_count()
 
         # Example usage (if needed):
-        max_dim_0, max_dim_1 = compute_max_new_dims(sect_info['raw'], resolution)
+        max_dim_0, max_dim_1 = compute_max_new_dims(sect_info["raw"], resolution)
 
         Parallel(n_jobs=num_cores, backend="multiprocessing")(
             delayed(utils.resample_to_resolution)(
@@ -119,9 +167,6 @@ def downsample_sections(
             )
             for raw_file, downsample_file, affine, resolution, factor in to_do
         )
-        
-    
-             
 
         sect_info.to_csv(sect_info_csv, index=False)
 
@@ -135,26 +180,8 @@ def downsample_sections(
         vol_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm.nii.gz"
 
         if not os.path.exists(vol_fn) or clobber:
-            ydim = chunk_sect_info["sample"].max() + 1
-
-            example_img = chunk_sect_info["img"].iloc[0]
-            xdim, zdim = nib.load(example_img).shape
-
-            print("Allocate Volume")
-            vol = np.zeros((xdim, ydim, zdim), dtype=np.float32)
-
-            for _, tdf in chunk_sect_info.groupby(["acquisition"]):
-                for _, row in tdf.iterrows():
-                    y = row["sample"]
-                    vol[:, y, :] = nib.load(row["img"]).get_fdata()
-
-            pixel_size_0, pixel_size_1, section_thickness = utils.get_chunk_pixel_size(
-                sub, hemisphere, chunk, chunk_info
+            create_volume(
+                chunk_sect_info, sub, hemisphere, chunk, resolution, chunk_info, vol_fn
             )
-            affine = np.eye(4)
-            affine[0, 0] = resolution
-            affine[1, 1] = section_thickness
-            affine[2, 2] = resolution
 
-            nib.Nifti1Image(vol, affine, direction_order="lpi").to_filename(vol_fn)
     return sect_info_csv

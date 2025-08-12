@@ -329,8 +329,6 @@ def nl_deformation_flow_3d(
     clobber: bool = False,
 ):
     """Apply  nl intersection_flow to a volume where there are missing sections along axis=1"""
-    os.makedirs("2d", exist_ok=True)
-
     valid_idx = np.where(np.max(vol, axis=(0, 2)) > 0)[0]
 
     assert (

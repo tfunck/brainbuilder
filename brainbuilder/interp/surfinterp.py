@@ -9,19 +9,20 @@ import pandas as pd
 from joblib import Parallel, delayed
 
 import brainbuilder.utils.ants_nibabel as nib
-from brainbuilder.utils import utils 
-from brainbuilder.utils.mesh_utils import smooth_surface_profiles
-from brainbuilder.interp.prepare_surfaces import prepare_surfaces
 from brainbuilder.interp.acqvolume import (
     create_thickened_volumes,
     transform_chunk_volumes,
 )
+from brainbuilder.interp.prepare_surfaces import prepare_surfaces
+from brainbuilder.utils import utils
 from brainbuilder.utils.mesh_io import load_mesh_ext
 from brainbuilder.utils.mesh_utils import (
+    smooth_surface_profiles,
     volume_to_mesh,
     write_mesh_to_volume,
 )
 from brainbuilder.utils.utils import get_section_intervals
+
 
 def volumes_to_surface_profiles(
     chunk_info: pd.DataFrame,
@@ -98,9 +99,6 @@ def volumes_to_surface_profiles(
         chunk_info_thickened_csv,
         struct_vol_rsl_fn,
     )
-
-
-
 
 
 def create_surface_interpolated_volume(
@@ -224,6 +222,7 @@ def create_surface_interpolated_volume(
             )
 
     return reconstructed_cortex_fn, smoothed_reconstructed_cortex_fn
+
 
 def surface_pipeline(
     sect_info,
@@ -1090,8 +1089,6 @@ def create_final_reconstructed_volume(
             resolution,
             clobber=clobber,
         )
-        print(volume_type)
-        print(chunk_info[volume_type].values)
 
         combine_volumes(
             chunk_info[volume_type].values,

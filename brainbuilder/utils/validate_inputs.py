@@ -8,9 +8,12 @@ from joblib import Parallel, cpu_count, delayed
 
 import brainbuilder.utils.utils as utils
 from brainbuilder.utils.mesh_io import load_mesh_ext
+from brainbuilder.utils.utils import get_logger
 
 global chunk_info_required_columns
 global sect_info_required_columns
+
+logger = get_logger(__name__)
 
 
 class Column:
@@ -59,7 +62,7 @@ class Column:
                 return True
 
             if n_jobs is None:
-                n_jobs = int(cpu_count() )
+                n_jobs = int(cpu_count())
 
             validated_rows = Parallel(n_jobs=n_jobs)(
                 delayed(val_func)(var) for var in rows
@@ -119,12 +122,16 @@ def validate_dataframe(
     for column in required_columns:
         if column.name not in df.columns:
             valid_inputs = False
-            print(f"\tMissing input: required field <{column.name}> not found in .csv")
+            logger.warning(
+                f"\tMissing input: required field <{column.name}> not found in .csv"
+            )
         else:
             validated = column.validate_rows_in_column(
                 df[column.name].values, n_jobs=n_jobs
             )
-            print(column.name, validated)
+            logger.info(
+                f"\t\t\tDataframe column: {column.name}, Status: {bool(validated)}"
+            )
             valid_columns.append(validated)
 
     valid_inputs = np.prod(np.array(valid_columns))
@@ -142,9 +149,11 @@ def validate_csv(df_csv: str, required_columns: list, n_jobs: int = None) -> boo
 
     if not os.path.exists(df_csv):
         valid_inputs = False
-        print(f"\tMissing input: .csv with section info does not exist {df_csv}")
+        logger.critical(
+            f"\tMissing input: .csv with section info does not exist {df_csv}"
+        )
     else:
-        print(f"\tValidating {df_csv}")
+        logger.info(f"\t\tValidating {df_csv}")
         df = pd.read_csv(df_csv)
         valid_inputs = validate_dataframe(df, required_columns, n_jobs=n_jobs)
 
@@ -161,19 +170,21 @@ def validate_surface(surface_filename: str) -> bool:
     valid_inputs = True
 
     if not isinstance(surface_filename, str):
-        print(f"\tMissing input: surface_filename is not a string {surface_filename}")
+        logger.warning(
+            f"\tMissing input: surface_filename is not a string {surface_filename}"
+        )
         valid_inputs = False
         return valid_inputs
 
     if not os.path.exists(surface_filename):
-        print(f"\tMissing input: file does not exist {surface_filename}")
+        logger.critical(f"\tMissing input: file does not exist {surface_filename}")
         valid_inputs = False
     else:
         try:
-            coords, faces = load_mesh_ext(surface_filename)
+            _, _ = load_mesh_ext(surface_filename)
         except Exception as e:
-            print(f"\tError: could not load surface file {surface_filename}")
-            print(e)
+            logger.critical(f"\tError: could not load surface file {surface_filename}")
+            logger.critical(e)
             valid_inputs = False
 
     return valid_inputs
@@ -189,7 +200,7 @@ def validate_volume(fn: str) -> bool:
     valid_inputs = True
 
     if not os.path.exists(fn):
-        print(f"\tMissing input: file does not exist {fn}")
+        logger.critical(f"\tMissing input: file does not exist {fn}")
         valid_inputs = False
     else:
         try:
@@ -197,13 +208,13 @@ def validate_volume(fn: str) -> bool:
 
             if np.sum(np.abs(vol)) == 0:
                 valid_inputs = False
-                print(f"\tMissing input: empty template file {fn}")
+                logger.info(f"\tMissing input: empty template file {fn}")
         except Exception as e:
             valid_inputs = False
-            print(
+            logger.critical(
                 f"\tIncorrect format: incorrect format, expected path to volume, but got {fn}"
             )
-            print(e)
+            logger.critical(e)
 
     return valid_inputs
 
@@ -238,26 +249,26 @@ def validate_inputs(
         n_jobs = int(cpu_count() / 2)
 
     if not valid_inputs:
-        print("\nValidating Hemi Info")
+        logger.info("\n\tValidating Hemi Info")
         hemi_info_valid = validate_csv(
             hemi_info_csv, hemi_info_required_columns, n_jobs=n_jobs
         )
-        print("\tHemi Info Valid =", bool(hemi_info_valid))
+        logger.info(f"\tHemi Info Valid = {bool(hemi_info_valid)}")
 
-        print("\nValidating Chunk Info")
+        logger.info("\nValidating Chunk Info")
         chunk_info_valid = validate_csv(
             chunk_info_csv, chunk_info_required_columns, n_jobs=n_jobs
         )
-        print("\tChunk Info Valid =", bool(chunk_info_valid))
+        logger.info(f"\tChunk Info Valid: {bool(chunk_info_valid)}")
 
-        print("\nValidating Sect Info")
+        logger.info("\nValidating Sect Info")
         sect_info_valid = validate_csv(
             sect_info_csv, sect_info_required_columns, n_jobs=n_jobs
         )
-        print("\tSect Info Valid =", bool(sect_info_valid))
+        logger.info(f"\tSect Info Valid: {bool(sect_info_valid)}")
 
         valid_inputs = sect_info_valid * chunk_info_valid * hemi_info_valid
-        print("Valid Inputs", valid_inputs)
+        logger.info(f"Valid Inputs: {valid_inputs}")
 
         if valid_inputs_npz != "":
             os.makedirs(os.path.dirname(valid_inputs_npz), exist_ok=True)
