@@ -51,5 +51,6 @@ df = reconstruct(
         sect_info_csv,
         [4, 3, 2, 1],
         f"{default_path}/data/mni152_test_output/",
+        seg_method='otsu',
         clobber=False,
     )
