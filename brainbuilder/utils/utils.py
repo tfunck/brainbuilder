@@ -916,6 +916,13 @@ def compare_timestamp_of_files(x: Union[str, List], y: Union[str, List]) -> bool
 
     return True
 
+def get_new_dims(old_resolution: Tuple[float, float, float], new_resolution: Tuple[float, float, float], old_dimensions: np.ndarray) -> np.ndarray:
+    """Calculate new dimensions based on old and new resolutions."""
+    scale = old_resolution / np.array(new_resolution)
+    downsample_factor = 1 / scale
+
+    new_dims = np.ceil(old_dimensions * scale)
+    return new_dims, downsample_factor
 
 def check_run_stage(
     col1: Iterable, col2: Iterable, df_csv: str = None, clobber: bool = False
