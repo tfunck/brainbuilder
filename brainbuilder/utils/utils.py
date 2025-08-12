@@ -984,7 +984,6 @@ def resample_to_resolution(
     :param order: order of interpolation
     :return: img_out
     """
-    print('hello')
     (
         vol,
         origin,
@@ -1021,11 +1020,8 @@ def resample_to_resolution(
     affine[dim_range, dim_range] = new_resolution
     affine[dim_range, 3] = origin
 
-    print(vol.shape)
-
     img_out = nib.Nifti1Image(vol, affine, dtype=dtype, direction_order=direction_order)
 
     if isinstance(output_filename, str):
         img_out.to_filename(output_filename)
-    print('done')
     return img_out
