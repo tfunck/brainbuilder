@@ -175,10 +175,6 @@ def multiresolution_alignment(
             curr_chunk_info = chunk_info.loc[idx]
 
             # get structural reference volume
-            print(hemi_info.columns)
-            print(sub)
-            print(hemisphere)
-            print(hemi_info["struct_ref_vol"])
             ref_vol_fn = (
                 hemi_info["struct_ref_vol"]
                 .loc[

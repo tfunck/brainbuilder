@@ -1,25 +1,29 @@
 """Main functions for launching 3D reconstruction with BrainBuilder."""
 
 import argparse
+import logging
 import os
 
 import pandas as pd
 
+import brainbuilder.utils.utils as utils
 from brainbuilder.downsample import downsample_sections
 from brainbuilder.initalign import initalign
 from brainbuilder.intensity_correction import intensity_correction
 from brainbuilder.interpsections import interpolate_missing_sections
 from brainbuilder.segment import segment
-from brainbuilder.utils.validate_inputs import validate_inputs
+from brainbuilder.utils.utils import get_logger
 from brainbuilder.volalign import multiresolution_alignment
 
 base_file_dir, fn = os.path.split(os.path.abspath(__file__))
 repo_dir = f"{base_file_dir}/../"
 
-global file_dir
 base_file_dir, fn = os.path.split(os.path.abspath(__file__))
 file_dir = base_file_dir + os.sep + "section_numbers" + os.sep
 manual_dir = base_file_dir + os.sep + "manual_points" + os.sep
+
+
+logger = get_logger(__name__)
 
 
 def setup_args(args: argparse.Namespace) -> argparse.Namespace:
@@ -54,7 +58,6 @@ def reconstruct(
     sect_info_csv: str,
     resolution_list: list,
     output_dir: str,
-    interp_type: str = "surf",
     output_csv: str = "",
     n_depths: int = 0,
     use_3d_syn_cc: bool = True,
@@ -67,6 +70,7 @@ def reconstruct(
     interp_method: str = "volumetric",
     skip_interp: bool = False,
     use_intensity_correction: bool = False,
+    verbose: bool = False,
     clobber: bool = False,
 ) -> None:
     """Reconstruct 2D histological sections to 3D volume using a structural reference volume (e.g., T1w MRI from brain donor, stereotaxic template).
@@ -88,6 +92,12 @@ def reconstruct(
     :param num_cores : int, optional, number of cores to use for reconstruction, default=0 (use all cores)
     :return sect_info : pandas dataframe, contains updated information about sections with new fields for files produced
     """
+    # Set the logger level that will be used for the whole reconstruction
+
+    if verbose:
+        utils.LOG_VERBOSITY_LEVEL = logging.DEBUG
+        logger.setLevel(logging.DEBUG)
+
     downsample_dir = f"{output_dir}/0_downsample/"
     seg_dir = f"{output_dir}/1_seg/"
     intens_corr_dir = f"{output_dir}/1.5_intensity_corr"
@@ -103,30 +113,41 @@ def reconstruct(
 
     max_resolution_list = resolution_list[-1]
 
-    print("Reconstructing 2D sections to 3D volume")
-    print("\tInput files:")
-    print(f"\t\tHemisphere info: {hemi_info_csv}")
-    print(f"\t\tChunk info: {chunk_info_csv}")
-    print(f"\t\tSection info: {sect_info_csv}")
-    print(f"\t\tMax 3D resolution: {max_resolution_3d}")
-    print(f"\t\tResolution list: {resolution_list}")
-    print("\tOutput directories:")
-    print(f"\t\tDownsample: {downsample_dir}")
-    print(f"\t\tSegment: {seg_dir}")
-    print(f"\t\tInitial alignment: {initalign_dir}")
-    print(f"\t\tMultiresolution alignment: {multires_align_dir}")
-    print(f"\t\tInterpolation: {interp_dir}")
-    print(f"\t\tQuality control: {qc_dir}")
+    logger.info("Reconstructing 2D sections to 3D volume")
+    logger.info("\tInputs:")
+    logger.info(f"\t\tHemisphere info: {hemi_info_csv}")
+    logger.info(f"\t\tChunk info: {chunk_info_csv}")
+    logger.info(f"\t\tSection info: {sect_info_csv}")
+    logger.info(f"\t\tMax 3D resolution: {max_resolution_3d}")
+    logger.info(f"\t\tFinal resolution: {final_resolution}")
+    logger.info(f"\t\tResolution list: {resolution_list}")
+    logger.info(f"\t\tLinear steps: {linear_steps}")
+    logger.info(f"\t\tNumber of cores: {num_cores}")
+    logger.info(f"\t\tSegmentation method: {seg_method}")
+    logger.info(f"\t\tUse 3D nonlinear CC: {use_3d_syn_cc}")
+    logger.info(f"\t\tUse 2D nonlinear: {use_syn}")
+    logger.info(f"\t\tInterpolation method: {interp_method}")
+    logger.info(f"\t\tSkip interpolation: {skip_interp}")
+    logger.info(f"\t\tUse intensity correction: {use_intensity_correction}")
+    logger.info(f"\t\tClobber: {clobber}")
+    logger.info("\tOutput directories:")
+    logger.info(f"\t\tDownsample: {downsample_dir}")
+    logger.info(f"\t\tSegment: {seg_dir}")
+    logger.info(f"\t\tInitial alignment: {initalign_dir}")
+    logger.info(f"\t\tMultiresolution alignment: {multires_align_dir}")
+    logger.info(f"\t\tInterpolation: {interp_dir}")
+    logger.info(f"\t\tQuality control: {qc_dir}")
+    logger.info(f"\t\tIntensity correction: {intens_corr_dir}")
 
-    valid_inputs = validate_inputs(
-        hemi_info_csv,
-        chunk_info_csv,
-        sect_info_csv,
-        valid_inputs_npz,
-        n_jobs=num_cores,
-        clobber=clobber,
-    )
-    assert valid_inputs, "Error: invalid inputs"
+    # valid_inputs = validate_inputs(
+    #    hemi_info_csv,
+    #    chunk_info_csv,
+    #    sect_info_csv,
+    #    valid_inputs_npz,
+    #    n_jobs=num_cores,
+    #    clobber=clobber,
+    # )
+    # assert valid_inputs, "Error: invalid inputs"
 
     sect_info_csv = downsample_sections(
         chunk_info_csv,
@@ -150,7 +171,7 @@ def reconstruct(
 
     # qc.data_set_quality_control(seg_df_csv, qc_dir, column="seg")
 
-    print("Stage: Initial rigid alignment of sections")
+    logger.info("Stage: Initial rigid alignment of sections")
     # Stage: Initial rigid aligment of sections
     sect_info_csv, init_chunk_csv = initalign(
         sect_info_csv, chunk_info_csv, initalign_dir, resolution_list, clobber=clobber
@@ -158,7 +179,7 @@ def reconstruct(
 
     if use_intensity_correction:
         # Stage: Intensity correction
-        print("Performing intensity correction")
+        logger.info("Performing intensity correction")
         sect_info_csv = intensity_correction(
             sect_info_csv, chunk_info_csv, intens_corr_dir, clobber=clobber
         )
@@ -202,10 +223,6 @@ def reconstruct(
         #    clobber=clobber,
         # )
     return output_csv
-
-
-global ju_atlas_fn
-global mni_template_fn
 
 
 def setup_argparse() -> argparse.ArgumentParser:
@@ -289,12 +306,15 @@ def setup_argparse() -> argparse.ArgumentParser:
         default=f"{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/",
         help="Numer of cores to use for segmentation (Default=0; This is will set the number of cores to use to the maximum number of cores availale)",
     )
+    # Add verbosity flag
 
     parser.add_argument(
-        "surface_smoothing",
-        dest="surface_smoothing",
-        default=0,
-        help="Use surface smoothing beore creating final volume",
+        "--verbose",
+        "-v",
+        dest="verbose",
+        default=False,
+        action="store_true",
+        help="Verbose output for debugging",
     )
     parser.add_argument(
         "--clobber",

@@ -1,4 +1,5 @@
 """Functions to perform 3D volumetric alignment of the inital GM volume to the reference volume."""
+import logging
 import os
 import re
 from typing import List, Tuple
@@ -7,11 +8,9 @@ import ants
 import brainbuilder.utils.ants_nibabel as nib
 import nibabel
 import numpy as np
-from brainbuilder.utils.utils import (
-    AntsParams,
-    shell,
-    simple_ants_apply_tfm,
-)
+from brainbuilder.utils import utils
+
+logger = utils.get_logger(__name__)
 
 
 def v2w(i: int, step: float, start: float) -> float:
@@ -33,7 +32,7 @@ def find_vol_min_max(vol: np.ndarray) -> tuple:
     """
     profile = np.max(vol, axis=(0, 2))
     if np.sum(profile) == 0:
-        print("Error : empty srv file")
+        logger.critical("Error : empty srv file")
         exit(1)
     srvMin = np.argwhere(profile >= 0.01)[0][0]
     srvMax = np.argwhere(profile >= 0.01)[-1][0]
@@ -166,26 +165,26 @@ def get_alignment_schedule(
     cc_resolution_list = [
         r for r in resolution_list if float(r) > resolution_cutoff_for_cc
     ]
-    linParams = AntsParams(resolution_list, resolution, base_lin_itr)
-    print("\t\t\tLinear:")
-    print("\t\t\t\t", linParams.itr_str)
-    print("\t\t\t\t", linParams.f_str)
-    print("\t\t\t\t", linParams.s_str)
+    linParams = utils.AntsParams(resolution_list, resolution, base_lin_itr)
+    logger.info("\t\t\tLinear:")
+    logger.info("\t\t\t\t" + linParams.itr_str)
+    logger.info("\t\t\t\t" + linParams.f_str)
+    logger.info("\t\t\t\t" + linParams.s_str)
 
-    nlParams = AntsParams(resolution_list, resolution, base_nl_itr)
+    nlParams = utils.AntsParams(resolution_list, resolution, base_nl_itr)
 
-    print("\t\t\t", "Nonlinear")
-    print("\t\t\t\t", nlParams.itr_str)
-    print("\t\t\t\t", nlParams.s_str)
-    print("\t\t\t\t", nlParams.f_str)
+    logger.info("\t\t\tNonlinear")
+    logger.info("\t\t\t\t" + nlParams.itr_str)
+    logger.info("\t\t\t\t" + nlParams.s_str)
+    logger.info("\t\t\t\t" + nlParams.f_str)
 
     max(min(cc_resolution_list), resolution)
-    ccParams = AntsParams(resolution_list, resolution, base_cc_itr)
+    ccParams = utils.AntsParams(resolution_list, resolution, base_cc_itr)
 
-    print("\t\t\t", "Nonlinear (CC)")
-    print("\t\t\t\t", ccParams.itr_str)
-    print("\t\t\t\t", ccParams.f_str)
-    print("\t\t\t\t", ccParams.s_str)
+    logger.info("\t\t\tNonlinear (CC)")
+    logger.info("\t\t\t\t" + ccParams.itr_str)
+    logger.info("\t\t\t\t" + ccParams.f_str)
+    logger.info("\t\t\t\t" + ccParams.s_str)
 
     max_downsample_level = linParams.max_downsample_factor
 
@@ -202,8 +201,6 @@ def write_ref_chunk(
     y0: int,
     y1: int,
     resolution: float,
-    ref_ystep: float,
-    ref_ystart: float,
     max_downsample_level: int,
     clobber: bool = False,
 ) -> None:
@@ -227,7 +224,7 @@ def write_ref_chunk(
     ref_chunk_fn = f"{out_dir}/{sub}_{hemi}_{chunk}_{resolution}mm_ref_{y0}_{y1}.nii.gz"
     if not os.path.exists(ref_chunk_fn) or clobber:
         # write srv chunk if it does not exist
-        print(f"\t\tWriting srv chunk for file\n\n{ref_rsl_fn}")
+        logger.debug(f"\t\tWriting srv chunk for file\n\n{ref_rsl_fn}")
         ref_img = nib.load(ref_rsl_fn)
         direction = np.array(ref_img.direction)
         ref_vol = ref_img.get_fdata()
@@ -265,9 +262,9 @@ def run_alignment(
     ref_rsl_fn: str,
     ref_chunk_fn: str,
     seg_rsl_fn: str,
-    linParams: AntsParams,
-    nlParams: AntsParams,
-    ccParams: AntsParams,
+    linParams: utils.AntsParams,
+    nlParams: utils.AntsParams,
+    ccParams: utils.AntsParams,
     metric: str = "GC",
     nbins: int = 32,
     init_tfm: str = None,
@@ -342,10 +339,12 @@ def run_alignment(
     else:
         init_str = f" --initial-moving-transform {init_tfm} "
 
+    verbose = 0 if logger.getEffectiveLevel() == logging.INFO else 1
+
     # calculate rigid registration
     if not os.path.exists(f"{prefix_rigid}Composite.h5") and "rigid" in linear_steps:
         rigid_cmd = f"{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] "
-        shell(rigid_cmd, verbose=True)
+        utils.shell(rigid_cmd, verbose=verbose)
         write_log(out_dir, "rigid", rigid_cmd)
         init_str = f"--initial-moving-transform  {prefix_rigid}Composite.h5"
 
@@ -355,14 +354,14 @@ def run_alignment(
         and "similarity" in linear_steps
     ):
         similarity_cmd = f"{base}  {init_str} -t Similarity[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] "
-        shell(similarity_cmd, verbose=True)
+        utils.shell(similarity_cmd, verbose=verbose)
         write_log(out_dir, "similarity", similarity_cmd)
         init_str = f"--initial-moving-transform {prefix_similarity}Composite.h5"
 
     # calculate affine registration
     if not os.path.exists(f"{prefix_affine}Composite.h5") and "affine" in linear_steps:
         affine_cmd = f"{base}  {init_str} -t Affine[{step}] -m {metric}[{ref_tgt_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] "
-        shell(affine_cmd, verbose=True)
+        utils.shell(affine_cmd, verbose=verbose)
         write_log(out_dir, "affine", affine_cmd)
         init_str = f"--initial-moving-transform {prefix_affine}Composite.h5"
 
@@ -390,7 +389,7 @@ def run_alignment(
         # if use_3d_syn_cc:
         nl_base += f" -t SyN[{syn_rate}] -m {cc_metric} -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str} "
 
-        shell(nl_base, verbose=True)
+        utils.shell(nl_base, verbose=verbose)
 
         write_log(out_dir, "syn-mattes", nl_base)
 
@@ -404,11 +403,11 @@ def run_alignment(
             f"{prefix_syn}InverseComposite.h5"
         ), f"Error: {prefix_syn}InverseComposite.h5 does not exist"
 
-    simple_ants_apply_tfm(
+    utils.simple_ants_apply_tfm(
         seg_rsl_fn, ref_rsl_fn, prefix_syn + "Composite.h5", out_fn, n="BSpline[2]"
     )
 
-    simple_ants_apply_tfm(
+    utils.simple_ants_apply_tfm(
         ref_rsl_fn,
         seg_rsl_fn,
         prefix_syn + "InverseComposite.h5",
@@ -441,7 +440,6 @@ def align_3d(
     use_pad_volume: bool = True,
     linear_steps: str = ["rigid", "similarity", "affine"],
     clobber: bool = False,
-    verbose: bool = True,
 ) -> int:
     """Align the tissue chunk to the reference volume.
 
@@ -462,11 +460,10 @@ def align_3d(
     :param base_nl_itr: base number of iterations for nonlinear alignment
     :param base_lin_itr: base number of iterations for linear alignment
     :param clobber: overwrite existing files
-    :param verbose: verbose output
     :return: 0.
     """
     if not os.path.exists(out_tfm_fn) or not os.path.exists(out_tfm_inv_fn) or clobber:
-        print("\t\t3D Volumetric Alignment")
+        logger.info("\t\t3D Volumetric Alignment")
         chunk = int(chunk)
         # Load GM volume extracted from donor MRI.
         ref_width, ref_min, ref_max, ref_ystep, ref_ystart = get_ref_info(ref_rsl_fn)
@@ -496,7 +493,7 @@ def align_3d(
         img = nib.load(ref_rsl_fn)
         img.shape[1]
 
-        print("\n\nRESOLUTION", resolution)
+        logger.info("\t\tRestolution: {resolution}")
         # extract chunk from srv and write it
         ref_chunk_fn = write_ref_chunk(
             sub,
@@ -508,8 +505,6 @@ def align_3d(
             world_chunk_limits[0],
             world_chunk_limits[1],
             resolution,
-            ref_ystep,
-            ref_ystart,
             max_downsample_level,
         )
 

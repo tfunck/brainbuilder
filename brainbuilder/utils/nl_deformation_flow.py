@@ -110,7 +110,7 @@ def compute_ants_alignment(
         nlParams = AntsParams(resolution_list, resolution, 30)
 
         try:
-            cmd = "antsRegistration --verbose 0 --dimensionality 2 --float 0 --collapse-output-transforms 1"
+            cmd = "antsRegistration --verbose 1 --dimensionality 2 --float 0 --collapse-output-transforms 1"
             cmd += f" --output [ {outprefix}_,{mv_rsl_fn},/tmp/tmp.nii.gz ] --interpolation Linear --use-histogram-matching 0 --winsorize-image-intensities [ 0.005,0.995 ]"
             cmd += f" --transform SyN[ 0.1,3,0 ] --metric CC[ {sec1_path},{sec0_path},1,4 ]"
             cmd += f" --convergence  {nlParams.itr_str} --shrink-factors {nlParams.f_str} --smoothing-sigmas {nlParams.s_str} "
@@ -329,8 +329,6 @@ def nl_deformation_flow_3d(
     clobber: bool = False,
 ):
     """Apply  nl intersection_flow to a volume where there are missing sections along axis=1"""
-    os.makedirs("2d", exist_ok=True)
-
     valid_idx = np.where(np.max(vol, axis=(0, 2)) > 0)[0]
 
     assert (
@@ -348,6 +346,7 @@ def nl_deformation_flow_3d(
         # cast all keys to str
         tfm_dict = {str(k): i for k, i in tfm_dict.items()}
 
+    # FIXME need to automate the n_jobs
     results = Parallel(n_jobs=16)(
         delayed(process_section)(
             y0,

@@ -1,6 +1,7 @@
 """Utility functions for brainbuilder."""
 
 import contextlib
+import logging
 import multiprocessing
 import os
 import re
@@ -20,6 +21,75 @@ from skimage.transform import resize
 import brainbuilder.utils.ants_nibabel as nib
 
 os_info = os.uname()
+
+
+LOG_VERBOSITY_LEVEL = logging.INFO  # Default logging level
+
+
+def get_logger(name="brainbuilder"):
+    logger = logging.getLogger(name)
+    if not logger.hasHandlers():
+        # Prevent duplicated messages if called multiple times
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(LOG_VERBOSITY_LEVEL)
+    return logger
+
+
+def convert_gm_com_dist_map(vol: np.ndarray, voxel_sizes: np.ndarray) -> np.ndarray:
+    """Convert the volume to a distance map from the center of mass.
+
+    :param vol: np.ndarray, volume
+    :param voxel_sizes: np.ndarray, voxel size
+    :return: np.ndarray, distance map
+    """
+    assert len(vol.shape) == 3, "Error: volume must be 3D"
+    assert np.sum(vol) > 0, "Error: volume must not be empty"
+
+    idx = vol > vol.min()
+
+    # Get the center of mass
+    com = np.array(np.where(idx)).mean(axis=1)
+
+    # Create a grid of coordinates
+    coords = np.array(
+        np.meshgrid(
+            np.arange(vol.shape[0]),
+            np.arange(vol.shape[1]),
+            np.arange(vol.shape[2]),
+            indexing="ij",
+        )
+    )
+
+    coords = coords.reshape(3, -1).T
+
+    idx_rsl = idx.reshape(-1)
+
+    print(vol.shape)
+    print(coords.shape)
+    print(idx.shape)
+
+    coords = coords[idx_rsl, :]
+
+    # Calculate the distance from the center of mass
+    distances = np.linalg.norm(coords - com, axis=1)
+
+    # Scale distances in each dimension by the array of voxel size
+    # distances = distances * voxel_sizes
+
+    # Rescale distances between [0,1] in each dimension
+    distances = distances / np.max(distances, axis=0)
+
+    # Create a new volume with the same shape as the input volume
+    new_vol = np.zeros_like(vol, dtype=np.float32)
+
+    vol = (vol - vol.min()) / (vol.max() - vol.min())
+
+    new_vol[idx] = 1 + vol[idx] * distances
+
+    return new_vol
 
 
 def get_available_memory() -> int:
@@ -945,24 +1015,6 @@ def calculate_sigma_for_downsampling(new_pixel_spacing: float) -> float:
     return sigma
 
 
-def get_new_dims(old_resolution: Tuple[float, float, float], new_resolution: Tuple[float, float, float], old_dimensions: np.ndarray) -> np.ndarray:
-    """Calculate new dimensions based on old and new resolutions."""
-    scale = old_resolution / np.array(new_resolution)
-    downsample_factor = 1 / scale
-
-    new_dims = np.ceil(old_dimensions * scale)
-    return new_dims, downsample_factor
-
-def pad_to_max_dims(vol, max_dims):
-    offset0 = int(max_dims[0] - vol.shape[0])
-    offset1 = int(max_dims[1] - vol.shape[1])
-    offset2 = int(max_dims[2] - vol.shape[2]) if len(vol.shape) == 3 else 0
-    if len(vol.shape) == 2:
-        vol = np.pad(vol, ((0, offset0), (0, offset1)), mode='constant')
-    elif len(vol.shape) == 3:
-        vol = np.pad(vol, ((0, offset0), (0, offset1), (0, offset2)), mode='constant')
-    return vol
-
 def resample_to_resolution(
     input_arg: Union[str, np.ndarray],
     new_resolution: Tuple[float, float, float],
@@ -972,7 +1024,6 @@ def resample_to_resolution(
     direction_order: str = "lpi",
     order: int = 1,
     factor: float = 1,
-    max_dims: Tuple[int, int] = None,
 ) -> nib.Nifti1Image:
     """Resample a volume to a new resolution.
 
@@ -984,7 +1035,6 @@ def resample_to_resolution(
     :param order: order of interpolation
     :return: img_out
     """
-    print('hello')
     (
         vol,
         origin,
@@ -996,8 +1046,10 @@ def resample_to_resolution(
         ndim,
     ) = parse_resample_arguments(input_arg, output_filename, affine, dtype)
 
+    scale = old_resolution / np.array(new_resolution)
+    downsample_factor = 1 / scale
 
-    new_dims, downsample_factor = get_new_dims(old_resolution, new_resolution, vol.shape)
+    new_dims = np.ceil(vol.shape * scale)
 
     sigma = calculate_sigma_for_downsampling(downsample_factor)
 
@@ -1007,9 +1059,7 @@ def resample_to_resolution(
         vol, new_dims, order=order, anti_aliasing=True, anti_aliasing_sigma=sigma
     )
 
-    if max_dims is not None:
-        vol = pad_to_max_dims(vol, max_dims)
-
+    print("\tFactor:", factor)
     vol *= factor
 
     assert np.sum(np.abs(vol)) > 0, (
@@ -1021,11 +1071,8 @@ def resample_to_resolution(
     affine[dim_range, dim_range] = new_resolution
     affine[dim_range, 3] = origin
 
-    print(vol.shape)
-
     img_out = nib.Nifti1Image(vol, affine, dtype=dtype, direction_order=direction_order)
 
     if isinstance(output_filename, str):
         img_out.to_filename(output_filename)
-    print('done')
     return img_out

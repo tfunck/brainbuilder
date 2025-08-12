@@ -6,7 +6,11 @@ from glob import glob
 import brainbuilder.utils.ants_nibabel as nib
 import numpy as np
 import pandas as pd
-from brainbuilder.utils.nl_deformation_flow import nl_deformation_flow_3d
+from brainbuilder.align.align_2d import concatenate_sections_to_volume
+from brainbuilder.interp.volinterp import (
+    create_acq_atlas,
+    volumetric_interpolation,
+)
 from brainbuilder.utils.utils import (
     get_section_intervals,
     get_seg_fn,
@@ -283,123 +287,6 @@ def load_2d_sections_to_volume(sect_info, in_dir, resolution_3d, dims):
     return data
 
 
-def volumetric_interpolation(
-    sect_info: pd.DataFrame,
-    in_fn: str,
-    in_dir: str,
-    out_dir: str,
-    out_fn: str,
-    resolution_3d: float,
-    section_thickness: float,
-    flip_axes: tuple[int, ...] = (),
-    clobber: bool = False,
-    interpolation: str = "nearest",
-) -> None:
-    """Interpolate missing sections in the volume.
-
-    param sect_info: dataframe with information about the section
-    param in_fn: input filename
-    param in_dir: input directory
-    param out_dir: output directory
-    param out_fn: output filename
-    param resolution_3d: 3D resolution
-    param flip_axes: flip axes
-    param clobber: clobber
-    param interpolation: interpolation method
-    return: None
-    """
-    if not os.path.exists(out_fn) or clobber:
-        #
-        # Check Inputs
-        #
-        if not os.path.exists(in_fn):
-            print("Error: could not find ", in_fn)
-            exit(1)
-
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
-
-        ref_img = nib.load(in_fn)
-
-        example_2d_list = glob(in_dir + f"/*{resolution_3d}*rsl_tfm.nii.gz")
-
-        assert len(example_2d_list) > 0, "Error: no files found in {}".format(in_dir)
-
-        # Example image should be at maximum 2D resolution
-        example_2d_img = nib.load(example_2d_list[0])
-
-        ymax = sect_info["sample"].max() + 1
-
-        dims = [example_2d_img.shape[0], ymax, example_2d_img.shape[1]]
-
-        data = load_2d_sections_to_volume(sect_info, in_dir, resolution_3d, dims)
-
-        print("\tInterpolation:", interpolation)
-
-        if interpolation == "nlflow":
-            origin = list(ref_img.affine[[0, 2], 3])
-            spacing = list(ref_img.affine[[0, 2], [0, 2]])
-            print("NL FLOW DIR:", out_dir + "/nl_flow/")
-            data = nl_deformation_flow_3d(
-                data,
-                out_dir + "/nl_flow/",
-                origin=origin,
-                spacing=spacing,
-                clobber=clobber,
-            )
-        else:
-            data = interpolate_missing_sections(
-                data, method=interpolation, dilate_volume=False
-            )
-
-        assert (
-            np.sum(data) > 0
-        ), "Error: Empty volume when using nearest neighbour interpolation to produce GM mask"
-
-        #
-        # Save output volume
-        #
-        xstart = float(ref_img.affine[0][3])
-        ystart = float(ref_img.affine[1][3])
-        zstart = float(ref_img.affine[2][3])
-
-        aff = np.array(
-            [
-                [resolution_3d, 0, 0, xstart],
-                [0, section_thickness, 0, ystart],
-                [0, 0, resolution_3d, zstart],
-                [0, 0, 0, 1],
-            ]
-        ).astype(float)
-        if flip_axes != ():
-            data = np.flip(data, axis=flip_axes)
-
-        y_dim = data.shape[1]
-        y_dim_rsl = y_dim * (section_thickness / resolution_3d)
-
-        nib.Nifti1Image(
-            data,
-            aff,
-            dtype=np.uint8,
-            direction_order="lpi",
-        ).to_filename(out_fn.replace(".nii.gz", "_orig.nii.gz"))
-
-        data = resize(data, (data.shape[0], y_dim_rsl, data.shape[2]), order=2)
-
-        aff[[0, 1, 2], [0, 1, 2]] = resolution_3d
-
-        data, aff = recenter(data, aff)
-
-        img_out = nib.Nifti1Image(
-            data,
-            aff,
-            dtype=np.uint8,
-            direction_order="lpi",
-        )
-        img_out.to_filename(out_fn)
-    return 0
-
-
 def create_intermediate_volume(
     chunk_info: pd.DataFrame,
     sect_info: pd.DataFrame,
@@ -457,11 +344,6 @@ def create_intermediate_volume(
         #    interpolation=interpolation,
         #    clobber=clobber,
         # )
-        from brainbuilder.align.align_2d import concatenate_sections_to_volume
-        from brainbuilder.interp.volinterp import (
-            create_acq_atlas,
-            volumetric_interpolation,
-        )
 
         curr_align_fn = (
             out_dir

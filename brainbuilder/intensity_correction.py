@@ -9,7 +9,10 @@ from joblib import Parallel, delayed
 from scipy.ndimage import gaussian_filter
 from skimage.transform import resize
 
-global GM_LABEL
+from brainbuilder.utils.utils import get_logger
+
+logger = get_logger(__name__)
+
 GM_LABEL = 1
 
 
@@ -17,6 +20,7 @@ def get_section_percentiles(
     img_path: str,
     seg_path: str,
     y: int,
+    y0: int,
     acquisition: str,
     chunk: int,
     output_dir: str,
@@ -24,6 +28,11 @@ def get_section_percentiles(
 ):
     auto_basename = os.path.basename(img_path).replace(".nii.gz", "")
     csv_file = f"{output_dir}/{auto_basename}.csv"
+
+    section_dir = f"{output_dir}/qc/"
+    os.makedirs(section_dir, exist_ok=True)
+
+    qc_png = f"{section_dir}/{acquisition}_{y0}_{y}_{auto_basename}_qc.png"
 
     if not os.path.exists(csv_file) or clobber:
         seg_vol = nib.load(seg_path).get_fdata()
@@ -43,14 +52,31 @@ def get_section_percentiles(
 
         # check that the segmentation volume is not all zero
         if np.sum(seg_vol > 0) == 0:
-            print(f" Segmentation volume is all zero for {img_path} and {seg_path}")
+            logger.info(
+                f" Segmentation volume is all zero for {img_path} and {seg_path}"
+            )
             return None
+
+        percentile_range_full = np.arange(0, 101, 5)
+        percentile_range = percentile_range_full[1:-1]  # exclude 0 and 100 percentiles
 
         gm_deciles = np.zeros(9)
         # if GM_LABEL in np.unique(seg_vol):
         values = auto_vol[seg_vol > 0]
         # calculate deciles of gm
-        gm_deciles = np.percentile(values, [10, 20, 30, 40, 50, 60, 70, 80, 90])
+        gm_deciles = np.percentile(values, percentile_range)
+
+        qc_section = auto_vol.copy()
+        qc_section[seg_vol == 0] = 0
+        qc_section = np.digitize(qc_section, gm_deciles)
+        qc_section = resize(
+            qc_section.astype(float), np.array(auto_vol.shape) // 10, order=0
+        )
+
+        # bin qc_section into gm_deciles
+        plt.imshow(qc_section, cmap="nipy_spectral")
+        plt.savefig(qc_png)
+        plt.close()
 
         # check that the percentiles are not all zero
         assert not np.all(
@@ -63,16 +89,27 @@ def get_section_percentiles(
                 "seg": [seg_path],
                 "chunk": [chunk],
                 "acquisition": [acquisition],
-                "gm_10": [gm_deciles[0]],
-                "gm_20": [gm_deciles[1]],
-                "gm_30": [gm_deciles[2]],
-                "gm_40": [gm_deciles[3]],
-                "gm_50": [gm_deciles[4]],
-                "gm_60": [gm_deciles[5]],
-                "gm_70": [gm_deciles[6]],
-                "gm_80": [gm_deciles[7]],
-                "gm_90": [gm_deciles[8]],
+                "gm_5": [gm_deciles[0]],
+                "gm_10": [gm_deciles[1]],
+                "gm_15": [gm_deciles[2]],
+                "gm_20": [gm_deciles[3]],
+                "gm_25": [gm_deciles[4]],
+                "gm_30": [gm_deciles[5]],
+                "gm_35": [gm_deciles[6]],
+                "gm_40": [gm_deciles[7]],
+                "gm_45": [gm_deciles[8]],
+                "gm_50": [gm_deciles[9]],
+                "gm_55": [gm_deciles[10]],
+                "gm_60": [gm_deciles[11]],
+                "gm_65": [gm_deciles[12]],
+                "gm_70": [gm_deciles[13]],
+                "gm_75": [gm_deciles[14]],
+                "gm_80": [gm_deciles[15]],
+                "gm_85": [gm_deciles[16]],
+                "gm_90": [gm_deciles[17]],
+                "gm_95": [gm_deciles[18]],
                 "y": [y],
+                "y0": [y0],
             }
         )
 
@@ -94,11 +131,32 @@ def get_dataset_percentiles(
     if not os.path.exists(percentiles_csv) or clobber:
         os.makedirs(output_dir, exist_ok=True)
 
+        sect_info_df["y0"] = sect_info_df["sample"]
+        sect_info_df["y"] = sect_info_df["sample"]
+
+        ymax0 = 0
+        for (chunk, direction), _ in chunk_info_df.groupby(["chunk", "direction"]):
+            chunk_y_max = sect_info_df.loc[sect_info_df["chunk"] == chunk, "y"].max()
+
+            print(chunk, direction, ymax0, chunk_y_max)
+
+            y0 = (
+                ymax0
+                + chunk_y_max
+                - sect_info_df.loc[sect_info_df["chunk"] == chunk, "y"]
+            )
+
+            # Reverse the y coordinate for chunks so that the smaller values are rostral
+            sect_info_df.loc[sect_info_df["chunk"] == chunk, "y0"] = y0
+
+            ymax0 = sect_info_df.loc[sect_info_df["chunk"] == chunk, "y0"].max()
+
         results = Parallel(n_jobs=1)(
             delayed(get_section_percentiles)(
                 row["img"],
                 row["seg"],
                 row["sample"],
+                row["y0"],
                 row["acquisition"],
                 row["chunk"],
                 output_dir,
@@ -113,15 +171,6 @@ def get_dataset_percentiles(
                 df_list.append(result)
 
         df = pd.concat(df_list)
-
-        df["y0"] = df["y"]
-
-        for (chunk, direction), _ in chunk_info_df.groupby(["chunk", "direction"]):
-            if direction == "caudal_to_rostral":
-                df.loc[df["chunk"] == chunk, "y0"] = (
-                    df.loc[df["chunk"] == chunk, "y"].max()
-                    - df.loc[df["chunk"] == chunk, "y"]
-                )
 
         # drop rows with NaN values
         df = df.dropna()
@@ -140,7 +189,7 @@ def get_dataset_percentiles(
         df = pd.melt(
             df,
             id_vars=["img", "chunk", "acquisition", "y0", "seg"],
-            value_vars=[f"gm_{dec}" for dec in range(10, 100, 10)],
+            value_vars=[f"gm_{dec}" for dec in range(5, 96, 5)],
             var_name="type",
             value_name="density",
         )
@@ -169,7 +218,7 @@ def plot_correction_over_chunk(
     def get_median_density(row, i):
         """Get the median density of the image"""
         if i % 100 == 0:
-            print(f"{100*i/len(df)}")
+            logger.info(f"{100*i/len(df)}")
 
         img_path = row["img_corr"]
         seg_path = row["seg"]
@@ -177,21 +226,19 @@ def plot_correction_over_chunk(
         seg_data = nib.load(seg_path).get_fdata()
         seg_data = resize(seg_data.astype(float), img_data.shape, order=0)
 
-        row["density_real"] = np.median(img_data[seg_data > 0])
         return row
 
-    df["density_real"] = 0.0  # Initialize the column
     # res = Parallel(n_jobs=-1)(
     #    delayed(get_median_density)(row,i) for i, (_, row) in enumerate(df.iterrows())
     # )
     # df = pd.DataFrame(res)  # Ensure the result is a DataFrame
-    # print(df)
+    # logger.info(df)
 
     # melt density and density_corr to long format
     df = pd.melt(
         df,
         id_vars=["chunk", "acquisition", "y0"],
-        value_vars=["density", "density_corr", "density_real"],
+        value_vars=["density", "density_corr"],
         var_name="state",
         value_name="density_value",
     )
@@ -199,7 +246,6 @@ def plot_correction_over_chunk(
     # rename density to "Uncorrected"
     df.loc[df["state"] == "density", "state"] = "Uncorrected"
     df.loc[df["state"] == "density_corr", "state"] = "Batch Corrected"
-    df.loc[df["state"] == "density_real", "state"] = "Real"
 
     for acquisition, group in df.groupby("acquisition"):
         out_png = f"{plot_dir}/{acquisition}_{n_points}_order-{order}.png"
@@ -225,7 +271,7 @@ def plot_correction_over_chunk(
             plt.savefig(out_png)
             plt.close()
 
-            print("\tWriting", out_png)
+            logger.info(f"\tWriting {out_png}")
 
 
 def inter_chunk_regr(x: np.array, y: np.array, order: int = 1):
@@ -237,10 +283,10 @@ def inter_chunk_regr(x: np.array, y: np.array, order: int = 1):
         intercept = np.median(y) - np.median(x)
     else:
         try:
-            print(x, y)
+            logger.info(f"{x}, {y}")
             slope, intercept = np.polyfit(x, y, order)
         except SystemError or numpy.linalg.LinAlgError:
-            print("SystemError")
+            logger.info("SystemError")
             slope = 1
             intercept = np.median(y) - np.median(x)
 
@@ -362,7 +408,7 @@ def calculate_correction_factors(
     plot_dir = f"{output_dir}/plots/"
     os.makedirs(plot_dir, exist_ok=True)
 
-    correction_df = get_ends_of_chunk(correction_df, 0.25)
+    correction_df = get_ends_of_chunk(correction_df, 0.49)
 
     out_list = []
 
@@ -455,7 +501,7 @@ def apply_correction(
 
         # median1 = np.median(auto_data[seg_data > 0])
 
-        # print('Slope:', slope, 'Intercept:', intercept, 'Median0:', median0, 'Median1:', median1,'Median2', median0*slope + intercept)
+        # logger.info('Slope:', slope, 'Intercept:', intercept, 'Median0:', median0, 'Median1:', median1,'Median2', median0*slope + intercept)
 
         nib.Nifti1Image(auto_data, auto.affine).to_filename(out_path)
 
@@ -493,7 +539,7 @@ def correct_batch_effect(
 
             percentiles_csv = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_percentiles_{n_points}_order-{order}.csv"
 
-            print("Getting percentiles for sub:", sub, "hemi:", hemisphere)
+            logger.info("Getting percentiles for sub:", sub, "hemi:", hemisphere)
             df = get_dataset_percentiles(
                 curr_sect_info_df,
                 curr_chunk_info_df,
@@ -504,7 +550,9 @@ def correct_batch_effect(
 
             assert "img" in df.columns, f"img not in columns: {df.columns}"
 
-            print("Calculating correction factors for sub:", sub, "hemi:", hemisphere)
+            logger.info(
+                "Calculating correction factors for sub:", sub, "hemi:", hemisphere
+            )
             correction_df = calculate_correction_factors(
                 df,
                 output_dir,
@@ -534,7 +582,9 @@ def correct_batch_effect(
             )
 
             # apply the correction to the density
-            print("Applying correction to images for sub:", sub, "hemi:", hemisphere)
+            logger.info(
+                "Applying correction to images for sub:", sub, "hemi:", hemisphere
+            )
             Parallel(n_jobs=-1)(
                 delayed(apply_correction)(
                     row["img"],
@@ -548,11 +598,13 @@ def correct_batch_effect(
             )
 
             # for (chunk, acq), df0 in df.groupby(['chunk','acquisition']):
-            #    print(chunk, acq)
-            #    print(df0['slope'].values)
-            #    print(df0['acquisition'].values)
+            #    logger.info(chunk, acq)
+            #    logger.info(df0['slope'].values)
+            #    logger.info(df0['acquisition'].values)
 
-            print("Plotting correction over chunk for sub:", sub, "hemi:", hemisphere)
+            logger.info(
+                "Plotting correction over chunk for sub:", sub, "hemi:", hemisphere
+            )
             plot_correction_over_chunk(
                 df, output_dir + "/qc/", n_points=n_points, order=order, clobber=clobber
             )
@@ -625,11 +677,11 @@ def correct_section_means(sect_info_csv: str, output_dir: str, clobber: bool = F
 
             avg_distance_fwhm = np.diff(np.unique(group["y0"])).mean()
 
-            print(f"Average distance between samples: {avg_distance_fwhm}")
+            logger.info(f"Average distance between samples: {avg_distance_fwhm}")
 
             avg_distance_sd = avg_distance_fwhm / 2.3548  # convert fwhm to sd
 
-            print(f"Y min: {y_min}, Y max: {y_max}")
+            logger.info(f"Y min: {y_min}, Y max: {y_max}")
 
             y_space = np.arange(y_min, y_max + 1)
 
@@ -650,7 +702,7 @@ def correct_section_means(sect_info_csv: str, output_dir: str, clobber: bool = F
                 x=y_space, y=density_corr_smooth_all, label="density_corr_smooth"
             )
             plt.savefig(f"{output_dir}/{acquisition}_density_corr_smooth.png")
-            print(f"{output_dir}/{acquisition}_density_corr_smooth.png")
+            logger.info(f"{output_dir}/{acquisition}_density_corr_smooth.png")
 
             # create a new dataframe with the smoothed density_corr
             density_corr_smooth = density_corr_smooth_all[group["y0"].values - y_min]

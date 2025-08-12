@@ -1,20 +1,19 @@
 """Main function for performing interpolation between acquired 2D sections."""
 import os
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
 from brainbuilder.interp.surfinterp import (
+    combine_volumes,
     create_final_reconstructed_volume,
-    generate_surface_profiles,
-    write_raw_profiles_to_volume,
+    volumes_to_surface_profiles,
 )
-from brainbuilder.interp.surfinterp import volumes_to_surface_profiles
 from brainbuilder.interp.volinterp import volumetric_pipeline
+from brainbuilder.utils.utils import get_logger
 
-global METHOD_SURFACE
-global METHOD_VOLUMETRIC
+logger = get_logger(__name__)
+
 METHOD_SURFACE = "surface"
 METHOD_VOLUMETRIC = "volumetric"
 
@@ -39,7 +38,7 @@ def interpolate_missing_sections(
     :param clobber: if True, overwrite existing files
     :return: path to the interpolated volume
     """
-    print("\n\tInterpolate Missing Sections\n")
+    logger.info("\n\tInterpolate Missing Sections\n")
 
     sect_info = pd.read_csv(sect_info_csv, index_col=False)
     chunk_info = pd.read_csv(chunk_info_csv, index_col=False)
@@ -54,12 +53,16 @@ def interpolate_missing_sections(
         resolution,
         resolution_list,
         output_dir,
-        final_resolution = final_resolution,
+        final_resolution=final_resolution,
         clobber=clobber,
     )
-    assert 'acquisition' in interp_chunk_info.columns, "Error: 'acquisition' column not found in chunk info"
+    assert (
+        "acquisition" in interp_chunk_info.columns
+    ), "Error: 'acquisition' column not found in chunk info"
 
-    if interp_method == METHOD_SURFACE:
+    n_chunks = interp_chunk_info["chunk"].nunique()
+
+    if n_chunks > 0:
         for (sub, hemisphere, acq), curr_sect_info in sect_info.groupby(
             ["sub", "hemisphere", "acquisition"]
         ):
@@ -77,49 +80,72 @@ def interpolate_missing_sections(
 
             ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
 
-            depth_list = np.round(np.linspace(0, 1, int(n_depths)), 3)
-
-            gm_surf_fn = curr_hemi_info["gm_surf"].values[0]
-            wm_surf_fn = curr_hemi_info["wm_surf"].values[0]
-
             curr_output_dir = f"{output_dir}/sub-{sub}/hemi-{hemisphere}/acq-{acq}/"
 
             os.makedirs(curr_output_dir, exist_ok=True)
 
-            reconstructed_cortex_fn = f"{curr_output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acq}_{resolution}mm_l{n_depths}_cortex.nii.gz"
-
-            (
-                surf_depth_mni_dict,
-                _,  # surf_depth_chunk_dict,
-                _,  # surf_raw_values_dict,
-                profiles_fn,
-                chunk_info,
-                struct_vol_rsl_fn,
-            ) = volumes_to_surface_profiles(
-                acq_chunk_info,
-                curr_sect_info,
-                resolution,
-                curr_output_dir,
-                output_dir + "/surfaces/",
-                ref_vol_fn,
-                gm_surf_fn,
-                wm_surf_fn,
-                depth_list=depth_list,
-                volume_type="interp_nat",
-                interp_order=1,
-                clobber=clobber,
+            logger.info(
+                f"\t\tInterpolating sections for sub-{sub}, hemi-{hemisphere}, acq-{acq} at {resolution}mm resolution with method {interp_method}"
             )
 
-            create_final_reconstructed_volume(
-                reconstructed_cortex_fn,
-                acq_chunk_info,
-                struct_vol_rsl_fn,
-                resolution,
-                surf_depth_mni_dict,
-                profiles_fn,
-                volume_type="interp_stx",
-                clobber=True,  # clobber
-            )
+            if interp_method == METHOD_VOLUMETRIC:
+                reconstructed_cortex_fn = f"{curr_output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acq}_{resolution}mm_cortex.nii.gz"
+
+                logger.info(
+                    f"\t\t\tReconstructed cortex file: {reconstructed_cortex_fn}"
+                )
+
+                ref_vol_rsl_fn = acq_chunk_info["ref_vol_rsl_fn"].values[
+                    0
+                ]  # if 'ref_vol_rsl_fn' in acq_chunk_info.columns else ref_vol_fn
+
+                combine_volumes(
+                    acq_chunk_info["interp_stx"].values,
+                    reconstructed_cortex_fn,
+                    mask_fn=ref_vol_rsl_fn,
+                    clobber=clobber,
+                )
+
+            elif interp_method == METHOD_SURFACE:
+                reconstructed_cortex_fn = f"{curr_output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acq}_{resolution}mm_l{n_depths}_cortex.nii.gz"
+
+                depth_list = np.round(np.linspace(0, 1, int(n_depths)), 3)
+
+                gm_surf_fn = curr_hemi_info["gm_surf"].values[0]
+                wm_surf_fn = curr_hemi_info["wm_surf"].values[0]
+
+                (
+                    stx_vol_dict,
+                    _,
+                    _,
+                    profiles_fn,
+                    chunk_info,
+                    struct_vol_rsl_fn,
+                ) = volumes_to_surface_profiles(
+                    acq_chunk_info,
+                    curr_sect_info,
+                    resolution,
+                    curr_output_dir,
+                    output_dir + "/surfaces/",
+                    ref_vol_fn,
+                    gm_surf_fn,
+                    wm_surf_fn,
+                    depth_list=depth_list,
+                    volume_type="interp_nat",
+                    interp_order=1,
+                    clobber=clobber,
+                )
+
+                create_final_reconstructed_volume(
+                    reconstructed_cortex_fn,
+                    acq_chunk_info,
+                    struct_vol_rsl_fn,
+                    resolution,
+                    stx_vol_dict,
+                    profiles_fn,
+                    volume_type="interp_stx",
+                    clobber=True,  # clobber
+                )
 
     chunk_info_csv = f"{output_dir}/reconstructed_chunk_info.csv"
     interp_chunk_info.to_csv(chunk_info_csv, index=False)

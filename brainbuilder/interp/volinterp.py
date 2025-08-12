@@ -5,14 +5,13 @@ from subprocess import run
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 
 import brainbuilder.utils.ants_nibabel as nib
+from brainbuilder.align.align_2d import apply_transforms_parallel
 from brainbuilder.interp.acqvolume import create_thickened_volumes
 from brainbuilder.utils import utils
 from brainbuilder.utils.nl_deformation_flow import nlflow_isometric
-from brainbuilder.align.align_2d import apply_transforms_parallel
-
-from joblib import Parallel, delayed
 
 
 def idw(vol, nearest_i, min_dist, p=2):
@@ -112,21 +111,18 @@ def volumetric_interpolation(
     chunk_info_out = pd.DataFrame(
         columns=["sub", "hemisphere", "chunk", "acquisition", "interp_nat"]
     )
-    
-    final_tfm_dir = output_dir+'/final_tfm_2d'
-    
+
+    final_tfm_dir = output_dir + "/final_tfm_2d"
+
     os.makedirs(final_tfm_dir, exist_ok=True)
-    
-    if final_resolution is not None and isinstance(final_resolution, float) :
-        
+
+    if final_resolution is not None and isinstance(final_resolution, float):
         Parallel(n_jobs=num_cores, backend="multiprocessing")(
             delayed(apply_transforms_parallel)(
-                final_tfm_dir, final_resolution, row, file_str='raw' 
+                final_tfm_dir, final_resolution, row, file_str="raw"
             )
-            for row in sect_info.iterrows() 
+            for row in sect_info.iterrows()
         )
- 
-    
 
     for (sub, hemisphere, chunk, acq), curr_sect_info in sect_info.groupby(
         ["sub", "hemisphere", "chunk", "acquisition"]
@@ -375,13 +371,13 @@ def create_final_transform(
 
 
 def volumetric_pipeline(
-    sect_info:pd.DataFrame,
-    chunk_info:pd.DataFrame,
-    hemi_info:pd.DataFrame,
-    resolution:float,
-    resolution_list:list,
-    output_dir:str,
-    final_resolution:float=None,
+    sect_info: pd.DataFrame,
+    chunk_info: pd.DataFrame,
+    hemi_info: pd.DataFrame,
+    resolution: float,
+    resolution_list: list,
+    output_dir: str,
+    final_resolution: float = None,
     clobber: bool = False,
 ):
     chunk_info_list = []
@@ -421,20 +417,23 @@ def volumetric_pipeline(
             output_dir,
             resolution,
             resolution_list,
-            final_resolution = final_resolution,
+            final_resolution=final_resolution,
             clobber=clobber,
         )
 
         curr_chunk_info = pd.merge(
             chunk_info, curr_chunk_info, how="left", on=["sub", "hemisphere", "chunk"]
         ).dropna()
-        
-        curr_chunk_info['acquisition'] = curr_chunk_info['acquisition_y']
-        del curr_chunk_info['acquisition_y']
+
+        if "acquisition_y" in curr_chunk_info.columns:
+            curr_chunk_info["acquisition"] = curr_chunk_info["acquisition_y"]
+            del curr_chunk_info["acquisition_y"]
 
         curr_chunk_info["interp_stx"] = curr_chunk_info["interp_nat"].apply(
             lambda x: x.replace("_iso", "_stx")
         )
+
+        curr_chunk_info["ref_vol_rsl_fn"] = ref_vol_rsl_fn
 
         for _, row in curr_chunk_info.iterrows():
             interp_nat_fin = row["interp_nat"]
@@ -445,9 +444,6 @@ def volumetric_pipeline(
                 .loc[curr_chunk_info["chunk"] == row["chunk"]]
                 .values[0]
             )
-
-            print("interp_stx_fin:", interp_stx_fin)
-            print(nl_3d_tfm_fn)
 
             if not os.path.exists(interp_stx_fin) or clobber:
                 cmd = f"antsApplyTransforms -d 3 -i {interp_nat_fin} -o {interp_stx_fin} -r {ref_vol_rsl_fn} -t {nl_3d_tfm_fn} --float 1"
