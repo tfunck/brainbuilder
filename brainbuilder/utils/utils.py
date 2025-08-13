@@ -1003,6 +1003,16 @@ def check_run_stage(
     return run_stage
 
 
+def pad_to_max_dims(vol, max_dims):
+    offset0 = int(max_dims[0] - vol.shape[0])
+    offset1 = int(max_dims[1] - vol.shape[1])
+    offset2 = int(max_dims[2] - vol.shape[2]) if len(vol.shape) == 3 else 0
+    if len(vol.shape) == 2:
+        vol = np.pad(vol, ((0, offset0), (0, offset1)), mode='constant')
+    elif len(vol.shape) == 3:
+        vol = np.pad(vol, ((0, offset0), (0, offset1), (0, offset2)), mode='constant')
+    return vol
+
 def calculate_sigma_for_downsampling(new_pixel_spacing: float) -> float:
     """Calculate the standard deviation of a Gaussian pre-filter for downsampling.
 
@@ -1031,6 +1041,7 @@ def resample_to_resolution(
     direction_order: str = "lpi",
     order: int = 1,
     factor: float = 1,
+    max_dims: Optional[np.ndarray] = None,
 ) -> nib.Nifti1Image:
     """Resample a volume to a new resolution.
 
@@ -1061,6 +1072,9 @@ def resample_to_resolution(
     sigma = calculate_sigma_for_downsampling(downsample_factor)
 
     # sigma[sigma <= 1] = 0
+
+    if max_dims is not None :
+        vol = pad_to_max_dims(vol, max_dims)
 
     vol = resize(
         vol, new_dims, order=order, anti_aliasing=True, anti_aliasing_sigma=sigma
