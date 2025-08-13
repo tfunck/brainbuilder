@@ -1073,12 +1073,13 @@ def resample_to_resolution(
 
     # sigma[sigma <= 1] = 0
 
-    if max_dims is not None :
-        vol = pad_to_max_dims(vol, max_dims)
 
     vol = resize(
         vol, new_dims, order=order, anti_aliasing=True, anti_aliasing_sigma=sigma
     )
+
+    if max_dims is not None :
+        vol = pad_to_max_dims(vol, max_dims)
 
     print("\tFactor:", factor)
     vol *= factor
