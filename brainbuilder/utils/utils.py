@@ -826,6 +826,7 @@ def parse_resample_arguments(
             origin = img.origin
             spacing = img.spacing
             direction = img.direction
+
             aff = nib.load(input_arg).affine
 
             if isinstance(dtype, type(None)):
@@ -836,12 +837,15 @@ def parse_resample_arguments(
 
     elif isinstance(input_arg, np.ndarray):
         vol = input_arg
+
         if isinstance(dtype, type(None)):
             dtype = vol.dtype
 
         assert (
             isinstance(aff, np.ndarray) or isinstance(aff, list)
         ), f"Error: affine must be provided as a list or numpy array but got {type(aff)}"
+
+        assert aff is not None, "Error: affine must be provided for numpy array input"
 
         origin, spacing, direction = get_params_from_affine(aff, len(vol.shape))
     else:
@@ -916,13 +920,23 @@ def compare_timestamp_of_files(x: Union[str, List], y: Union[str, List]) -> bool
 
     return True
 
-def get_new_dims(old_resolution: Tuple[float, float, float], new_resolution: Tuple[float, float, float], old_dimensions: np.ndarray) -> np.ndarray:
+
+def get_new_dims(
+    old_resolution: Tuple[float, float, float],
+    new_resolution: Tuple[float, float, float],
+    old_dimensions: np.ndarray,
+) -> np.ndarray:
     """Calculate new dimensions based on old and new resolutions."""
+    old_resolution = np.abs(np.array(old_resolution))
+    new_resolution = np.abs(new_resolution)
+
     scale = old_resolution / np.array(new_resolution)
+
     downsample_factor = 1 / scale
 
     new_dims = np.ceil(old_dimensions * scale)
     return new_dims, downsample_factor
+
 
 def check_run_stage(
     col1: Iterable, col2: Iterable, df_csv: str = None, clobber: bool = False
@@ -1003,15 +1017,18 @@ def check_run_stage(
     return run_stage
 
 
-def pad_to_max_dims(vol, max_dims):
+def pad_to_max_dims(vol: np.ndarray, max_dims: np.ndarray) -> np.ndarray:
+    """Pad a volume to the maximum dimensions."""
+    print(vol.shape, max_dims)
     offset0 = int(max_dims[0] - vol.shape[0])
     offset1 = int(max_dims[1] - vol.shape[1])
     offset2 = int(max_dims[2] - vol.shape[2]) if len(vol.shape) == 3 else 0
     if len(vol.shape) == 2:
-        vol = np.pad(vol, ((0, offset0), (0, offset1)), mode='constant')
+        vol = np.pad(vol, ((0, offset0), (0, offset1)), mode="constant")
     elif len(vol.shape) == 3:
-        vol = np.pad(vol, ((0, offset0), (0, offset1), (0, offset2)), mode='constant')
+        vol = np.pad(vol, ((0, offset0), (0, offset1), (0, offset2)), mode="constant")
     return vol
+
 
 def calculate_sigma_for_downsampling(new_pixel_spacing: float) -> float:
     """Calculate the standard deviation of a Gaussian pre-filter for downsampling.
@@ -1064,24 +1081,24 @@ def resample_to_resolution(
         ndim,
     ) = parse_resample_arguments(input_arg, output_filename, affine, dtype)
 
-    scale = old_resolution / np.array(new_resolution)
-    downsample_factor = 1 / scale
+    print(old_resolution, new_resolution)
+    new_dims, downsample_factor = get_new_dims(
+        old_resolution, new_resolution, vol.shape
+    )
 
-    new_dims = np.ceil(vol.shape * scale)
+    print(new_dims, downsample_factor)
 
     sigma = calculate_sigma_for_downsampling(downsample_factor)
 
     # sigma[sigma <= 1] = 0
 
-
     vol = resize(
         vol, new_dims, order=order, anti_aliasing=True, anti_aliasing_sigma=sigma
     )
 
-    if max_dims is not None :
+    if max_dims is not None:
         vol = pad_to_max_dims(vol, max_dims)
 
-    print("\tFactor:", factor)
     vol *= factor
 
     assert np.sum(np.abs(vol)) > 0, (
@@ -1097,4 +1114,5 @@ def resample_to_resolution(
 
     if isinstance(output_filename, str):
         img_out.to_filename(output_filename)
+
     return img_out

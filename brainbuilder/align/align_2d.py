@@ -146,6 +146,7 @@ def ants_registration_2d_section(
     write_composite_transform: int = 1,
     clobber: bool = False,
     exit_on_failure: bool = False,
+    verbose: bool = False,
 ) -> tuple:
     """Use ANTs to register 2d sections.
 
@@ -393,7 +394,11 @@ def align_2d_parallel(
 
 
 def apply_transforms_parallel(
-    tfm_dir: str, resolution: float, row: pd.Series, file_str: str = "img"
+    tfm_dir: str,
+    resolution: float,
+    row: pd.Series,
+    file_str: str = "img",
+    verbose: bool = False,
 ) -> int:
     """Apply transforms to 2d sections.
 
@@ -447,10 +452,9 @@ def apply_transforms_parallel(
         # however ITK does not support symlinks so we rename img_rsl_fn to the actual file name
         img_rsl_fn = img_fn
 
-    cmd = f"antsApplyTransforms -v {VERBOSE} -d 2 -n BSpline -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} "
+    cmd = f"antsApplyTransforms -v {int(verbose)} -d 2 -n BSpline -i {img_rsl_fn} -r {fx_fn} -t {prefix}_Composite.h5 -o {out_fn} "
 
     shell(cmd, True)
-
     assert os.path.exists(f"{out_fn}"), "Error apply nl 2d tfm to img autoradiograph"
     return out_fn
 
@@ -582,7 +586,9 @@ def align_sections(
 
     if len(to_do_resample_sect_info) > 0:
         Parallel(n_jobs=num_cores, backend="multiprocessing")(
-            delayed(apply_transforms_parallel)(tfm_dir, resolution, row)
+            delayed(apply_transforms_parallel)(
+                tfm_dir, resolution, row, verbose=verbose
+            )
             for row in to_do_resample_sect_info
         )
 
@@ -607,7 +613,6 @@ def concatenate_tfm_sections_to_volume(
     :param target_str: target string
     :return: sect_info
     """
-    exit_flag = False
     tfm_dir = output_dir + os.sep + "tfm"
 
     hires_img = nib.load(rec_fn)
@@ -615,15 +620,12 @@ def concatenate_tfm_sections_to_volume(
 
     sect_info[target_name] = [""] * sect_info.shape[0]
 
-    for idx, (i, row) in enumerate(sect_info.iterrows()):
-        print(row)
-        y = int(row["sample"])
+    def set_target_name(base, y):
+        return f"{tfm_dir}/{base}_y-{y}_{target_str}.nii.gz"
 
-        base = row["base"]
-        f"{tfm_dir}/{base}_y-{y}"
-        fn = f"{tfm_dir}/{base}_y-{y}_{target_str}.nii.gz"
-
-        sect_info.loc[target_name, i] = fn
+    sect_info[target_name] = sect_info.apply(
+        lambda row: set_target_name(row["base"], int(row["sample"])), axis=1
+    )
 
     concatenate_sections_to_volume(
         sect_info, target_name, out_fn, hires_img.shape, hires_img.affine
@@ -677,7 +679,7 @@ def align_2d(
     """
     ymax = sect_info["sample"].max()
 
-    ref_iso_space_nat_fn, ref_space_nat_fn = resample_reference_to_sections(
+    _, ref_space_nat_fn = resample_reference_to_sections(
         float(resolution),
         ref_rsl_fn,
         seg_rsl_fn,
