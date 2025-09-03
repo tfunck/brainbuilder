@@ -76,11 +76,11 @@ def align_neighbours_to_fixed(
         # calculate rigid transform from moving to fixed images
         if not os.path.exists(tfm_fn) or not os.path.exists(qc_fn):
             logger.info()
-            logger.info("\tFixed:", i, fixed_fn)
-            logger.info("\tMoving:", j, moving_fn)
-            logger.info("\tTfm:", tfm_fn, os.path.exists(tfm_fn))
-            logger.info("\tQC:", qc_fn, os.path.exists(qc_fn))
-            logger.info("\tMoving RSL:", moving_rsl_fn)
+            logger.info(f"\tFixed: {i} {fixed_fn}")
+            logger.info(f"\tMoving: {j} {moving_fn}")
+            logger.info(f"\tTfm: {tfm_fn} {os.path.exists(tfm_fn)}")
+            logger.info(f"\tQC: {qc_fn} {os.path.exists(qc_fn)}")
+            logger.info(f"\tMoving RSL:  {moving_rsl_fn}")
 
             if target_acquisition is not None:
                 if df["acquisition"].loc[j_idx].values[0] != target_acquisition:
@@ -351,7 +351,7 @@ def combine_sections_to_vol(
             # vol[:,int(y),:] += int(y)
             del ar
 
-    logger.info("\n\tWriting Volume", out_fn, "\n")
+    logger.info(f"\n\tWriting Volume {out_fn}\n")
     chunk_ymin = -126 + df["sample"].min() * y_mm
 
     affine = np.array(
@@ -521,8 +521,6 @@ def create_final_outputs(
             final_tfm_dir, int(row["sample"].values[0])
         )
         final_section_fn = f'{final_tfm_dir}/{int(row["sample"].values[0])}{os.path.basename(row["img"].values[0])}'
-        logger.info(row["init_img"].values)
-        logger.info(row["sample"].values)
         idx = df["sample"].values == row["sample"].values
         if not os.path.exists(final_tfm_fn) or not os.path.exists(final_section_fn):
             if isinstance(row["init_tfm"].values[0], str):
@@ -798,13 +796,13 @@ def align_chunk(
     df = create_final_outputs(final_tfm_dir, df, 1)
     df = create_final_outputs(final_tfm_dir, df, -1)
 
-    logger.info("Writing:", init_tfm_csv)
+    logger.info("Writing:" + init_tfm_csv)
 
     df.to_csv(init_tfm_csv)
 
     df["tier"] = 1
     if not os.path.exists(init_align_fn):
-        logger.info("\tInit Align Volume:", init_align_fn)
+        logger.info("\tInit Align Volume:" + init_align_fn)
         combine_sections_to_vol(df, y_mm, init_align_fn)
 
     sect_info["init_tfm"] = df["init_tfm"]

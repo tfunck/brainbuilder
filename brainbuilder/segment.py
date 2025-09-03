@@ -491,6 +491,8 @@ def segment(
             sect_info, nnunet_out_dir, False, nnunet_input_str=nnunet_input_str
         )
 
+        nnunet_failed = False
+
         if missing_segmentations or clobber:
             if isinstance(seg_method, str) and "nnunetv2" in seg_method:
                 logger.info("\tSegmenting with nnUNet")
@@ -502,7 +504,7 @@ def segment(
                 except Exception as e:
                     logger.warning("nnUNet failed to segment")
                     logger.warning(e)
-                    seg_method = -1
+                    nnunet_failed = True
             elif isinstance(seg_method, str) and "nnunetv1" in seg_method:
                 logger.info("\tSegmenting with nnUNet")
                 try:
@@ -517,11 +519,13 @@ def segment(
                 except Exception as e:
                     logger.warning("Warning: nnUNet failed to segment")
                     logger.warning(e)
-                    seg_method = -1
+                    nnunet_failed = True
 
-        if seg_method == -1 or seg_method in HISTOGRAM_METHODS:
+        if nnunet_failed or seg_method in HISTOGRAM_METHODS:
             apply_histogram_threshold(sect_info, num_cores=num_cores, method=seg_method)
-        else:  # No segmentation method specified, use unsegmented images instead
+        elif (
+            seg_method not in HISTOGRAM_METHODS and "nnunet" not in seg_method
+        ):  # No segmentation method specified, use unsegmented images instead
             logger.info("\tNo segmentation method specified, using unsegmented images")
             sect_info["seg"] = sect_info["img"].apply(
                 lambda x: x.replace(".nii.gz", f"_{resolution}mm_seg.nii.gz")
@@ -531,7 +535,7 @@ def segment(
                     shutil.copy(img_fn, seg_fn)
                     logger.info("\tCopied", img_fn, "to", seg_fn)
 
-        if seg_method != -1:
+        if not nnunet_failed:
             nnunet2nifti_to_do = convert_from_nnunet_list(
                 sect_info,
                 nnunet_out_dir,

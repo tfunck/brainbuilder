@@ -15,6 +15,163 @@ logger = get_logger(__name__)
 
 GM_LABEL = 1
 
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from scipy.optimize import minimize
+
+
+def apply_optimized_params(df, best_params, n_chunks):
+    df["slope"] = 1
+    df["intercept"] = 0
+
+    df_list = []
+    # Apply optimized parameters to the data
+    for i, (chunk, data) in enumerate(df.groupby("chunk")):
+        print(f"Processing pair: {chunk}", i)
+
+        opt_biases = best_params[:n_chunks]
+        opt_scales = best_params[n_chunks:]
+
+        b_i, s_i = opt_biases[i], opt_scales[i]
+
+        data["slope"] = s_i
+        data["intercept"] = b_i
+
+        df_list.append(data)
+
+    df = pd.concat(df_list, ignore_index=True)
+
+    return df
+
+
+def loss(params, data_pairs, n_chunks, lambda_scale=1.0):
+    # Define loss function with scale penalty
+    biases = params[:n_chunks]
+    scales = params[n_chunks:]
+    total_loss = 0
+
+    for i, j, data in data_pairs:
+        b_i, s_i = biases[i], scales[i]
+        b_j, s_j = biases[j], scales[j]
+
+        # y_i = s_i * data["density_r"].values + b_i
+        # y_j = s_j * data["density_c"].values + b_j
+        y_i = data["density_r"].values + b_i
+        y_j = data["density_c"].values + b_j
+
+        total_loss += np.mean((y_i - y_j) ** 2)
+
+    # Penalize scales near zero
+    penalty = lambda_scale * np.sum((1.0 / scales) ** 2)
+    return total_loss + penalty
+
+
+def find_optimal_params(data_pairs, n_chunks):
+    """Find optimal parameters using different optimization methods."""
+    # Initialize parameters
+    initial_biases = np.zeros(n_chunks)
+    initial_scales = np.ones(n_chunks)
+    initial_params = np.concatenate([initial_biases, initial_scales])
+
+    best_loss = float("inf")
+    best_params = None
+
+    # Optimize using different methods
+    for method in ["L-BFGS-B"]:  # , 'Powell', 'Nelder-Mead'  ]:
+        print(f"Using optimization method: {method}")
+        # Run optimization
+        result = minimize(
+            loss,
+            initial_params,
+            args=(
+                data_pairs,
+                n_chunks,
+            ),
+            method=method,
+        )
+
+        # Extract optimized biases and scales
+        opt_biases = result.x[:n_chunks]
+        opt_scales = result.x[n_chunks:]
+
+        curr_loss = result.fun
+        # print(f"Optimization completed with loss: {curr_loss}")
+        # print("Optimized Biases:", opt_biases)
+        # print("Optimized Scales:", opt_scales)
+        # print()
+
+        if curr_loss < best_loss:
+            best_loss = curr_loss
+            best_params = result.x
+
+    # correct intercepts so none are negative
+    min_intercept = np.min(best_params[:n_chunks])
+    if min_intercept < 0:
+        best_params[:n_chunks] -= min_intercept
+
+    return best_params
+
+
+def create_data_pairs(df, caudal_rostral_pairs, chunk_ids):
+    """Create data pairs for optimization based on caudal-rostral pairs."""
+    # Create a mapping from chunk to index in optimization
+    chunk_to_index = {chunk: i for i, chunk in enumerate(chunk_ids)}
+
+    data_pairs = []
+    for caudal, rostral in caudal_rostral_pairs:
+        df_r = df[df["cluster"] == rostral]
+        df_c = df[df["cluster"] == caudal]
+        merged = pd.merge(df_r, df_c, on="type", suffixes=("_r", "_c"))
+        data_pairs.append(
+            (chunk_to_index[int(rostral)], chunk_to_index[int(caudal)], merged)
+        )
+
+    return data_pairs
+
+
+def get_optimized_correction_factors(df_full):
+    """Calculate the optimized correction factors for each chunk based on the density."""
+    opt_list = []
+
+    # Get sorted unique clusters (e.g., 1.0, 1.5, 2.0, ...)
+    for acq, df in df_full.groupby("acquisition"):
+        clusters = sorted(df["cluster"].unique())
+        # Identify pairs: (rostral_cluster, caudal_cluster)
+        caudal_rostral_pairs = [
+            (clusters[i + 1], clusters[i + 2])
+            for i in range(len(clusters) - 2)
+            if int(clusters[i]) == int(clusters[i + 1])
+            and clusters[i] < clusters[i + 1]
+        ]
+        print("Caudal-Rostral Pairs:", caudal_rostral_pairs)
+
+        # Map cluster to chunk number
+        cluster_to_chunk = {c: int(float(c)) for c in clusters if float(c).is_integer()}
+
+        chunk_ids = sorted(set(cluster_to_chunk.values()))
+
+        n_chunks = len(chunk_ids)
+
+        # Create data pairs for optimization
+        data_pairs = create_data_pairs(df, caudal_rostral_pairs, chunk_ids)
+
+        best_params = find_optimal_params(data_pairs, n_chunks)
+
+        df_acq_opt = apply_optimized_params(df, best_params, n_chunks)
+
+        opt_list.append(df_acq_opt)
+
+    df = pd.concat(opt_list, ignore_index=True)
+
+    df["density_orig"] = df["density"].copy()
+
+    df["density_corr"] = df["slope"] * df["density_orig"] + df["intercept"]
+
+    print(df)
+    return df
+
 
 def get_section_percentiles(
     img_path: str,
@@ -36,6 +193,7 @@ def get_section_percentiles(
 
     if not os.path.exists(csv_file) or clobber:
         seg_vol = nib.load(seg_path).get_fdata()
+
         auto_vol = nib.load(img_path).get_fdata()
 
         assert (
@@ -68,10 +226,10 @@ def get_section_percentiles(
 
         qc_section = auto_vol.copy()
         qc_section[seg_vol == 0] = 0
-        qc_section = np.digitize(qc_section, gm_deciles)
-        qc_section = resize(
-            qc_section.astype(float), np.array(auto_vol.shape) // 10, order=0
-        )
+        # qc_section = np.digitize(qc_section, gm_deciles)
+        # qc_section = resize(
+        #    qc_section.astype(float), np.array(auto_vol.shape) // 10, order=0
+        # )
 
         # bin qc_section into gm_deciles
         plt.imshow(qc_section, cmap="nipy_spectral")
@@ -136,20 +294,24 @@ def get_dataset_percentiles(
 
         ymax0 = 0
         for (chunk, direction), _ in chunk_info_df.groupby(["chunk", "direction"]):
-            chunk_y_max = sect_info_df.loc[sect_info_df["chunk"] == chunk, "y"].max()
+            idx = sect_info_df["chunk"] == chunk
+
+            chunk_y_min = sect_info_df.loc[idx, "y"].min()
+
+            y = sect_info_df.loc[sect_info_df["chunk"] == chunk, "y"]
+
+            y = y - chunk_y_min
+
+            chunk_y_max = y.max()
+
+            y0 = ymax0 + chunk_y_max - y
+
+            # Reverse the y coordinate for chunks so that the smaller values are rostral
+            sect_info_df.loc[idx, "y0"] = y0
 
             print(chunk, direction, ymax0, chunk_y_max)
 
-            y0 = (
-                ymax0
-                + chunk_y_max
-                - sect_info_df.loc[sect_info_df["chunk"] == chunk, "y"]
-            )
-
-            # Reverse the y coordinate for chunks so that the smaller values are rostral
-            sect_info_df.loc[sect_info_df["chunk"] == chunk, "y0"] = y0
-
-            ymax0 = sect_info_df.loc[sect_info_df["chunk"] == chunk, "y0"].max()
+            ymax0 = y0.max()
 
         results = Parallel(n_jobs=1)(
             delayed(get_section_percentiles)(
@@ -174,16 +336,6 @@ def get_dataset_percentiles(
 
         # drop rows with NaN values
         df = df.dropna()
-
-        min_chunk = df["chunk"].min()
-        max_chunk = df["chunk"].max()
-
-        # for chunks 1 - 6, add the max y0 of the previous chunk to the next chunk
-        for chunk in range(min_chunk, max_chunk):
-            max_y0 = df.loc[df["chunk"] == chunk, "y0"].max()
-            df.loc[df["chunk"] == chunk + 1, "y0"] = (
-                df.loc[df["chunk"] == chunk + 1, "y0"] + max_y0
-            )
 
         # melt the dataframe to long format
         df = pd.melt(
@@ -210,29 +362,10 @@ def plot_correction_over_chunk(
     os.makedirs(plot_dir, exist_ok=True)
 
     palette = sns.color_palette(
-        ["#1f77b4", "#ff7f0e", "#2ca02c"]
+        ["#1f77b4", "#ff7f0e"]  # , "#2ca02c"]
     )  # Blue for "Uncorrected", Orange for "Batch Corrected", and Green for "Real"
 
     df["density_corr"] = df["density"] * df["slope"] + df["intercept"]
-
-    def get_median_density(row, i):
-        """Get the median density of the image"""
-        if i % 100 == 0:
-            logger.info(f"{100*i/len(df)}")
-
-        img_path = row["img_corr"]
-        seg_path = row["seg"]
-        img_data = nib.load(img_path).get_fdata()
-        seg_data = nib.load(seg_path).get_fdata()
-        seg_data = resize(seg_data.astype(float), img_data.shape, order=0)
-
-        return row
-
-    # res = Parallel(n_jobs=-1)(
-    #    delayed(get_median_density)(row,i) for i, (_, row) in enumerate(df.iterrows())
-    # )
-    # df = pd.DataFrame(res)  # Ensure the result is a DataFrame
-    # logger.info(df)
 
     # melt density and density_corr to long format
     df = pd.melt(
@@ -357,11 +490,19 @@ def correct_within_acquisition(
 
     plt.figure(figsize=(12, 6 * n_chunks // 2))
 
+    # batch normalize the variance of the density values
+    # chunk_std = acquisition_df.groupby(['chunk'])["density"].std()
+    # global_std = np.mean(chunk_std)
+
+    # for each chunk, divide by chunk_std and multiply by global_std
+    # acquisition_df["density"] = (
+    #    acquisition_df["density"] / acquisition_df["chunk"].map(chunk_std)
+    # ) * global_std
+
     for i, chunk in enumerate(np.arange(chunk_min, chunk_max)):
         next_chunk = chunk + 1
 
         # caudal/posterior == x, rostral/anterior == y
-
         x, y = get_rostral_caudal_values(chunk, acquisition_df)
 
         # regress caudal values onto rostral values
@@ -387,7 +528,7 @@ def correct_within_acquisition(
 
     acquisition_df.loc[:, "density"] = acquisition_df["density"] - density_offset
 
-    # Update the intercept to account for the offset
+    # Update the intercept to account for the offset and ensure that none of the intercepts result in negative values
     acquisition_df.loc[:, "intercept"] = acquisition_df["intercept"] - density_offset
 
     plt.tight_layout()
@@ -407,8 +548,6 @@ def calculate_correction_factors(
 ):
     plot_dir = f"{output_dir}/plots/"
     os.makedirs(plot_dir, exist_ok=True)
-
-    correction_df = get_ends_of_chunk(correction_df, 0.49)
 
     out_list = []
 
@@ -435,6 +574,8 @@ def calculate_correction_factors(
         out_df.to_csv(correction_factor_csv, index=False)
     else:
         out_df = pd.read_csv(correction_factor_csv)
+
+    out_df["density_corr"] = out_df["density"] * out_df["slope"] + out_df["intercept"]
 
     return out_df
 
@@ -517,7 +658,9 @@ def correct_batch_effect(
     """Correct batch effect in the input csv file and save the corrected data to the output directory." """
     out_sect_info_csv = f"{output_dir}/{os.path.splitext(os.path.basename(sect_info_csv))[0]}_batch-corrected.csv"
 
-    if not os.path.exists(out_sect_info_csv) or clobber:
+    order = 0
+
+    if not os.path.exists(out_sect_info_csv) or clobber or True:
         sect_info_df = pd.read_csv(sect_info_csv)
         chunk_info_df = pd.read_csv(chunk_info_csv)
 
@@ -539,7 +682,8 @@ def correct_batch_effect(
 
             percentiles_csv = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_percentiles_{n_points}_order-{order}.csv"
 
-            logger.info("Getting percentiles for sub:", sub, "hemi:", hemisphere)
+            logger.info(f"Getting percentiles for sub: {sub} {hemisphere}")
+
             df = get_dataset_percentiles(
                 curr_sect_info_df,
                 curr_chunk_info_df,
@@ -551,40 +695,40 @@ def correct_batch_effect(
             assert "img" in df.columns, f"img not in columns: {df.columns}"
 
             logger.info(
-                "Calculating correction factors for sub:", sub, "hemi:", hemisphere
+                f"Calculating correction factors for sub: {sub} hemi: {hemisphere}"
             )
-            correction_df = calculate_correction_factors(
-                df,
+
+            opt_df = get_ends_of_chunk(df, 0.45)
+
+            clobber = True
+            opt_df = calculate_correction_factors(
+                opt_df,
                 output_dir,
                 correction_df_csv,
                 n_points=n_points,
                 order=order,
                 clobber=clobber,
             )
+            # define the corrected image path
 
-            correction_df["density_corr"] = (
-                correction_df["density"] * correction_df["slope"]
-                + correction_df["intercept"]
-            )
+            # opt_df = get_optimized_correction_factors(opt_df)
 
-            # merge correction_df into df by chunk and acquisition
+            # merge out_df into df by chunk and acquisition
             df = df.merge(
-                correction_df[
-                    ["chunk", "acquisition", "slope", "intercept", "density_corr"]
-                ],
+                opt_df[["chunk", "acquisition", "slope", "intercept", "density_corr"]],
                 on=["chunk", "acquisition"],
                 how="left",
             )
 
-            # define the corrected image path
             df["img_corr"] = df["img"].apply(
                 lambda x: f"{nii_dir}/{os.path.basename(x).replace('.nii.gz', '_batch-corr.nii.gz')}"
             )
 
             # apply the correction to the density
             logger.info(
-                "Applying correction to images for sub:", sub, "hemi:", hemisphere
+                f"Applying correction to images for sub: {sub} hemi: {hemisphere}"
             )
+
             Parallel(n_jobs=-1)(
                 delayed(apply_correction)(
                     row["img"],
@@ -597,14 +741,10 @@ def correct_batch_effect(
                 for _, row in df.iterrows()
             )
 
-            # for (chunk, acq), df0 in df.groupby(['chunk','acquisition']):
-            #    logger.info(chunk, acq)
-            #    logger.info(df0['slope'].values)
-            #    logger.info(df0['acquisition'].values)
-
             logger.info(
-                "Plotting correction over chunk for sub:", sub, "hemi:", hemisphere
+                f"Plotting correction over chunk for sub: {sub} hemi: {hemisphere}"
             )
+
             plot_correction_over_chunk(
                 df, output_dir + "/qc/", n_points=n_points, order=order, clobber=clobber
             )
