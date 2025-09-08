@@ -1089,7 +1089,7 @@ def resample_to_resolution(
     print(new_dims, downsample_factor)
 
     sigma = calculate_sigma_for_downsampling(downsample_factor)
-
+    
     # sigma[sigma <= 1] = 0
 
     vol = resize(

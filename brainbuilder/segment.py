@@ -285,7 +285,7 @@ def convert_from_nnunet_list(
 
         if utils.check_run_stage([seg_fn], [nnunet_fn], clobber=clobber):
             if warning_flag:
-                logger.warning("\Could not find file:", seg_fn)
+                logger.warning(f"\Could not find file: {seg_fn}")
 
             to_do.append((nnunet_fn, img_fn, seg_fn))
 
@@ -356,7 +356,7 @@ def check_seg_files(
         if not os.path.exists(row["seg"]):
             all_files_valid = False
             if warning_flag:
-                logger.warning("\Could not find file:", row["seg"])
+                logger.warning(f"\Could not find file: {row['seg']}")
 
     return all_files_valid
 

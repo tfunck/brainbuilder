@@ -102,6 +102,7 @@ def multiresolution_alignment(
     use_syn: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
     num_cores: int = 0,
+    interpolation: str = "Linear",
     clobber: bool = False,
 ) -> str:
     """Multiresolution alignment of chunks.
@@ -148,9 +149,6 @@ def multiresolution_alignment(
 
         chunk_info = pd.read_csv(chunk_info_csv, index_col=None)
 
-        sect_info["nl_2d_rsl"] = ["empty"] * sect_info.shape[0]
-        sect_info["nl_2d_cls_rsl"] = ["empty"] * sect_info.shape[0]
-
         # We create a second list of 3d resolutions that replaces values below the maximum 3D resolution with the maximum 3D resolution, because it may not be possible to perform the 3D alignment at the highest resolution due to the large memory requirements.
         resolution_list_3d = [
             float(resolution)
@@ -193,6 +191,7 @@ def multiresolution_alignment(
                 use_3d_syn_cc=use_3d_syn_cc,
                 use_syn=use_syn,
                 linear_steps=linear_steps,
+                interpolation=interpolation,
                 clobber=clobber,
             )
 
@@ -389,6 +388,7 @@ def alignment_iteration(
     num_cores: int = 1,
     use_3d_syn_cc: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
+    interpolation: str = "Linear",
     clobber: bool = False,
 ) -> tuple:
     """Perform 3D-2D alignment for each resolution.
@@ -430,11 +430,6 @@ def alignment_iteration(
         + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_mri_gm.nii.gz"
     )
 
-    ref_dist_fn = (
-        row["align_3d_dir"]
-        + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_mri_gm_dist.nii.gz"
-    )
-
     if not os.path.exists(ref_rsl_fn):
         utils.resample_to_resolution(ref_vol_fn, [resolution_3d] * 3, ref_rsl_fn)
 
@@ -442,17 +437,15 @@ def alignment_iteration(
     use_2d_intersection = False
     if use_2d_intersection:  # Experimental feature, not yet tested
         from brainbuilder.align.align_2d_intersection import align_2d_intersection
-
         sect_info = align_2d_intersection(
             sect_info,
             ref_vol_fn,
             resolution_list,
             output_dir + "/intersection/",
             n_iters=20,
+            interpolation=interpolation,
             clobber=clobber,
         )
-
-    section_thickness = chunk_info["section_thickness"]
 
     world_chunk_limits, vox_chunk_limits = verify_chunk_limits(ref_rsl_fn, chunk_info)
 
@@ -536,6 +529,7 @@ def align_chunk(
     use_3d_syn_cc: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
     use_syn: bool = True,
+    interpolation: str = "Linear",
     clobber: bool = False,
 ) -> tuple:
     """3D-2D mutliresolution scheme.
@@ -570,8 +564,6 @@ def align_chunk(
     sect_info_out = sect_info
     chunk_info_out = chunk_info
 
-    dice_df = pd.DataFrame()
-
     ### Iterate over progressively finer resolution
     for resolution_itr, resolution in enumerate(resolution_list):
         resolution_3d = resolution_list_3d[resolution_itr]
@@ -602,6 +594,7 @@ def align_chunk(
                 use_syn=use_syn,
                 linear_steps=linear_steps,
                 num_cores=num_cores,
+                interpolation=interpolation,
                 clobber=clobber,
             )
             chunk_info_out["pass"] = pass_step
@@ -614,6 +607,6 @@ def align_chunk(
                 chunk_pass_last_df = pd.concat([chunk_pass_last_df, chunk_info_out])
                 sect_pass_last_df = pd.concat([sect_pass_last_df, sect_info_out])
 
-            output_prefix = f"sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_pass-{pass_step}_"
+            
 
     return chunk_pass_last_df, sect_pass_last_df

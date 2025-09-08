@@ -68,6 +68,7 @@ def reconstruct(
     max_resolution_3d: float = 0.3,
     final_resolution: float = None,
     interp_method: str = "volumetric",
+    interpolation_2d: str = "Linear",
     skip_interp: bool = False,
     use_intensity_correction: bool = False,
     verbose: bool = False,
@@ -88,8 +89,20 @@ def reconstruct(
     :param chunk_info_csv : str, path to json file that contains information about chunks
     :param resolution_list : list, resolutions to use for reconstruction
     :param output_dir : str, output directory where results will be put
-    :param pytorch_model_dir : str, optional, path of directory of pytorch model to use for reconstruction
+    :param output_csv : str, output csv file that will contain updated section information
+    :param n_depths : int, number of mid-surface depths between gm and wm surface
+    :param seg_method : str, segmentation method to use, options: 'nnunetv1', 'nnunetv2', 'otsu', 'triangle'
     :param num_cores : int, optional, number of cores to use for reconstruction, default=0 (use all cores)
+    :param interp_method : str, interpolation method to use, options: 'surface', 'volumetric'
+    :param max_resolution_3d : float, maximum resolution to use for 3D reference volume
+    :param final_resolution : float, final resolution for the output volume, default=None (use max resolution in resolution_list)
+    :param use_3d_syn_cc : bool, optional, use 3D nonlinear SyN with cross-correlation, default=True
+    :param use_syn : bool, optional, use 2D nonlinear SyN, default=True 
+    :param linear_steps : list, optional, linear steps to use for 3D-2D alignment, default=['rigid', 'similarity', 'affine']
+    :param skip_interp : bool, optional, skip interpolation step, default=False
+    :param use_intensity_correction : bool, optional, use intensity correction, default=False
+    :param verbose : bool, optional, verbose output for debugging, default=False
+    :param clobber : bool, optional, overwrite existing results, default=False
     :return sect_info : pandas dataframe, contains updated information about sections with new fields for files produced
     """
     # Set the logger level that will be used for the whole reconstruction
@@ -126,7 +139,8 @@ def reconstruct(
     logger.info(f"\t\tSegmentation method: {seg_method}")
     logger.info(f"\t\tUse 3D nonlinear CC: {use_3d_syn_cc}")
     logger.info(f"\t\tUse 2D nonlinear: {use_syn}")
-    logger.info(f"\t\tInterpolation method: {interp_method}")
+    logger.info(f"\t\tMissing Section Interpolation method: {interp_method}")
+    logger.info(f"\t\t2D interpolation method: {interpolation_2d}")
     logger.info(f"\t\tSkip interpolation: {skip_interp}")
     logger.info(f"\t\tUse intensity correction: {use_intensity_correction}")
     logger.info(f"\t\tClobber: {clobber}")
@@ -196,6 +210,7 @@ def reconstruct(
         use_syn=use_syn,
         num_cores=num_cores,
         linear_steps=linear_steps,
+        interpolation = interpolation_2d,
         clobber=clobber,
     )
 
@@ -213,6 +228,8 @@ def reconstruct(
             n_depths=n_depths,
             interp_method=interp_method,
             final_resolution=final_resolution,
+            interpolation = interpolation_2d,
+            num_cores=num_cores,
             clobber=clobber,
         )
 

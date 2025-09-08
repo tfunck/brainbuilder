@@ -92,10 +92,13 @@ def resample_and_transform(
     seg_rsl_fn = get_seg_fn(
         output_dir, int(row["sample"]), resolution_2d, seg_fn, "_rsl"
     )
+
     seg_rsl_tfm_fn = get_seg_fn(
         output_dir, int(row["sample"]), resolution_3d, seg_fn, "_rsl_tfm"
     )
+
     if not os.path.exists(seg_rsl_tfm_fn) or clobber:
+
         tfm_input_fn = get_input_file(
             seg_fn, seg_rsl_fn, row, output_dir, resolution_2d, resolution_3d
         )
@@ -121,8 +124,7 @@ def resample_and_transform(
             print("\tNo transform for", seg_rsl_fn)
             shutil.copy(tfm_input_fn, seg_rsl_tfm_fn)
 
-    row["nl_2d_cls_rsl"] = seg_rsl_tfm_fn
-    row["nl_2d_rsl"] = seg_rsl_tfm_fn
+    row["seg_rsl"] = seg_rsl_tfm_fn
 
     return row
 
@@ -152,11 +154,9 @@ def resample_transform_segmented_images(
     tfm_ref_fn = output_dir + "/2d_reference_image.nii.gz"
 
     if not os.path.exists(tfm_ref_fn) and resolution_itr != 0:
-        ref_img = nib.load(sect_info["nl_2d_rsl"].values[0])
-        xstart, zstart = ref_img.affine[[0, 1], 3]
 
         resample_to_resolution(
-            sect_info["nl_2d_rsl"].values[0],
+            sect_info["seg_rsl"].values[0],
             [resolution_3d] * 2,
             tfm_ref_fn,
             order=0,
@@ -370,7 +370,7 @@ def create_intermediate_volume(
         affine[2, 2] = resolution_3d
 
         concatenate_sections_to_volume(
-            sect_info, "nl_2d_rsl", curr_align_fn, dims, affine
+            sect_info, "seg_rsl", curr_align_fn, dims, affine
         )
 
         chunk_info["nl_2d_vol_fn"] = curr_align_fn

@@ -28,57 +28,6 @@ def idw(vol, nearest_i, min_dist, p=2):
 
     return interp
 
-
-def _interpolate_missing_sections(
-    vol: np.array, order: int = 0, axis: int = 1, p: int = 2
-) -> np.array:
-    """Vol has a discrete subset of sections with labeled regions inside of them. This function
-    will use nearest neighbour interpolation to fill in the missing sections in between.
-    """
-    assert vol.sum() > 0, "Error: Empty Input"
-
-    vol_interp = np.zeros_like(vol)
-
-    # Find indices of non-empty sections
-    non_empty_indices = np.array(
-        [
-            i
-            for i in range(vol.shape[axis])
-            if np.max(vol[:, i, :]) != np.min(vol[:, i, :])
-        ],
-        dtype=int,
-    )
-
-    if len(non_empty_indices) == 0:
-        print("No non-empty sections found")
-        return vol_interp  # Return empty volume if no non-empty sections are found
-
-    print(non_empty_indices)
-
-    for i, idx0 in enumerate(range(non_empty_indices, max(non_empty_indices))):
-        if i not in non_empty_indices:
-            # Calculate distances to non-empty sections
-            distances = np.abs(non_empty_indices - i)
-
-            min_dist_i = np.argsort(distances)[0 : (order + 1)]
-
-            min_dist = np.sort(distances)[0 : (order + 1)]
-
-            # Find the nearest non-empty section
-            nearest_i = non_empty_indices[min_dist_i]
-            # print('i=',i,'-->', min_dist, min_dist_i)
-
-            section = idw(vol, nearest_i, min_dist, p=p)
-            # print(np.mean(section), np.mean(vol[:,nearest_i[0],:]), np.mean(vol[:,nearest_i[1],:]))
-
-            vol_interp[:, i, :] = section
-        else:
-            vol_interp[:, i, :] = vol[:, i, :]
-    # assert np.sum(vol_interp) > 0, 'Error: Empty Output'
-
-    return vol_interp
-
-
 def volumetric_interpolation(
     sect_info: pd.DataFrame,
     chunk_info: pd.DataFrame,
@@ -88,6 +37,7 @@ def volumetric_interpolation(
     resolution_list: list,
     clobber: bool = False,
     final_resolution: float = None,
+    interpolation: str = "Linear",
     num_cores: int = -1,
 ) -> pd.DataFrame:
     """Interpolates the volumes of the sections in the chunk_info dataframe.
@@ -112,17 +62,10 @@ def volumetric_interpolation(
         columns=["sub", "hemisphere", "chunk", "acquisition", "interp_nat"]
     )
 
-    final_tfm_dir = output_dir + "/final_tfm_2d"
-
-    os.makedirs(final_tfm_dir, exist_ok=True)
-
     if final_resolution is not None and isinstance(final_resolution, float):
-        Parallel(n_jobs=num_cores, backend="multiprocessing")(
-            delayed(apply_transforms_parallel)(
-                final_tfm_dir, final_resolution, row, file_str="raw"
-            )
-            for row in sect_info.iterrows()
-        )
+        resolution_list += [final_resolution]
+        resolution = final_resolution
+
 
     for (sub, hemisphere, chunk, acq), curr_sect_info in sect_info.groupby(
         ["sub", "hemisphere", "chunk", "acquisition"]
@@ -130,6 +73,29 @@ def volumetric_interpolation(
         curr_output_dir = (
             f"{output_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/acq-{acq}/"
         )
+
+        final_tfm_dir = curr_output_dir + "/final_tfm_2d"
+
+        os.makedirs(final_tfm_dir, exist_ok=True)
+
+        curr_sect_info['2d_align'] = curr_sect_info['2d_align'].apply( lambda x :f'{final_tfm_dir}/{os.path.basename(x)}' )
+        curr_sect_info['2d_align_cls'] = curr_sect_info['2d_align_cls'].apply( lambda x :f'{final_tfm_dir}/{os.path.basename(x)}' )
+
+
+        if final_resolution is not None and isinstance(final_resolution, float):
+            Parallel(n_jobs=num_cores, backend="multiprocessing")(
+                delayed(apply_transforms_parallel)(
+                    final_tfm_dir, final_resolution, row, interpolation=interpolation, file_str="raw"
+                )
+                for _, row in curr_sect_info.iterrows()
+            )
+            
+            Parallel(n_jobs=num_cores, backend="multiprocessing")(
+                delayed(apply_transforms_parallel)(
+                    final_tfm_dir, final_resolution, row, tissue_str='_cls', file_str="seg"
+                )
+                for _, row in curr_sect_info.iterrows()
+            )
 
         os.makedirs(curr_output_dir, exist_ok=True)
 
@@ -164,7 +130,7 @@ def volumetric_interpolation(
         acq_fin = chunk_info_thickened["thickened"].values[0]
 
         interp_acq_iso_fin, nlflow_tfm_dict = nlflow_isometric(
-            acq_fin, curr_output_dir, resolution, resolution_list, clobber=clobber
+            acq_fin, curr_output_dir, resolution, resolution_list, interpolation=interpolation, num_cores=num_cores, clobber=clobber
         )
 
         interp_cls_iso_fin, _ = nlflow_isometric(
@@ -173,6 +139,7 @@ def volumetric_interpolation(
             resolution,
             resolution_list,
             tfm_dict=nlflow_tfm_dict,
+            num_cores=num_cores,
             clobber=clobber,
         )
 
@@ -265,7 +232,7 @@ def create_acq_atlas(chunk_info, output_dir, atlas_fin, clobber: bool = False):
 
 
 def apply_final_transform_to_files(
-    chunk_info, ref_vol_fin, nl_3d_tfm_fn, clobber: bool = False
+    chunk_info:pd.DataFrame, ref_vol_fin:str, nl_3d_tfm_fn:str, interpolation:str='Linear', clobber: bool = False
 ):
     for _, row in chunk_info.iterrows():
         interp_nat_fin = row["interp_nat"]
@@ -274,7 +241,7 @@ def apply_final_transform_to_files(
         print("interp_stx_fin:", interp_stx_fin)
 
         if not os.path.exists(interp_stx_fin) or clobber:
-            cmd = f"antsApplyTransforms -d 3 -i {interp_nat_fin} -o {interp_stx_fin} -r {ref_vol_fin} -t {nl_3d_tfm_fn} --float 1"
+            cmd = f"antsApplyTransforms -d 3 -n {interpolation} -i {interp_nat_fin} -o {interp_stx_fin} -r {ref_vol_fin} -t {nl_3d_tfm_fn} --float 1"
 
             print(cmd)
 
@@ -294,6 +261,7 @@ def create_final_transform(
     output_dir,
     resolution,
     resolution_list_3d,
+    interpolation: str = "Linear",
     clobber: bool = False,
 ):
     os.makedirs(output_dir, exist_ok=True)
@@ -364,7 +332,7 @@ def create_final_transform(
     print("atlas_vol_fn:", atlas_vol_fin)
 
     chunk_info = apply_final_transform_to_files(
-        chunk_info, ref_rsl_2d_fin, out_nl_3d_tfm_fn, clobber=True
+        chunk_info, ref_rsl_2d_fin, out_nl_3d_tfm_fn, interpolation=interpolation, clobber=True
     )
 
     return chunk_info
@@ -378,6 +346,8 @@ def volumetric_pipeline(
     resolution_list: list,
     output_dir: str,
     final_resolution: float = None,
+    interpolation: str = "Linear",
+    num_cores: int = -1,
     clobber: bool = False,
 ):
     chunk_info_list = []
@@ -418,6 +388,8 @@ def volumetric_pipeline(
             resolution,
             resolution_list,
             final_resolution=final_resolution,
+            interpolation=interpolation,
+            num_cores=num_cores,
             clobber=clobber,
         )
 
@@ -446,7 +418,7 @@ def volumetric_pipeline(
             )
 
             if not os.path.exists(interp_stx_fin) or clobber:
-                cmd = f"antsApplyTransforms -d 3 -i {interp_nat_fin} -o {interp_stx_fin} -r {ref_vol_rsl_fn} -t {nl_3d_tfm_fn} --float 1"
+                cmd = f"antsApplyTransforms -d 3 -n {interpolation} -i {interp_nat_fin} -o {interp_stx_fin} -r {ref_vol_rsl_fn} -t {nl_3d_tfm_fn} --float 1"
 
                 print(cmd)
 
