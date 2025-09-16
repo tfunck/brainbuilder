@@ -200,7 +200,7 @@ def convert_2d_array_to_nifti(
             sitk.WriteImage(itk_img, output_filename)
             # nib.Nifti1Image(i, nii_img.affine).to_filename(output_filename)
 
-        logger.info("Wrote: "+ output_filename)
+        logger.info("Wrote: " + output_filename)
 
 
 def assign_seg_filenames(
@@ -528,12 +528,12 @@ def segment(
         ):  # No segmentation method specified, use unsegmented images instead
             logger.info("\tNo segmentation method specified, using unsegmented images")
             sect_info["seg"] = sect_info["img"].apply(
-                lambda x: x.replace(".nii.gz", f"_{resolution}mm_seg.nii.gz")
+                lambda x: x.replace(".nii.gz", "_seg.nii.gz")
             )
             for seg_fn, img_fn in zip(sect_info["seg"], sect_info["img"]):
                 if not os.path.exists(seg_fn) or clobber:
                     shutil.copy(img_fn, seg_fn)
-                    logger.info("\tCopied {img_fn} to {seg_fn}")
+                    logger.info(f"\tCopied {img_fn} to {seg_fn}")
 
         if not nnunet_failed:
             nnunet2nifti_to_do = convert_from_nnunet_list(
@@ -609,7 +609,7 @@ def convert_from_nnunet(
             ar = ar + ar_thr
             ar /= ar.max()
 
-        logger.info("\tWriting"+ output_fn)
+        logger.info("\tWriting" + output_fn)
         nib.Nifti1Image(ar, ref_img.affine, direction_order="lpi").to_filename(
             output_fn
         )

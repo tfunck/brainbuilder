@@ -28,19 +28,20 @@ def idw(vol, nearest_i, min_dist, p=2):
 
     return interp
 
+
 def apply_final_2d_transforms(
-    curr_sect_info:pd.DataFrame, 
-    final_tfm_dir:str, 
-    final_resolution:float, 
-    interpolation:str='Linear', 
-    num_cores:int=-1
-    ):
+    curr_sect_info: pd.DataFrame,
+    final_tfm_dir: str,
+    final_resolution: float,
+    interpolation: str = "Linear",
+    num_cores: int = -1,
+):
     """Apply the final 2D transforms to the raw and segmented images.
     Parameters
     ----------
     curr_sect_info : pd.DataFrame
         DataFrame containing the section information for a single chunk.
-    final_tfm_dir : str 
+    final_tfm_dir : str
         Directory to save the final transformed images.
     final_resolution : float
         Final resolution of the images.
@@ -49,31 +50,79 @@ def apply_final_2d_transforms(
     num_cores : int
         Number of cores to use for parallel processing.
     """
-    
     os.makedirs(final_tfm_dir, exist_ok=True)
 
-    curr_sect_info['2d_align'] = curr_sect_info['2d_align'].apply(
-        lambda x: f'{final_tfm_dir}/{os.path.basename(x)}'
+    curr_sect_info["2d_align"] = curr_sect_info["2d_align"].apply(
+        lambda x: f"{final_tfm_dir}/{os.path.basename(x)}"
     )
-    curr_sect_info['2d_align_cls'] = curr_sect_info['2d_align_cls'].apply(
-        lambda x: f'{final_tfm_dir}/{os.path.basename(x)}'
+    curr_sect_info["2d_align_cls"] = curr_sect_info["2d_align_cls"].apply(
+        lambda x: f"{final_tfm_dir}/{os.path.basename(x)}"
     )
 
     Parallel(n_jobs=num_cores, backend="multiprocessing")(
         delayed(apply_transforms_parallel)(
-            final_tfm_dir, final_resolution, row, interpolation=interpolation, file_str="raw"
+            final_tfm_dir,
+            final_resolution,
+            row,
+            interpolation=interpolation,
+            file_str="raw",
         )
         for _, row in curr_sect_info.iterrows()
     )
 
     Parallel(n_jobs=num_cores, backend="multiprocessing")(
         delayed(apply_transforms_parallel)(
-            final_tfm_dir, final_resolution, row, tissue_str='_cls', file_str="seg"
+            final_tfm_dir, final_resolution, row, tissue_str="_cls", file_str="seg"
         )
         for _, row in curr_sect_info.iterrows()
     )
+
 
 def volumetric_interpolation(
+    curr_sect_info: pd.DataFrame,
+    curr_chunk_info: pd.DataFrame,
+    output_dir: str,
+    resolution: float,
+    resolution_list: list,
+    interpolation: str = "Linear",
+    tissue_type: str = "acq",
+    target_section: str = "2d_align",
+    nlflow_tfm_dict: dict = None,
+    num_cores: int = -1,
+    clobber: bool = False,
+) -> pd.DataFrame:
+    os.makedirs(output_dir, exist_ok=True)
+
+    chunk_info_thickened_csv = create_thickened_volumes(
+        output_dir + "/" + tissue_type,
+        curr_chunk_info,
+        curr_sect_info,
+        resolution,
+        tissue_type=tissue_type,
+        target_section=target_section,
+        clobber=clobber,
+        width=1,
+    )
+
+    chunk_info_thickened = pd.read_csv(chunk_info_thickened_csv)
+
+    acq_fin = chunk_info_thickened["thickened"].values[0]
+
+    interp_iso_fin, nlflow_tfm_dict = nlflow_isometric(
+        acq_fin,
+        output_dir,
+        resolution,
+        resolution_list,
+        interpolation=interpolation,
+        tfm_dict=nlflow_tfm_dict,
+        num_jobs=num_cores,
+        clobber=clobber,
+    )
+
+    return interp_iso_fin, nlflow_tfm_dict
+
+
+def volumetric_interpolation_over_dataframe(
     sect_info: pd.DataFrame,
     chunk_info: pd.DataFrame,
     output_dir: str,
@@ -82,8 +131,8 @@ def volumetric_interpolation(
     clobber: bool = False,
     final_resolution: float = None,
     interpolation: str = "Linear",
-    tissue_type: str = 'cls',
-    target_section: str = '2d_align',
+    tissue_type: str = "cls",
+    target_section: str = "2d_align",
     num_cores: int = -1,
 ) -> pd.DataFrame:
     """Interpolates the volumes of the sections in the chunk_info dataframe.
@@ -104,18 +153,16 @@ def volumetric_interpolation(
     clobber : bool, optional
         If True, overwrite existing files. The default is False.
     """
-    
     chunk_info_out = pd.DataFrame(
         columns=["sub", "hemisphere", "chunk", "acquisition", "interp_nat"]
     )
-    
+
     resolution_list_orig = np.array(resolution_list).copy()
     resolution_orig = resolution
-    
+
     if final_resolution is not None and isinstance(final_resolution, float):
         resolution_list += [final_resolution]
         resolution = final_resolution
-
 
     for (sub, hemisphere, chunk, acq), curr_sect_info in sect_info.groupby(
         ["sub", "hemisphere", "chunk", "acquisition"]
@@ -124,54 +171,41 @@ def volumetric_interpolation(
             f"{output_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/acq-{acq}/"
         )
 
-
         if final_resolution is not None and isinstance(final_resolution, float):
             final_tfm_dir = curr_output_dir + "/final_tfm_2d"
-            apply_final_2d_transforms(curr_sect_info, final_tfm_dir, final_resolution, interpolation, num_cores)
-
-        os.makedirs(curr_output_dir, exist_ok=True)
+            apply_final_2d_transforms(
+                curr_sect_info,
+                final_tfm_dir,
+                final_resolution,
+                interpolation,
+                num_cores,
+            )
 
         curr_chunk_info = chunk_info[(chunk_info["chunk"] == chunk)]
 
-        chunk_info_thickened_csv = create_thickened_volumes(
+        interp_acq_iso_fin, nlflow_tfm_dict = volumetric_interpolation(
+            curr_sect_info,
+            curr_chunk_info,
             curr_output_dir,
-            curr_chunk_info,
-            curr_sect_info,
             resolution,
+            resolution_list,
+            interpolation=interpolation,
+            num_cores=num_cores,
             clobber=clobber,
-            width=1,
         )
 
-        chunk_info_cls_thickened_csv = create_thickened_volumes(
-            curr_output_dir + "/" + tissue_type,
-            curr_chunk_info,
+        interp_cls_iso_fin, _ = volumetric_interpolation(
             curr_sect_info,
+            curr_chunk_info,
+            curr_output_dir,
             resolution,
+            resolution_list,
+            interpolation=interpolation,
             tissue_type=tissue_type,
-            target_section = target_section,
+            target_section=target_section,
+            nlflow_tfm_dict=nlflow_tfm_dict,
+            num_cores=num_cores,
             clobber=clobber,
-            width=1,
-        )
-
-        chunk_info_thickened = pd.read_csv(chunk_info_thickened_csv)
-        chunk_info_cls_thickened = pd.read_csv(chunk_info_cls_thickened_csv)
-
-        print(f"Interpolation Chunk: {chunk}, Acquisition: {acq}")
-        cls_fin = chunk_info_cls_thickened["thickened"].values[0]
-        acq_fin = chunk_info_thickened["thickened"].values[0]
-
-        interp_acq_iso_fin, nlflow_tfm_dict = nlflow_isometric(
-            acq_fin, curr_output_dir, resolution, resolution_list, interpolation=interpolation, num_jobs=num_cores, clobber=clobber
-        )
-
-        interp_cls_iso_fin, _ = nlflow_isometric(
-            cls_fin,
-            curr_output_dir + "/cls/",
-            resolution_orig,
-            resolution_list_orig,
-            tfm_dict = nlflow_tfm_dict,
-            num_jobs = num_cores,
-            clobber = clobber,
         )
 
         row = pd.DataFrame(
@@ -263,7 +297,11 @@ def create_acq_atlas(chunk_info, output_dir, atlas_fin, clobber: bool = False):
 
 
 def apply_final_transform_to_files(
-    chunk_info:pd.DataFrame, ref_vol_fin:str, nl_3d_tfm_fn:str, interpolation:str='Linear', clobber: bool = False
+    chunk_info: pd.DataFrame,
+    ref_vol_fin: str,
+    nl_3d_tfm_fn: str,
+    interpolation: str = "Linear",
+    clobber: bool = False,
 ):
     for _, row in chunk_info.iterrows():
         interp_nat_fin = row["interp_nat"]
@@ -321,7 +359,11 @@ def create_final_transform(
     print("atlas_vol_fn:", atlas_vol_fin)
 
     chunk_info = apply_final_transform_to_files(
-        chunk_info, ref_rsl_2d_fin, out_nl_3d_tfm_fn, interpolation=interpolation, clobber=True
+        chunk_info,
+        ref_rsl_2d_fin,
+        out_nl_3d_tfm_fn,
+        interpolation=interpolation,
+        clobber=True,
     )
 
     return chunk_info

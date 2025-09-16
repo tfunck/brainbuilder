@@ -264,49 +264,6 @@ def adjust_alignment(
     return transforms, df
 
 
-def apply_transforms_to_sections(
-    df: pd.DataFrame,
-    transforms: Dict[int, List[str]],
-    output_dir: str,
-    tfm_type: str,
-    target_acquisition: str = None,
-    clobber: bool = False,
-) -> pd.DataFrame:
-    """Apply the transforms to the sections.
-
-    :param df: The DataFrame containing the section information.
-    :param transforms: The dictionary of transforms.
-    :param output_dir: The output directory.
-    :param tfm_type: The transform type.
-    :param target_acquisition: The target acquisition.
-    :param clobber: Whether to overwrite existing files.
-    :return: The DataFrame containing the section information.
-    """
-    logger.info("Applying Transforms")
-    if target_acquisition is not None:
-        df = df.loc[df["acquisition"] == target_acquisition]
-
-    for i, (rowi, row) in enumerate(df.iterrows()):
-        outprefix = "{}/init_transforms/{}_{}-0/".format(
-            output_dir, int(row["sample"]), tfm_type
-        )
-        final_rsl_fn = outprefix + "final_level-0_Mattes_{}-0.nii.gz".format(tfm_type)
-
-        if not os.path.exists(final_rsl_fn) or clobber:
-            fixed_tfm_list = transforms[row["sample"]]
-            if len(fixed_tfm_list) == 0:
-                continue
-            transforms_str = " -t {}".format(" -t ".join(fixed_tfm_list))
-
-            fixed_fn = row["original_img"]
-
-            utils.shell(
-                f"antsApplyTransforms -v 1 -d 2 -i {fixed_fn} -r {fixed_fn} {transforms_str} -o {final_rsl_fn}",
-            )
-        df["img_new"].iloc[i] = final_rsl_fn
-    return df
-
-
 def combine_sections_to_vol(
     df: pd.DataFrame,
     y_mm: float,
@@ -340,7 +297,8 @@ def combine_sections_to_vol(
 
     vol = np.zeros([xmax, chunk_ymax, zmax])
     df = df.sort_values("sample")
-    for i, row in df.iterrows():
+
+    for _, row in df.iterrows():
         if row["tier"] == target_tier:
             y = row["sample"]
             ar = nib.load(row["img"]).get_fdata()
