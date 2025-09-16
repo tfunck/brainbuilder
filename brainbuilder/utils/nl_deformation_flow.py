@@ -138,6 +138,7 @@ def nl_deformation_flow(
     inv_tfm_path: str = None,
     resolution_list: list = [4, 2, 1, 0.5],
     resolution: float = 0.5,
+    interpolation: str = "Linear",
     clobber: bool = False,
 ):
     """Use ANTs to calculate SyN alignment between two sections. Let the deformation field = D.
@@ -226,7 +227,14 @@ def nl_deformation_flow(
                 )
 
                 # Combine the two sections
-                output_image = (sec0_fwd + sec1_inv) / 2.0
+                if interpolation == "NearestNeighbor":
+                    if s < 0.5:
+                        output_image = sec0_fwd
+                    else:
+                        output_image = sec1_inv
+                else :
+                    output_image = (sec0_fwd + sec1_inv) / 2.0
+
             else:
                 # apply linear interpolation
                 sec0 = ants.image_read(sec0_path)
@@ -278,6 +286,7 @@ def process_section(
     inv_tfm_path: str = None,
     resolution_list: list = [4, 2, 1, 0.5],
     resolution: float = 0.5,
+    interpolation: str = "Linear",
     clobber: bool = False,
 ):
     """Process a pair of sections and compute the deformation flow."""
@@ -314,6 +323,7 @@ def process_section(
         inv_tfm_path=inv_tfm_path,
         resolution_list=resolution_list,
         resolution=resolution,
+        interpolation=interpolation,
         clobber=clobber,
     )
 
@@ -326,6 +336,8 @@ def nl_deformation_flow_3d(
     spacing: tuple = None,
     resolution_list: list = [4, 2, 1, 0.5],
     resolution: float = 0.5,
+    interpolation: str = "Linear",
+    num_jobs: int = -1,
     clobber: bool = False,
 ):
     """Apply  nl intersection_flow to a volume where there are missing sections along axis=1"""
@@ -346,8 +358,7 @@ def nl_deformation_flow_3d(
         # cast all keys to str
         tfm_dict = {str(k): i for k, i in tfm_dict.items()}
 
-    # FIXME need to automate the n_jobs
-    results = Parallel(n_jobs=16)(
+    results = Parallel(n_jobs=num_jobs)(
         delayed(process_section)(
             y0,
             y1,
@@ -359,6 +370,7 @@ def nl_deformation_flow_3d(
             inv_tfm_path=tfm_dict[str(y0)][1],
             resolution_list=resolution_list,
             resolution=resolution,
+            interpolation=interpolation,
             clobber=clobber,
         )
         for y0, y1 in zip(valid_idx[:-1], valid_idx[1:])
@@ -381,6 +393,8 @@ def nl_deformation_flow_nii(
     tfm_dict: list = None,
     resolution_list: list = [4, 2, 1, 0.5],
     resolution: float = 0.5,
+    interpolation: str = "Linear",
+    num_jobs: int = -1,
     clobber: bool = False,
 ):
     nlflow_tfm_json = interp_acq_fin.replace(".nii.gz", "") + "nlflow_tfm.json"
@@ -422,6 +436,8 @@ def nl_deformation_flow_nii(
             tfm_dict=tfm_dict,
             resolution_list=resolution_list,
             resolution=resolution,
+            interpolation=interpolation,
+            num_jobs=num_jobs,
             clobber=clobber,
         )
 
@@ -484,6 +500,8 @@ def nlflow_isometric(
     resolution: float,
     resolution_list: list = None,
     tfm_dict: dict = None,
+    interpolation: str = "Linear",
+    num_jobs: int = -1,
     clobber: bool = False,
 ):
     """Apply non-linear deformation flow to the input volume and resample it to the specified resolution.
@@ -520,6 +538,8 @@ def nlflow_isometric(
         tfm_dict=tfm_dict,
         resolution_list=resolution_list,
         resolution=resolution,
+        interpolation=interpolation,
+        num_jobs=num_jobs,
         clobber=clobber,
     )
 

@@ -200,7 +200,7 @@ def convert_2d_array_to_nifti(
             sitk.WriteImage(itk_img, output_filename)
             # nib.Nifti1Image(i, nii_img.affine).to_filename(output_filename)
 
-        logger.info("Wrote:", output_filename)
+        logger.info("Wrote: " + output_filename)
 
 
 def assign_seg_filenames(
@@ -285,7 +285,7 @@ def convert_from_nnunet_list(
 
         if utils.check_run_stage([seg_fn], [nnunet_fn], clobber=clobber):
             if warning_flag:
-                logger.warning("\Could not find file:", seg_fn)
+                logger.warning(f"\Could not find file: {seg_fn}")
 
             to_do.append((nnunet_fn, img_fn, seg_fn))
 
@@ -356,7 +356,7 @@ def check_seg_files(
         if not os.path.exists(row["seg"]):
             all_files_valid = False
             if warning_flag:
-                logger.warning("\Could not find file:", row["seg"])
+                logger.warning(f"\Could not find file: {row['seg']}")
 
     return all_files_valid
 
@@ -533,7 +533,7 @@ def segment(
             for seg_fn, img_fn in zip(sect_info["seg"], sect_info["img"]):
                 if not os.path.exists(seg_fn) or clobber:
                     shutil.copy(img_fn, seg_fn)
-                    logger.info("\tCopied " + img_fn + " to " + seg_fn)
+                    logger.info("\tCopied {img_fn} to {seg_fn}")
 
         if not nnunet_failed:
             nnunet2nifti_to_do = convert_from_nnunet_list(
@@ -609,7 +609,7 @@ def convert_from_nnunet(
             ar = ar + ar_thr
             ar /= ar.max()
 
-        logger.info("\tWriting", output_fn)
+        logger.info("\tWriting" + output_fn)
         nib.Nifti1Image(ar, ref_img.affine, direction_order="lpi").to_filename(
             output_fn
         )

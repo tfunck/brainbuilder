@@ -279,7 +279,7 @@ def apply_2d_transformations(df: pd.DataFrame, clobber: bool = False) -> pd.Data
         """Apply 2D transformation."""
         tfm = row["2d_tfm"]
         img = row["cluster"]
-        ref = row["nl_2d_rsl"]
+        ref = row["2d_align"]
         out_fn = row["cluster_2d"]
 
         if not os.path.exists(out_fn) or clobber:
@@ -756,7 +756,7 @@ def validate_interp_error(
     print("\tCalculate regional averages for 2D warped classified autoradiographs")
     sect_info_2d, _ = regional_averages(
         sect_info_2d,
-        "nl_2d_rsl",
+        "align_2d",
         "cluster_2d",
         output_dir,
         "2d",

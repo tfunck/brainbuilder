@@ -75,8 +75,7 @@ def align_neighbours_to_fixed(
 
         # calculate rigid transform from moving to fixed images
         if not os.path.exists(tfm_fn) or not os.path.exists(qc_fn):
-            logger.info()
-            logger.info(f"\tFixed: {i} {fixed_fn}")
+            logger.info(f"\n\tFixed: {i} {fixed_fn}")
             logger.info(f"\tMoving: {j} {moving_fn}")
             logger.info(f"\tTfm: {tfm_fn} {os.path.exists(tfm_fn)}")
             logger.info(f"\tQC: {qc_fn} {os.path.exists(qc_fn)}")
@@ -689,7 +688,7 @@ def align_chunk(
     df["original_img"] = df["img"]
 
     acquisition_contrast_order = get_acquisition_contrast_order(sect_info)
-    logger.info("\tAcquistion contrast order: ", acquisition_contrast_order)
+    logger.info(f"\tAcquistion contrast order: {acquisition_contrast_order}")
 
     df["tier"] = 1
 
@@ -776,9 +775,6 @@ def align_chunk(
         )
 
         concat_list.append(df_acquisition.loc[df_acquisition["tier"] == 2])
-
-        # logger.info(target_acquisition)
-        # logger.info(df_acquisition['init_tfm'].loc[ df['acquisition'] == target_acquisition ])
 
         # update the master dataframe, df, with new dataframe for the acquisition
         df.loc[df["acquisition"] == target_acquisition] = df_acquisition.loc[

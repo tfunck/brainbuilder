@@ -105,6 +105,11 @@ def thicken_sections_within_chunk(
     array_img = nib.load(source_image_fn)
     array_src = array_img.get_fdata()
 
+    if tissue_type != None:  # FIXME Not great coding
+        target_section = f"2d_align_{tissue_type}"
+    else:
+        target_section = "2d_align"
+
     assert np.sum(array_src) != 0, (
         "Error: source volume for thickening sections is empty\n" + source_image_fn
     )
@@ -114,23 +119,25 @@ def thicken_sections_within_chunk(
 
     print("\t\tThickening sections to ", 0.02 * width * 2)
 
-    dim = [array_src.shape[0], 1, array_src.shape[2]]
+    example_2d_fin = chunk_sect_info.iloc[0][target_section]
+    example_2d_hd = nib.load(example_2d_fin)
 
-    rec_vol = np.zeros_like(array_src)
-    n = np.zeros_like(array_src)
+    xdim = example_2d_hd.shape[0]
+    ydim = array_src.shape[1]
+    zdim = example_2d_hd.shape[1]
+
+    dim = [xdim, 1, zdim]
+
+    rec_vol = np.zeros([xdim, ydim, zdim])
+    n = np.zeros_like(rec_vol)
 
     for row_i, row in chunk_sect_info.iterrows():
         y = int(row["sample"])
 
-        # Conversion of radioactivity values to receptor density values
-        if tissue_type != None:  # FIXME Not great coding
-            target_section = f"nl_2d_{tissue_type}_rsl"
-        else:
-            target_section = "nl_2d_rsl"
+        
 
         nl_2d_rsl = row[target_section]
-        print(target_section)
-        print(nl_2d_rsl)
+        print(nl_2d_rsl); 
 
         assert os.path.exists(
             nl_2d_rsl
@@ -147,6 +154,8 @@ def thicken_sections_within_chunk(
             if 1 + int(y) + width < array_src.shape[1]
             else array_src.shape[1]
         )
+
+        print(section.shape,'==', dim)
 
         rep = np.repeat(section.reshape(dim), y1 - y0, axis=1)
 
@@ -177,6 +186,9 @@ def thicken_sections_within_chunk(
         np.mean(rec_vol[rec_vol > rec_vol.min()]),
         np.max(rec_vol),
     )
+
+    affine = array_img.affine
+    affine[0,0] = affine[2,2] = resolution
 
     print("\tthickened_fn", thickened_fn)
     nib.Nifti1Image(rec_vol, array_img.affine, direction_order="lpi").to_filename(

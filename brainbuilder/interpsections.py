@@ -28,6 +28,8 @@ def interpolate_missing_sections(
     n_depths: int = 0,
     final_resolution: float = None,
     interp_method: str = METHOD_VOLUMETRIC,
+    interpolation: str = "Linear",
+    num_cores: int = -1,
     clobber: bool = False,
 ) -> str:
     """Interpolate missing sections in a volume.
@@ -54,6 +56,8 @@ def interpolate_missing_sections(
         resolution_list,
         output_dir,
         final_resolution=final_resolution,
+        interpolation=interpolation,
+        num_cores=num_cores,
         clobber=clobber,
     )
     assert (
