@@ -156,7 +156,7 @@ def resample_transform_segmented_images(
     if not os.path.exists(tfm_ref_fn) and resolution_itr != 0:
 
         resample_to_resolution(
-            sect_info["seg_rsl"].values[0],
+            sect_info["img"].values[0],
             [resolution_3d] * 2,
             tfm_ref_fn,
             order=0,
@@ -316,11 +316,19 @@ def create_intermediate_volume(
     out_2d_dir = out_dir + "/2d/"
 
     os.makedirs(out_2d_dir, exist_ok=True)
+    
+    
+    resolution_list = [res for res in resolution_list if res >= resolution_3d]
+
+    if resolution_3d not in resolution_list:
+        resolution_list.append(resolution_3d)
 
     print("\t\tStep 2: Autoradiograph segmentation")
     if not os.path.exists(seg_rsl_fn) or clobber:
         print("\t\t\tResampling segemented sections")
 
+
+        # Create 2D resampled images at both the 2D and 3D resolution for 2d and 3d alignment, respectively
         sect_info = resample_transform_segmented_images(
             sect_info,
             resolution_itr,
@@ -332,19 +340,6 @@ def create_intermediate_volume(
         )
 
         # write 2d segmented sections at current resolution. apply initial transform
-        print("\t\t\tInterpolating between segemented sections")
-        # volumetric_interpolation(
-        #    sect_info,
-        #    init_align_fn,
-        #    out_dir + "/2d/",
-        #    out_dir,
-        #    seg_rsl_fn,
-        #    resolution_3d,
-        #    chunk_info["section_thickness"].values[0],
-        #    interpolation=interpolation,
-        #    clobber=clobber,
-        # )
-
         curr_align_fn = (
             out_dir
             + "/"
@@ -378,14 +373,17 @@ def create_intermediate_volume(
         chunk_info = volumetric_interpolation(
             sect_info,
             chunk_info,
-            curr_align_fn,
             out_dir,
-            resolution,
+            resolution_3d,
             resolution_list,
+            num_cores=num_cores,
+            tissue_type='cls',
+            target_section='seg_rsl',
             clobber=clobber,
         )
 
         print("Create Acquisition Atlas")
         create_acq_atlas(chunk_info, out_dir, seg_rsl_fn, clobber=clobber)
+
 
     return None

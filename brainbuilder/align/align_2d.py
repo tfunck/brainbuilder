@@ -80,7 +80,7 @@ def resample_reference_to_sections(
     iso_output_fn = f"{output_dir}/{basename}_{resolution}mm_iso.nii.gz"
     output_fn = f"{output_dir}/{basename}_{resolution}mm_space-nat.nii.gz"
 
-    if not os.path.exists(iso_output_fn) or not os.path.exists(output_fn) or clobber:
+    if not os.path.exists(iso_output_fn) or not os.path.exists(output_fn) or clobber : #FIXME
         # Apply 3d transformation to the reference volume
         rand = tempfile.NamedTemporaryFile().name
 
@@ -98,6 +98,8 @@ def resample_reference_to_sections(
         vol = (255 * (vol - vol.min()) / (vol.max() - vol.min())).astype(np.uint8)
 
         # Resample the transformed volume to the resolution of the reconstruction
+        print('from ', aff)
+        print('to ', [float(resolution)] * 3)
         img_iso = resample_to_resolution(
             vol,
             [float(resolution)] * 3,
@@ -105,6 +107,7 @@ def resample_reference_to_sections(
             affine=aff,
             dtype=np.uint16,
         )
+        print(img_iso.shape); 
 
         img_iso.to_filename(iso_output_fn)
 
@@ -125,7 +128,7 @@ def resample_reference_to_sections(
             img3 = nib.Nifti1Image(vol, img3.affine)
 
         img3.to_filename(output_fn)
-
+        
         os.remove(rand_fn)
 
     return iso_output_fn, output_fn
@@ -343,7 +346,7 @@ def align_2d_parallel(
 
     prefix = f"{tfm_dir}/{base}_y-{y}"
 
-    fx_fn = gen_2d_fn(prefix, "_fx")
+    fx_fn = row['fx']
 
     mv_fn = row[file_to_align]
 
@@ -646,11 +649,13 @@ def concatenate_tfm_sections_to_volume(
     :param target_str: target string
     :return: sect_info
     """
-    tfm_dir = output_dir + os.sep + "tfm"
 
     hires_img = nib.load(rec_fn)
     target_name = "2d_align" + target_str
 
+    print(rec_fn)
+    print(hires_img.shape)
+    print(hires_img.affine)
     #sect_info[target_name] = [""] * sect_info.shape[0]
 
     #def set_target_name(base, y):
@@ -670,10 +675,8 @@ def concatenate_tfm_sections_to_volume(
 def align_2d(
     sect_info: pd.DataFrame,
     nl_2d_dir: str,
-    seg_dir: str,
     ref_rsl_fn: str,
     resolution: float,
-    resolution_itr: int,
     resolution_list: list,
     seg_rsl_fn: str,
     nl_3d_tfm_inv_fn: str,
@@ -699,7 +702,7 @@ def align_2d(
     :param sect_info: dataframe containing section information
     :param nl_2d_dir: directory to store intermediate files
     :param seg_dir: directory to store intermediate files
-    :param ref_rsl_fn: filename of volume with 2d sections
+    :param ref_rsl_fn: filename of volume of template downsampled to 3D resolution
     :param resolution: resolution of the current iteration
     :param resolution_itr: current iteration
     :param resolution_list: list of resolutions
@@ -713,6 +716,8 @@ def align_2d(
     """
     ymax = sect_info["sample"].max()
 
+    print(ref_rsl_fn)
+    print(seg_rsl_fn);
     # Apply 3D transformation to reference volume and resample to the resolution 
     # of the reconstruction and to the section thickness along the y-axis
     _, ref_space_nat_fn = resample_reference_to_sections(
@@ -724,10 +729,14 @@ def align_2d(
         nl_2d_dir,
         ymax=ymax,
     )
+    print(ref_space_nat_fn)
+
+    # Define fixed 'fx' filenames for each section from the resampled reference volume
+    sect_info['fx'] = utils.get_fx_list(sect_info,  nl_2d_dir, "_fx")
 
     # Create 2D sections from the resampled reference volume
     utils.create_2d_sections(
-        sect_info, ref_space_nat_fn, float(resolution), nl_2d_dir, dtype=np.uint8
+        sect_info['fx'].values, sect_info['sample'].values, ref_space_nat_fn,  nl_2d_dir, dtype=np.uint8
     )
 
     logger.info("\t\tStep 4: 2d nl alignment")
@@ -741,9 +750,9 @@ def align_2d(
         nl_2d_dir,
         resolution,
         resolution_list,
-        use_syn=use_syn,
-        base_lin_itr=base_lin_itr,
-        base_nl_itr=base_nl_itr,
+        use_syn = use_syn,
+        base_lin_itr = base_lin_itr,
+        base_nl_itr = base_nl_itr,
         num_cores=num_cores,
         interpolation=interpolation,
         file_to_align=file_to_align,

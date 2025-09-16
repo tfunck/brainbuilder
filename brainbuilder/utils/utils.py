@@ -172,6 +172,19 @@ def concatenate_sections_to_volume(sect_info, target_name, out_fn, dims, affine)
 
             try:
                 sec = nibabel.load(fn).get_fdata()
+               
+                sec_x = sec.shape[0]
+                sec_z = sec.shape[1]
+                
+                dim_x = dims[0] 
+                dim_z = dims[2]
+                # if the difference of section dimensions is more than 1 pixel but less than 10 pixels, resize the section to match the target dimensions
+                # FIXME: this is a temporary fix for some datasets with slight mismatched section dimensions
+                d0 = np.abs(sec_x - dim_x)
+                d1 = np.abs(sec_z - dim_z)
+                if (d0 > 0 and d0 < 10) or (d1 > 0 and d1 < 10):
+                    sec = resize(sec, (dim_x, dim_z), order=1, preserve_range=True, anti_aliasing=False)
+
                 out_vol[:, int(y), :] = sec
             except EOFError:
                 print("Error:", fn)
@@ -608,10 +621,12 @@ def save_sections(
 
         sec = vol[:, int(y - i), :]
 
+        print(sec.shape)
+
         nib.Nifti1Image(sec, affine, dtype=dtype, direction_order="lpi").to_filename(fn)
 
 
-def get_to_do_list(
+def get_fx_list(
     df: pd.DataFrame, out_dir: str, str_var: str, ext: str = ".nii.gz"
 ) -> List[Tuple[str, int]]:
     """Get the to-do list for processing.
@@ -622,22 +637,28 @@ def get_to_do_list(
     :param ext: str, filename extension
     :return: List[Tuple[str, int]], to-do list
     """
-    to_do_list = []
-    for idx, (i, row) in enumerate(df.iterrows()):
+    
+    tfm_dir=f'{out_dir}/tfm/'
+
+    os.makedirs(tfm_dir, exist_ok=True)
+    
+    fx_list = []
+    for _, row in df.iterrows():
         y = int(row["sample"])
         base = os.path.basename(row["raw"]).split(".")[0]
         assert int(y) >= 0, f"Error: negative y value found {y}"
-        prefix = f"{out_dir}/{base}_y-{y}"
+        prefix = f"{tfm_dir}/{base}_y-{y}"
         fn = gen_2d_fn(prefix, str_var, ext=ext)
-        if not os.path.exists(fn):
-            to_do_list.append((fn, y))
-    return to_do_list
+        
+        fx_list.append(fn)
+
+    return fx_list
 
 
 def create_2d_sections(
-    df: pd.DataFrame,
+    fx_list: list,
+    y_list : list,
     srv_fn: str,
-    resolution: float,
     output_dir: str,
     dtype: int = None,
     clobber: bool = False,
@@ -658,7 +679,7 @@ def create_2d_sections(
     os.makedirs(tfm_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
-    fx_to_do = get_to_do_list(df, tfm_dir, "_fx")
+    fx_to_do = [ (fn, y) for fn, y in zip(fx_list, y_list) if (not os.path.exists(fn) or clobber) ]
 
     if len(fx_to_do) > 0:
         srv_img = nib.load(srv_fn)
@@ -1081,12 +1102,13 @@ def resample_to_resolution(
         ndim,
     ) = parse_resample_arguments(input_arg, output_filename, affine, dtype)
 
-    print(old_resolution, new_resolution)
+    print('old', old_resolution, vol.shape)
     new_dims, downsample_factor = get_new_dims(
         old_resolution, new_resolution, vol.shape
     )
+    print('downsample factor', downsample_factor)
 
-    print(new_dims, downsample_factor)
+    print('new', new_resolution, new_dims)
 
     sigma = calculate_sigma_for_downsampling(downsample_factor)
     
