@@ -144,6 +144,9 @@ def resample_and_transform(
     else:
         print("\tNo transform for", row["img"])
         shutil.copy(row["img"], img_rsl_tfm_fn)
+        resample_to_resolution(
+            row["img"], [resolution_3d] * 2, output_filename=img_rsl_tfm_fn, order=1
+        )
 
     row["2d_align"] = img_rsl_tfm_fn
 

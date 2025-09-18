@@ -46,21 +46,25 @@ def get_multiresolution_filenames(
     align_3d_dir = f"{cur_out_dir}/3.2_align_3d/"
     seg_dir = f"{cur_out_dir}/3.1_intermediate_volume/"
     nl_2d_dir = f"{cur_out_dir}/3.3_align_2d"
-    
+
     row["cur_out_dir"] = cur_out_dir
     row["seg_dir"] = seg_dir
     row["align_3d_dir"] = align_3d_dir
     row["nl_2d_dir"] = nl_2d_dir
 
-    nl_method = 'CC' if use_3d_syn_cc else 'Mattes'
+    nl_method = "CC" if use_3d_syn_cc else "Mattes"
 
-    row["seg_rsl_fn"] =f'{seg_dir}/{prefix_3d}_seg.nii.gz'
-    row["rec_3d_rsl_fn"] =f'{align_3d_dir}/{prefix}_rec_space-mri.nii.gz'
-    row["ref_3d_rsl_fn"] =f'{align_3d_dir}/{prefix_3d}_mri_gm_space-rec.nii.gz'
-    row["nl_3d_tfm_fn"] =f'{align_3d_dir}/{prefix}_rec_to_mri_SyN_{nl_method}_Composite.h5'
-    row["nl_3d_tfm_inv_fn"] =f'{align_3d_dir}/{prefix}_rec_to_mri_SyN_{nl_method}_InverseComposite.h5'
-    row["nl_2d_vol_fn"] =f'{nl_2d_dir}/{prefix}_nl_2d.nii.gz'
-    row["nl_2d_vol_cls_fn"] =f'{nl_2d_dir}/{prefix}_nl_2d_cls.nii.gz'
+    row["seg_rsl_fn"] = f"{seg_dir}/{prefix_3d}_seg.nii.gz"
+    row["rec_3d_rsl_fn"] = f"{align_3d_dir}/{prefix}_rec_space-mri.nii.gz"
+    row["ref_3d_rsl_fn"] = f"{align_3d_dir}/{prefix_3d}_mri_gm_space-rec.nii.gz"
+    row[
+        "nl_3d_tfm_fn"
+    ] = f"{align_3d_dir}/{prefix}_rec_to_mri_SyN_{nl_method}_Composite.h5"
+    row[
+        "nl_3d_tfm_inv_fn"
+    ] = f"{align_3d_dir}/{prefix}_rec_to_mri_SyN_{nl_method}_InverseComposite.h5"
+    row["nl_2d_vol_fn"] = f"{nl_2d_dir}/{prefix}_nl_2d.nii.gz"
+    row["nl_2d_vol_cls_fn"] = f"{nl_2d_dir}/{prefix}_nl_2d_cls.nii.gz"
 
     return row
 
@@ -73,7 +77,15 @@ def check_chunk_outputs(chunk_csv: str) -> None:
     """
     chunk_info = pd.read_csv(chunk_csv, index_col=None)
 
-    for col in ["seg_rsl_fn", "rec_3d_rsl_fn", "ref_3d_rsl_fn", "nl_2d_vol_fn", "nl_2d_vol_cls_fn", "nl_3d_tfm_fn", "nl_3d_tfm_inv_fn"]:
+    for col in [
+        "seg_rsl_fn",
+        "rec_3d_rsl_fn",
+        "ref_3d_rsl_fn",
+        "nl_2d_vol_fn",
+        "nl_2d_vol_cls_fn",
+        "nl_3d_tfm_fn",
+        "nl_3d_tfm_inv_fn",
+    ]:
         for fn in chunk_info[col].values:
             if not os.path.exists(fn):
                 print(f"Warning: {fn} does not exist. Deleting {chunk_csv}.")
@@ -174,6 +186,7 @@ def multiresolution_alignment(
                 ]
                 .values[0]
             )
+
             curr_chunk_info, curr_sect_info = align_chunk(
                 curr_chunk_info,
                 curr_sect_info,
@@ -432,6 +445,7 @@ def alignment_iteration(
     use_2d_intersection = False
     if use_2d_intersection:  # Experimental feature, not yet tested
         from brainbuilder.align.align_2d_intersection import align_2d_intersection
+
         sect_info = align_2d_intersection(
             sect_info,
             ref_vol_fn,
@@ -599,7 +613,5 @@ def align_chunk(
             if pass_step == n_passes - 1 and resolution == resolution_list[-1]:
                 chunk_pass_last_df = pd.concat([chunk_pass_last_df, chunk_info_out])
                 sect_pass_last_df = pd.concat([sect_pass_last_df, sect_info_out])
-
-            
 
     return chunk_pass_last_df, sect_pass_last_df
