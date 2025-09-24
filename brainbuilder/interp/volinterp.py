@@ -411,7 +411,7 @@ def volumetric_pipeline(
 
         # Volumetric interpolation
         print("Volumetric Interpolation for sub:", sub, "hemi:", hemisphere)
-        curr_chunk_info = volumetric_interpolation(
+        curr_chunk_info = volumetric_interpolation_over_dataframe(
             sect_info_sub_hemi,
             curr_chunk_info,
             output_dir,

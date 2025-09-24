@@ -44,7 +44,10 @@ def compute_max_new_dims(
         def get_image_dims(raw_file):
             vol_shape = nib.load(raw_file).shape
             old_resolution = nibabel.load(raw_file).header.get_zooms()[:3]
+            
             new_dims, _ = utils.get_new_dims(old_resolution, new_resolution, vol_shape)
+            
+            print(raw_file, vol_shape, new_dims)
             return new_dims
 
         results = Parallel(n_jobs=num_cores)(

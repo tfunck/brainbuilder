@@ -125,7 +125,7 @@ def resample_reference_to_sections(
         if ymax is not None:
             vol = img3.get_fdata()
             vol = resize(vol, (vol.shape[0], ymax + 1, vol.shape[2]), order=1)
-            img3 = nib.Nifti1Image(vol, img3.affine)
+            img3 = nib.Nifti1Image(vol, img3.affine, direction_order="lpi")
 
         img3.to_filename(output_fn)
         
