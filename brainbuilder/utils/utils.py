@@ -1044,6 +1044,10 @@ def pad_to_max_dims(vol: np.ndarray, max_dims: np.ndarray) -> np.ndarray:
     offset0 = int(max_dims[0] - vol.shape[0])
     offset1 = int(max_dims[1] - vol.shape[1])
     offset2 = int(max_dims[2] - vol.shape[2]) if len(vol.shape) == 3 else 0
+    
+    
+    print('offsets', offset0, offset1, offset2)
+    
     if len(vol.shape) == 2:
         vol = np.pad(vol, ((0, offset0), (0, offset1)), mode="constant")
     elif len(vol.shape) == 3:
@@ -1101,7 +1105,7 @@ def resample_to_resolution(
         affine,
         ndim,
     ) = parse_resample_arguments(input_arg, output_filename, affine, dtype)
-
+    print('input', input_arg)
     print('old', old_resolution, vol.shape)
     new_dims, downsample_factor = get_new_dims(
         old_resolution, new_resolution, vol.shape
