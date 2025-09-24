@@ -528,12 +528,12 @@ def segment(
         ):  # No segmentation method specified, use unsegmented images instead
             logger.info("\tNo segmentation method specified, using unsegmented images")
             sect_info["seg"] = sect_info["img"].apply(
-                lambda x: x.replace(".nii.gz", f"_{resolution}mm_seg.nii.gz")
+                lambda x: x.replace(".nii.gz", "_seg.nii.gz")
             )
             for seg_fn, img_fn in zip(sect_info["seg"], sect_info["img"]):
                 if not os.path.exists(seg_fn) or clobber:
                     shutil.copy(img_fn, seg_fn)
-                    logger.info("\tCopied {img_fn} to {seg_fn}")
+                    logger.info(f"\tCopied {img_fn} to {seg_fn}")
 
         if not nnunet_failed:
             nnunet2nifti_to_do = convert_from_nnunet_list(

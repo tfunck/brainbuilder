@@ -9,7 +9,7 @@ import pandas as pd
 from brainbuilder.align.align_2d import concatenate_sections_to_volume
 from brainbuilder.interp.volinterp import (
     create_acq_atlas,
-    volumetric_interpolation,
+    volumetric_interpolation_over_dataframe,
 )
 from brainbuilder.utils.utils import (
     get_section_intervals,
@@ -97,8 +97,12 @@ def resample_and_transform(
         output_dir, int(row["sample"]), resolution_3d, seg_fn, "_rsl_tfm"
     )
 
-    if not os.path.exists(seg_rsl_tfm_fn) or clobber:
+    if resolution_itr == 0:
+        tfm_fn = row["init_tfm"]
+    else:
+        tfm_fn = row["2d_tfm"]
 
+    if not os.path.exists(seg_rsl_tfm_fn) or clobber:
         tfm_input_fn = get_input_file(
             seg_fn, seg_rsl_fn, row, output_dir, resolution_2d, resolution_3d
         )
@@ -107,7 +111,6 @@ def resample_and_transform(
             tfm_ref_fn = tfm_input_fn
 
         # get initial rigid transform
-        tfm_fn = row["2d_tfm"]
         print("\tTransforming", seg_rsl_fn, "to", seg_rsl_tfm_fn)
         print("\t\twith:", tfm_fn, "\n")
         if isinstance(tfm_fn, str):
@@ -123,6 +126,29 @@ def resample_and_transform(
         else:
             print("\tNo transform for", seg_rsl_fn)
             shutil.copy(tfm_input_fn, seg_rsl_tfm_fn)
+
+    img_rsl_tfm_fn = (
+        f'{output_dir}/{row["base"]}_y-{row["sample"]}_{resolution_2d}mm_rsl_tfm.nii.gz'
+    )
+
+    if isinstance(tfm_fn, str):
+        simple_ants_apply_tfm(
+            row["img"],
+            seg_rsl_tfm_fn,
+            tfm_fn,
+            img_rsl_tfm_fn,
+            ndim=2,
+            n="Linear",
+            empty_ok=True,
+        )
+    else:
+        print("\tNo transform for", row["img"])
+        shutil.copy(row["img"], img_rsl_tfm_fn)
+        resample_to_resolution(
+            row["img"], [resolution_3d] * 2, output_filename=img_rsl_tfm_fn, order=1
+        )
+
+    row["2d_align"] = img_rsl_tfm_fn
 
     row["seg_rsl"] = seg_rsl_tfm_fn
 
@@ -154,9 +180,8 @@ def resample_transform_segmented_images(
     tfm_ref_fn = output_dir + "/2d_reference_image.nii.gz"
 
     if not os.path.exists(tfm_ref_fn) and resolution_itr != 0:
-
         resample_to_resolution(
-            sect_info["seg_rsl"].values[0],
+            sect_info["img"].values[0],
             [resolution_3d] * 2,
             tfm_ref_fn,
             order=0,
@@ -317,10 +342,16 @@ def create_intermediate_volume(
 
     os.makedirs(out_2d_dir, exist_ok=True)
 
+    resolution_list = [res for res in resolution_list if res >= resolution_3d]
+
+    if resolution_3d not in resolution_list:
+        resolution_list.append(resolution_3d)
+
     print("\t\tStep 2: Autoradiograph segmentation")
     if not os.path.exists(seg_rsl_fn) or clobber:
         print("\t\t\tResampling segemented sections")
 
+        # Create 2D resampled images at both the 2D and 3D resolution for 2d and 3d alignment, respectively
         sect_info = resample_transform_segmented_images(
             sect_info,
             resolution_itr,
@@ -332,19 +363,6 @@ def create_intermediate_volume(
         )
 
         # write 2d segmented sections at current resolution. apply initial transform
-        print("\t\t\tInterpolating between segemented sections")
-        # volumetric_interpolation(
-        #    sect_info,
-        #    init_align_fn,
-        #    out_dir + "/2d/",
-        #    out_dir,
-        #    seg_rsl_fn,
-        #    resolution_3d,
-        #    chunk_info["section_thickness"].values[0],
-        #    interpolation=interpolation,
-        #    clobber=clobber,
-        # )
-
         curr_align_fn = (
             out_dir
             + "/"
@@ -375,13 +393,15 @@ def create_intermediate_volume(
 
         chunk_info["nl_2d_vol_fn"] = curr_align_fn
 
-        chunk_info = volumetric_interpolation(
+        chunk_info = volumetric_interpolation_over_dataframe(
             sect_info,
             chunk_info,
-            curr_align_fn,
             out_dir,
-            resolution,
+            resolution_3d,
             resolution_list,
+            num_cores=num_cores,
+            tissue_type="cls",
+            target_section="seg_rsl",
             clobber=clobber,
         )
 

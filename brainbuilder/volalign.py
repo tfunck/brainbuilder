@@ -15,18 +15,6 @@ from brainbuilder.align.intervolume import create_intermediate_volume
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
 
-global output_tuples
-
-output_tuples = [
-    ["seg_rsl_fn", "seg_dir", "_seg.nii.gz"],
-    ["rec_3d_rsl_fn", "align_3d_dir", "_rec_space-mri.nii.gz"],
-    ["ref_3d_rsl_fn", "align_3d_dir", "_mri_gm_space-rec.nii.gz"],
-    ["nl_3d_tfm_fn", "align_3d_dir", "_rec_to_mri_SyN_CC_Composite.h5"],
-    ["nl_3d_tfm_inv_fn", "align_3d_dir", "_rec_to_mri_SyN_CC_InverseComposite.h5"],
-    ["nl_2d_vol_fn", "nl_2d_dir", "_nl_2d.nii.gz"],
-    ["nl_2d_vol_cls_fn", "nl_2d_dir", "_nl_2d_cls.nii.gz"],  # ,
-]
-
 
 def get_multiresolution_filenames(
     row: pd.DataFrame,
@@ -34,6 +22,7 @@ def get_multiresolution_filenames(
     hemisphere: str,
     chunk: int,
     resolution: float,
+    resolution_3d: float,
     pass_step: int,
     out_dir: str,
     use_3d_syn_cc: bool = True,
@@ -52,22 +41,30 @@ def get_multiresolution_filenames(
     # Set directory names for multi-resolution alignment
     cur_out_dir = f"{out_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/{resolution}mm/pass_{pass_step}/"
     prefix = f"sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm"
+    prefix_3d = f"sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution_3d}mm"
+
+    align_3d_dir = f"{cur_out_dir}/3.2_align_3d/"
+    seg_dir = f"{cur_out_dir}/3.1_intermediate_volume/"
+    nl_2d_dir = f"{cur_out_dir}/3.3_align_2d"
 
     row["cur_out_dir"] = cur_out_dir
-    row["seg_dir"] = "{}/3.1_intermediate_volume/".format(row["cur_out_dir"])
-    row["align_3d_dir"] = "{}/3.2_align_3d/".format(row["cur_out_dir"])
-    row["nl_2d_dir"] = "{}/3.3_align_2d".format(row["cur_out_dir"])
+    row["seg_dir"] = seg_dir
+    row["align_3d_dir"] = align_3d_dir
+    row["nl_2d_dir"] = nl_2d_dir
 
-    output_list = []
+    nl_method = "CC" if use_3d_syn_cc else "Mattes"
 
-    for output in output_tuples:
-        if "CC" in output[2]:
-            if not use_3d_syn_cc:
-                output[2] = output[2].replace("CC", "Mattes")
-
-        out_fn = f"{row[output[1]]}/{prefix}{output[2]}"
-        row[output[0]] = out_fn
-        output_list.append(out_fn)
+    row["seg_rsl_fn"] = f"{seg_dir}/{prefix_3d}_seg.nii.gz"
+    row["rec_3d_rsl_fn"] = f"{align_3d_dir}/{prefix}_rec_space-mri.nii.gz"
+    row["ref_3d_rsl_fn"] = f"{align_3d_dir}/{prefix_3d}_mri_gm_space-rec.nii.gz"
+    row[
+        "nl_3d_tfm_fn"
+    ] = f"{align_3d_dir}/{prefix}_rec_to_mri_SyN_{nl_method}_Composite.h5"
+    row[
+        "nl_3d_tfm_inv_fn"
+    ] = f"{align_3d_dir}/{prefix}_rec_to_mri_SyN_{nl_method}_InverseComposite.h5"
+    row["nl_2d_vol_fn"] = f"{nl_2d_dir}/{prefix}_nl_2d.nii.gz"
+    row["nl_2d_vol_cls_fn"] = f"{nl_2d_dir}/{prefix}_nl_2d_cls.nii.gz"
 
     return row
 
@@ -80,12 +77,21 @@ def check_chunk_outputs(chunk_csv: str) -> None:
     """
     chunk_info = pd.read_csv(chunk_csv, index_col=None)
 
-    for output, _, _ in output_tuples:
-        for fn in chunk_info[output]:
+    for col in [
+        "seg_rsl_fn",
+        "rec_3d_rsl_fn",
+        "ref_3d_rsl_fn",
+        "nl_2d_vol_fn",
+        "nl_2d_vol_cls_fn",
+        "nl_3d_tfm_fn",
+        "nl_3d_tfm_inv_fn",
+    ]:
+        for fn in chunk_info[col].values:
             if not os.path.exists(fn):
-                print("\t\tMissing", fn)
+                print(f"Warning: {fn} does not exist. Deleting {chunk_csv}.")
                 os.remove(chunk_csv)
                 return None
+
     return None
 
 
@@ -180,6 +186,7 @@ def multiresolution_alignment(
                 ]
                 .values[0]
             )
+
             curr_chunk_info, curr_sect_info = align_chunk(
                 curr_chunk_info,
                 curr_sect_info,
@@ -410,6 +417,7 @@ def alignment_iteration(
         hemisphere,
         chunk,
         resolution,
+        resolution_3d,
         pass_step,
         output_dir,
         use_3d_syn_cc=use_3d_syn_cc,
@@ -427,7 +435,7 @@ def alignment_iteration(
     # downsample the original ref gm mask to current 3d resolution
     ref_rsl_fn = (
         row["seg_dir"]
-        + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_mri_gm.nii.gz"
+        + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution_3d}mm_mri_gm.nii.gz"
     )
 
     if not os.path.exists(ref_rsl_fn):
@@ -437,6 +445,7 @@ def alignment_iteration(
     use_2d_intersection = False
     if use_2d_intersection:  # Experimental feature, not yet tested
         from brainbuilder.align.align_2d_intersection import align_2d_intersection
+
         sect_info = align_2d_intersection(
             sect_info,
             ref_vol_fn,
@@ -495,10 +504,8 @@ def alignment_iteration(
     sect_info, ref_space_nat_fn = align_2d(
         sect_info,
         row["nl_2d_dir"],
-        row["seg_dir"],
         ref_rsl_fn,
         resolution,
-        resolution_itr,
         resolution_list,
         row["seg_rsl_fn"],
         row["nl_3d_tfm_inv_fn"],
@@ -606,7 +613,5 @@ def align_chunk(
             if pass_step == n_passes - 1 and resolution == resolution_list[-1]:
                 chunk_pass_last_df = pd.concat([chunk_pass_last_df, chunk_info_out])
                 sect_pass_last_df = pd.concat([sect_pass_last_df, sect_info_out])
-
-            
 
     return chunk_pass_last_df, sect_pass_last_df
