@@ -99,11 +99,12 @@ def get_ref_info(ref_rsl_fn: str) -> tuple:
     return ref_width, ref_min, ref_max, ref_ystep, ref_ystart
 
 
-def pad_seg_vol(seg_rsl_fn: str, max_downsample_level: str) -> str:
+def pad_seg_vol(seg_rsl_fn: str, max_downsample_level: str, resolution: float) -> str:
     """Pad a volume to center it while keeping it centered in the world coordinates.
 
     :param seg_rsl_fn: segmentation volume filename
     :param max_downsample_level: maximum downsample level
+    :param resolution: resolution of the section volume
     :return: padded segmentation volume filename
     """
     seg_img = nib.load(seg_rsl_fn)
@@ -113,7 +114,7 @@ def pad_seg_vol(seg_rsl_fn: str, max_downsample_level: str) -> str:
     direction = ants_img.direction
     com0 = ants.get_center_of_mass(ants_img)
 
-    pad_seg_vol, pad_affine = pad_volume(
+    pad_seg_volume, pad_affine = pad_volume(
         seg_vol,
         max_downsample_level,
         seg_img.affine,
@@ -123,7 +124,7 @@ def pad_seg_vol(seg_rsl_fn: str, max_downsample_level: str) -> str:
     seg_rsl_pad_fn = re.sub(".nii", "_padded.nii", seg_rsl_fn)
 
     nib.Nifti1Image(
-        pad_seg_vol, pad_affine, direction=direction, dtype=np.uint8
+        pad_seg_volume, pad_affine, direction=direction, dtype=np.uint8
     ).to_filename(seg_rsl_pad_fn)
 
     com1 = ants.get_center_of_mass(ants.image_read(seg_rsl_pad_fn))
@@ -131,7 +132,7 @@ def pad_seg_vol(seg_rsl_fn: str, max_downsample_level: str) -> str:
     com_error = np.sqrt(np.sum(np.power(np.array(com0) - np.array(com1), 2)))
 
     assert (
-        com_error < 0.1
+        com_error < resolution * 3
     ), f"Error: change in ceter of mass after padding {com0}, {com1}"
 
     return seg_rsl_pad_fn
@@ -386,8 +387,10 @@ def run_alignment(
         nl_base = f"{base}   {init_str} -o [{prefix_syn},{syn_out_fn},{syn_inv_fn}] "
         # nl_base += f" -t SyN[{syn_rate}] -m {nl_metric}  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} "
 
-        # if use_3d_syn_cc:
-        nl_base += f" -t SyN[{syn_rate}] -m {cc_metric} -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str} "
+        if use_3d_syn_cc:
+            nl_base += f" -t SyN[{syn_rate}] -m {cc_metric} -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str} "
+        else:
+            nl_base += f" -t SyN[{syn_rate}] -m {nl_metric}  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} "
 
         utils.shell(nl_base, verbose=verbose)
 
@@ -486,7 +489,7 @@ def align_3d(
         # pad the segmented volume so that it can be downsampled by the
         # ammount of times specified by max_downsample_level
         if use_pad_volume:
-            seg_pad_fn = pad_seg_vol(seg_rsl_fn, max_downsample_level)
+            seg_pad_fn = pad_seg_vol(seg_rsl_fn, max_downsample_level, resolution)
         else:
             seg_pad_fn = seg_rsl_fn
 

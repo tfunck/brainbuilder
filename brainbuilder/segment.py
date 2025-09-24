@@ -610,6 +610,7 @@ def convert_from_nnunet(
             ar /= ar.max()
 
         logger.info("\tWriting" + output_fn)
+
         nib.Nifti1Image(ar, ref_img.affine, direction_order="lpi").to_filename(
             output_fn
         )

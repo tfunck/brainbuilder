@@ -157,9 +157,6 @@ def volumetric_interpolation_over_dataframe(
         columns=["sub", "hemisphere", "chunk", "acquisition", "interp_nat"]
     )
 
-    resolution_list_orig = np.array(resolution_list).copy()
-    resolution_orig = resolution
-
     if final_resolution is not None and isinstance(final_resolution, float):
         resolution_list += [final_resolution]
         resolution = final_resolution
@@ -200,7 +197,7 @@ def volumetric_interpolation_over_dataframe(
             curr_output_dir,
             resolution,
             resolution_list,
-            interpolation=interpolation,
+            interpolation="NearestNeighbor",
             tissue_type=tissue_type,
             target_section=target_section,
             nlflow_tfm_dict=nlflow_tfm_dict,
@@ -238,6 +235,93 @@ def create_mask(fn, out_fn, clobber: bool = False):
         nib.Nifti1Image(data, img.affine, direction_order="lpi").to_filename(out_fn)
 
 
+def chunked_percentile(
+    fins,
+    fout,
+    p=50,
+    bins=256,
+    vmin=None,
+    vmax=None,
+    background=None,
+    chunk=(48, 48, 48),
+):
+    ref = nib.load(fins[0])
+
+    shape, affine = ref.shape, ref.affine
+
+    Z, Y, X = shape
+    cz, cy, cx = chunk
+
+    # Establish global value range for binning (or pass your known range)
+    if vmin is None or vmax is None:
+        vmin, vmax = np.inf, -np.inf
+        for f in fins:
+            img = nib.load(f)
+            # sample sparsely for speed
+            s = np.asarray(img.dataobj[::8, ::8, ::8])
+            if background is not None:
+                s = s[s != background]
+            if s.size:
+                vmin = min(vmin, float(np.nanmin(s)))
+                vmax = max(vmax, float(np.nanmax(s)))
+        if not np.isfinite(vmin):  # degenerate
+            vmin, vmax = 0.0, 1.0
+
+    edges = np.linspace(vmin, vmax, bins + 1, dtype=np.float32)
+    centers = 0.5 * (edges[:-1] + edges[1:])
+
+    out = np.zeros(shape, dtype=np.float32)
+
+    for z0 in range(0, Z, cz):
+        for y0 in range(0, Y, cy):
+            for x0 in range(0, X, cx):
+                z1, y1, x1 = min(z0 + cz, Z), min(y0 + cy, Y), min(x0 + cx, X)
+                sz, sy, sx = z1 - z0, y1 - y0, x1 - x0
+                H = np.zeros((sz, sy, sx, bins), dtype=np.uint32)
+
+                for f in fins:
+                    print("\tIncluding", f)
+                    blk = np.asarray(nib.load(f).dataobj[z0:z1, y0:y1, x0:x1])
+                    if background is not None:
+                        blk = np.where(blk == background, np.nan, blk)
+                    # Map values to bin indices
+                    # scale to [0, bins-1]
+                    idx = np.floor(
+                        (blk - vmin) / (vmax - vmin + 1e-12) * (bins - 1)
+                    ).astype(np.int32)
+                    # mask NaNs / outside
+                    m = ~np.isnan(blk)
+                    idx = np.clip(idx, 0, bins - 1, out=idx)
+                    # Update histograms
+                    # vectorized add: one bincount per voxel would be slow,
+                    # so flatten spatial dims for one big add.at
+                    flat_m = m.ravel()
+                    flat_idx = idx.ravel()[flat_m]
+                    # Build coordinates for add.at
+                    # linear voxel index (0..sz*sy*sx-1)
+                    lin = np.arange(sz * sy * sx, dtype=np.int32).repeat(1)[flat_m]
+                    # Faster: use np.add.at on a 2D (voxels, bins) view
+                    H2 = H.reshape(-1, bins)
+                    np.add.at(H2, (lin, flat_idx), 1)
+
+                # Turn histograms into the desired percentile
+                Hc = np.cumsum(H, axis=-1)
+                counts = Hc[..., -1]
+                target = (p / 100.0) * counts
+                # first bin where cumsum >= target
+                # handle empty (all NaN / all background)
+                empty = counts == 0
+                idxp = np.argmax(Hc >= target[..., None], axis=-1)
+
+                val = centers[idxp]
+                val[empty] = np.nan if background is None else background
+
+                out[z0:z1, y0:y1, x0:x1] = val
+    print(fout)
+    print(out.shape)
+    nib.Nifti1Image(out, affine, direction_order="lpi").to_filename(fout)
+
+
 def create_acq_atlas(chunk_info, output_dir, atlas_fin, clobber: bool = False):
     """To save memory, for each volume :
         1. load and z-score it,
@@ -266,7 +350,9 @@ def create_acq_atlas(chunk_info, output_dir, atlas_fin, clobber: bool = False):
 
             img = nib.load(interp_vol_fin)
             print(i / n, interp_vol_fin)
+
             vol = img.get_fdata()
+
             vol = (vol - np.mean(vol)) / np.std(vol)
 
             if mean_vol is None:

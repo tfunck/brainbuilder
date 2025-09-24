@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from brainbuilder.align.align_2d import concatenate_sections_to_volume
 from brainbuilder.interp.volinterp import (
-    create_acq_atlas,
+    chunked_percentile,
     volumetric_interpolation_over_dataframe,
 )
 from brainbuilder.utils.utils import (
@@ -406,6 +406,17 @@ def create_intermediate_volume(
         )
 
         print("Create Acquisition Atlas")
-        create_acq_atlas(chunk_info, out_dir, seg_rsl_fn, clobber=clobber)
+        # create_acq_atlas(chunk_info, out_dir, seg_rsl_fn, clobber=clobber)
 
+        chunked_percentile(
+            chunk_info["interp_cls_nat"].values,
+            seg_rsl_fn,
+            p=50,
+            bins=256,
+            vmin=None,
+            vmax=None,
+            background=0,
+            chunk=(48, 48, 48),
+        )
+        print("created:", seg_rsl_fn)
     return None
