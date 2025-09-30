@@ -122,4 +122,4 @@ The main output directories are :
 * `4_interp`: Volumes interpolated to estimate missing sections for each acquisition and transformed into coordiante space of reference volume.
 
 ## References
-Funck, T., et al. (2020). 3D reconstruction of ultra-high resolution neurotransmitter receptor atlases in human and non-human primate brains. bioRxiv. [https://doi.org/10.1101/2022.11.18.517039](https://www.biorxiv.org/content/10.1101/2022.11.18.517039v1)
+Funck, T., Wagstyl, K., Lepage, C. et al. Brainbuilder: a software pipeline for 3D reconstruction of cortical maps from multi-modal 2D data sets. Commun Biol 8, 1015 (2025). [https://doi.org/10.1038/s42003-025-08267-6](https://www.nature.com/articles/s42003-025-08267-6)
