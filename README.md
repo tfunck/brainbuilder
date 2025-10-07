@@ -118,7 +118,11 @@ The main output directories are :
   * `initalign_chunk_info.csv` : .csv file with chunk-level information, including path to initial reconstruction volume 
   * `initalign_sect_info.csv` : .csv file with section-level information, including path to initial 2D transformation for each section, respectively.
   * 
-* `3_multires_align`: 3D multiresolution between the reconstruction volume and the reference volume. 
+* `3_multires_align`: 3D multiresolution between the reconstruction volume and the reference volume.The results within this directory are organized by subject, hemisphere, tissue chunk, and alignment resolution:`3_multires_align/sub-{subject}/hemi-{hemisphere}/chunk-{chunk}/{resolution}mm/pass_0/`. (pass_0 results from an experimental feature that is not presently in use). For each subject / hemisphere / chunk / resolution, there are 3 output directories:
+    * `3.1_intermediate_volume` : Create an intermediate GM volume based on the 2D segmentations, transformed with the most recent 2D non-linear transformations in the reconstruction process.
+    * `3.2_align_3d` : 3D alignment of the intermediate 3D volume to the refernce volume.
+    * `3.3_align_2d` : 2D alignment of the 2D segmented sections versus the corresponding 2D sections  2D entre les sections segmente originale et le volume de reference aligner en espace natif
+ 
 * `4_interp`: Volumes interpolated to estimate missing sections for each acquisition and transformed into coordiante space of reference volume.
 
 ## References
