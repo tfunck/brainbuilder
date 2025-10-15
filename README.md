@@ -5,13 +5,12 @@
 [![pages](https://img.shields.io/badge/api-docs-blue)](documentation/html/brainbuilder/index.html)
 ![stability-stable](https://img.shields.io/badge/stability-stable-green.svg)
 
-### Purpose
+## Purpose
 BrainBuilder is a software packagefor reconstructing 3-dimensional cortical maps from data sets of 2-dimensional post-mortem serial brain sections processed for the quantification of multiple different biological components.
 
 ![BrainBuilder](docs/images/banner.png)
 
 ## Installation
-
 
 ### Requirements
 1) Install ANTs. [Download appropriate binary](https://github.com/ANTsX/ANTs/releases) and follow ANTs installation [instructions](https://github.com/ANTsX/ANTs/wiki/Installing-ANTs-release-binaries#installing-binaries-mac-os-and-linux). 
@@ -46,7 +45,6 @@ BrainBuilder is composed of 3 major processing stages:
 ### Inputs 
 
 BrainBuilder requires information about the 2D image sections and the tissue chunks and brain hemispheres from which they were acquired. This information is contained in 3 separate .csv files with the following manadatory and optional columns.
-
 
 ![Example .csv files](docs/images/csv_inputs.png)
 
@@ -105,5 +103,27 @@ This .csv contains information specific to each image file that will be used in 
 
 **raw** : path to the raw section (.nii.gz)
 
+### Outputs
+
+The main output directories are :
+* `0_downsample`: The raw files downsampled to the resolution of the reconstruction  
+* `1_seg`: The segmented versions of the downsampled files. 
+* `2_init_align`: Initial alignment of the raw sections to create an initial reconstruction volume.
+  * `<sub>_<hemisphere>_<chunk>/` : directory   
+    * 11539_L_1_init_align.nii.gz
+    * 11539_L_1_init_tfm.csv
+    * final_tfm
+    * stage_1
+    * stage_2
+  * `initalign_chunk_info.csv` : .csv file with chunk-level information, including path to initial reconstruction volume 
+  * `initalign_sect_info.csv` : .csv file with section-level information, including path to initial 2D transformation for each section, respectively.
+  * 
+* `3_multires_align`: 3D multiresolution between the reconstruction volume and the reference volume.The results within this directory are organized by subject, hemisphere, tissue chunk, and alignment resolution:`3_multires_align/sub-{subject}/hemi-{hemisphere}/chunk-{chunk}/{resolution}mm/pass_0/`. (pass_0 results from an experimental feature that is not presently in use). For each subject / hemisphere / chunk / resolution, there are 3 output directories:
+    * `3.1_intermediate_volume` : Create an intermediate GM volume based on the 2D segmentations, transformed with the most recent 2D non-linear transformations in the reconstruction process.
+    * `3.2_align_3d` : 3D alignment of the intermediate 3D volume to the refernce volume.
+    * `3.3_align_2d` : 2D alignment of the 2D segmented sections versus the corresponding 2D sections  2D entre les sections segmente originale et le volume de reference aligner en espace natif
+ 
+* `4_interp`: Volumes interpolated to estimate missing sections for each acquisition and transformed into coordiante space of reference volume.
+
 ## References
-Funck, T., et al. (2020). 3D reconstruction of ultra-high resolution neurotransmitter receptor atlases in human and non-human primate brains. bioRxiv. [https://doi.org/10.1101/2022.11.18.517039](https://www.biorxiv.org/content/10.1101/2022.11.18.517039v1)
+Funck, T., Wagstyl, K., Lepage, C. et al. Brainbuilder: a software pipeline for 3D reconstruction of cortical maps from multi-modal 2D data sets. Commun Biol 8, 1015 (2025). [https://doi.org/10.1038/s42003-025-08267-6](https://www.nature.com/articles/s42003-025-08267-6)
