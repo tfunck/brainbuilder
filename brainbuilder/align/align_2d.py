@@ -16,12 +16,10 @@ from brainbuilder.utils import utils
 from brainbuilder.utils.utils import (
     AntsParams,
     concatenate_sections_to_volume,
-    gen_2d_fn,
     resample_to_resolution,
     shell,
 )
 from joblib import Parallel, cpu_count, delayed
-from scipy.ndimage.filters import gaussian_filter
 from skimage.filters import threshold_otsu
 from skimage.transform import resize
 
@@ -80,7 +78,9 @@ def resample_reference_to_sections(
     iso_output_fn = f"{output_dir}/{basename}_{resolution}mm_iso.nii.gz"
     output_fn = f"{output_dir}/{basename}_{resolution}mm_space-nat.nii.gz"
 
-    if not os.path.exists(iso_output_fn) or not os.path.exists(output_fn) or clobber : #FIXME
+    if (
+        not os.path.exists(iso_output_fn) or not os.path.exists(output_fn) or clobber
+    ):  # FIXME
         # Apply 3d transformation to the reference volume
         rand = tempfile.NamedTemporaryFile().name
 
@@ -95,19 +95,17 @@ def resample_reference_to_sections(
 
         aff = img.affine.copy()
 
-        vol = (255 * (vol - vol.min()) / (vol.max() - vol.min())).astype(np.uint8)
+        # vol = (255 * (vol - vol.min()) / (vol.max() - vol.min())).astype(np.uint8)
+        vol = vol.astype(np.uint8)
 
         # Resample the transformed volume to the resolution of the reconstruction
-        print('from ', aff)
-        print('to ', [float(resolution)] * 3)
         img_iso = resample_to_resolution(
             vol,
             [float(resolution)] * 3,
             order=3,
             affine=aff,
-            dtype=np.uint16,
+            dtype=np.uint8,
         )
-        print(img_iso.shape); 
 
         img_iso.to_filename(iso_output_fn)
 
@@ -119,16 +117,22 @@ def resample_reference_to_sections(
             [float(resolution), section_thickeness, float(resolution)],
             affine=aff,
             order=1,
-            dtype=np.uint16,
+            dtype=np.uint8,
         )
+
+        assert np.sum(vol) > 0, f"Error: empty volume {output_fn}"
 
         if ymax is not None:
             vol = img3.get_fdata()
-            vol = resize(vol, (vol.shape[0], ymax + 1, vol.shape[2]), order=1)
+            vol = resize(
+                vol.astype(float), (vol.shape[0], ymax + 1, vol.shape[2]), order=1
+            )  # .astype(np.uint8)
             img3 = nib.Nifti1Image(vol, img3.affine, direction_order="lpi")
 
         img3.to_filename(output_fn)
-        
+
+        assert np.sum(vol) > 0, f"Error: empty volume {output_fn}"
+
         os.remove(rand_fn)
 
     return iso_output_fn, output_fn
@@ -188,6 +192,8 @@ def ants_registration_2d_section(
     mv_rsl_fn = f"{prefix}_{transforms[-1]}_{metrics[-1]}_cls_rsl.nii.gz"
 
     verbose = 0 if logger.getEffectiveLevel() == logging.INFO else 1
+
+    print("\tMOVE", mv_fn)  # DELETEME
 
     if not os.path.exists(final_tfm) or not os.path.exists(mv_rsl_fn) or clobber:
         for transform, metric, f_str, s_str, itr_str in zip(
@@ -306,7 +312,7 @@ def align_2d_parallel(
     resolution: float,
     resolution_list: list,
     row: pd.Series,
-    file_to_align: str = "seg",
+    file_to_align: str = "seg_rsl",
     use_syn: bool = True,
     base_lin_itr: int = 100,
     base_nl_itr: int = 30,
@@ -346,7 +352,7 @@ def align_2d_parallel(
 
     prefix = f"{tfm_dir}/{base}_y-{y}"
 
-    fx_fn = row['fx']
+    fx_fn = row["fx"]
 
     mv_fn = row[file_to_align]
 
@@ -403,7 +409,7 @@ def apply_transforms_parallel(
     tfm_dir: str,
     resolution: float,
     row: pd.Series,
-    tissue_str:str = '',
+    tissue_str: str = "",
     file_str: str = "img",
     interpolation: str = "Linear",
     verbose: bool = False,
@@ -418,7 +424,6 @@ def apply_transforms_parallel(
     :param row: row
     :return: 0
     """
-
     out_fn = row["2d_align" + tissue_str]
 
     if os.path.exists(out_fn):
@@ -431,7 +436,7 @@ def apply_transforms_parallel(
     prefix = f"{tfm_dir}/{base}_y-{y}"
 
     img_rsl_fn = f"{prefix}_{resolution}mm{tissue_str}.nii.gz"
- 
+
     img_fn = row[file_str]
 
     try:
@@ -442,30 +447,25 @@ def apply_transforms_parallel(
 
     img_res = np.array([img.affine[0, 0], img.affine[1, 1]])
 
-    print(img_fn)
-    print(img_res); 
-
     # if we're not at the final resolution, we need to downsample the image
     if resolution != img_res[0] or resolution != img_res[1]:
-
-        #sigma = utils.calculate_sigma_for_downsampling(resolution / img_res)
-        #vol = img.get_fdata()
-        #vol = gaussian_filter(vol, sigma)
+        # sigma = utils.calculate_sigma_for_downsampling(resolution / img_res)
+        # vol = img.get_fdata()
+        # vol = gaussian_filter(vol, sigma)
 
         resample_to_resolution(
             img_fn,
             [float(resolution), float(resolution)],
             order=2,
-            output_filename = img_rsl_fn,
+            output_filename=img_rsl_fn,
         )
 
-        #nib.Nifti1Image(vol, img.affine, direction_order="lpi").to_filename(img_rsl_fn)
+        # nib.Nifti1Image(vol, img.affine, direction_order="lpi").to_filename(img_rsl_fn)
     else:
         # if we're at the final resolution, we need to symlink the image
 
         # Check if the symlink exists and points to the correct file
         if os.path.islink(img_rsl_fn):
-
             if os.readlink(img_rsl_fn) != img_fn:
                 os.remove(img_rsl_fn)
                 os.symlink(img_fn, img_rsl_fn)
@@ -477,17 +477,10 @@ def apply_transforms_parallel(
         # however ITK does not support symlinks so we rename img_rsl_fn to the actual file name
         img_rsl_fn = img_fn
 
-
-    #fx_fn = gen_2d_fn(prefix, "_fx")
     fx_fn = img_rsl_fn
-    
-    #tfm_fn ={prefix}_Composite.h5
-    tfm_fn = row["2d_tfm"]
-    
-    #out_fn = prefix + "_rsl.nii.gz"
-    
 
-    print(out_fn)
+    tfm_fn = row["2d_tfm"]
+
     cmd = f"antsApplyTransforms -v {int(verbose)} -d 2 -n {interpolation} -i {img_rsl_fn} -r {fx_fn} -t {tfm_fn} -o {out_fn} "
 
     shell(cmd, True)
@@ -565,7 +558,7 @@ def align_sections(
     resolution_list: list,
     base_lin_itr: int = 100,
     base_nl_itr: int = 30,
-    file_to_align: str = "seg",
+    file_to_align: str = "seg_rsl",
     use_syn: bool = True,
     num_cores: int = 0,
     interpolation: str = "Linear",
@@ -611,11 +604,11 @@ def align_sections(
                 resolution,
                 resolution_list,
                 row,
-                base_lin_itr = base_lin_itr,
-                base_nl_itr = base_nl_itr,
-                file_to_align = file_to_align,
-                use_syn = use_syn,
-                verbose = verbose,
+                base_lin_itr=base_lin_itr,
+                base_nl_itr=base_nl_itr,
+                file_to_align=file_to_align,
+                use_syn=use_syn,
+                verbose=verbose,
             )
             for row in to_do_sect_info
         )
@@ -649,21 +642,17 @@ def concatenate_tfm_sections_to_volume(
     :param target_str: target string
     :return: sect_info
     """
-
     hires_img = nib.load(rec_fn)
     target_name = "2d_align" + target_str
 
-    print(rec_fn)
-    print(hires_img.shape)
-    print(hires_img.affine)
-    #sect_info[target_name] = [""] * sect_info.shape[0]
+    # sect_info[target_name] = [""] * sect_info.shape[0]
 
-    #def set_target_name(base, y):
+    # def set_target_name(base, y):
     #    return f"{tfm_dir}/{base}_y-{y}_{target_str}.nii.gz"
 
-    #sect_info[target_name] = sect_info.apply(
+    # sect_info[target_name] = sect_info.apply(
     #    lambda row: set_target_name(row["base"], int(row["sample"])), axis=1
-    #)
+    # )
 
     concatenate_sections_to_volume(
         sect_info, target_name, out_fn, hires_img.shape, hires_img.affine
@@ -686,7 +675,7 @@ def align_2d(
     base_lin_itr: int = 100,
     base_nl_itr: int = 20,
     use_syn: bool = True,
-    file_to_align: str = "seg",
+    file_to_align: str = "seg_rsl",
     num_cores: int = 1,
     interpolation: str = "Linear",
     clobber: bool = False,
@@ -716,9 +705,7 @@ def align_2d(
     """
     ymax = sect_info["sample"].max()
 
-    print(ref_rsl_fn)
-    print(seg_rsl_fn);
-    # Apply 3D transformation to reference volume and resample to the resolution 
+    # Apply 3D transformation to reference volume and resample to the resolution
     # of the reconstruction and to the section thickness along the y-axis
     _, ref_space_nat_fn = resample_reference_to_sections(
         float(resolution),
@@ -729,14 +716,17 @@ def align_2d(
         nl_2d_dir,
         ymax=ymax,
     )
-    print(ref_space_nat_fn)
 
     # Define fixed 'fx' filenames for each section from the resampled reference volume
-    sect_info['fx'] = utils.get_fx_list(sect_info,  nl_2d_dir, "_fx")
+    sect_info["fx"] = utils.get_fx_list(sect_info, nl_2d_dir, "_fx")
 
     # Create 2D sections from the resampled reference volume
     utils.create_2d_sections(
-        sect_info['fx'].values, sect_info['sample'].values, ref_space_nat_fn,  nl_2d_dir, dtype=np.uint8
+        sect_info["fx"].values,
+        sect_info["sample"].values,
+        ref_space_nat_fn,
+        nl_2d_dir,
+        dtype=np.uint8,
     )
 
     logger.info("\t\tStep 4: 2d nl alignment")
@@ -750,9 +740,9 @@ def align_2d(
         nl_2d_dir,
         resolution,
         resolution_list,
-        use_syn = use_syn,
-        base_lin_itr = base_lin_itr,
-        base_nl_itr = base_nl_itr,
+        use_syn=use_syn,
+        base_lin_itr=base_lin_itr,
+        base_nl_itr=base_nl_itr,
         num_cores=num_cores,
         interpolation=interpolation,
         file_to_align=file_to_align,

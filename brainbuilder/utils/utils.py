@@ -67,10 +67,6 @@ def convert_gm_com_dist_map(vol: np.ndarray, voxel_sizes: np.ndarray) -> np.ndar
 
     idx_rsl = idx.reshape(-1)
 
-    print(vol.shape)
-    print(coords.shape)
-    print(idx.shape)
-
     coords = coords[idx_rsl, :]
 
     # Calculate the distance from the center of mass
@@ -160,10 +156,38 @@ def load_image(fn: str) -> np.ndarray:
         return None
 
 
+def check_dimensions(fns: list, dims: tuple) -> None:
+    """Check the dimensions of a list of files.
+
+    :param fns: list, list of filenames
+    :param dims: tuple, expected dimensions
+    :return: None
+    """
+    sections_okay_flag = True
+    for fn in fns:
+        sec = nibabel.load(fn)
+
+        if sec.shape[0] != dims[0] or sec.shape[1] != dims[2]:
+            print("Warning: section dimensions do not match target dimensions")
+            print("\tSection:", fn, sec.shape)
+            print("\tTarget:", dims)
+            print()
+
+            sections_okay_flag = False
+
+    return sections_okay_flag
+
+
 def concatenate_sections_to_volume(sect_info, target_name, out_fn, dims, affine):
     """Process sections and write the 3D volume to a file."""
     if not os.path.exists(out_fn):
         out_vol = np.zeros(dims, dtype=np.float32)
+
+        sections_okay_flag = check_dimensions(sect_info[target_name].values, dims)
+
+        if not sections_okay_flag:
+            print("Error: section dimensions do not match target dimensions")
+            exit(1)
 
         exit_flag = False
         for i, row in sect_info.iterrows():
@@ -172,18 +196,24 @@ def concatenate_sections_to_volume(sect_info, target_name, out_fn, dims, affine)
 
             try:
                 sec = nibabel.load(fn).get_fdata()
-               
+
                 sec_x = sec.shape[0]
                 sec_z = sec.shape[1]
-                
-                dim_x = dims[0] 
+
+                dim_x = dims[0]
                 dim_z = dims[2]
                 # if the difference of section dimensions is more than 1 pixel but less than 10 pixels, resize the section to match the target dimensions
                 # FIXME: this is a temporary fix for some datasets with slight mismatched section dimensions
                 d0 = np.abs(sec_x - dim_x)
                 d1 = np.abs(sec_z - dim_z)
                 if (d0 > 0 and d0 < 10) or (d1 > 0 and d1 < 10):
-                    sec = resize(sec, (dim_x, dim_z), order=1, preserve_range=True, anti_aliasing=False)
+                    sec = resize(
+                        sec,
+                        (dim_x, dim_z),
+                        order=1,
+                        preserve_range=True,
+                        anti_aliasing=False,
+                    )
 
                 out_vol[:, int(y), :] = sec
             except EOFError:
@@ -612,16 +642,20 @@ def save_sections(
 
     for fn, y in file_list:
         i = 0
-        if np.sum(vol[:, int(y), :]) == 0:
+
+        if np.max(vol[:, int(y), :]) < 1:
             # Create 2D srv section
             # this little while loop thing is so that if we go beyond  brain tissue in vol,
             # we find the closest y segement in vol with brain tissue
-            while np.sum(vol[:, int(y - i), :]) == 0:
-                i += (ystep / np.abs(ystep)) * 1
+            while np.max(vol[:, int(y - i), :]) < 1:
+                i += ystep / np.abs(ystep)
 
         sec = vol[:, int(y - i), :]
 
-        print(sec.shape)
+        assert np.max(sec) != np.min(sec), f"Error: empty section {fn}"
+
+        if "damp" in fn:
+            print(fn, np.max(sec))
 
         nib.Nifti1Image(sec, affine, dtype=dtype, direction_order="lpi").to_filename(fn)
 
@@ -637,11 +671,10 @@ def get_fx_list(
     :param ext: str, filename extension
     :return: List[Tuple[str, int]], to-do list
     """
-    
-    tfm_dir=f'{out_dir}/tfm/'
+    tfm_dir = f"{out_dir}/tfm/"
 
     os.makedirs(tfm_dir, exist_ok=True)
-    
+
     fx_list = []
     for _, row in df.iterrows():
         y = int(row["sample"])
@@ -649,7 +682,7 @@ def get_fx_list(
         assert int(y) >= 0, f"Error: negative y value found {y}"
         prefix = f"{tfm_dir}/{base}_y-{y}"
         fn = gen_2d_fn(prefix, str_var, ext=ext)
-        
+
         fx_list.append(fn)
 
     return fx_list
@@ -657,7 +690,7 @@ def get_fx_list(
 
 def create_2d_sections(
     fx_list: list,
-    y_list : list,
+    y_list: list,
     srv_fn: str,
     output_dir: str,
     dtype: int = None,
@@ -679,7 +712,9 @@ def create_2d_sections(
     os.makedirs(tfm_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
-    fx_to_do = [ (fn, y) for fn, y in zip(fx_list, y_list) if (not os.path.exists(fn) or clobber) ]
+    fx_to_do = [
+        (fn, y) for fn, y in zip(fx_list, y_list) if (not os.path.exists(fn) or clobber)
+    ]
 
     if len(fx_to_do) > 0:
         srv_img = nib.load(srv_fn)
@@ -1044,10 +1079,9 @@ def pad_to_max_dims(vol: np.ndarray, max_dims: np.ndarray) -> np.ndarray:
     offset0 = int(max_dims[0] - vol.shape[0])
     offset1 = int(max_dims[1] - vol.shape[1])
     offset2 = int(max_dims[2] - vol.shape[2]) if len(vol.shape) == 3 else 0
-    
-    
-    print('offsets', offset0, offset1, offset2)
-    
+
+    print("offsets", offset0, offset1, offset2)
+
     if len(vol.shape) == 2:
         vol = np.pad(vol, ((0, offset0), (0, offset1)), mode="constant")
     elif len(vol.shape) == 3:
@@ -1105,22 +1139,25 @@ def resample_to_resolution(
         affine,
         ndim,
     ) = parse_resample_arguments(input_arg, output_filename, affine, dtype)
-    print('input', input_arg)
-    print('old', old_resolution, vol.shape)
+
     new_dims, downsample_factor = get_new_dims(
         old_resolution, new_resolution, vol.shape
     )
-    print('downsample factor', downsample_factor)
 
-    print('new', new_resolution, new_dims)
+    if order != 0:
+        sigma = calculate_sigma_for_downsampling(downsample_factor)
+    else:
+        sigma = 0
 
-    sigma = calculate_sigma_for_downsampling(downsample_factor)
-    
     # sigma[sigma <= 1] = 0
 
     vol = resize(
-        vol, new_dims, order=order, anti_aliasing=True, anti_aliasing_sigma=sigma
-    )
+        vol.astype(float),
+        new_dims,
+        order=order,
+        anti_aliasing=True,
+        anti_aliasing_sigma=sigma,
+    ).astype(dtype)
 
     if max_dims is not None:
         vol = pad_to_max_dims(vol, max_dims)

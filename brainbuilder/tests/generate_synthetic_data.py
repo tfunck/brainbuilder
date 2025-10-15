@@ -7,11 +7,12 @@ import numpy as np
 import pandas as pd
 
 
-def load(fn:str)->tuple:
+def load(fn: str) -> tuple:
     """Load a NIfTI file."""
     img = nib.load(fn)
     vol = img.get_fdata()
     return img, vol
+
 
 """
 def rotate3d(vol, angles):
@@ -24,7 +25,8 @@ def rotate3d(vol, angles):
     return vol
 """
 
-def save_section(vol:str, y:int, affine:np.array, out_fn:str)->None:
+
+def save_section(vol: str, y: int, affine: np.array, out_fn: str) -> None:
     """Save a 2D section of a 3D volume as a NIfTI file.
 
     Args:
@@ -56,7 +58,16 @@ if __name__ == "__main__":
     out_dir = args.out_dir
 
 
-def save_coronal_sections(input_fn:str, out_dir:str, raw_dir:str, sub:str, hemisphere:str, chunk:int, ystep:int=4, clobber:bool=False)->str:
+def save_coronal_sections(
+    input_fn: str,
+    out_dir: str,
+    raw_dir: str,
+    sub: str,
+    hemisphere: str,
+    chunk: int,
+    ystep: int = 4,
+    clobber: bool = False,
+) -> str:
     """Save coronal sections of a volume as NIfTI files."""
     input_img, input_vol = load(input_fn)
 
@@ -64,9 +75,9 @@ def save_coronal_sections(input_fn:str, out_dir:str, raw_dir:str, sub:str, hemis
 
     sect_info_csv = f"{out_dir}/sect_info.csv"
 
-    #angles = np.random.uniform(-30, 30, 3)
-    #input_vol = rotate3d(input_vol, angles)
-    #gm_vol = rotate3d(gm_vol, angles)
+    # angles = np.random.uniform(-30, 30, 3)
+    # input_vol = rotate3d(input_vol, angles)
+    # gm_vol = rotate3d(gm_vol, angles)
 
     if not os.path.exists(sect_info_csv) or clobber:
         affine = input_img.affine
@@ -81,7 +92,12 @@ def save_coronal_sections(input_fn:str, out_dir:str, raw_dir:str, sub:str, hemis
             if np.sum(input_vol[:, y, :]) < section_max * 0.05:
                 continue
 
-            save_section(input_vol, y, affine, raw_sec_fn)
+            section = input_vol[:, y, :]
+
+            if np.sum(np.abs(section) > section.min()) < 100:  # skip empty sections
+                continue
+
+            nib.Nifti1Image(section, affine).to_filename(raw_sec_fn)
             print(raw_sec_fn)
 
             row_dict = {
@@ -96,23 +112,24 @@ def save_coronal_sections(input_fn:str, out_dir:str, raw_dir:str, sub:str, hemis
             df = pd.concat([df, pd.DataFrame(row_dict)])
 
         df.to_csv(sect_info_csv, index=False)
-    
-    else :
+
+    else:
         df = pd.read_csv(sect_info_csv)
 
     return df
 
+
 def generate_synthetic_data(
-    input_fn: str ='data/mni_icbm152_01_tal_nlin_asym_09c.nii.gz',
-    out_dir: str ='/tmp/brainbuilder/test_output',
-    gm_surf_fn: str='data/MR1_gray_surface_R_81920.surf.gii',
-    wm_surf_fn: str='data/MR1_white_surface_R_81920.surf.gii',
-    sub: str='01',
-    hemisphere: str='both',
-    chunk:int=1,
-    ystep:int=4,
-    clobber:bool=False,
-)->tuple:
+    input_fn: str = "data/mni_icbm152_01_tal_nlin_asym_09c.nii.gz",
+    out_dir: str = "/tmp/brainbuilder/test_output",
+    gm_surf_fn: str = "data/MR1_gray_surface_R_81920.surf.gii",
+    wm_surf_fn: str = "data/MR1_white_surface_R_81920.surf.gii",
+    sub: str = "01",
+    hemisphere: str = "both",
+    chunk: int = 1,
+    ystep: int = 4,
+    clobber: bool = False,
+) -> tuple:
     """Generate synthetic data using an input volume file and surface files.
 
     :param input_fn: Input volume file.
@@ -123,9 +140,9 @@ def generate_synthetic_data(
     :param hemisphere: Hemisphere.
     :param chunk: Chunk number.
     :param clobber: Overwrite existing files.
-    :return: tuple of section info CSV file, chunk info CSV file, and hemisphere info CSV file. 
+    :return: tuple of section info CSV file, chunk info CSV file, and hemisphere info CSV file.
     """
-    print('Generating synthetic data')
+    print("Generating synthetic data")
     raw_dir = f"{out_dir}/raw_dir/"
     hemi_info_csv = f"{out_dir}/hemi_info.csv"
     sect_info_csv = f"{out_dir}/sect_info.csv"
@@ -136,7 +153,9 @@ def generate_synthetic_data(
     for dir_path in [out_dir, raw_dir]:
         os.makedirs(dir_path, exist_ok=True)
 
-    save_coronal_sections(input_fn, out_dir, raw_dir, sub, hemisphere, chunk, ystep=ystep, clobber=clobber )
+    save_coronal_sections(
+        input_fn, out_dir, raw_dir, sub, hemisphere, chunk, ystep=ystep, clobber=clobber
+    )
 
     chunk_info_df = pd.DataFrame(
         {

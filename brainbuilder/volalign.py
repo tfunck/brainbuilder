@@ -434,12 +434,15 @@ def alignment_iteration(
 
     # downsample the original ref gm mask to current 3d resolution
     ref_rsl_fn = (
-        row["seg_dir"]
+        row["align_3d_dir"]
         + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution_3d}mm_mri_gm.nii.gz"
     )
 
     if not os.path.exists(ref_rsl_fn):
-        utils.resample_to_resolution(ref_vol_fn, [resolution_3d] * 3, ref_rsl_fn)
+        order = 1  # nearest neighbor
+        utils.resample_to_resolution(
+            ref_vol_fn, [resolution_3d] * 3, ref_rsl_fn, order=order
+        )
 
     # insert 2d intersection alignment
     use_2d_intersection = False
@@ -458,7 +461,7 @@ def alignment_iteration(
 
     world_chunk_limits, vox_chunk_limits = verify_chunk_limits(ref_rsl_fn, chunk_info)
 
-    create_intermediate_volume(
+    sect_info = create_intermediate_volume(
         chunk_info,
         sect_info,
         resolution_itr,
@@ -472,6 +475,10 @@ def alignment_iteration(
         interpolation="linear",
         clobber=clobber,
     )
+
+    assert (
+        "seg_rsl" in sect_info.columns
+    ), "Error: 'seg_rsl' column not found in sect_info dataframe."  # DELETEME
 
     ###
     ### Stage 3.2 : Align chunks to MRI
@@ -512,7 +519,7 @@ def alignment_iteration(
         row["nl_2d_vol_fn"],
         row["nl_2d_vol_cls_fn"],
         row["section_thickness"],
-        file_to_align="seg",
+        file_to_align="seg_rsl",
         use_syn=use_syn,
         num_cores=num_cores,
         clobber=clobber,
@@ -558,7 +565,7 @@ def align_chunk(
     """
     sub, hemisphere, chunk = utils.get_values_from_df(chunk_info)
 
-    print("\tMultiresolution:", sub, hemisphere, chunk)
+    print("\tAlignment to reference:", sub, hemisphere, chunk)
 
     qc_dir = f"{output_dir}/qc/"
     os.makedirs(qc_dir, exist_ok=True)

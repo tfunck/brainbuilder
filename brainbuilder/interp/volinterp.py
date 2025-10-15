@@ -77,6 +77,8 @@ def apply_final_2d_transforms(
         for _, row in curr_sect_info.iterrows()
     )
 
+    return curr_sect_info
+
 
 def volumetric_interpolation(
     curr_sect_info: pd.DataFrame,
@@ -94,7 +96,7 @@ def volumetric_interpolation(
     os.makedirs(output_dir, exist_ok=True)
 
     chunk_info_thickened_csv = create_thickened_volumes(
-        output_dir + "/" + tissue_type,
+        output_dir,
         curr_chunk_info,
         curr_sect_info,
         resolution,
@@ -106,7 +108,13 @@ def volumetric_interpolation(
 
     chunk_info_thickened = pd.read_csv(chunk_info_thickened_csv)
 
+    assert (
+        len(chunk_info_thickened) == 1
+    ), "Error: More than one chunk in the chunk info, should only be 1."
+
     acq_fin = chunk_info_thickened["thickened"].values[0]
+    print(tissue_type, target_section)
+    print("acq_fin:", acq_fin)
 
     interp_iso_fin, nlflow_tfm_dict = nlflow_isometric(
         acq_fin,
@@ -170,7 +178,8 @@ def volumetric_interpolation_over_dataframe(
 
         if final_resolution is not None and isinstance(final_resolution, float):
             final_tfm_dir = curr_output_dir + "/final_tfm_2d"
-            apply_final_2d_transforms(
+
+            curr_sect_info = apply_final_2d_transforms(
                 curr_sect_info,
                 final_tfm_dir,
                 final_resolution,
@@ -183,7 +192,7 @@ def volumetric_interpolation_over_dataframe(
         interp_acq_iso_fin, nlflow_tfm_dict = volumetric_interpolation(
             curr_sect_info,
             curr_chunk_info,
-            curr_output_dir,
+            curr_output_dir + "/acq/",
             resolution,
             resolution_list,
             interpolation=interpolation,
@@ -194,10 +203,9 @@ def volumetric_interpolation_over_dataframe(
         interp_cls_iso_fin, _ = volumetric_interpolation(
             curr_sect_info,
             curr_chunk_info,
-            curr_output_dir,
+            curr_output_dir + "/cls/",
             resolution,
             resolution_list,
-            interpolation="NearestNeighbor",
             tissue_type=tissue_type,
             target_section=target_section,
             nlflow_tfm_dict=nlflow_tfm_dict,

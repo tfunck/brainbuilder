@@ -30,10 +30,11 @@ class Nifti1Image:
         :return : None
         """
         if type(dtype) != type(None):
-            if dtype == np.uint8:
-                dataobj = (
-                    255 * (dataobj - dataobj.min()) / (dataobj.max() - dataobj.min())
-                ).astype(np.uint8)
+            dataobj = dataobj.astype(dtype)
+        #    if dtype == np.uint8:
+        #        dataobj = (
+        #            255 * (dataobj - dataobj.min()) / (dataobj.max() - dataobj.min())
+        #        ).astype(np.uint8)
 
         self.affine = affine
         self.dataobj = dataobj

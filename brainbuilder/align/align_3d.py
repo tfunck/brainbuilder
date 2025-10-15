@@ -267,7 +267,7 @@ def run_alignment(
     nlParams: utils.AntsParams,
     ccParams: utils.AntsParams,
     metric: str = "GC",
-    nbins: int = 32,
+    nbins: int = None,
     init_tfm: str = None,
     sampling: float = 0.9,
     use_3d_syn_cc: bool = True,
@@ -317,10 +317,15 @@ def run_alignment(
 
     ref_tgt_fn = ref_chunk_fn
     step = 0.5
-    nbins = 32
     sampling = 0.9
 
+    unique_fixed_values = np.unique(nib.load(ref_chunk_fn).get_fdata())
+    unique_moving_values = np.unique(nib.load(seg_rsl_fn).get_fdata())
+
+    nbins = min(256, max(len(unique_fixed_values), len(unique_moving_values)))
+
     nl_metric = f"Mattes[{ref_chunk_fn},{seg_rsl_fn},1,32,Random,{sampling}]"
+
     cc_metric = f"CC[{ref_chunk_fn},{seg_rsl_fn},1,3,Random,{sampling}]"
 
     syn_rate = "0.1"
@@ -468,8 +473,6 @@ def align_3d(
     if not os.path.exists(out_tfm_fn) or not os.path.exists(out_tfm_inv_fn) or clobber:
         logger.info("\t\t3D Volumetric Alignment")
         chunk = int(chunk)
-        # Load GM volume extracted from donor MRI.
-        ref_width, ref_min, ref_max, ref_ystep, ref_ystart = get_ref_info(ref_rsl_fn)
 
         # get iteration schedules for the linear and non-linear portion of the ants alignment
         # get maximum number steps by which the srv image will be downsampled by

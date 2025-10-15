@@ -44,6 +44,7 @@ def get_input_file(
     :return: the input file for resampling and transformation
     """
     tfm_input_fn = seg_rsl_fn
+
     if not os.path.exists(seg_rsl_fn):
         resample_to_resolution(
             seg_fn,
@@ -56,6 +57,7 @@ def get_input_file(
         tfm_input_fn = get_seg_fn(
             output_dir, int(row["sample"]), resolution_3d, seg_fn, "_rsl"
         )
+
         if not os.path.exists(tfm_input_fn) or clobber:
             resample_to_resolution(
                 seg_fn,
@@ -111,8 +113,10 @@ def resample_and_transform(
             tfm_ref_fn = tfm_input_fn
 
         # get initial rigid transform
+        print("seg", seg_fn)
         print("\tTransforming", seg_rsl_fn, "to", seg_rsl_tfm_fn)
         print("\t\twith:", tfm_fn, "\n")
+
         if isinstance(tfm_fn, str):
             simple_ants_apply_tfm(
                 tfm_input_fn,
@@ -143,14 +147,16 @@ def resample_and_transform(
         )
     else:
         print("\tNo transform for", row["img"])
+
         shutil.copy(row["img"], img_rsl_tfm_fn)
+
         resample_to_resolution(
             row["img"], [resolution_3d] * 2, output_filename=img_rsl_tfm_fn, order=1
         )
 
     row["2d_align"] = img_rsl_tfm_fn
-
-    row["seg_rsl"] = seg_rsl_tfm_fn
+    row["seg_rsl"] = seg_rsl_fn
+    row["seg_rsl_tfm"] = seg_rsl_tfm_fn
 
     return row
 
@@ -340,6 +346,8 @@ def create_intermediate_volume(
     """
     out_2d_dir = out_dir + "/2d/"
 
+    sect_info_csv = out_dir + "/section_info.csv"
+
     os.makedirs(out_2d_dir, exist_ok=True)
 
     resolution_list = [res for res in resolution_list if res >= resolution_3d]
@@ -348,8 +356,12 @@ def create_intermediate_volume(
         resolution_list.append(resolution_3d)
 
     print("\t\tStep 2: Autoradiograph segmentation")
-    if not os.path.exists(seg_rsl_fn) or clobber:
+    if not os.path.exists(seg_rsl_fn) or not os.path.exists(sect_info_csv) or clobber:
         print("\t\t\tResampling segemented sections")
+
+        sect_info["base"] = sect_info["raw"].apply(
+            lambda x: os.path.basename(x).replace(".nii.gz", "")
+        )
 
         # Create 2D resampled images at both the 2D and 3D resolution for 2d and 3d alignment, respectively
         sect_info = resample_transform_segmented_images(
@@ -388,7 +400,7 @@ def create_intermediate_volume(
         affine[2, 2] = resolution_3d
 
         concatenate_sections_to_volume(
-            sect_info, "seg_rsl", curr_align_fn, dims, affine
+            sect_info, "seg_rsl_tfm", curr_align_fn, dims, affine
         )
 
         chunk_info["nl_2d_vol_fn"] = curr_align_fn
@@ -401,7 +413,7 @@ def create_intermediate_volume(
             resolution_list,
             num_cores=num_cores,
             tissue_type="cls",
-            target_section="seg_rsl",
+            target_section="seg_rsl_tfm",
             clobber=clobber,
         )
 
@@ -419,4 +431,9 @@ def create_intermediate_volume(
             chunk=(48, 48, 48),
         )
         print("created:", seg_rsl_fn)
-    return None
+
+        sect_info.to_csv(sect_info_csv)
+
+    sect_info = pd.read_csv(sect_info_csv, index_col=0)
+
+    return sect_info

@@ -10,7 +10,6 @@ import SimpleITK as sitk
 from joblib import Parallel, delayed
 from skimage.filters import (
     threshold_li,
-    threshold_mean,
     threshold_otsu,
     threshold_triangle,
     threshold_yen,
@@ -44,6 +43,30 @@ def apply_threshold(img: np.ndarray, method: callable) -> np.ndarray:
     return im
 
 
+def postprocess_binary(mask, min_size=128, hole_size=128, closing_radius=1):
+    if closing_radius > 0:
+        mask = morphology.binary_closing(mask, morphology.disk(closing_radius))
+    if min_size > 0:
+        mask = remove_small_objects(mask, min_size=min_size)
+    if hole_size > 0:
+        mask = remove_small_holes(mask, area_threshold=hole_size)
+    return mask.astype(np.uint8)
+
+
+def kmeans_seg(img, k=2, blur_sigma=1.0, seed=0):
+    from skimage.filters import gaussian
+    from sklearn.cluster import KMeans
+
+    sm = gaussian(img, sigma=blur_sigma)
+    feats = np.stack([img.ravel(), sm.ravel()], axis=1)
+    km = KMeans(n_clusters=k, n_init=10, random_state=seed)
+    lab = km.fit_predict(feats).reshape(img.shape)
+    # choose the cluster with higher mean intensity as GM
+    means = [img[lab == c].mean() if np.any(lab == c) else -np.inf for c in range(k)]
+    gm_label = int(np.argmax(means))
+    return lab == gm_label
+
+
 def multi_threshold(img: np.ndarray) -> np.ndarray:
     """Apply multiple thresholding methods to the image.
 
@@ -51,22 +74,22 @@ def multi_threshold(img: np.ndarray) -> np.ndarray:
     :return: np.ndarray, segmented image
     """
     seg = np.zeros_like(img)
-    methods = [
-        threshold_li,
-        threshold_yen,
-        threshold_mean,
-        threshold_triangle,
-        threshold_otsu,
-    ]
+
+    methods = [threshold_li, threshold_otsu, kmeans_seg]
+
+    pp_params = dict(min_size=128, hole_size=128, closing_radius=1)
 
     for method in methods:
         im_thr = apply_threshold(img, method)
+        im_thr = postprocess_binary(im_thr, **pp_params)
         seg += im_thr
 
     # n = len(methods)
     # seg /= n
     # seg[seg < 0.5] = 0
     # seg[seg >= 0.5] = 1
+
+    # set max to 255
 
     return seg
 
@@ -125,6 +148,9 @@ def histogram_threshold(
     assert np.sum(np.abs(out)) > 0, (
         "Error: empty segmented image with histogram thresholding " + raw_fn
     )
+
+    # scale to 255
+    out = (out / out.max() * 255).astype(np.uint8)
 
     nib.Nifti1Image(out, affine, direction_order="lpi").to_filename(seg_fn)
 
@@ -528,7 +554,9 @@ def segment(
         ):  # No segmentation method specified, use unsegmented images instead
             logger.info("\tNo segmentation method specified, using unsegmented images")
             sect_info["seg"] = sect_info["img"].apply(
-                lambda x: x.replace(".nii.gz", "_seg.nii.gz")
+                lambda x: output_dir
+                + "/"
+                + os.path.basename(x).replace(".nii.gz", "_seg.nii.gz")
             )
             for seg_fn, img_fn in zip(sect_info["seg"], sect_info["img"]):
                 if not os.path.exists(seg_fn) or clobber:
@@ -610,6 +638,9 @@ def convert_from_nnunet(
             ar /= ar.max()
 
         logger.info("\tWriting" + output_fn)
+
+        # scale to 255
+        ar = (ar / ar.max() * 255).astype(np.uint8)
 
         nib.Nifti1Image(ar, ref_img.affine, direction_order="lpi").to_filename(
             output_fn

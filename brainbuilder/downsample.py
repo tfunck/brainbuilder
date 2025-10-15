@@ -36,7 +36,7 @@ def compute_max_new_dims(
         f"{output_dir}/sub-{sub}_hemi-{hemi}_chunk-{chunk}_max_dims_{resolution}mm.npy"
     )
 
-    if os.path.exists(results_file) or clobber:
+    if os.path.exists(results_file) and not clobber:
         max_dims = np.load(results_file)
         max_dim_0, max_dim_1 = max_dims[0], max_dims[1]
     else:
@@ -44,9 +44,9 @@ def compute_max_new_dims(
         def get_image_dims(raw_file):
             vol_shape = nib.load(raw_file).shape
             old_resolution = nibabel.load(raw_file).header.get_zooms()[:3]
-            
+
             new_dims, _ = utils.get_new_dims(old_resolution, new_resolution, vol_shape)
-            
+
             print(raw_file, vol_shape, new_dims)
             return new_dims
 
@@ -194,6 +194,7 @@ def downsample_sections(
         return output_dir + "/" + x
 
     # define downsample img filenames based on current resolution
+
     sect_info["img"] = sect_info["raw"].apply(get_base)
 
     os.makedirs(output_dir, exist_ok=True)
