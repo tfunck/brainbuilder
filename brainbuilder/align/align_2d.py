@@ -193,12 +193,13 @@ def ants_registration_2d_section(
 
     verbose = 0 if logger.getEffectiveLevel() == logging.INFO else 1
 
-    print("\tMOVE", mv_fn)  # DELETEME
-
     if not os.path.exists(final_tfm) or not os.path.exists(mv_rsl_fn) or clobber:
         for transform, metric, f_str, s_str, itr_str in zip(
             transforms, metrics, f_list, s_list, itr_list
         ):
+            command_log_fname = prefix + f"{transform}_{metric}_command.txt"
+            output_log_fname = prefix + f"{transform}_{metric}_output.txt"
+
             mv_rsl_fn = f"{prefix}_{transform}_{metric}_cls_rsl.nii.gz"
 
             if not isinstance(last_transform, type(None)):
@@ -210,10 +211,10 @@ def ants_registration_2d_section(
             else:
                 init_str = f"--initial-moving-transform [{fx_fn},{mv_fn},1]"
 
-            command_str = f"antsRegistration -v {max(int(verbose),0)} -d 2 --write-composite-transform {write_composite_transform} {init_str} -o [{prefix}_{transform}_{metric}_,{mv_rsl_fn},/tmp/out_inv.nii.gz] -t {transform}[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} "
+            command_str = f"antsRegistration -v 1 -d 2 --write-composite-transform {write_composite_transform} {init_str} -o [{prefix}_{transform}_{metric}_,{mv_rsl_fn},/tmp/out_inv.nii.gz] -t {transform}[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} "
 
             if int(verbose) <= 0:
-                command_str += " > /dev/null 2>&1"
+                command_str += f" &> {output_log_fname}"
 
             if masks:
                 mask_fx = threshold(fx_fn)
@@ -225,7 +226,7 @@ def ants_registration_2d_section(
 
             logger.debug(command_str)
 
-            with open(prefix + f"{transform}_{metric}_command.txt", "w") as f:
+            with open(command_log_fname, "w") as f:
                 f.write(command_str)
 
             shell(command_str)
