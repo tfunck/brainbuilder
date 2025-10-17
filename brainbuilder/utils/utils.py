@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 import psutil
 from scipy.ndimage import label
+from skimage.filters import threshold_otsu
 from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
@@ -660,6 +661,28 @@ def save_sections(
         nib.Nifti1Image(sec, affine, dtype=dtype, direction_order="lpi").to_filename(fn)
 
 
+def threshold(fn: str) -> str:
+    """Threshold image.
+
+    Description: Threshold image to create mask.
+
+    :param fn: filename
+    :return: mask_fn
+    """
+    img = nib.load(fn)
+    vol = img.get_fdata()
+
+    mask = np.zeros(vol.shape)
+    t = threshold_otsu(vol) * 0.8
+    mask[vol > t] = 1
+
+    mask_fn = fn.replace(".nii.gz", "_mask.nii.gz")
+
+    nib.Nifti1Image(mask, img.affine).to_filename(mask_fn)
+
+    return mask_fn
+
+
 def check_volume(fn: str) -> None:
     """Check that the file exists, can be opened with nibabel, and is not empty."""
     assert os.path.exists(fn), f"Error: file does not exist {fn}"
@@ -667,8 +690,15 @@ def check_volume(fn: str) -> None:
         img = nibabel.load(fn)
     except Exception as e:
         raise AssertionError(f"Error: file cannot be opened with nibabel {fn}\n{e}")
+
     data = img.get_fdata()
+
     assert np.min(data) != np.max(data), f"Error: file is empty {fn}"
+
+    # Calculate Otsu threshold and check that there are voxels above the threshold
+    n_foreground = np.sum(data > threshold_otsu(data))
+
+    return n_foreground
 
 
 def get_fx_list(

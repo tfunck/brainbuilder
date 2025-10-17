@@ -19,34 +19,12 @@ from brainbuilder.utils.utils import (
     concatenate_sections_to_volume,
     resample_to_resolution,
     shell,
+    threshold,
 )
 from joblib import Parallel, cpu_count, delayed
-from skimage.filters import threshold_otsu
 from skimage.transform import resize
 
 logger = utils.get_logger(__name__)
-
-
-def threshold(fn: str) -> str:
-    """Threshold image.
-
-    Description: Threshold image to create mask.
-
-    :param fn: filename
-    :return: mask_fn
-    """
-    img = nib.load(fn)
-    vol = img.get_fdata()
-
-    mask = np.zeros(vol.shape)
-    t = threshold_otsu(vol) * 0.8
-    mask[vol > t] = 1
-
-    mask_fn = fn.replace(".nii.gz", "_mask.nii.gz")
-
-    nib.Nifti1Image(mask, img.affine).to_filename(mask_fn)
-
-    return mask_fn
 
 
 def resample_reference_to_sections(
@@ -139,6 +117,47 @@ def resample_reference_to_sections(
     return iso_output_fn, output_fn
 
 
+def check_alignment_files(
+    fx_fn: str, mv_fn: str, minimum_foreground_ratio: float = 0.2
+) -> bool:
+    """Check that the volume is not empty and return number of foreground voxels."""
+    fx_foreground = check_volume(fx_fn)
+    mv_foreground = check_volume(mv_fn)
+
+    if (mv_foreground / fx_foreground < minimum_foreground_ratio) or (
+        fx_foreground / mv_foreground < minimum_foreground_ratio
+    ):
+        logger.warning(
+            f"Warning: skipping registration for due to insufficient foreground ratio between fixed and moving images:\n\tfx: {fx_fn}\n\tmv: {mv_fn}"
+        )
+        logger.warning(
+            f" fixed image foreground voxels: {fx_foreground}, moving image foreground voxels: {mv_foreground}, minimum ratio: {minimum_foreground_ratio}"
+        )
+        return False
+    return True
+
+
+def create_identity_transform_2d(
+    section_fn: str, tfm_prefix: str, output_log_fname: str
+) -> str:
+    """Create identity transform for 2D images.
+
+    Description: Create identity transform for 2D images using ANTs.
+
+    :param tfm_fn: transform filename
+    :return: tfm_fn
+    """
+    tfm_fn = tfm_prefix + "Composite.h5"
+
+    command_str = f"antsRegistration -v 1 -d 2 --write-composite-transform 1 -m GC[{section_fn},{section_fn},1,0,Regular,1] -t Rigid[1] -c 1 -f 1 -s 0  -o {tfm_prefix} &> {output_log_fname}"
+
+    shell(command_str)
+
+    assert os.path.exists(tfm_fn), f"Error: output does not exist {tfm_fn}"
+
+    return tfm_fn
+
+
 def ants_registration_2d_section(
     fx_fn: str,
     mv_fn: str,
@@ -156,6 +175,7 @@ def ants_registration_2d_section(
     write_composite_transform: int = 1,
     clobber: bool = False,
     exit_on_failure: bool = False,
+    minimum_foreground_ratio: float = 0.2,
     verbose: bool = False,
 ) -> tuple:
     """Use ANTs to register 2d sections.
@@ -201,11 +221,18 @@ def ants_registration_2d_section(
             command_log_fname = prefix + f"{transform}_{metric}_command.txt"
             output_log_fname = prefix + f"{transform}_{metric}_output.txt"
 
-            # check that the input files exist and are not empty
-            check_volume(fx_fn)
-            check_volume(mv_fn)
-
             mv_rsl_fn = f"{prefix}_{transform}_{metric}_cls_rsl.nii.gz"
+
+            # check that the input files exist, are not empty, and have a sufficient number of foreground pixels
+            if not check_alignment_files(
+                fx_fn, mv_fn, minimum_foreground_ratio=minimum_foreground_ratio
+            ):
+                print("\tSkipping registration step.")
+                if not (isinstance(init_tfm, str) and os.path.exists(init_tfm)):
+                    init_tfm = create_identity_transform_2d(
+                        mv_fn, prefix + "_identity_tfm_", command_log_fname
+                    )
+                return init_tfm, mv_fn
 
             if not isinstance(last_transform, type(None)):
                 init_str = f"--initial-moving-transform {prefix}_{last_transform}_{last_metric}_Composite.h5"
