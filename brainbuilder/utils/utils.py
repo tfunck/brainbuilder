@@ -660,6 +660,17 @@ def save_sections(
         nib.Nifti1Image(sec, affine, dtype=dtype, direction_order="lpi").to_filename(fn)
 
 
+def check_volume(fn: str) -> None:
+    """Check that the file exists, can be opened with nibabel, and is not empty."""
+    assert os.path.exists(fn), f"Error: file does not exist {fn}"
+    try:
+        img = nibabel.load(fn)
+    except Exception as e:
+        raise AssertionError(f"Error: file cannot be opened with nibabel {fn}\n{e}")
+    data = img.get_fdata()
+    assert np.min(data) != np.max(data), f"Error: file is empty {fn}"
+
+
 def get_fx_list(
     df: pd.DataFrame, out_dir: str, str_var: str, ext: str = ".nii.gz"
 ) -> List[Tuple[str, int]]:

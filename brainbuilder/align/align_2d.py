@@ -15,6 +15,7 @@ from brainbuilder.qc.validate_section_alignment_to_ref import get_section_metric
 from brainbuilder.utils import utils
 from brainbuilder.utils.utils import (
     AntsParams,
+    check_volume,
     concatenate_sections_to_volume,
     resample_to_resolution,
     shell,
@@ -199,6 +200,10 @@ def ants_registration_2d_section(
         ):
             command_log_fname = prefix + f"{transform}_{metric}_command.txt"
             output_log_fname = prefix + f"{transform}_{metric}_output.txt"
+
+            # check that the input files exist and are not empty
+            check_volume(fx_fn)
+            check_volume(mv_fn)
 
             mv_rsl_fn = f"{prefix}_{transform}_{metric}_cls_rsl.nii.gz"
 
