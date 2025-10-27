@@ -668,6 +668,7 @@ def segment(
 
         nnunet_failed = False
 
+        print("\tSegmenting with method:", seg_method)
         if missing_segmentations or clobber:
             run_nnunet_segmentation(seg_method, nnunet_in_dir, nnunet_out_dir, model_dir, nnUNet_dir, nnunet_failed)
 
@@ -678,7 +679,6 @@ def segment(
         ):  # No segmentation method specified, use unsegmented images instead
             sect_info = copy_unsegmented_images(sect_info, output_dir, clobber)
  
-
         if not nnunet_failed:
             process_nnunet_to_nifti(
                 sect_info,

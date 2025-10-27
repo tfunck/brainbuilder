@@ -105,7 +105,7 @@ def resample_and_transform(
     else:
         tfm_fn = row["2d_tfm"]
 
-    if not os.path.exists(seg_rsl_tfm_fn) or clobber:
+    if not os.path.exists(seg_rsl_fn) or not os.path.exists(seg_rsl_tfm_fn) or clobber:
         tfm_input_fn = get_input_file(
             seg_fn, seg_rsl_fn, row, output_dir, resolution_2d, resolution_3d
         )
@@ -136,10 +136,11 @@ def resample_and_transform(
         f'{output_dir}/{row["base"]}_y-{row["sample"]}_{resolution_2d}mm_rsl_tfm.nii.gz'
     )
 
+    # Resample and transform the original image to the 2D resolution
     if isinstance(tfm_fn, str):
         simple_ants_apply_tfm(
             row["img"],
-            seg_rsl_tfm_fn,
+            seg_rsl_fn,
             tfm_fn,
             img_rsl_tfm_fn,
             ndim=2,

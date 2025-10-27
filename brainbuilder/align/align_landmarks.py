@@ -544,7 +544,6 @@ def create_landmark_transform(
         qc_dir,
         clobber=clobber,
     )
-    exit()
     return landmark_tfm_path
 
 
