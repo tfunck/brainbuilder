@@ -381,6 +381,7 @@ def nl_deformation_flow_3d(
 
     for y_list, inter_images, _ in results:
         for y, image_path in zip(y_list, inter_images):
+            print(y, image_path)
             out_vol[:, y, :] = ants.image_read(image_path).numpy()
 
     return out_vol, out_tfm_dict
