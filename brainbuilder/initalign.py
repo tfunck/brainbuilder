@@ -493,7 +493,7 @@ def create_final_outputs(
                     final_section_fn
                 ):
                     os.symlink(row["img"].values[0], final_section_fn)
-                final_tfm_fn = np.nan
+                final_tfm_fn = None
 
         df["init_tfm"].loc[idx] = final_tfm_fn
         df["init_img"].loc[idx] = final_section_fn

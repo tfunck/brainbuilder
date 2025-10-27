@@ -525,9 +525,11 @@ def check_transformation_not_empty(
     """
     assert os.path.exists(out_fn), f"Error: transformed file does not exist {out_fn}"
 
+    total_value = np.sum(np.abs(nib.load(out_fn).dataobj))
+
     assert (
-        np.sum(np.abs(nib.load(out_fn).dataobj)) > 0 or empty_ok
-    ), f"Error in applying transformation: \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n"
+        total_value > 0 or empty_ok
+    ), f"Error in applying transformation: sum of pixels/voxels = {total_value}: \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n"
 
 
 def resample_struct_reference_volume(

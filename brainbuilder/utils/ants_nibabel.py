@@ -59,7 +59,7 @@ class Nifti1Image:
         :param filename: Filename of the nifti file
         :return: None
         """
-        write_nifti(self.dataobj, self.affine, filename, direction=self.direction)
+        write_nifti(self.dataobj, self.affine, str(filename), direction=self.direction)
 
     def get_fdata(self) -> np.ndarray:
         """Get the data object."""
@@ -80,7 +80,7 @@ def safe_image_read(fn: str) -> ants.core.ants_image.ANTsImage:
         fn = os.readlink(fn)
 
     try:
-        img = ants.image_read(fn)
+        img = ants.image_read(str(fn))
     except RuntimeError:
         print("Error: cannot load file", fn)
         exit(1)
@@ -132,6 +132,8 @@ def load(fn: str) -> Nifti1Image:
     :param fn: Filename of the nifti file
     :return: Nifti1Image object
     """
+    fn = str(fn)
+
     affine = read_affine(fn)
     img = ants.image_read(fn)
     vol = img.numpy()
@@ -153,6 +155,8 @@ def write_nifti(
     :param direction: Direction matrix, defaults to []
     :return: None
     """
+    out_fn = str(out_fn)
+
     ndim = len(vol.shape)
     idx0 = list(range(0, ndim))
     idx1 = [3] * ndim
