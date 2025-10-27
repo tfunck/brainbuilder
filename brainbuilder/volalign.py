@@ -1,5 +1,6 @@
 """This module contains functions for multiresolution alignment of autoradiographs to MRI."""
 import os
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import nibabel
@@ -11,6 +12,7 @@ from skimage.filters import threshold_otsu
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import align_2d
 from brainbuilder.align.align_3d import align_3d
+from brainbuilder.align.align_landmarks import create_landmark_transform
 from brainbuilder.align.intervolume import create_intermediate_volume
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
@@ -24,7 +26,7 @@ def get_multiresolution_filenames(
     resolution: float,
     resolution_3d: float,
     pass_step: int,
-    out_dir: str,
+    cur_out_dir: str,
     use_3d_syn_cc: bool = True,
 ) -> pd.DataFrame:
     """Set filenames for each stage of multiresolution stages.
@@ -39,7 +41,6 @@ def get_multiresolution_filenames(
     :return row: row of dataframe with filenames
     """
     # Set directory names for multi-resolution alignment
-    cur_out_dir = f"{out_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/{resolution}mm/pass_{pass_step}/"
     prefix = f"sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm"
     prefix_3d = f"sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution_3d}mm"
 
@@ -108,6 +109,7 @@ def multiresolution_alignment(
     use_syn: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
     num_cores: int = 0,
+    landmark_dir: Path = None,
     interpolation: str = "Linear",
     clobber: bool = False,
 ) -> str:
@@ -155,7 +157,8 @@ def multiresolution_alignment(
 
         chunk_info = pd.read_csv(chunk_info_csv, index_col=None)
 
-        # We create a second list of 3d resolutions that replaces values below the maximum 3D resolution with the maximum 3D resolution, because it may not be possible to perform the 3D alignment at the highest resolution due to the large memory requirements.
+        # We create a second list of 3d resolutions that replaces values below the maximum 3D resolution with the maximum 3D resolution,
+        # because it may not be possible to perform the 3D alignment at the highest resolution due to the large memory requirements.
         resolution_list_3d = [
             float(resolution)
             if float(resolution) >= max_resolution_3d
@@ -178,6 +181,11 @@ def multiresolution_alignment(
             # get chunk_info for current chunk
             curr_chunk_info = chunk_info.loc[idx]
 
+            # Check that curr_chunk_info has only one row
+            assert (
+                len(curr_chunk_info) == 1
+            ), f"Error: chunk_info has multiple rows for sub-{sub}_hemi-{hemisphere}_chunk-{chunk}"
+
             # get structural reference volume
             ref_vol_fn = (
                 hemi_info["struct_ref_vol"]
@@ -199,6 +207,7 @@ def multiresolution_alignment(
                 use_syn=use_syn,
                 linear_steps=linear_steps,
                 interpolation=interpolation,
+                landmark_dir=landmark_dir,
                 clobber=clobber,
             )
 
@@ -396,6 +405,7 @@ def alignment_iteration(
     use_3d_syn_cc: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
     interpolation: str = "Linear",
+    landmark_dir: str = None,
     clobber: bool = False,
 ) -> tuple:
     """Perform 3D-2D alignment for each resolution.
@@ -411,6 +421,8 @@ def alignment_iteration(
     chunk_info_out = pd.DataFrame()
     sect_info_out = pd.DataFrame()
 
+    cur_out_dir = f"{output_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/{resolution}mm/pass_{pass_step}/"
+
     row = get_multiresolution_filenames(
         row,
         sub,
@@ -419,7 +431,7 @@ def alignment_iteration(
         resolution,
         resolution_3d,
         pass_step,
-        output_dir,
+        cur_out_dir,
         use_3d_syn_cc=use_3d_syn_cc,
     )
 
@@ -476,9 +488,29 @@ def alignment_iteration(
         clobber=clobber,
     )
 
-    assert (
-        "seg_rsl" in sect_info.columns
-    ), "Error: 'seg_rsl' column not found in sect_info dataframe."  # DELETEME
+    if landmark_dir and "ref_landmark" in chunk_info.columns:
+        ymax = nib.load(row["init_volume"]).shape[1]
+        section_thickness = chunk_info["section_thickness"].values[0]
+
+        init_tfm = create_landmark_transform(
+            sub,
+            hemisphere,
+            chunk,
+            resolution,
+            cur_out_dir + "/landmarks/",
+            sect_info,
+            chunk_info["ref_landmark"].values[0],
+            landmark_dir,
+            row["seg_rsl_fn"],
+            ref_rsl_fn,
+            ymax,
+            section_thickness,
+            num_cores=num_cores,
+            clobber=clobber,
+        )
+    else:
+        init_tfm = None
+    exit()
 
     ###
     ### Stage 3.2 : Align chunks to MRI
@@ -501,6 +533,7 @@ def alignment_iteration(
         vox_chunk_limits,
         use_3d_syn_cc=use_3d_syn_cc,
         linear_steps=linear_steps,
+        init_tfm=init_tfm,
         clobber=clobber,
     )
 
@@ -524,6 +557,7 @@ def alignment_iteration(
         num_cores=num_cores,
         clobber=clobber,
     )
+
     row["ref_space_nat"] = ref_space_nat_fn
     chunk_info_out = pd.concat([chunk_info_out, row.to_frame().T])
     sect_info_out = pd.concat([sect_info_out, sect_info])
@@ -544,6 +578,7 @@ def align_chunk(
     linear_steps: list = ["rigid", "similarity", "affine"],
     use_syn: bool = True,
     interpolation: str = "Linear",
+    landmark_dir: str = None,
     clobber: bool = False,
 ) -> tuple:
     """3D-2D mutliresolution scheme.
@@ -609,6 +644,7 @@ def align_chunk(
                 linear_steps=linear_steps,
                 num_cores=num_cores,
                 interpolation=interpolation,
+                landmark_dir=landmark_dir,
                 clobber=clobber,
             )
             chunk_info_out["pass"] = pass_step
