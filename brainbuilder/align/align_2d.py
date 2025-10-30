@@ -32,9 +32,9 @@ def resample_reference_to_sections(
     input_fn: str,
     ref_fn: str,
     tfm_inv_fn: str,
-    section_thickeness: float,
     output_dir: str,
-    ymax: int = None,
+    ymax: int, 
+    section_thickness: float,
     clobber: bool = False,
 ) -> tuple:
     """Apply 3d transformation and resample volume into the same coordinate space as 3d receptor volume.
@@ -59,7 +59,7 @@ def resample_reference_to_sections(
 
     if (
         not os.path.exists(iso_output_fn) or not os.path.exists(output_fn) or clobber
-    ):  # FIXME
+    ):  
         # Apply 3d transformation to the reference volume
         rand = tempfile.NamedTemporaryFile().name
 
@@ -78,35 +78,32 @@ def resample_reference_to_sections(
         vol = vol.astype(np.uint8)
 
         # Resample the transformed volume to the resolution of the reconstruction
-        img_iso = resample_to_resolution(
-            vol,
-            [float(resolution)] * 3,
-            order=3,
-            affine=aff,
-            dtype=np.uint8,
-        )
+        #img_iso = resample_to_resolution(
+        #    vol,
+        #    [float(resolution)] * 3,
+        #    order=3,
+        #    affine=aff,
+        #    dtype=np.uint8,
+        #)
+        ref_img = nib.load(ref_fn)
+        print('ref fn', ref_fn)
+        
+        img_iso_ar = resize(vol, ref_img.shape, order=1, preserve_range=True).astype(np.uint8)
+
+        img_iso = nib.Nifti1Image(img_iso_ar, ref_img.affine, direction_order="lpi")
 
         img_iso.to_filename(iso_output_fn)
 
-        aff = img.affine.copy()
 
         # Resample the transformed volume to the resolution of the section width on the y axis and the resolution of the reconstruction on the x and z axis
-        img3 = resample_to_resolution(
-            vol,
-            [float(resolution), section_thickeness, float(resolution)],
-            affine=aff,
-            order=1,
-            dtype=np.uint8,
-        )
-
-        assert np.sum(vol) > 0, f"Error: empty volume {output_fn}"
-
-        if ymax is not None:
-            vol = img3.get_fdata()
-            vol = resize(
-                vol.astype(float), (vol.shape[0], ymax + 1, vol.shape[2]), order=1
-            )  # .astype(np.uint8)
-            img3 = nib.Nifti1Image(vol, img3.affine, direction_order="lpi")
+        vol = img_iso.get_fdata()
+        affine = img_iso.affine.copy()
+        affine[1, 1] = section_thickness
+        
+        vol = resize(
+            vol.astype(float), (vol.shape[0], ymax , vol.shape[2]), order=1
+        )  # .astype(np.uint8)
+        img3 = nib.Nifti1Image(vol, affine, direction_order="lpi")
 
         img3.to_filename(output_fn)
 
@@ -736,7 +733,7 @@ def align_2d(
     :param target_str: target string
     :return: sect_info
     """
-    ymax = sect_info["sample"].max()
+    ymax = sect_info["sample"].max() + 1
 
     # Apply 3D transformation to reference volume and resample to the resolution
     # of the reconstruction and to the section thickness along the y-axis
@@ -745,9 +742,9 @@ def align_2d(
         ref_rsl_fn,
         seg_rsl_fn,
         nl_3d_tfm_inv_fn,
-        section_thickness,
         nl_2d_dir,
-        ymax=ymax,
+        ymax,
+        section_thickness
     )
 
     # Define fixed 'fx' filenames for each section from the resampled reference volume

@@ -1036,6 +1036,22 @@ def get_new_dims(
     new_dims = np.ceil(old_dimensions * scale)
     return new_dims, downsample_factor
 
+# Check if all dimensions are the same for 2D_align, seg_rsl, seg_rsl_tfm
+def check_consistent_dimensions(sect_info: pd.DataFrame, column_name: str) -> bool:
+    """Check if all dimensions are the same for a given column in a dataframe."""
+    
+    dims = None 
+    
+    for _, row in sect_info.iterrows():
+        section_dims = nib.load(row[column_name]).shape
+
+        if dims is None:
+            dims = section_dims
+        else:
+            assert dims == section_dims, f"Error: Inconsistent dimensions in {column_name} files: {dims} vs {section_dims}"
+
+    return True
+
 
 def check_run_stage(
     col1: Iterable, col2: Iterable, df_csv: str = None, clobber: bool = False

@@ -137,8 +137,6 @@ def local_metric(
     :param: offset: int
     :return: local_dice_volume: np.ndarray
     """
-    fx_vol = prepare_volume(fx_vol)
-    mv_vol = prepare_volume(mv_vol)
 
     local_dice_section = np.zeros(fx_vol.shape)
 
