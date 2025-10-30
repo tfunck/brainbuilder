@@ -9,13 +9,12 @@ from glob import glob
 import numpy as np
 import pandas as pd
 from brainbuilder.utils import ants_nibabel as nib
-
-# If you already have a logger, import it; else fallback to print
 from brainbuilder.utils import utils
 from brainbuilder.utils.utils import simple_ants_apply_tfm
 from joblib import Parallel, delayed
 from matplotlib import pyplot as plt
-from scipy.ndimage import center_of_mass
+from scipy.ndimage import binary_dilation, center_of_mass
+from skimage.transform import resize
 
 logger = utils.get_logger(__name__)
 
@@ -35,17 +34,236 @@ def _label_ids(img_data: np.ndarray) -> np.ndarray:
     return labs[labs > 0]
 
 
+def dilate_labels(
+    label_binary: np.array,
+    structure: np.array,
+    scaling: float,
+    idx_range: int,
+    min_size: int = 4,
+):
+    """Dilate label_binary in x or z direction if needed to prevent loss during resizing."""
+    ratio = idx_range / scaling
+    assert ratio > 0, "Dilation ratio must be positive."
+    if ratio < min_size:
+        # (factor + range) / scaling = min_size =>  factor = min_size * scaling -range
+        x_dilation_factor = (
+            np.ceil(min_size * scaling - idx_range).astype(int) // 2
+        )  # divide by 2 because we dilate on both sides
+
+        print(
+            "\tDilating label with factor",
+            x_dilation_factor,
+            "to prevent loss during resizing.",
+        )
+        label_binary = binary_dilation(
+            label_binary, structure=structure, iterations=x_dilation_factor
+        )
+
+    return label_binary
+
+
+def adjust_label_sizes(
+    warped: np.array,
+    unique_labels: np.array,
+    x_structure: np.array,
+    z_structure: np.array,
+    scaling: np.array,
+    x_step: float,
+    z_step: float,
+) -> np.array:
+    """Adjust label sizes in warped slice to prevent loss during resizing."""
+    x_scaling = scaling[0]
+    z_scaling = scaling[2]
+
+    for label in unique_labels:
+        # get the extent of the label in dim 0 and 1 (x and z)
+        label_binary = warped == label
+
+        coords = np.argwhere(label_binary)
+        if coords.size == 0:
+            return warped
+
+        x_min, z_min = coords.min(axis=0)
+        x_max, z_max = coords.max(axis=0) + 1  # add 1 to include the max index
+
+        x_range = (x_max - x_min) * x_step
+        z_range = (z_max - z_min) * z_step
+
+        # check if the label is too small, that is, if it might disappear during resizing
+        label_binary = dilate_labels(label_binary, x_structure, x_scaling, x_range)
+        label_binary = dilate_labels(label_binary, z_structure, z_scaling, z_range)
+
+        warped[label_binary > 0] = label
+
+    return warped
+
+
+def set_scaling(
+    dims: np.array, target_dims: np.array, max_scaling_allowed: float = 100.0
+):
+    """Set scaling factors and adjust target dimensions if scaling is too large."""
+    scaling = np.array(dims) / np.array(target_dims)
+    max_scaling = np.max(scaling)
+    if max_scaling > max_scaling_allowed:
+        scale_adjust_factor = max_scaling_allowed / scaling
+        target_dims = np.ceil(np.array(dims) * scale_adjust_factor).astype(int)
+        scaling = np.array(dims) / np.array(target_dims)
+
+    return scaling, target_dims
+
+
+def _init_parameters(
+    sect_info: pd.DataFrame,
+    moving_img: nib.Nifti1Image,
+    section_thickness: float,
+    resolution_3d: float,
+    ymax: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Initialize affine and dimensions for the sparse landmark volume."""
+    example_raw_img = nib.load(sect_info["raw"].values[0])
+
+    steps = [
+        example_raw_img.affine[0, 0],
+        section_thickness,
+        example_raw_img.affine[1, 1],
+    ]
+    origins = moving_img.affine[0:3, 3]
+
+    affine = np.ones((4, 4))
+    affine[0, 0] = resolution_3d
+    affine[1, 1] = resolution_3d
+    affine[2, 2] = resolution_3d
+    affine[0:3, 3] = origins
+
+    # dims for sparse landmark volume
+    dims = [example_raw_img.shape[0], ymax, example_raw_img.shape[1]]
+
+    scaling = resolution_3d / np.array(steps)
+
+    target_dims = np.rint(dims / scaling).astype(int)
+
+    r = np.max([1, scaling[1] * 3]).astype(int)
+    print("Building sparse landmark volume with section thickness ratio", r)
+
+    return affine, dims, target_dims, scaling, r, steps
+
+
 # ---------- main API
+def _process_and_save_sparse_landmark_volume(
+    sect_info: pd.DataFrame,
+    out_vol_path: str,
+    moving_qc_vol_path: str,
+    section_thickness: float,
+    ymax: int,
+    resolution_3d: float,
+):
+    """Create and save sparse 3D landmark volume by pasting warped 2D landmark slices."""
+    moving_img = nib.load(moving_qc_vol_path)
+
+    # Initialize affine and dimensions
+    affine, dims, target_dims, scaling, r, steps = _init_parameters(
+        sect_info, moving_img, section_thickness, resolution_3d, ymax
+    )
+
+    out_data = np.zeros(dims, dtype=np.uint32)
+
+    x_structure = np.zeros([3, 3])
+    x_structure[1, :] = 1
+
+    z_structure = np.zeros([3, 3])
+    z_structure[:, 1] = 1
+
+    unique_labels_list = []
+    for _, row in sect_info.iterrows():
+        y = int(row["sample"])
+        warped_slice_path = row["landmark_2d_rsl"]
+
+        if not warped_slice_path:
+            continue
+
+        warped = nib.load(str(warped_slice_path)).get_fdata().astype(np.uint32)
+
+        unique_labels = np.unique(warped[warped > 0])
+        unique_labels = unique_labels[unique_labels != 0]
+
+        warped = adjust_label_sizes(
+            warped, unique_labels, x_structure, z_structure, scaling, steps[0], steps[2]
+        )
+
+        y0 = int(max(0, y - r))
+        y1 = int(min(dims[1], y0 + r))
+
+        # repeat warped to match y1-y0
+        warped_rep = np.repeat(warped[:, np.newaxis, :], y1 - y0, axis=1)
+
+        idx = warped_rep > 0
+        # this is not ideal because of potential label conflicts but is necessary to prevent loss of labels
+        # during transformation
+        out_data[:, y0:y1, :][idx] = warped_rep[idx]
+
+        unique_labels_list += unique_labels.tolist()
+
+    out_data = resize(out_data, target_dims, anti_aliasing=False, order=0)
+
+    unique_labels_rsl = np.unique(out_data)[1:]
+
+    assert (
+        set(unique_labels_list) == set(unique_labels_rsl)
+    ), f"Some labels are missing after resizing sparse landmark volume. Before: {unique_labels_list}, after: {unique_labels_rsl}"
+
+    print("Writing sparse landmark volume to", out_vol_path)
+    nib.Nifti1Image(out_data, affine, direction_order="lpi").to_filename(out_vol_path)
+
+
+def process_row(row: pd.Series, clobber: bool = False) -> None:
+    """Process a single row: warp 2D landmark and paste into out_data."""
+    output_path = str(row["landmark_2d_rsl"])
+
+    lm_path = row["landmark"]
+    if not lm_path or not os.path.exists(lm_path):
+        return None
+
+    tfm_path = row["2d_tfm"]
+    raw_path = row["raw"]
+
+    if not isinstance(tfm_path, str) or (
+        isinstance(tfm_path, str) and not os.path.exists(tfm_path)
+    ):
+        # Copy landmark as is (no transform)
+        print(f"No transform found for section {lm_path}, copying landmark as is.")
+        shutil.copy(str(lm_path), str(output_path))
+
+    if output_path and not os.path.exists(output_path) or clobber:
+        simple_ants_apply_tfm(
+            lm_path,
+            raw_path,
+            tfm_path,
+            output_path,
+            ndim=2,
+            n="NearestNeighbor",
+        )
+
+        # check that every label in lm_path is present in output_path
+        lm_img = nib.load(lm_path)
+        out_img = nib.load(output_path)
+        lm_labels = _label_ids(lm_img.get_fdata())
+        out_labels = _label_ids(out_img.get_fdata())
+
+        missing_labels = set(lm_labels) - set(out_labels)
+
+        assert (
+            len(missing_labels) == 0
+        ), f"Missing labels {missing_labels} in warped landmark {output_path}."
 
 
 def build_sparse_landmark_volume(
     out_vol_path: str,
-    origins,
-    resolution,
-    sect_info,
+    moving_qc_vol_path: str,
+    resolution: float,
+    resolution_3d: float,
+    sect_info: pd.DataFrame,
     output_dir: str,
     section_thickness: float,
-    ref_section_thickness: float,
     ymax: int,
     tfm_field_name: str = "2d_tfm",
     n_jobs: int = 1,
@@ -71,105 +289,19 @@ def build_sparse_landmark_volume(
     )
 
     if not os.path.exists(out_vol_path) or clobber:
-        example_raw_img = nib.load(sect_info["raw"].values[0])
-        steps = [
-            example_raw_img.affine[0, 0],
-            section_thickness,
-            example_raw_img.affine[1, 1],
-        ]
-        dims = [example_raw_img.shape[0], ymax, example_raw_img.shape[1]]
-
-        out_data = np.zeros(dims, dtype=np.uint32)
-
-        unique_values_list = []
-        unique_values_rsl_list = []
-
-        # Iterate sections; paste warped 2D landmark slice
-        def process_row(row: pd.Series, clobber: bool = False) -> None:
-            """Process a single row: warp 2D landmark and paste into out_data."""
-            output_path = str(row["landmark_2d_rsl"])
-
-            if not output_path:
-                return None
-
-            raw_path = row["raw"]
-            lm_path = row["landmark"]
-            tfm_path = row.get(tfm_field_name, None) or row.get("init_tfm", None)
-            if output_path and not os.path.exists(output_path) or clobber:
-                if not isinstance(lm_path, str) or (
-                    isinstance(lm_path, str) and not os.path.exists(lm_path)
-                ):
-                    return None
-
-                if not isinstance(tfm_path, str) or (
-                    isinstance(tfm_path, str) and not os.path.exists(tfm_path)
-                ):
-                    # Copy landmark as is (no transform)
-                    print(
-                        f"No transform found for section {lm_path}, copying landmark as is."
-                    )
-                    shutil.copy(str(lm_path), str(output_path))
-
-                if output_path and not os.path.exists(output_path) or clobber:
-                    simple_ants_apply_tfm(
-                        lm_path,
-                        raw_path,
-                        tfm_path,
-                        output_path,
-                        ndim=2,
-                        n="NearestNeighbor",
-                    )
-
-                    # check that every label in lm_path is present in output_path
-                    lm_img = nib.load(lm_path)
-                    out_img = nib.load(output_path)
-                    lm_labels = _label_ids(lm_img.get_fdata())
-                    out_labels = _label_ids(out_img.get_fdata())
-
-                    missing_labels = set(lm_labels) - set(out_labels)
-                    assert (
-                        len(missing_labels) == 0
-                    ), f"Missing labels {missing_labels} in warped landmark {output_path}."
-
-        Parallel(n_jobs=1)(
+        Parallel(n_jobs=-1)(
             delayed(process_row)(row, clobber=clobber)
             for _, row in sect_info.iterrows()
         )
 
-        r = max(1, np.rint(ref_section_thickness / section_thickness).astype(int))
-
-        print("Building sparse landmark volume with section thickness ratio", r)
-
-        for _, row in sect_info.iterrows():
-            y = int(row["sample"])
-            warped_slice_path = row["landmark_2d_rsl"]
-
-            if not warped_slice_path:
-                continue
-
-            warped = nib.load(str(warped_slice_path)).get_fdata().astype(np.uint32)
-
-            y0 = int(max(0, y - r))
-            y1 = int(min(dims[1], y0 + r))
-
-            # repeat warped to match y1-y0
-            warped_rep = np.repeat(warped[:, np.newaxis, :], y1 - y0, axis=1)
-
-            idx = warped_rep > 0
-
-            # this is not ideal because of potential label conflicts but is necessary to prevent loss of labels
-            # during transformation
-            out_data[:, y0:y1, :][idx] = warped_rep[idx]
-
-        affine = np.eye(4)
-        affine[0, 0], affine[1, 1], affine[2, 2] = steps
-        affine[0, 3], affine[1, 3], affine[2, 3] = origins
-
-        print("Writing sparse landmark volume to", out_vol_path)
-
-        nib.Nifti1Image(
-            out_data.astype(np.uint32), affine, direction_order="lpi"
-        ).to_filename(str(out_vol_path))
+        _process_and_save_sparse_landmark_volume(
+            sect_info,
+            out_vol_path,
+            moving_qc_vol_path,
+            section_thickness,
+            ymax,
+            resolution_3d,
+        )
 
     return sect_info
 
@@ -261,6 +393,7 @@ def get_com(vol: np.ndarray, label: int) -> np.ndarray:
     """Get center of mass for a given label in a volume."""
     assert np.any(vol == label), f"Label {label} not found in the volume."
     com = np.array(center_of_mass((vol == label).astype(np.uint32)))
+    # print("Center of mass for label", label, ":", com)
     return com
 
 
@@ -268,6 +401,7 @@ def w2v(idx: np.ndarray, orig: np.ndarray, step: np.ndarray) -> np.ndarray:
     """World to voxel coordinates."""
     ndim = len(idx)
     w = np.rint((idx - orig[0:ndim]) / step[0:ndim]).astype(int)
+    # print("World to voxel:", idx, "->", w)
     return w
 
 
@@ -275,6 +409,7 @@ def v2w(idx: np.ndarray, orig: np.ndarray, step: np.ndarray) -> np.ndarray:
     """Voxel to world coordinates."""
     ndim = len(idx)
     v = idx * step[0:ndim] + orig[0:ndim]
+    # print("Voxel to world:", idx, "->", v)
     return v
 
 
@@ -305,7 +440,6 @@ def create_qc_images(
 
         # if landmark_path is None, continue
         if not landmark_path or not os.path.exists(landmark_path):
-            print(f"Landmark path not found for section {row['sample']}, skipping QC.")
             continue
 
         landmark = np.array(nib.load(landmark_path).dataobj, np.uint32)
@@ -323,7 +457,6 @@ def create_qc_images(
             qc_output_path = f"{qc_dir}/qc_sub-{row['sub']}_hemi-{row['hemisphere']}_chunk-{row['chunk']}_sample-{row['sample']}_label-{label}_qc.png"
 
             if os.path.exists(qc_output_path) and not clobber:
-                print("QC image already exists, skipping:", qc_output_path)
                 continue
 
             # Get center of mass for current label in landmark
@@ -355,9 +488,6 @@ def create_qc_images(
                 np.any(np.isnan([x2_com, y2_com, z2_com, x3_com, y3_com, z3_com]))
                 or np.min([x2_com, y2_com, z2_com, x3_com, y3_com, z3_com]) < 0
             ):
-                print(
-                    f"Warning: label {label} not found in landmark volume for section {row['sample']}, skipping QC."
-                )
                 continue
 
             r0 = max(1, int(0.02 * np.min(raw.shape)))
@@ -405,7 +535,7 @@ def create_qc_images(
             plt.tight_layout()
             plt.savefig(qc_output_path, dpi=150)
             plt.close(fig)
-            print(f"Saved QC image to {qc_output_path}")
+            print(f"Saved QC image to {qc_output_path}\n")
 
 
 def create_landmark_transform(
@@ -413,6 +543,7 @@ def create_landmark_transform(
     hemisphere: str,
     chunk: int,
     resolution: float,
+    resolution_3d: float,
     output_dir: str,
     sect_info: pd.DataFrame,
     ref_landmark_path: str,
@@ -451,17 +582,14 @@ def create_landmark_transform(
     if landmark_dir:
         sect_info["landmark"] = find_landmark_files(sect_info, landmark_dir)
 
-    clobber = True
-    ref_section_thickness = (nib.load(ref_landmark_path).affine[1, 1],)
-
     sect_info = build_sparse_landmark_volume(
         acq_landmark_path,
-        nib.load(moving_qc_vol_path).affine[0:3, 3],  # origins
+        moving_qc_vol_path,
         resolution,
+        resolution_3d,
         sect_info,
         f"{output_dir}/",
         section_thickness,
-        ref_section_thickness,
         ymax,
         n_jobs=num_cores,
         clobber=clobber,
@@ -477,7 +605,7 @@ def create_landmark_transform(
             clobber=clobber,
         )
 
-    landmark_volume_rsl_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_acq_landmarks_{resolution}mm_rsl.nii.gz"
+    landmark_volume_rsl_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_acq_landmarks_{resolution}mm_{transform_type}_rsl.nii.gz"
 
     simple_ants_apply_tfm(
         acq_landmark_path,
@@ -505,25 +633,24 @@ def create_landmark_transform(
         np.unique(ar2)[1:],
     )
 
-    assert set(ar0_labels) == set(
-        ar1_labels
-    ), "Acq and acq rsl landmark volumes have different labels."
-    assert set(ar1_labels) == set(
-        ar2_labels
-    ), "Acq rsl and ref landmark volumes have different labels."
+    assert (
+        set(ar0_labels) == set(ar1_labels)
+    ), f"Acq and acq rsl landmark volumes have different labels.\n\tAcq values: {ar0_labels}\n\tAcq rsl values: {ar1_labels}"
+    assert (
+        set(ar1_labels) == set(ar2_labels)
+    ), f"Acq rsl and ref landmark volumes have different labels.\n\tAcq rsl values: {ar1_labels}\n\tRef values: {ar2_labels}"
 
     moving_qc_vol_rsl_path = f"{qc_dir}/" + os.path.basename(
         moving_qc_vol_path
     ).replace(".nii", "_landmark-rsl.nii")
 
     if (
-        True
-        or moving_qc_vol_path
+        moving_qc_vol_path
         and fixed_qc_vol_path
         and os.path.exists(moving_qc_vol_path)
         and os.path.exists(fixed_qc_vol_path)
     ):
-        if True or not moving_qc_vol_rsl_path.exists() or clobber:
+        if not os.path.exists(moving_qc_vol_rsl_path) or clobber:
             simple_ants_apply_tfm(
                 moving_qc_vol_path,
                 fixed_qc_vol_path,
@@ -533,7 +660,8 @@ def create_landmark_transform(
                 n="Linear",
                 clobber=clobber,
             )
-            print("Saved moving landmark rsl to", moving_qc_vol_rsl_path)
+            print("Saved moving landmark rsl to:\n\t", moving_qc_vol_rsl_path)
+            print("Compare to fixed qc vol:\n\t", fixed_qc_vol_path)
 
     create_qc_images(
         sect_info,
@@ -544,7 +672,6 @@ def create_landmark_transform(
         qc_dir,
         clobber=clobber,
     )
-    exit()
     return landmark_tfm_path
 
 
