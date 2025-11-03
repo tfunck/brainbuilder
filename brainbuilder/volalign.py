@@ -510,6 +510,8 @@ def alignment_iteration(
         )
     else:
         init_tfm = None
+        
+    
 
     ###
     ### Stage 3.2 : Align chunks to MRI

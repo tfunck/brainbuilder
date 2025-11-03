@@ -80,6 +80,8 @@ def build_sparse_landmark_volume(
         dims = [example_raw_img.shape[0], ymax, example_raw_img.shape[1]]
 
         out_data = np.zeros(dims, dtype=np.uint32)
+        print(example_raw_img)
+        print(dims); exit()
 
         unique_values_list = []
         unique_values_rsl_list = []
@@ -170,6 +172,7 @@ def build_sparse_landmark_volume(
         nib.Nifti1Image(
             out_data.astype(np.uint32), affine, direction_order="lpi"
         ).to_filename(str(out_vol_path))
+        print('Done.')
 
     return sect_info
 
@@ -468,6 +471,7 @@ def create_landmark_transform(
     )
 
     if not os.path.exists(landmark_tfm_path) or clobber:
+        print('Creating landmark transform...')
         init_landmark_transform(
             landmark_tfm_path,
             ref_landmark_path,
