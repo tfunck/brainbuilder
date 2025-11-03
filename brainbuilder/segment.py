@@ -707,11 +707,6 @@ def segment(
             seg_method not in HISTOGRAM_METHODS and "nnunet" not in seg_method
         ):  # No segmentation method specified, use unsegmented images instead
             sect_info = copy_unsegmented_images(sect_info, output_dir, clobber)
-<<<<<<< HEAD
- 
-=======
-
->>>>>>> ea6bfb55c4ba4207cebedc705d7351715f65c8bf
         if not nnunet_failed:
             process_nnunet_to_nifti(
                 sect_info,

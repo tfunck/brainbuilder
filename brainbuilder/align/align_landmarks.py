@@ -574,7 +574,7 @@ def create_landmark_transform(
 
     os.makedirs(qc_dir, exist_ok=True)
 
-    transform_type = "rigid"  # FIXME
+    transform_type = "affine"  # FIXME
 
     acq_landmark_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_acq_landmarks_itr-{resolution}mm.nii.gz"
     landmark_tfm_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_landmark_init_itr-{resolution}mm_{transform_type}_Composite.h5"
