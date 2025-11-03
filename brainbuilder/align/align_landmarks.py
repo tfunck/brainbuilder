@@ -289,114 +289,11 @@ def build_sparse_landmark_volume(
     )
 
     if not os.path.exists(out_vol_path) or clobber:
-<<<<<<< HEAD
-        example_raw_img = nib.load(sect_info["raw"].values[0])
-        steps = [
-            example_raw_img.affine[0, 0],
-            section_thickness,
-            example_raw_img.affine[1, 1],
-        ]
-        dims = [example_raw_img.shape[0], ymax, example_raw_img.shape[1]]
-
-        out_data = np.zeros(dims, dtype=np.uint32)
-        print(example_raw_img)
-        print(dims); exit()
-
-        unique_values_list = []
-        unique_values_rsl_list = []
-
-        # Iterate sections; paste warped 2D landmark slice
-        def process_row(row: pd.Series, clobber: bool = False) -> None:
-            """Process a single row: warp 2D landmark and paste into out_data."""
-            output_path = str(row["landmark_2d_rsl"])
-
-            if not output_path:
-                return None
-
-            raw_path = row["raw"]
-            lm_path = row["landmark"]
-            tfm_path = row.get(tfm_field_name, None) or row.get("init_tfm", None)
-            if output_path and not os.path.exists(output_path) or clobber:
-                if not isinstance(lm_path, str) or (
-                    isinstance(lm_path, str) and not os.path.exists(lm_path)
-                ):
-                    return None
-
-                if not isinstance(tfm_path, str) or (
-                    isinstance(tfm_path, str) and not os.path.exists(tfm_path)
-                ):
-                    # Copy landmark as is (no transform)
-                    print(
-                        f"No transform found for section {lm_path}, copying landmark as is."
-                    )
-                    shutil.copy(str(lm_path), str(output_path))
-
-                if output_path and not os.path.exists(output_path) or clobber:
-                    simple_ants_apply_tfm(
-                        lm_path,
-                        raw_path,
-                        tfm_path,
-                        output_path,
-                        ndim=2,
-                        n="NearestNeighbor",
-                    )
-
-                    # check that every label in lm_path is present in output_path
-                    lm_img = nib.load(lm_path)
-                    out_img = nib.load(output_path)
-                    lm_labels = _label_ids(lm_img.get_fdata())
-                    out_labels = _label_ids(out_img.get_fdata())
-
-                    missing_labels = set(lm_labels) - set(out_labels)
-                    assert (
-                        len(missing_labels) == 0
-                    ), f"Missing labels {missing_labels} in warped landmark {output_path}."
-
-        Parallel(n_jobs=1)(
-=======
         Parallel(n_jobs=-1)(
->>>>>>> ea6bfb55c4ba4207cebedc705d7351715f65c8bf
             delayed(process_row)(row, clobber=clobber)
             for _, row in sect_info.iterrows()
         )
 
-<<<<<<< HEAD
-        r = max(1, np.rint(ref_section_thickness / section_thickness).astype(int))
-
-        print("Building sparse landmark volume with section thickness ratio", r)
-
-        for _, row in sect_info.iterrows():
-            y = int(row["sample"])
-            warped_slice_path = row["landmark_2d_rsl"]
-
-            if not warped_slice_path:
-                continue
-
-            warped = nib.load(str(warped_slice_path)).get_fdata().astype(np.uint32)
-
-            y0 = int(max(0, y - r))
-            y1 = int(min(dims[1], y0 + r))
-
-            # repeat warped to match y1-y0
-            warped_rep = np.repeat(warped[:, np.newaxis, :], y1 - y0, axis=1)
-
-            idx = warped_rep > 0
-
-            # this is not ideal because of potential label conflicts but is necessary to prevent loss of labels
-            # during transformation
-            out_data[:, y0:y1, :][idx] = warped_rep[idx]
-
-        affine = np.eye(4)
-        affine[0, 0], affine[1, 1], affine[2, 2] = steps
-        affine[0, 3], affine[1, 3], affine[2, 3] = origins
-
-        print("Writing sparse landmark volume to", out_vol_path)
-
-        nib.Nifti1Image(
-            out_data.astype(np.uint32), affine, direction_order="lpi"
-        ).to_filename(str(out_vol_path))
-        print('Done.')
-=======
         _process_and_save_sparse_landmark_volume(
             sect_info,
             out_vol_path,
@@ -405,7 +302,6 @@ def build_sparse_landmark_volume(
             ymax,
             resolution_3d,
         )
->>>>>>> ea6bfb55c4ba4207cebedc705d7351715f65c8bf
 
     return sect_info
 
