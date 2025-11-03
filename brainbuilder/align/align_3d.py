@@ -245,6 +245,13 @@ def write_ref_chunk(
             direction=direction[[0, 1, 2], [0, 1, 2]],
         )
 
+        # rescale 0-255
+        pad_ref_chunk = (
+            255
+            * (pad_ref_chunk - np.min(pad_ref_chunk))
+            / (np.max(pad_ref_chunk) - np.min(pad_ref_chunk))
+        ).astype(np.uint8)
+
         nib.Nifti1Image(
             pad_ref_chunk,
             pad_aff,

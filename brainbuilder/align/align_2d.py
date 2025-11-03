@@ -33,7 +33,7 @@ def resample_reference_to_sections(
     ref_fn: str,
     tfm_inv_fn: str,
     output_dir: str,
-    ymax: int, 
+    ymax: int,
     section_thickness: float,
     clobber: bool = False,
 ) -> tuple:
@@ -57,9 +57,7 @@ def resample_reference_to_sections(
     iso_output_fn = f"{output_dir}/{basename}_{resolution}mm_iso.nii.gz"
     output_fn = f"{output_dir}/{basename}_{resolution}mm_space-nat.nii.gz"
 
-    if (
-        not os.path.exists(iso_output_fn) or not os.path.exists(output_fn) or clobber
-    ):  
+    if not os.path.exists(iso_output_fn) or not os.path.exists(output_fn) or clobber:
         # Apply 3d transformation to the reference volume
         rand = tempfile.NamedTemporaryFile().name
 
@@ -72,36 +70,40 @@ def resample_reference_to_sections(
 
         assert np.sum(vol) > 0, f"Error: empty volume {iso_output_fn}"
 
-        aff = img.affine.copy()
-
-        # vol = (255 * (vol - vol.min()) / (vol.max() - vol.min())).astype(np.uint8)
-        vol = vol.astype(np.uint8)
+        vol = (255 * (vol - vol.min()) / (vol.max() - vol.min())).astype(np.uint8)
 
         # Resample the transformed volume to the resolution of the reconstruction
-        #img_iso = resample_to_resolution(
+        # img_iso = resample_to_resolution(
         #    vol,
         #    [float(resolution)] * 3,
         #    order=3,
         #    affine=aff,
         #    dtype=np.uint8,
-        #)
+        # )
         ref_img = nib.load(ref_fn)
-        print('ref fn', ref_fn)
-        
-        img_iso_ar = resize(vol, ref_img.shape, order=1, preserve_range=True).astype(np.uint8)
+
+        assert np.sum(vol) > 0, f"Error: empty volume {output_fn}"
+
+        img_iso_ar = resize(vol, ref_img.shape, order=1, preserve_range=True).astype(
+            np.uint8
+        )
+
+        assert np.sum(img_iso_ar) > 0, f"Error: empty volume {output_fn}"
 
         img_iso = nib.Nifti1Image(img_iso_ar, ref_img.affine, direction_order="lpi")
 
         img_iso.to_filename(iso_output_fn)
 
-
         # Resample the transformed volume to the resolution of the section width on the y axis and the resolution of the reconstruction on the x and z axis
         vol = img_iso.get_fdata()
         affine = img_iso.affine.copy()
         affine[1, 1] = section_thickness
-        
+
+        assert np.sum(vol) > 0, f"Error: empty volume {output_fn}"
+        print(np.unique(vol))
+
         vol = resize(
-            vol.astype(float), (vol.shape[0], ymax , vol.shape[2]), order=1
+            vol.astype(float), (vol.shape[0], ymax, vol.shape[2]), order=1
         )  # .astype(np.uint8)
         img3 = nib.Nifti1Image(vol, affine, direction_order="lpi")
 
@@ -744,7 +746,7 @@ def align_2d(
         nl_3d_tfm_inv_fn,
         nl_2d_dir,
         ymax,
-        section_thickness
+        section_thickness,
     )
 
     # Define fixed 'fx' filenames for each section from the resampled reference volume
