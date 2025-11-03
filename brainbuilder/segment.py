@@ -43,9 +43,17 @@ def apply_threshold(img: np.ndarray, method: callable) -> np.ndarray:
     return im
 
 
+from skimage.morphology import (
+    binary_closing,
+    disk,
+    remove_small_holes,
+    remove_small_objects,
+)
+
+
 def postprocess_binary(mask, min_size=128, hole_size=128, closing_radius=1):
     if closing_radius > 0:
-        mask = morphology.binary_closing(mask, morphology.disk(closing_radius))
+        mask = binary_closing(mask, disk(closing_radius))
     if min_size > 0:
         mask = remove_small_objects(mask, min_size=min_size)
     if hole_size > 0:
@@ -361,7 +369,7 @@ def check_seg_files(
     warning_flag: bool = False,
     nnunet_input_str: str = "img",
 ) -> bool:
-    """Check if all the segmentation files exist. 
+    """Check if all the segmentation files exist.
     Also verify that they all have the same dimensions as one another.
 
     :param sect_info: dataframe with columns: raw, seg_fn
@@ -371,7 +379,7 @@ def check_seg_files(
     """
     all_files_valid = True
     dim_list = []
-    
+
     for _, row in sect_info.iterrows():
         # check if seg file is newer than raw file, if not the seg file must be removed
         if os.path.exists(row["seg"]) and not utils.newer_than(
@@ -386,7 +394,7 @@ def check_seg_files(
             all_files_valid = False
             if warning_flag:
                 logger.warning(f"\Could not find file: {row['seg']}")
-        
+
         if os.path.exists(row["seg"]):
             dims = nib.load(row["seg"]).shape
             dim_list.append(dims)
@@ -398,9 +406,9 @@ def check_seg_files(
             if d != first_dim:
                 all_files_valid = False
                 if warning_flag:
-                    logger.warning(f"Dimension mismatch found in segmentation files.")
+                    logger.warning("Dimension mismatch found in segmentation files.")
                 break
-            
+
     return all_files_valid
 
 
@@ -462,9 +470,17 @@ def calculate_relative_distance(sect_info, num_cores=4):
 
     return sect_info
 
-def run_nnunet_segmentation(seg_method, nnunet_in_dir, nnunet_out_dir, model_dir, nnUNet_dir, nnunet_failed=False):
-    """
-    Runs nnUNet segmentation using either nnUNet v1 or v2 based on the specified segmentation method.
+
+def run_nnunet_segmentation(
+    seg_method,
+    nnunet_in_dir,
+    nnunet_out_dir,
+    model_dir,
+    nnUNet_dir,
+    nnunet_failed=False,
+):
+    """Runs nnUNet segmentation using either nnUNet v1 or v2 based on the specified segmentation method.
+
     Args:
         seg_method (str): The segmentation method to use. Should contain either 'nnunetv1' or 'nnunetv2'.
         nnunet_in_dir (str): Path to the input directory containing images for segmentation.
@@ -472,8 +488,10 @@ def run_nnunet_segmentation(seg_method, nnunet_in_dir, nnunet_out_dir, model_dir
         model_dir (str): Path to the nnUNet model directory.
         nnUNet_dir (str): Path to the nnUNet installation directory.
         nnunet_failed (bool, optional): Flag indicating if nnUNet segmentation previously failed. Defaults to False.
+
     Returns:
         bool: True if nnUNet segmentation failed, False otherwise.
+
     Raises:
         Exception: If an error occurs during segmentation, it is logged and nnunet_failed is set to True.
     File:
@@ -503,13 +521,14 @@ def run_nnunet_segmentation(seg_method, nnunet_in_dir, nnunet_out_dir, model_dir
             logger.warning("Warning: nnUNet failed to segment")
             logger.warning(e)
             nnunet_failed = True
-        
-    
+
     return nnunet_failed
 
-def process_nnunet_to_nifti(sect_info, nnunet_out_dir, nnunet_input_str, num_cores, seg_method, clobber):
-    """
-    Converts nnUNet output files to standard NIfTI files using parallel processing.
+
+def process_nnunet_to_nifti(
+    sect_info, nnunet_out_dir, nnunet_input_str, num_cores, seg_method, clobber
+):
+    """Converts nnUNet output files to standard NIfTI files using parallel processing.
 
     Args:
         sect_info (pd.DataFrame): DataFrame containing segmentation information.
@@ -540,9 +559,11 @@ def process_nnunet_to_nifti(sect_info, nnunet_out_dir, nnunet_input_str, num_cor
             for nnunet_fn, raw_fn, seg_fn in nnunet2nifti_to_do
         )
 
-def copy_unsegmented_images(sect_info:pd.DataFrame, output_dir:str, clobber:bool=False) -> pd.DataFrame:
-    """
-    Copies unsegmented images to the segmentation output directory.
+
+def copy_unsegmented_images(
+    sect_info: pd.DataFrame, output_dir: str, clobber: bool = False
+) -> pd.DataFrame:
+    """Copies unsegmented images to the segmentation output directory.
 
     Args:
         sect_info (pd.DataFrame): DataFrame containing image information with 'img' column.
@@ -564,6 +585,7 @@ def copy_unsegmented_images(sect_info:pd.DataFrame, output_dir:str, clobber:bool
             logger.info(f"\tCopied {img_fn} to {seg_fn}")
     return sect_info
 
+
 def convert_nifti_to_nnunet(
     chunk_info: pd.DataFrame,
     sect_info: pd.DataFrame,
@@ -572,8 +594,7 @@ def convert_nifti_to_nnunet(
     clobber: bool,
     num_cores: int,
 ) -> None:
-    """
-    Converts NIfTI files to nnUNet format using parallel processing.
+    """Converts NIfTI files to nnUNet format using parallel processing.
 
     Args:
         chunk_info (pd.DataFrame): DataFrame containing chunk information.
@@ -600,6 +621,7 @@ def convert_nifti_to_nnunet(
         )
         for ii_fn, pixel_size_0, pixel_size_1, oo_fn in nifti2nnunet_to_do
     )
+
 
 def segment(
     chunk_info_csv: str,
@@ -643,7 +665,7 @@ def segment(
         sect_info["seg"], sect_info["img"], output_csv, clobber=clobber
     )
 
-    if run_stage:  
+    if run_stage:
         nnunet_in_dir = f"{output_dir}/nnunet/"
         nnunet_out_dir = f"{output_dir}/nnunet_out/"
         os.makedirs(nnunet_in_dir, exist_ok=True)
@@ -670,7 +692,14 @@ def segment(
 
         print("\tSegmenting with method:", seg_method)
         if missing_segmentations or clobber:
-            run_nnunet_segmentation(seg_method, nnunet_in_dir, nnunet_out_dir, model_dir, nnUNet_dir, nnunet_failed)
+            run_nnunet_segmentation(
+                seg_method,
+                nnunet_in_dir,
+                nnunet_out_dir,
+                model_dir,
+                nnUNet_dir,
+                nnunet_failed,
+            )
 
         if nnunet_failed or seg_method in HISTOGRAM_METHODS:
             apply_histogram_threshold(sect_info, num_cores=num_cores, method=seg_method)
@@ -678,7 +707,11 @@ def segment(
             seg_method not in HISTOGRAM_METHODS and "nnunet" not in seg_method
         ):  # No segmentation method specified, use unsegmented images instead
             sect_info = copy_unsegmented_images(sect_info, output_dir, clobber)
+<<<<<<< HEAD
  
+=======
+
+>>>>>>> ea6bfb55c4ba4207cebedc705d7351715f65c8bf
         if not nnunet_failed:
             process_nnunet_to_nifti(
                 sect_info,

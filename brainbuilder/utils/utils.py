@@ -957,9 +957,9 @@ def parse_resample_arguments(
         ), f"Error: output filename must be as string, got {type(output_filename)}"
 
     vol_sum = np.sum(np.abs(vol))
-    assert vol_sum > 0, (
-        f"Error: empty ({vol_sum}) input file for resample_to_resolution\n" + input_arg
-    )
+    assert (
+        vol_sum > 0
+    ), f"Error: empty ({vol_sum}) input file for resample_to_resolution\n"
     ndim = len(vol.shape)
 
     if ndim == 3:

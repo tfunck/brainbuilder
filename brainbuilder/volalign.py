@@ -124,7 +124,7 @@ def multiresolution_alignment(
     """
     num_cores = utils.set_cores(num_cores)
 
-    # Validate Inputs for <align_chunk>
+    # Validate Inputs
     multi_resolution_required_columns = valinpts.chunk_info_required_columns + [
         valinpts.Column("init_volume", "volume")
     ]
@@ -200,6 +200,7 @@ def multiresolution_alignment(
                 curr_sect_info,
                 resolution_list,
                 resolution_list_3d,
+                max_resolution_3d,
                 ref_vol_fn,
                 output_dir,
                 num_cores=num_cores,
@@ -398,6 +399,7 @@ def alignment_iteration(
     resolution_list: list,
     resolution: float,
     resolution_3d: float,
+    max_resolution_3d: float,
     resolution_list_3d: list,
     use_syn: bool = False,
     pass_step: int = 0,
@@ -489,6 +491,7 @@ def alignment_iteration(
     )
 
     if landmark_dir and "ref_landmark" in chunk_info.columns:
+        print("\t\tCreate landmark transform")
         ymax = nib.load(row["init_volume"]).shape[1]
         section_thickness = chunk_info["section_thickness"].values[0]
 
@@ -497,6 +500,7 @@ def alignment_iteration(
             hemisphere,
             chunk,
             resolution,
+            max_resolution_3d,
             cur_out_dir + "/landmarks/",
             sect_info,
             chunk_info["ref_landmark"].values[0],
@@ -510,8 +514,7 @@ def alignment_iteration(
         )
     else:
         init_tfm = None
-        
-    
+        print("\t\tNo landmark transform provided")
 
     ###
     ### Stage 3.2 : Align chunks to MRI
@@ -571,6 +574,7 @@ def align_chunk(
     sect_info: pd.DataFrame,
     resolution_list: list,
     resolution_list_3d: list,
+    max_resolution_3d: float,
     ref_vol_fn: str,
     output_dir: str,
     n_passes: int = 1,
@@ -638,6 +642,7 @@ def align_chunk(
                 resolution_list,
                 resolution,
                 resolution_3d,
+                max_resolution_3d,
                 resolution_list_3d,
                 pass_step=pass_step,
                 use_3d_syn_cc=use_3d_syn_cc,
