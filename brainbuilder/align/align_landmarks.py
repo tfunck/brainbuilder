@@ -180,6 +180,8 @@ def _process_and_save_sparse_landmark_volume(
 
         if not warped_slice_path:
             continue
+        
+        print("\tProcessing warped slice:", warped_slice_path)
 
         warped = nib.load(str(warped_slice_path)).get_fdata().astype(np.uint32)
 
@@ -293,6 +295,8 @@ def build_sparse_landmark_volume(
             delayed(process_row)(row, clobber=clobber)
             for _, row in sect_info.iterrows()
         )
+        
+        
 
         _process_and_save_sparse_landmark_volume(
             sect_info,
@@ -363,8 +367,11 @@ def find_landmark_files(sect_info: pd.DataFrame, landmark_dir: str) -> pd.Series
         raw_root = _strip_ext(raw_basename)
 
         landmark_str = f"{landmark_dir}/{raw_root}*.nii.gz"
+        print(f"\t\tSearching for landmark files with pattern: {landmark_str}")
 
         landmark_list = glob(landmark_str)
+        
+        print(landmark_list)
 
         if len(landmark_list) == 0:
             output_landmark_files.append(None)
@@ -582,6 +589,9 @@ def create_landmark_transform(
     if landmark_dir:
         sect_info["landmark"] = find_landmark_files(sect_info, landmark_dir)
 
+    # check that at least some landmarks are found
+    assert sect_info["landmark"].notnull().sum() > 0, f"No landmark files found in {landmark_dir}."
+
     sect_info = build_sparse_landmark_volume(
         acq_landmark_path,
         moving_qc_vol_path,
@@ -594,6 +604,19 @@ def create_landmark_transform(
         n_jobs=num_cores,
         clobber=clobber,
     )
+
+    ar0_img = nib.load(acq_landmark_path)
+    ar1_img = nib.load(ref_landmark_path)
+    
+    ar0 = np.array(ar0_img.dataobj)
+    ar1 = np.array(ar1_img.dataobj)
+
+    ar0_labels = np.unique(ar0)[1:]
+    ar1_labels = np.unique(ar1)[1:]
+
+    assert (
+        set(ar0_labels) == set(ar1_labels)
+    ), f"Acq and acq rsl landmark volumes have different labels.\n\tAcq values: {ar0_labels}\n\tAcq rsl values: {ar1_labels}"
 
     if not os.path.exists(landmark_tfm_path) or clobber:
         print('Creating landmark transform...')
@@ -618,25 +641,14 @@ def create_landmark_transform(
         clobber=clobber,
     )
 
-    ar0_img = nib.load(acq_landmark_path)
-    ar1_img = nib.load(landmark_volume_rsl_path)
-    ar2_img = nib.load(ref_landmark_path)
 
-    ar0, ar1, ar2 = (
-        np.array(ar0_img.dataobj),
-        np.array(ar1_img.dataobj),
-        np.array(ar2_img.dataobj),
-    )
+    ar2_img = nib.load(landmark_volume_rsl_path)
 
-    ar0_labels, ar1_labels, ar2_labels = (
-        np.unique(ar0)[1:],
-        np.unique(ar1)[1:],
-        np.unique(ar2)[1:],
-    )
+   
+    ar2 = np.array(ar2_img.dataobj)
 
-    assert (
-        set(ar0_labels) == set(ar1_labels)
-    ), f"Acq and acq rsl landmark volumes have different labels.\n\tAcq values: {ar0_labels}\n\tAcq rsl values: {ar1_labels}"
+    ar2_labels = np.unique(ar2)[1:]
+    
     assert (
         set(ar1_labels) == set(ar2_labels)
     ), f"Acq rsl and ref landmark volumes have different labels.\n\tAcq rsl values: {ar1_labels}\n\tRef values: {ar2_labels}"

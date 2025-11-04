@@ -33,7 +33,9 @@ def resample_reference_to_sections(
     ref_fn: str,
     tfm_inv_fn: str,
     output_dir: str,
+    xmax: int,
     ymax: int,
+    zmax: int,
     section_thickness: float,
     clobber: bool = False,
 ) -> tuple:
@@ -71,13 +73,7 @@ def resample_reference_to_sections(
         vol = (255 * (vol - vol.min()) / (vol.max() - vol.min())).astype(np.uint8)
 
         # Resample the transformed volume to the resolution of the reconstruction
-        # img_iso = resample_to_resolution(
-        #    vol,
-        #    [float(resolution)] * 3,
-        #    order=3,
-        #    affine=aff,
-        #    dtype=np.uint8,
-        # )
+
         ref_img = nib.load(ref_fn)
 
         assert np.sum(vol) > 0, f"Error: empty volume {output_fn}"
@@ -101,7 +97,7 @@ def resample_reference_to_sections(
         print(np.unique(vol))
 
         vol = resize(
-            vol.astype(float), (vol.shape[0], ymax, vol.shape[2]), order=1
+            vol.astype(float), (xmax, ymax+1, zmax), order=1
         )  # .astype(np.uint8)
         img_out = nib.Nifti1Image(vol, affine, direction_order="lpi")
 
@@ -748,6 +744,7 @@ def align_2d(
         nl_2d_dir,
         xmax,
         ymax,
+        zmax,
         section_thickness,
     )
 
