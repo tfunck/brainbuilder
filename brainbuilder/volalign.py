@@ -414,7 +414,7 @@ def alignment_iteration(
 
     1) Create intermediate GM volume using best availble 2D transforms
     2) Align GM volume to MRI in 3D
-    3) Align autoradiographs to GM volume in 2D.
+    3) Align sections to GM volume in 2D.
     """
     print("\t\tCreate intermediate 3d volume")
     row = chunk_info.iloc[0, :].squeeze()
@@ -589,19 +589,19 @@ def align_chunk(
     """3D-2D mutliresolution scheme.
 
       Steps:
-      a) segments autoradiographs,
+      a) segment sections,
       b) aligns these to the donor mri in 3D, and then 2d.
       c) This schema is repeated for each resolution in the resolution heiarchy.
 
     :param chunk_info:  data frame with info for current chunk
-    :param sect_info:    data frame with info for autoradiographs in current chunk
+    :param sect_info:    data frame with info for sections in current chunk
     :param files:       dictionary with all the filenames used in reconstruction
     :param resolution_list:    heirarchy of resolutions for 2d alignment
     :param resolution_list_3d: heirarchy of resolutions for 3d alignment
     :param output_dir:         output directory
     :param n_passes:           number of passes for 3d-2d alignment
     :param num_cores:          number of cores to use
-    :return sect_info: updated sect_info data frame with filenames for nonlinearly 2d aligned autoradiographs
+    :return sect_info: updated sect_info data frame with filenames for nonlinearly 2d aligned sections
     """
     sub, hemisphere, chunk = utils.get_values_from_df(chunk_info)
 
@@ -629,7 +629,7 @@ def align_chunk(
             # Perform alignment for each resolution, including:
             # 1) Create intermediate GM volume using best availble 2D transforms
             # 2) Align GM volume to MRI in 3D
-            # 3) Align autoradiographs to GM volume in 2D
+            # 3) Align sections to GM volume in 2D
             chunk_info_out, sect_info_out = alignment_iteration(
                 sub,
                 hemisphere,
