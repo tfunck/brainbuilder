@@ -265,9 +265,9 @@ def apply_histogram_threshold(
     """
     Parallel(n_jobs=num_cores)(
         delayed(histogram_threshold)(
-            row["raw"], row["seg"], ref=row["img"], method=method
+            row["img"], row["seg"], ref=row["img"], method=method
         )
-        for i, row in sect_info.iterrows()
+        for _, row in sect_info.iterrows()
     )
     return None
 
