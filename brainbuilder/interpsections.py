@@ -47,6 +47,7 @@ def interpolate_missing_sections(
     hemi_info = pd.read_csv(hemi_info_csv, index_col=False)
 
     os.makedirs(output_dir, exist_ok=True)
+    print("Resolution", resolution)
 
     interp_chunk_info = volumetric_pipeline(
         sect_info,
@@ -65,6 +66,8 @@ def interpolate_missing_sections(
     ), "Error: 'acquisition' column not found in chunk info"
 
     n_chunks = interp_chunk_info["chunk"].nunique()
+
+    recon_resolution = final_resolution if final_resolution else resolution
 
     if n_chunks > 0:
         for (sub, hemisphere, acq), curr_sect_info in sect_info.groupby(
@@ -89,11 +92,11 @@ def interpolate_missing_sections(
             os.makedirs(curr_output_dir, exist_ok=True)
 
             logger.info(
-                f"\t\tInterpolating sections for sub-{sub}, hemi-{hemisphere}, acq-{acq} at {resolution}mm resolution with method {interp_method}"
+                f"\t\tInterpolating sections for sub-{sub}, hemi-{hemisphere}, acq-{acq} at {recon_resolution}mm resolution with method {interp_method}"
             )
 
             if interp_method == METHOD_VOLUMETRIC:
-                reconstructed_cortex_fn = f"{curr_output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acq}_{resolution}mm_cortex.nii.gz"
+                reconstructed_cortex_fn = f"{curr_output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acq}_{recon_resolution}mm_cortex.nii.gz"
 
                 logger.info(
                     f"\t\t\tReconstructed cortex file: {reconstructed_cortex_fn}"
@@ -111,7 +114,7 @@ def interpolate_missing_sections(
                 )
 
             elif interp_method == METHOD_SURFACE:
-                reconstructed_cortex_fn = f"{curr_output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acq}_{resolution}mm_l{n_depths}_cortex.nii.gz"
+                reconstructed_cortex_fn = f"{curr_output_dir}/sub-{sub}_hemi-{hemisphere}_acq-{acq}_{final_resolution}mm_l{n_depths}_cortex.nii.gz"
 
                 depth_list = np.round(np.linspace(0, 1, int(n_depths)), 3)
 
@@ -144,7 +147,7 @@ def interpolate_missing_sections(
                     reconstructed_cortex_fn,
                     acq_chunk_info,
                     struct_vol_rsl_fn,
-                    resolution,
+                    recon_resolution,
                     stx_vol_dict,
                     profiles_fn,
                     volume_type="interp_stx",

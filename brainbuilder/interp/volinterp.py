@@ -499,8 +499,10 @@ def volumetric_pipeline(
 
         ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
 
+        ref_resolution = resolution if final_resolution is None else final_resolution
+
         ref_vol_rsl_fn = utils.resample_struct_reference_volume(
-            ref_vol_fn, resolution, output_dir, clobber=clobber
+            ref_vol_fn, ref_resolution, output_dir, clobber=clobber
         )
 
         # Volumetric interpolation

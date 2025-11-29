@@ -661,9 +661,10 @@ def segment(
 
     sect_info = assign_seg_filenames(sect_info, resolution, output_dir)
 
-    run_stage = utils.check_run_stage(
-        sect_info["seg"], sect_info["img"], output_csv, clobber=clobber
-    )
+    for _, df in sect_info.groupby(["hemisphere", "chunk"]):
+        run_stage = utils.check_run_stage(
+            df["seg"], df["img"], output_csv, clobber=clobber
+        )
 
     if run_stage:
         nnunet_in_dir = f"{output_dir}/nnunet/"
@@ -707,6 +708,7 @@ def segment(
             seg_method not in HISTOGRAM_METHODS and "nnunet" not in seg_method
         ):  # No segmentation method specified, use unsegmented images instead
             sect_info = copy_unsegmented_images(sect_info, output_dir, clobber)
+
         if not nnunet_failed:
             process_nnunet_to_nifti(
                 sect_info,
@@ -717,12 +719,13 @@ def segment(
                 clobber,
             )
 
-        assert check_seg_files(
-            sect_info,
-            nnunet_out_dir,
-            warning_flag=True,
-            nnunet_input_str=nnunet_input_str,
-        ), "Missing segmentations"
+        for _, temp_sect_info in sect_info.groupby(["sub", "hemisphere", "chunk"]):
+            assert check_seg_files(
+                temp_sect_info,
+                nnunet_out_dir,
+                warning_flag=True,
+                nnunet_input_str=nnunet_input_str,
+            ), "Missing segmentations"
 
         sect_info.to_csv(output_csv, index=False)
 
