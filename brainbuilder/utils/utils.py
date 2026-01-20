@@ -558,7 +558,7 @@ def resample_struct_reference_volume(
 def simple_ants_apply_tfm(
     in_fn: str,
     ref_fn: str,
-    tfm_fn: str,
+    tfm: Union[str, list],  # list or string
     out_fn: str,
     ndim: int = 3,
     n: str = "Linear",
@@ -569,17 +569,27 @@ def simple_ants_apply_tfm(
 
     :param in_fn: str, input filename
     :param ref_fn: str, reference filename
-    :param tfm_fn: str, transformation filename
+    :param tfm: str | list, transformation filename(s)
     :param out_fn: str, output filename
     :param ndim: int, number of dimensions
     :param n: str, transformation -type
     :param empty_ok: bool, whether empty files are allowed
     :return: None
     """
+    if isinstance(tfm, str):
+        tfm_str = f" -t {tfm} "
+    if isinstance(tfm, list):
+        tfm_str = ""
+        for t in tfm:
+            tfm_str += f" -t {t} "
+
     if not os.path.exists(out_fn) or clobber:
-        str0 = f"antsApplyTransforms -n {n} -v 0 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}"
+        str0 = f"antsApplyTransforms -n {n} -v 0 -d {ndim} -i {in_fn} -r {ref_fn} {tfm_str} -o {out_fn}"
         shell(str0, verbose=True)
-        check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn, empty_ok=empty_ok)
+        for tfm_fn in tfm if isinstance(tfm, list) else [tfm]:
+            check_transformation_not_empty(
+                in_fn, ref_fn, tfm_fn, out_fn, empty_ok=empty_ok
+            )
 
 
 def get_seg_fn(
@@ -1036,19 +1046,21 @@ def get_new_dims(
     new_dims = np.ceil(old_dimensions * scale)
     return new_dims, downsample_factor
 
+
 # Check if all dimensions are the same for 2D_align, seg_rsl, seg_rsl_tfm
 def check_consistent_dimensions(sect_info: pd.DataFrame, column_name: str) -> bool:
     """Check if all dimensions are the same for a given column in a dataframe."""
-    
-    dims = None 
-    
+    dims = None
+
     for _, row in sect_info.iterrows():
         section_dims = nib.load(row[column_name]).shape
 
         if dims is None:
             dims = section_dims
         else:
-            assert dims == section_dims, f"Error: Inconsistent dimensions in {column_name} files: {dims} vs {section_dims}"
+            assert (
+                dims == section_dims
+            ), f"Error: Inconsistent dimensions in {column_name} files: {dims} vs {section_dims}"
 
     return True
 

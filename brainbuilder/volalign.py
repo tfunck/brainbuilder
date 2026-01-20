@@ -552,7 +552,7 @@ def alignment_iteration(
         resolution,
         resolution_list,
         row["seg_rsl_fn"],
-        row["nl_3d_tfm_inv_fn"],
+        row["nl_3d_tfm_fn"],
         row["nl_2d_vol_fn"],
         row["nl_2d_vol_cls_fn"],
         row["section_thickness"],

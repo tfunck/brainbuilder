@@ -248,6 +248,7 @@ def chunked_percentile(
     fout,
     p=50,
     bins=256,
+    dtype=np.float32,
     vmin=None,
     vmax=None,
     background=None,
@@ -325,8 +326,12 @@ def chunked_percentile(
                 val[empty] = np.nan if background is None else background
 
                 out[z0:z1, y0:y1, x0:x1] = val
-    print(fout)
-    print(out.shape)
+
+    if dtype == np.uint8:
+        out = np.rint(255 * (out - vmin) / (vmax - vmin))
+
+    out = out.astype(dtype)
+
     nib.Nifti1Image(out, affine, direction_order="lpi").to_filename(fout)
 
 

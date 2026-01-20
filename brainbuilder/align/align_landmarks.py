@@ -180,7 +180,7 @@ def _process_and_save_sparse_landmark_volume(
 
         if not warped_slice_path:
             continue
-        
+
         print("\tProcessing warped slice:", warped_slice_path)
 
         warped = nib.load(str(warped_slice_path)).get_fdata().astype(np.uint32)
@@ -295,8 +295,6 @@ def build_sparse_landmark_volume(
             delayed(process_row)(row, clobber=clobber)
             for _, row in sect_info.iterrows()
         )
-        
-        
 
         _process_and_save_sparse_landmark_volume(
             sect_info,
@@ -323,33 +321,65 @@ def init_landmark_transform(
     """Run antsLandmarkBasedTransformInitializer and convert .tfm -> .h5.
     Also (optionally) generate QC: per-label CoM deltas and quick overlays.
     """
-    if os.path.exists(out_tfm_h5) and not clobber:
-        return out_tfm_h5
+    # if os.path.exists(out_tfm_h5) and not clobber:
+    #    return out_tfm_h5
 
     fixed_ref_landmarks = fixed_ref_landmarks
     moving_chunk_landmarks = moving_chunk_landmarks
+
     out_tfm = out_tfm_h5
+
+    affine_vol_fn = out_tfm.replace(".h5", "_affine_landmark_init.nii.gz")
+
+    affine_tfm = out_tfm.replace(".h5", "_affine.h5")
+
+    nl_tfm = out_tfm.replace(".h5", "_nl.nii.gz")
 
     if not os.path.exists(fixed_ref_landmarks):
         raise RuntimeError(f"Reference landmarks not found: {fixed_ref_landmarks}")
+
     if not os.path.exists(moving_chunk_landmarks):
         raise RuntimeError(
             f"Chunk sparse landmarks not found: {moving_chunk_landmarks}"
         )
 
-    # Build temporary copies that keep only overlapping labels (others -> 0).
-
-    cmd = f"antsLandmarkBasedTransformInitializer 3 {fixed_ref_landmarks} {moving_chunk_landmarks}  {transform_type.lower()} {out_tfm} "
-
-    if transform_type.lower() == "bspline":
-        cmd += f" {mesh_size} "
+    ### 1) Run affine alignment
+    print("Running affine landmark-based alignment...")
+    cmd = f"antsLandmarkBasedTransformInitializer 3 {fixed_ref_landmarks} {moving_chunk_landmarks}  'affine' {affine_tfm} "
 
     logger.info(f"[ANTs] {cmd}")
+
+    subprocess.run(cmd, shell=True, executable="/bin/bash")
+    assert os.path.exists(
+        affine_tfm
+    ), f"Affine landmark transform not created: {affine_tfm}"
+
+    ### 2) Apply affine to moving landmarks to get intermediate volume
+    print("Applying affine transform to moving landmarks...")
+    simple_ants_apply_tfm(
+        moving_chunk_landmarks,
+        fixed_ref_landmarks,
+        affine_tfm,
+        affine_vol_fn,
+        ndim=3,
+        n="NearestNeighbor",
+        clobber=clobber,
+    )
+
+    ### 3) Run non-linear alignment
+    print("Running non-linear landmark-based alignment...")
+    cmd = f"antsLandmarkBasedTransformInitializer 3 {affine_vol_fn} {moving_chunk_landmarks}  'bspline' {nl_tfm} {mesh_size}"
+
+    subprocess.run(cmd, shell=True, executable="/bin/bash")
+    assert os.path.exists(
+        nl_tfm
+    ), f"Non-linear landmark transform not created: {nl_tfm}"
+
+    logger.info(f"[ANTs] {cmd}")
+
     subprocess.run(cmd, shell=True, executable="/bin/bash")
 
-    assert os.path.exists(out_tfm), f"Landmark transform not created: {out_tfm}"
-
-    return out_tfm
+    return [nl_tfm, affine_tfm]
 
 
 def find_landmark_files(sect_info: pd.DataFrame, landmark_dir: str) -> pd.Series:
@@ -370,7 +400,7 @@ def find_landmark_files(sect_info: pd.DataFrame, landmark_dir: str) -> pd.Series
         print(f"\t\tSearching for landmark files with pattern: {landmark_str}")
 
         landmark_list = glob(landmark_str)
-        
+
         print(landmark_list)
 
         if len(landmark_list) == 0:
@@ -578,10 +608,10 @@ def create_landmark_transform(
     :return: path to the landmark transform file
     """
     qc_dir = f"{output_dir}/qc/"
-
+    clobber = True
     os.makedirs(qc_dir, exist_ok=True)
 
-    transform_type = "affine"  # FIXME
+    transform_type = "bspline"  # FIXME
 
     acq_landmark_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_acq_landmarks_itr-{resolution}mm.nii.gz"
     landmark_tfm_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_landmark_init_itr-{resolution}mm_{transform_type}_Composite.h5"
@@ -590,12 +620,14 @@ def create_landmark_transform(
         sect_info["landmark"] = find_landmark_files(sect_info, landmark_dir)
 
     # check that at least some landmarks are found
-    assert sect_info["landmark"].notnull().sum() > 0, f"No landmark files found in {landmark_dir}."
+    assert (
+        sect_info["landmark"].notnull().sum() > 0
+    ), f"No landmark files found in {landmark_dir}."
 
     sect_info = build_sparse_landmark_volume(
         acq_landmark_path,
         moving_qc_vol_path,
-        resolution,
+        resolution_3d,  # resolution
         resolution_3d,
         sect_info,
         f"{output_dir}/",
@@ -607,7 +639,7 @@ def create_landmark_transform(
 
     ar0_img = nib.load(acq_landmark_path)
     ar1_img = nib.load(ref_landmark_path)
-    
+
     ar0 = np.array(ar0_img.dataobj)
     ar1 = np.array(ar1_img.dataobj)
 
@@ -618,9 +650,9 @@ def create_landmark_transform(
         set(ar0_labels) == set(ar1_labels)
     ), f"Acq and acq rsl landmark volumes have different labels.\n\tAcq values: {ar0_labels}\n\tAcq rsl values: {ar1_labels}"
 
-    if not os.path.exists(landmark_tfm_path) or clobber:
-        print('Creating landmark transform...')
-        init_landmark_transform(
+    if not os.path.exists(landmark_tfm_path) or clobber or True:  # TODO delte me
+        print("Creating landmark transform...")
+        init_tfms = init_landmark_transform(
             landmark_tfm_path,
             ref_landmark_path,
             acq_landmark_path,
@@ -628,27 +660,26 @@ def create_landmark_transform(
             qc_dir=qc_dir,
             clobber=clobber,
         )
+        print("Done")
 
     landmark_volume_rsl_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_acq_landmarks_{resolution}mm_{transform_type}_rsl.nii.gz"
 
     simple_ants_apply_tfm(
         acq_landmark_path,
         ref_landmark_path,
-        landmark_tfm_path,
+        init_tfms,
         landmark_volume_rsl_path,
         ndim=3,
         n="NearestNeighbor",
         clobber=clobber,
     )
 
-
     ar2_img = nib.load(landmark_volume_rsl_path)
 
-   
     ar2 = np.array(ar2_img.dataobj)
 
     ar2_labels = np.unique(ar2)[1:]
-    
+
     assert (
         set(ar1_labels) == set(ar2_labels)
     ), f"Acq rsl and ref landmark volumes have different labels.\n\tAcq rsl values: {ar1_labels}\n\tRef values: {ar2_labels}"
@@ -667,7 +698,7 @@ def create_landmark_transform(
             simple_ants_apply_tfm(
                 moving_qc_vol_path,
                 fixed_qc_vol_path,
-                landmark_tfm_path,
+                init_tfms,
                 str(moving_qc_vol_rsl_path),
                 ndim=3,
                 n="Linear",
@@ -685,7 +716,7 @@ def create_landmark_transform(
         qc_dir,
         clobber=clobber,
     )
-    return landmark_tfm_path
+    return init_tfms
 
 
 # === END: align/align_landmarks.py ===========================================

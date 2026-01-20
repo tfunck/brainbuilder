@@ -267,9 +267,8 @@ def run_alignment(
     out_tfm_fn: str,
     out_inv_fn: str,
     out_fn: str,
-    ref_rsl_fn: str,
-    ref_chunk_fn: str,
-    seg_rsl_fn: str,
+    mv_fn: str,
+    fx_fn: str,
     linParams: utils.AntsParams,
     nlParams: utils.AntsParams,
     ccParams: utils.AntsParams,
@@ -322,18 +321,12 @@ def run_alignment(
     affine_inv_fn = f"{prefix_affine}volume_inverse.nii.gz"
     f"{prefix_manual}Composite.nii.gz"
 
-    ref_tgt_fn = ref_chunk_fn
     step = 0.5
     sampling = 0.9
 
-    unique_fixed_values = np.unique(nib.load(ref_chunk_fn).get_fdata())
-    unique_moving_values = np.unique(nib.load(seg_rsl_fn).get_fdata())
+    nl_metric = f"Mattes[{fx_fn},{mv_fn},1,32,Random,{sampling}]"
 
-    nbins = min(256, max(len(unique_fixed_values), len(unique_moving_values)))
-
-    nl_metric = f"Mattes[{ref_chunk_fn},{seg_rsl_fn},1,32,Random,{sampling}]"
-
-    cc_metric = f"CC[{ref_chunk_fn},{seg_rsl_fn},1,3,Random,{sampling}]"
+    cc_metric = f"CC[{fx_fn},{mv_fn},1,3,Random,{sampling}]"
 
     syn_rate = "0.1"
 
@@ -348,7 +341,7 @@ def run_alignment(
     # calculate rigid registration
 
     if init_tfm is None:
-        init_str = f" --initial-moving-transform [{ref_chunk_fn},{seg_rsl_fn},1] "
+        init_str = f" --initial-moving-transform [{fx_fn},{mv_fn},1] "
     else:
         init_str = f" --initial-moving-transform {init_tfm} "
 
@@ -356,7 +349,7 @@ def run_alignment(
 
     # calculate rigid registration
     if not os.path.exists(f"{prefix_rigid}Composite.h5") and "rigid" in linear_steps:
-        rigid_cmd = f"{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] "
+        rigid_cmd = f"{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] "
         utils.shell(rigid_cmd, verbose=verbose)
         write_log(out_dir, "rigid", rigid_cmd)
         init_str = f"--initial-moving-transform  {prefix_rigid}Composite.h5"
@@ -366,14 +359,14 @@ def run_alignment(
         not os.path.exists(f"{prefix_similarity}Composite.h5")
         and "similarity" in linear_steps
     ):
-        similarity_cmd = f"{base}  {init_str} -t Similarity[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] "
+        similarity_cmd = f"{base}  {init_str} -t Similarity[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] "
         utils.shell(similarity_cmd, verbose=verbose)
         write_log(out_dir, "similarity", similarity_cmd)
         init_str = f"--initial-moving-transform {prefix_similarity}Composite.h5"
 
     # calculate affine registration
     if not os.path.exists(f"{prefix_affine}Composite.h5") and "affine" in linear_steps:
-        affine_cmd = f"{base}  {init_str} -t Affine[{step}] -m {metric}[{ref_tgt_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] "
+        affine_cmd = f"{base}  {init_str} -t Affine[{step}] -m {metric}[{fx_fn},{mv_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] "
         utils.shell(affine_cmd, verbose=verbose)
         write_log(out_dir, "affine", affine_cmd)
         init_str = f"--initial-moving-transform {prefix_affine}Composite.h5"
@@ -389,6 +382,7 @@ def run_alignment(
     prefix_syn = prefix_mattes_syn
     syn_out_fn = mattes_syn_out_fn
     syn_inv_fn = mattes_syn_inv_fn
+
     # calculate nonlinear registration with Mattes metric
     if use_3d_syn_cc:
         prefix_syn = prefix_cc_syn
@@ -414,21 +408,18 @@ def run_alignment(
             f"{prefix_syn}Composite.h5"
         ), f"Error: {prefix_syn}Composite.h5 does not exist"
 
-        assert os.path.exists(
-            f"{prefix_syn}InverseComposite.h5"
-        ), f"Error: {prefix_syn}InverseComposite.h5 does not exist"
-
     utils.simple_ants_apply_tfm(
-        seg_rsl_fn, ref_rsl_fn, prefix_syn + "Composite.h5", out_fn, n="BSpline[2]"
+        mv_fn, fx_fn, prefix_syn + "Composite.h5", out_fn, n="BSpline[2]"
     )
 
-    utils.simple_ants_apply_tfm(
-        ref_rsl_fn,
-        seg_rsl_fn,
-        prefix_syn + "InverseComposite.h5",
-        out_inv_fn,
-        n="BSpline[2]",
-    )
+    if os.path.exists(f"{prefix_syn}InverseComposite.h5"):
+        utils.simple_ants_apply_tfm(
+            fx_fn,
+            mv_fn,
+            prefix_syn + "InverseComposite.h5",
+            out_inv_fn,
+            n="BSpline[2]",
+        )
 
     return None
 
