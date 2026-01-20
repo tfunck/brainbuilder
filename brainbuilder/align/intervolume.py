@@ -12,11 +12,11 @@ from brainbuilder.interp.volinterp import (
     volumetric_interpolation_over_dataframe,
 )
 from brainbuilder.utils.utils import (
+    check_consistent_dimensions,
     get_section_intervals,
     get_seg_fn,
     resample_to_resolution,
     simple_ants_apply_tfm,
-    check_consistent_dimensions,
 )
 from joblib import Parallel, delayed
 from scipy.ndimage import center_of_mass, shift
@@ -156,9 +156,13 @@ def resample_and_transform(
             row["img"], [resolution_3d] * 2, output_filename=img_rsl_tfm_fn, order=1
         )
 
-    row["2d_align"] = img_rsl_tfm_fn # Final transformed 2D image at 2D resolution
-    row["seg_rsl"] = seg_rsl_fn # Resampled segmented image at 2D resolution in native space
-    row["seg_rsl_tfm"] = seg_rsl_tfm_fn # Transformed resampled segmented image at 3D resolution
+    row["2d_align"] = img_rsl_tfm_fn  # Final transformed 2D image at 2D resolution
+    row[
+        "seg_rsl"
+    ] = seg_rsl_fn  # Resampled segmented image at 2D resolution in native space
+    row[
+        "seg_rsl_tfm"
+    ] = seg_rsl_tfm_fn  # Transformed resampled segmented image at 3D resolution
 
     return row
 
@@ -434,6 +438,7 @@ def create_intermediate_volume(
             vmin=None,
             vmax=None,
             background=0,
+            out_dtype=np.uint8,
             chunk=(48, 48, 48),
         )
         print("created:", seg_rsl_fn)

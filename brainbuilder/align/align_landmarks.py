@@ -180,7 +180,7 @@ def _process_and_save_sparse_landmark_volume(
 
         if not warped_slice_path:
             continue
-        
+
         print("\tProcessing warped slice:", warped_slice_path)
 
         warped = nib.load(str(warped_slice_path)).get_fdata().astype(np.uint32)
@@ -217,6 +217,81 @@ def _process_and_save_sparse_landmark_volume(
     nib.Nifti1Image(out_data, affine, direction_order="lpi").to_filename(out_vol_path)
 
 
+def apply_tfm_and_check(
+    input_file: str, ref_file: str, tfm_file: str, output_file: str
+) -> None:
+    """Apply 2D transformation to input landmarks and check that all the landmarks are present in the output.
+    If not, open the landmark file and dilate all the labels by n before applying the transform again. Repeat
+    until all labels are present or max_dilation is reached.
+    """
+    max_dim = max(nib.load(input_file).shape)
+    max_dilation = max_dim // 2
+
+    out_dir = os.path.dirname(output_file) + "/"
+
+    dilated_input_file = out_dir + os.path.basename(input_file).replace(
+        ".nii.gz", "_dilate_tmp.nii.gz"
+    )
+
+    current_input_file = input_file
+
+    dilate_count = 0
+    while dilate_count <= max_dilation:
+        print()
+        print("Current input file:", current_input_file)
+        simple_ants_apply_tfm(
+            current_input_file,
+            ref_file,
+            tfm_file,
+            output_file,
+            ndim=2,
+            n="NearestNeighbor",
+            clobber=True,
+            empty_ok=True,
+        )
+
+        # check that every label in input_file is present in output_file
+        input_img = nib.load(current_input_file)
+        out_img = nib.load(output_file)
+        input_labels = _label_ids(input_img.get_fdata())
+        out_labels = _label_ids(out_img.get_fdata())
+
+        missing_labels = set(input_labels) - set(out_labels)
+
+        if len(missing_labels) == 0:
+            return
+
+        print(
+            f"Missing labels {missing_labels} in warped landmark {output_file}. Dilating and retrying..."
+        )
+
+        # dilate all labels in input_file by 1
+        input_data = np.squeeze(np.array(input_img.dataobj))
+        dilated_data = np.zeros_like(input_data)
+
+        for label in input_labels:
+            label_binary = input_data == label
+            print(f"\tDilating label {label}...{np.sum(label_binary)} voxels")
+            label_binary_dilated = binary_dilation(label_binary, iterations=2)
+            dilated_data[label_binary_dilated] = label
+
+        dilated_img = nib.Nifti1Image(
+            dilated_data, input_img.affine, direction_order="lpi"
+        )
+        dilated_img.to_filename(dilated_input_file)
+
+        dilate_count += 2
+
+        current_input_file = dilated_input_file
+
+    print("out_labels", out_labels)
+    print("max_dilations = ", max_dilation)
+
+    raise RuntimeError(
+        f"Failed to warp landmark {input_file} after {max_dilation} dilations."
+    )
+
+
 def process_row(row: pd.Series, clobber: bool = False) -> None:
     """Process a single row: warp 2D landmark and paste into out_data."""
     output_path = str(row["landmark_2d_rsl"])
@@ -236,26 +311,11 @@ def process_row(row: pd.Series, clobber: bool = False) -> None:
         shutil.copy(str(lm_path), str(output_path))
 
     if output_path and not os.path.exists(output_path) or clobber:
-        simple_ants_apply_tfm(
-            lm_path,
-            raw_path,
-            tfm_path,
-            output_path,
-            ndim=2,
-            n="NearestNeighbor",
+        print(
+            f"\tWarping landmark {lm_path} to {output_path} using transform {tfm_path}."
         )
 
-        # check that every label in lm_path is present in output_path
-        lm_img = nib.load(lm_path)
-        out_img = nib.load(output_path)
-        lm_labels = _label_ids(lm_img.get_fdata())
-        out_labels = _label_ids(out_img.get_fdata())
-
-        missing_labels = set(lm_labels) - set(out_labels)
-
-        assert (
-            len(missing_labels) == 0
-        ), f"Missing labels {missing_labels} in warped landmark {output_path}."
+        apply_tfm_and_check(lm_path, raw_path, tfm_path, output_path)
 
 
 def build_sparse_landmark_volume(
@@ -291,12 +351,10 @@ def build_sparse_landmark_volume(
     )
 
     if not os.path.exists(out_vol_path) or clobber:
-        Parallel(n_jobs=-1)(
+        Parallel(n_jobs=1)(  # FIXME
             delayed(process_row)(row, clobber=clobber)
             for _, row in sect_info.iterrows()
         )
-        
-        
 
         _process_and_save_sparse_landmark_volume(
             sect_info,
@@ -370,7 +428,7 @@ def find_landmark_files(sect_info: pd.DataFrame, landmark_dir: str) -> pd.Series
         print(f"\t\tSearching for landmark files with pattern: {landmark_str}")
 
         landmark_list = glob(landmark_str)
-        
+
         print(landmark_list)
 
         if len(landmark_list) == 0:
@@ -449,9 +507,9 @@ def create_qc_images(
         if not landmark_path or not os.path.exists(landmark_path):
             continue
 
-        landmark = np.array(nib.load(landmark_path).dataobj, np.uint32)
+        landmark = np.squeeze(np.array(nib.load(landmark_path).dataobj, np.uint32))
 
-        raw = np.array(nib.load(row["raw"]).dataobj, np.uint32)
+        raw = np.squeeze(np.array(nib.load(row["raw"]).dataobj, np.uint32))
 
         _, align_2d, align_2d_orig, align_2d_step = load(row["2d_align"])
         _, landmark_rsl, landmark_rsl_orig, landmark_rsl_step = load(landmark_rsl_path)
@@ -545,6 +603,47 @@ def create_qc_images(
             print(f"Saved QC image to {qc_output_path}\n")
 
 
+def check_for_identical_landmark_values(
+    landmark_series: pd.Series, ref_landmark_path: str
+) -> None:
+    """Check that labels in landmark_series are identical to those in ref_landmark_path and that each label in landmark_series appears in only one file.
+
+    :param landmark_series: series of landmark file paths
+    :param ref_landmark_path: reference landmark file path
+    :return: None
+    """
+    ref_img = nib.load(ref_landmark_path)
+    ref_data = np.array(ref_img.dataobj)
+    ref_labels = set(np.unique(ref_data)[1:])
+
+    error_flag = False
+
+    all_labels = set()
+    for landmark_path in landmark_series:
+        if not landmark_path or not os.path.exists(landmark_path):
+            continue
+
+        lm_img = nib.load(landmark_path)
+        lm_data = np.array(lm_img.dataobj)
+        lm_labels = set(np.unique(lm_data)[1:])
+        print(f"Checking landmark file \n\t{landmark_path}\n\tlabels:\t{lm_labels}")
+
+        # check that all labels in lm_labels are in ref_labels
+        assert lm_labels.issubset(
+            ref_labels
+        ), f"Landmark file {landmark_path} contains labels not present in reference landmark file {ref_landmark_path}.\n\tLandmark labels: {lm_labels}\n\tReference labels: {ref_labels}"
+
+        # check that no label in lm_labels is already in all_labels
+        intersection = all_labels.intersection(lm_labels)
+        if len(intersection) != 0:
+            print(f"\tERROR: Labels {intersection} appear in multiple landmark files.")
+            error_flag = True
+        all_labels.update(lm_labels)
+
+    if error_flag:
+        raise ValueError("Some labels appear in multiple landmark files.")
+
+
 def create_landmark_transform(
     sub: str,
     hemisphere: str,
@@ -586,11 +685,19 @@ def create_landmark_transform(
     acq_landmark_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_acq_landmarks_itr-{resolution}mm.nii.gz"
     landmark_tfm_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_landmark_init_itr-{resolution}mm_{transform_type}_Composite.h5"
 
+    if os.path.exists(landmark_tfm_path) and not clobber:
+        print(f"Landmark transform already exists: {landmark_tfm_path}")
+        return landmark_tfm_path
+
     if landmark_dir:
         sect_info["landmark"] = find_landmark_files(sect_info, landmark_dir)
 
     # check that at least some landmarks are found
-    assert sect_info["landmark"].notnull().sum() > 0, f"No landmark files found in {landmark_dir}."
+    assert (
+        sect_info["landmark"].notnull().sum() > 0
+    ), f"No landmark files found in {landmark_dir}."
+
+    check_for_identical_landmark_values(sect_info["landmark"], ref_landmark_path)
 
     sect_info = build_sparse_landmark_volume(
         acq_landmark_path,
@@ -607,7 +714,7 @@ def create_landmark_transform(
 
     ar0_img = nib.load(acq_landmark_path)
     ar1_img = nib.load(ref_landmark_path)
-    
+
     ar0 = np.array(ar0_img.dataobj)
     ar1 = np.array(ar1_img.dataobj)
 
@@ -616,10 +723,10 @@ def create_landmark_transform(
 
     assert (
         set(ar0_labels) == set(ar1_labels)
-    ), f"Acq and acq rsl landmark volumes have different labels.\n\tAcq values: {ar0_labels}\n\tAcq rsl values: {ar1_labels}"
+    ), f"Source and target (ref) landmark volumes have different labels.\n\t{acq_landmark_path}: {ar0_labels}\n\t{ref_landmark_path}: {ar1_labels}"
 
     if not os.path.exists(landmark_tfm_path) or clobber:
-        print('Creating landmark transform...')
+        print("Creating landmark transform...")
         init_landmark_transform(
             landmark_tfm_path,
             ref_landmark_path,
@@ -641,14 +748,12 @@ def create_landmark_transform(
         clobber=clobber,
     )
 
-
     ar2_img = nib.load(landmark_volume_rsl_path)
 
-   
     ar2 = np.array(ar2_img.dataobj)
 
     ar2_labels = np.unique(ar2)[1:]
-    
+
     assert (
         set(ar1_labels) == set(ar2_labels)
     ), f"Acq rsl and ref landmark volumes have different labels.\n\tAcq rsl values: {ar1_labels}\n\tRef values: {ar2_labels}"

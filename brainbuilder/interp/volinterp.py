@@ -252,7 +252,9 @@ def chunked_percentile(
     vmax=None,
     background=None,
     chunk=(48, 48, 48),
+    out_dtype=np.float32,
 ):
+    """Compute the voxel-wise p-th percentile across a set of volumes in chunks to save memory."""
     ref = nib.load(fins[0])
 
     shape, affine = ref.shape, ref.affine
@@ -327,6 +329,7 @@ def chunked_percentile(
                 out[z0:z1, y0:y1, x0:x1] = val
     print(fout)
     print(out.shape)
+    out = out.astype(out_dtype)
     nib.Nifti1Image(out, affine, direction_order="lpi").to_filename(fout)
 
 

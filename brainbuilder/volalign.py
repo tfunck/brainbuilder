@@ -455,7 +455,7 @@ def alignment_iteration(
     if not os.path.exists(ref_rsl_fn):
         order = 1  # nearest neighbor
         utils.resample_to_resolution(
-            ref_vol_fn, [resolution_3d] * 3, ref_rsl_fn, order=order
+            ref_vol_fn, [resolution_3d] * 3, ref_rsl_fn, order=order, dtype=np.uint8
         )
 
     # insert 2d intersection alignment
