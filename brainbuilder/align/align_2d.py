@@ -5,7 +5,6 @@ import json
 import logging
 import os
 import shutil
-import tempfile
 
 import brainbuilder.utils.ants_nibabel as nib
 import matplotlib.pyplot as plt
@@ -31,7 +30,7 @@ def resample_reference_to_sections(
     resolution: float,
     input_fn: str,
     ref_fn: str,
-    tfm_inv_fn: str,
+    tfm_fn: str,
     output_dir: str,
     xmax: int,
     ymax: int,
@@ -50,7 +49,7 @@ def resample_reference_to_sections(
         :param resolution:     current resolution level
         :param input_fn:     gm super-resolution volume (srv) extracted from donor brain
         :param ref_fn:     brain mask of segmented autoradiographs
-        :param tfm_inv_fn:   3d transformation from mni to receptor coordinate space
+        :param tfm_fn:   3d transformation from mni to receptor coordinate space
         :return iso_output_fn:   gm srv volume in receptor coordinate space with isotropic voxels at <resolution>mm
         :return output_fn:  gm srv volume in receptor coordinate space with <section_thickness> dimension size along the y axis
     """
@@ -61,9 +60,12 @@ def resample_reference_to_sections(
 
     if not os.path.exists(iso_output_fn) or not os.path.exists(output_fn) or clobber:
         # Apply 3d transformation to the reference volume
-        rand = tempfile.NamedTemporaryFile().name
+        print("-i", input_fn)
+        print("-r", ref_fn)
+        print("-t", tfm_fn)
+        print("-o", iso_output_fn)
 
-        utils.simple_ants_apply_tfm(input_fn, ref_fn, tfm_inv_fn, iso_output_fn, ndim=3)
+        utils.simple_ants_apply_tfm(input_fn, ref_fn, tfm_fn, iso_output_fn, ndim=3)
 
         img = nib.load(iso_output_fn)
         vol = img.get_fdata()
@@ -90,21 +92,19 @@ def resample_reference_to_sections(
 
         # Resample the transformed volume to the resolution of the section width on the y axis and the resolution of the reconstruction on the x and z axis
         affine = img.affine.copy()
-        affine[0, 0] = affine[2,2] = resolution
+        affine[0, 0] = affine[2, 2] = resolution
         affine[1, 1] = section_thickness
 
         assert np.sum(vol) > 0, f"Error: empty volume {output_fn}"
-        print(np.unique(vol))
 
         vol = resize(
-            vol.astype(float), (xmax, ymax+1, zmax), order=1
+            vol.astype(float), (xmax, ymax + 1, zmax), order=1
         )  # .astype(np.uint8)
         img_out = nib.Nifti1Image(vol, affine, direction_order="lpi")
 
         img_out.to_filename(output_fn)
 
         assert np.sum(vol) > 0, f"Error: empty volume {output_fn}"
-
 
     return iso_output_fn, output_fn
 
@@ -693,7 +693,7 @@ def align_2d(
     resolution: float,
     resolution_list: list,
     seg_rsl_fn: str,
-    nl_3d_tfm_inv_fn: str,
+    nl_3d_tfm_fn: str,
     nl_2d_vol_fn: str,
     nl_2d_cls_fn: str,
     section_thickness: float,
@@ -728,11 +728,9 @@ def align_2d(
     :param target_str: target string
     :return: sect_info
     """
-    example_2d_fn =sect_info["seg_rsl"].values[0]
+    example_2d_fn = sect_info["seg_rsl"].values[0]
     xmax, zmax = nib.load(example_2d_fn).shape
     ymax = sect_info["sample"].max() + 1
-
-    print(example_2d_fn, xmax,  zmax)
 
     # Apply 3D transformation to reference volume and resample to the resolution
     # of the reconstruction and to the section thickness along the y-axis
@@ -740,7 +738,7 @@ def align_2d(
         float(resolution),
         ref_rsl_fn,
         seg_rsl_fn,
-        nl_3d_tfm_inv_fn,
+        nl_3d_tfm_fn,
         nl_2d_dir,
         xmax,
         ymax,

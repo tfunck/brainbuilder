@@ -11,7 +11,7 @@ from skimage.filters import threshold_otsu
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import align_2d
-from brainbuilder.align.align_3d import align_3d
+from brainbuilder.align.align_3d import align_3d, pad_seg_volume
 from brainbuilder.align.align_landmarks import create_landmark_transform
 from brainbuilder.align.intervolume import create_intermediate_volume
 from brainbuilder.utils import utils
@@ -407,6 +407,7 @@ def alignment_iteration(
     use_3d_syn_cc: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
     interpolation: str = "Linear",
+    padding_offset: float = 0.15,  # offset for % by which we pad the segmentation volume at the start and end of each direction
     landmark_dir: str = None,
     clobber: bool = False,
 ) -> tuple:
@@ -453,9 +454,14 @@ def alignment_iteration(
     )
 
     if not os.path.exists(ref_rsl_fn):
-        order = 1  # nearest neighbor
+        order = 1
         utils.resample_to_resolution(
-            ref_vol_fn, [resolution_3d] * 3, ref_rsl_fn, order=order
+            ref_vol_fn,
+            [resolution_3d] * 3,
+            ref_rsl_fn,
+            order=order,
+            dtype=np.uint8,
+            factor=255,
         )
 
     # insert 2d intersection alignment
@@ -490,6 +496,12 @@ def alignment_iteration(
         clobber=clobber,
     )
 
+    # pad the segmented volume so that it can be downsampled by the
+    # ammount of times specified by max_downsample_level
+    seg_pad_fn = pad_seg_volume(
+        row["seg_rsl_fn"], resolution, padding_offset=padding_offset
+    )
+
     if landmark_dir and "ref_landmark" in chunk_info.columns:
         print("\t\tCreate landmark transform")
         ymax = nib.load(row["init_volume"]).shape[1]
@@ -505,11 +517,11 @@ def alignment_iteration(
             sect_info,
             chunk_info["ref_landmark"].values[0],
             landmark_dir,
-            row["seg_rsl_fn"],
             ref_rsl_fn,
+            seg_pad_fn,
             ymax,
             section_thickness,
-            num_cores=num_cores,
+            padding_offset=padding_offset,
             clobber=clobber,
         )
     else:
@@ -520,11 +532,11 @@ def alignment_iteration(
     ### Stage 3.2 : Align chunks to MRI
     ###
     print("\t\tAlign chunks to MRI")
-    align_3d(
+    vol_tfm_list = align_3d(
         sub,
         hemisphere,
         chunk,
-        row["seg_rsl_fn"],
+        seg_pad_fn,
         ref_rsl_fn,
         row["align_3d_dir"],
         row["nl_3d_tfm_fn"],
@@ -552,7 +564,7 @@ def alignment_iteration(
         resolution,
         resolution_list,
         row["seg_rsl_fn"],
-        row["nl_3d_tfm_fn"],
+        vol_tfm_list,
         row["nl_2d_vol_fn"],
         row["nl_2d_vol_cls_fn"],
         row["section_thickness"],
@@ -563,8 +575,22 @@ def alignment_iteration(
     )
 
     row["ref_space_nat"] = ref_space_nat_fn
+
     chunk_info_out = pd.concat([chunk_info_out, row.to_frame().T])
+
     sect_info_out = pd.concat([sect_info_out, sect_info])
+
+    sect_info_curr_resolution_csv = (
+        output_dir
+        + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_sect_info.csv"
+    )
+    sect_info_out.to_csv(sect_info_curr_resolution_csv, index=False)
+
+    chunk_info_curr_resolution_csv = (
+        output_dir
+        + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_chunk_info.csv"
+    )
+    chunk_info_out.to_csv(chunk_info_curr_resolution_csv, index=False)
 
     return chunk_info_out, sect_info_out
 

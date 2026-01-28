@@ -7,11 +7,11 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
+# from brainbuilder.utils.nl_deformation_flow import nlflow_isometric
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import apply_transforms_parallel
 from brainbuilder.interp.acqvolume import create_thickened_volumes
 from brainbuilder.utils import utils
-from brainbuilder.utils.nl_deformation_flow import nlflow_isometric
 
 
 def idw(vol, nearest_i, min_dist, p=2):
@@ -254,6 +254,7 @@ def chunked_percentile(
     background=None,
     chunk=(48, 48, 48),
 ):
+    """Compute the voxel-wise p-th percentile across a set of volumes in chunks to save memory."""
     ref = nib.load(fins[0])
 
     shape, affine = ref.shape, ref.affine

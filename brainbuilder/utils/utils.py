@@ -525,11 +525,11 @@ def check_transformation_not_empty(
     """
     assert os.path.exists(out_fn), f"Error: transformed file does not exist {out_fn}"
 
-    total_value = np.sum(np.abs(nib.load(out_fn).dataobj))
+    dataobj = nibabel.load(out_fn).dataobj
 
     assert (
-        total_value > 0 or empty_ok
-    ), f"Error in applying transformation: sum of pixels/voxels = {total_value}: \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n"
+        np.min(dataobj) != np.max(dataobj) or empty_ok
+    ), f"Error in applying transformation: empty output \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n"
 
 
 def resample_struct_reference_volume(
@@ -553,6 +553,46 @@ def resample_struct_reference_volume(
         resample_to_resolution(orig_struct_vol_fn, [resolution] * 3, struct_vol_rsl_fn)
 
     return struct_vol_rsl_fn
+
+
+def concat_transforms_to_h5(
+    tfm_list: list[str],
+    out_h5: str,
+) -> str:
+    """Concatenate a displacement-field warp (.nii/.nii.gz) with an affine (.h5/.mat)
+    into a single CompositeTransform saved as .h5.
+
+    Forward convention (fixed -> moving): [warp, affine]  (warp first, then affine).
+    """
+    ants_tfm_list = []
+
+    for tfm in tfm_list:
+        if ".nii.gz" in tfm:
+            field = ants.image_read(
+                tfm
+            )  # .nii/.nii.gz -> DisplacementFieldImage :contentReference[oaicite:4]{index=4}
+            tx = ants.transform_from_displacement_field(field)
+        else:
+            tx = ants.read_transform(
+                tfm
+            )  # .nii/.nii.gz -> DisplacementFieldTransform :contentReference[oaicite:5]{index=5}
+
+        ants_tfm_list.append(tx)
+    print(ants_tfm_list)
+    # Important: pass in the same order you’d use in ANTs forward transforms (warp then affine). :contentReference[oaicite:6]{index=6}
+    comp = ants.compose_ants_transforms(
+        ants_tfm_list
+    )  # returns CompositeTransform :contentReference[oaicite:7]{index=7}
+    print("-->", out_h5)
+    ants.write_transform(
+        comp, out_h5
+    )  # writes transform to file :contentReference[oaicite:8]{index=8}
+
+    assert os.path.exists(out_h5) and ants.read_transform(
+        out_h5
+    ), f"Concatenated transform not created: {out_h5}"
+
+    return out_h5
 
 
 def simple_ants_apply_tfm(
@@ -1228,12 +1268,14 @@ def resample_to_resolution(
         order=order,
         anti_aliasing=True,
         anti_aliasing_sigma=sigma,
-    ).astype(dtype)
+    )
 
     if max_dims is not None:
         vol = pad_to_max_dims(vol, max_dims)
 
     vol *= factor
+
+    vol = vol.astype(dtype)
 
     assert np.sum(np.abs(vol)) > 0, (
         "Error: empty output array for prefilter_and_downsample\n" + output_filename
