@@ -1,3 +1,6 @@
 [submodule "caps"]
 	path = caps
 	url = https://github.com/kwagstyl/caps
+[submodule "morphint"]
+	path = morphint
+	url = https://github.com/tfunck/morphint

@@ -8,6 +8,8 @@ import pandas as pd
 from joblib import Parallel, delayed
 
 # from brainbuilder.utils.nl_deformation_flow import nlflow_isometric
+from morphint.morphint import morphint
+
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import apply_transforms_parallel
 from brainbuilder.interp.acqvolume import create_thickened_volumes
@@ -88,7 +90,7 @@ def volumetric_interpolation(
     resolution_list: list,
     interpolation: str = "Linear",
     tissue_type: str = "acq",
-    target_section: str = "2d_align",
+    target_section: str = "2d_align_3d_res",
     nlflow_tfm_dict: dict = None,
     num_cores: int = -1,
     clobber: bool = False,
@@ -113,10 +115,8 @@ def volumetric_interpolation(
     ), "Error: More than one chunk in the chunk info, should only be 1."
 
     acq_fin = chunk_info_thickened["thickened"].values[0]
-    print(tissue_type, target_section)
-    print("acq_fin:", acq_fin)
 
-    interp_iso_fin, nlflow_tfm_dict = nlflow_isometric(
+    interp_iso_fin, nlflow_tfm_dict = morphint(
         acq_fin,
         output_dir,
         resolution,
@@ -140,7 +140,7 @@ def volumetric_interpolation_over_dataframe(
     final_resolution: float = None,
     interpolation: str = "Linear",
     tissue_type: str = "cls",
-    target_section: str = "2d_align",
+    target_section: str = "2d_align_3d_res",
     num_cores: int = -1,
 ) -> pd.DataFrame:
     """Interpolates the volumes of the sections in the chunk_info dataframe.
@@ -189,6 +189,7 @@ def volumetric_interpolation_over_dataframe(
 
         curr_chunk_info = chunk_info[(chunk_info["chunk"] == chunk)]
 
+        # First calculate the interpolation for the acquisition volume
         interp_acq_iso_fin, nlflow_tfm_dict = volumetric_interpolation(
             curr_sect_info,
             curr_chunk_info,
@@ -200,6 +201,7 @@ def volumetric_interpolation_over_dataframe(
             clobber=clobber,
         )
 
+        # Then apply the same transformations (stored in nlflow_tfm_dict) to the segmentation volume
         interp_cls_iso_fin, _ = volumetric_interpolation(
             curr_sect_info,
             curr_chunk_info,

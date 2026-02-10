@@ -3,6 +3,7 @@
 import os
 import re
 import shutil
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -11,6 +12,7 @@ import pandas as pd
 from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
+from brainbuilder.align.paths import MultiResPaths
 from brainbuilder.utils import utils
 from brainbuilder.utils.ANTs import ANTs
 from brainbuilder.utils.utils import AntsParams, get_logger
@@ -362,7 +364,7 @@ def alignment_stage(
 
     shrink_factor = "4x3x2x1"
     smooth_sigma = ".8x0.66x.3x0"
-    iterations = "200x100x50x25"
+    iterations = "500x250x125x65"
 
     csv_fn = vol_fn_str.format(
         output_dir,
@@ -559,18 +561,28 @@ def initalign(
             )
             curr_chunk_info = chunk_info.loc[idx]
 
-            curr_output_dir = f"{output_dir}/{sub}_{hemisphere}_{chunk}/"
+            paths = MultiResPaths(
+                sub=sub,
+                hemisphere=hemisphere,
+                chunk=chunk,
+                resolution=None,
+                resolution_3d=None,
+                pass_step=None,
+                output_dir=Path(output_dir),
+            )
 
             curr_sect_info, curr_chunk_info = align_chunk(
                 sub,
                 hemisphere,
                 chunk,
-                curr_output_dir,
+                paths.init_volume,
+                paths.init_align_dir,
                 curr_sect_info,
                 linParams,
                 curr_chunk_info,
                 clobber=clobber,
             )
+
             initalign_sect_info = pd.concat([initalign_sect_info, curr_sect_info])
             initalign_chunk_info = pd.concat([initalign_chunk_info, curr_chunk_info])
 
@@ -619,7 +631,8 @@ def align_chunk(
     sub: str,
     hemisphere: str,
     chunk: str,
-    output_dir: str,
+    init_align_fn: Path,
+    init_align_dir: Path,
     sect_info: pd.DataFrame,
     linParams: str,
     chunk_info: pd.DataFrame,
@@ -636,10 +649,7 @@ def align_chunk(
     param clobber: overwrite existing files
     return: dataframe containing section information
     """
-    os.makedirs(output_dir, exist_ok=True)
-
-    init_align_fn = f"{output_dir}/{sub}_{hemisphere}_{chunk}_init_align.nii.gz"
-    init_tfm_csv = f"{output_dir}/{sub}_{hemisphere}_{chunk}_init_tfm.csv"
+    init_tfm_csv = f"{init_align_dir}/{sub}_{hemisphere}_{chunk}_init_tfm.csv"
 
     df = sect_info.copy()
 
@@ -653,16 +663,14 @@ def align_chunk(
     chunk_img_fn_str = "{}/sub-{}_hemi-{}_chunk-{}_acquisition_{}_{}_init_align_{}.{}"
 
     n_acquisitions = len(df["acquisition"].unique())
-    _, z_mm, y_mm = utils.get_chunk_pixel_size(sub, hemisphere, chunk, chunk_info)
-
-    direction = utils.get_chunk_direction(sub, hemisphere, chunk, chunk_info)
+    _, _, y_mm = utils.get_chunk_pixel_size(sub, hemisphere, chunk, chunk_info)
 
     ###########
     # Stage 1 #
     ###########
     logger.info("\t\tAlignment: Stage 1")
     # Perform within acquisition alignment
-    output_dir_1 = output_dir + os.sep + "stage_1"
+    output_dir_1 = init_align_dir + os.sep + "stage_1"
 
     # Iterate data frames over each acquisition
     df_acquisition = df.loc[df["acquisition"] == acquisition_contrast_order[0]]
@@ -692,7 +700,7 @@ def align_chunk(
     # Stage 2 #
     ###########
     # Align acquisitions to one another based on mean pixel intensity. Start with highest first because these have better contrast
-    output_dir_2 = output_dir + os.sep + "stage_2"
+    output_dir_2 = init_align_dir + os.sep + "stage_2"
     concat_list = [
         df_acquisition.loc[
             df_acquisition["acquisition"] == acquisition_contrast_order[0]
@@ -744,7 +752,7 @@ def align_chunk(
     ###########
     # Stage 3 #
     ###########
-    final_tfm_dir = output_dir + os.sep + "final_tfm"
+    final_tfm_dir = init_align_dir + os.sep + "final_tfm"
     os.makedirs(final_tfm_dir, exist_ok=True)
     df = stage_2_df
     df = create_final_outputs(final_tfm_dir, df, 1)

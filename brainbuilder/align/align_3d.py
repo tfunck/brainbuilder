@@ -89,8 +89,11 @@ def get_ref_info(ref_rsl_fn: str) -> tuple:
     return ref_width, ref_min, ref_max, ref_ystep, ref_ystart
 
 
-def pad_seg_volume(
-    seg_rsl_fn: str, resolution: float, padding_offset: float = 0.15
+def pad_acq_volume(
+    seg_rsl_fn: str,
+    seg_rsl_pad_fn: str,
+    resolution: float,
+    padding_offset: float = 0.15,
 ) -> str:
     """Pad a volume to center it while keeping it centered in the world coordinates.
 
@@ -112,8 +115,6 @@ def pad_seg_volume(
         padding_offset=padding_offset,
         direction=direction[[0, 1, 2], [0, 1, 2]],
     )
-
-    seg_rsl_pad_fn = re.sub(".nii", "_padded.nii", seg_rsl_fn)
 
     nib.Nifti1Image(
         pad_seg_volume, pad_affine, direction=direction, dtype=np.uint8
@@ -260,7 +261,6 @@ def set_init_tfm(init_tfm, fx_fn, mv_fn) -> str:
 def run_alignment(
     out_dir: str,
     out_tfm_fn: str,
-    out_inv_fn: str,
     out_fn: str,
     mv_fn: str,
     fx_fn: str,
@@ -303,8 +303,6 @@ def run_alignment(
         prefix = re.sub(
             "_SyN_Mattes_Composite.h5", "", out_tfm_fn
         )  # FIXME this is bad coding
-
-    f"{prefix}/log.txt"
 
     prefix + "_init_"
     prefix_rigid = prefix + "_Rigid_"
@@ -423,6 +421,7 @@ def run_alignment(
         orig_mv_fn, fx_fn, out_tfm_list, out_fn, n="BSpline[2]", clobber=clobber
     )
 
+    print(f"\n\n--> init_tfm: {init_tfm}\n{out_tfm_list}\n\n")
     # if os.path.exists(f"{prefix_syn}InverseComposite.h5"):
     #    utils.simple_ants_apply_tfm(
     #        fx_fn, mv_fn, prefix_syn + "InverseComposite.h5", out_inv_fn, n="BSpline[2]",
@@ -435,13 +434,11 @@ def align_3d(
     sub: str,
     hemi: str,
     chunk: int,
-    seg_rsl_fn: str,
     ref_rsl_fn: str,
+    seg_rsl_fn: str,
     out_dir: str,
     out_tfm_fn: str,
-    out_tfm_inv_fn: str,
     out_fn: str,
-    out_inv_fn: str,
     resolution: int,
     resolution_list: List[int],
     world_chunk_limits: Tuple[float, float],
@@ -511,7 +508,6 @@ def align_3d(
     vol_tfm_list = run_alignment(
         out_dir,
         out_tfm_fn,
-        out_tfm_inv_fn,
         out_fn,
         # ref_rsl_fn,
         ref_chunk_fn,

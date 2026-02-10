@@ -190,7 +190,7 @@ def reconstruct(
     logger.info("Stage: Initial rigid alignment of sections")
     # Stage: Initial rigid aligment of sections
     sect_info_csv, init_chunk_csv = initalign(
-        sect_info_csv, chunk_info_csv, initalign_dir, resolution_list, clobber=clobber
+        sect_info_csv, chunk_info_csv, output_dir, resolution_list, clobber=clobber
     )
 
     if use_intensity_correction:
@@ -206,7 +206,7 @@ def reconstruct(
         init_chunk_csv,
         sect_info_csv,
         resolution_list,
-        multires_align_dir,
+        output_dir,
         max_resolution_3d=max_resolution_3d,
         use_3d_syn_cc=use_3d_syn_cc,
         use_syn=use_syn,

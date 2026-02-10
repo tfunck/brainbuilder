@@ -11,63 +11,12 @@ from skimage.filters import threshold_otsu
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import align_2d
-from brainbuilder.align.align_3d import align_3d, pad_seg_volume
+from brainbuilder.align.align_3d import align_3d, pad_acq_volume
 from brainbuilder.align.align_landmarks import create_landmark_transform
-from brainbuilder.align.intervolume import create_intermediate_volume
+from brainbuilder.align.intervolume import create_intermediate_acq_volume
+from brainbuilder.align.paths import MultiResPaths
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
-
-
-def get_multiresolution_filenames(
-    row: pd.DataFrame,
-    sub: str,
-    hemisphere: str,
-    chunk: int,
-    resolution: float,
-    resolution_3d: float,
-    pass_step: int,
-    cur_out_dir: str,
-    use_3d_syn_cc: bool = True,
-) -> pd.DataFrame:
-    """Set filenames for each stage of multiresolution stages.
-
-    :param row: row of dataframe
-    :param sub: subject name
-    :param hemisphere: hemisphere name
-    :param chunk: chunk name
-    :param resolution: resolution of chunk
-    :param pass_step: pass step within current iteration
-    :param out_dir: output directory
-    :return row: row of dataframe with filenames
-    """
-    # Set directory names for multi-resolution alignment
-    prefix = f"sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm"
-    prefix_3d = f"sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution_3d}mm"
-
-    align_3d_dir = f"{cur_out_dir}/3.2_align_3d/"
-    seg_dir = f"{cur_out_dir}/3.1_intermediate_volume/"
-    nl_2d_dir = f"{cur_out_dir}/3.3_align_2d"
-
-    row["cur_out_dir"] = cur_out_dir
-    row["seg_dir"] = seg_dir
-    row["align_3d_dir"] = align_3d_dir
-    row["nl_2d_dir"] = nl_2d_dir
-
-    nl_method = "CC" if use_3d_syn_cc else "Mattes"
-
-    row["seg_rsl_fn"] = f"{seg_dir}/{prefix_3d}_seg.nii.gz"
-    row["rec_3d_rsl_fn"] = f"{align_3d_dir}/{prefix}_rec_space-mri.nii.gz"
-    row["ref_3d_rsl_fn"] = f"{align_3d_dir}/{prefix_3d}_mri_gm_space-rec.nii.gz"
-    row[
-        "nl_3d_tfm_fn"
-    ] = f"{align_3d_dir}/{prefix}_rec_to_mri_SyN_{nl_method}_Composite.h5"
-    row[
-        "nl_3d_tfm_inv_fn"
-    ] = f"{align_3d_dir}/{prefix}_rec_to_mri_SyN_{nl_method}_InverseComposite.h5"
-    row["nl_2d_vol_fn"] = f"{nl_2d_dir}/{prefix}_nl_2d.nii.gz"
-    row["nl_2d_vol_cls_fn"] = f"{nl_2d_dir}/{prefix}_nl_2d_cls.nii.gz"
-
-    return row
 
 
 def check_chunk_outputs(chunk_csv: str) -> None:
@@ -179,11 +128,11 @@ def multiresolution_alignment(
             )
 
             # get chunk_info for current chunk
-            curr_chunk_info = chunk_info.loc[idx]
+            chunk_info_row = chunk_info.loc[idx]
 
             # Check that curr_chunk_info has only one row
             assert (
-                len(curr_chunk_info) == 1
+                len(chunk_info_row) == 1
             ), f"Error: chunk_info has multiple rows for sub-{sub}_hemi-{hemisphere}_chunk-{chunk}"
 
             # get structural reference volume
@@ -195,8 +144,8 @@ def multiresolution_alignment(
                 .values[0]
             )
 
-            curr_chunk_info, curr_sect_info = align_chunk(
-                curr_chunk_info,
+            chunk_info_row, curr_sect_info = align_chunk(
+                chunk_info_row,
                 curr_sect_info,
                 resolution_list,
                 resolution_list_3d,
@@ -212,7 +161,7 @@ def multiresolution_alignment(
                 clobber=clobber,
             )
 
-            chunk_info_out = pd.concat([chunk_info_out, curr_chunk_info])
+            chunk_info_out = pd.concat([chunk_info_out, chunk_info_row])
             sect_info_out = pd.concat([sect_info_out, curr_sect_info])
 
         chunk_info_out.to_csv(chunk_output_csv, index=False)
@@ -392,6 +341,7 @@ def alignment_iteration(
     hemisphere: str,
     chunk: int,
     output_dir: str,
+    paths: MultiResPaths,
     sect_info: pd.DataFrame,
     chunk_info: pd.DataFrame,
     ref_vol_fn: str,
@@ -402,13 +352,14 @@ def alignment_iteration(
     max_resolution_3d: float,
     resolution_list_3d: list,
     use_syn: bool = False,
-    pass_step: int = 0,
     num_cores: int = 1,
     use_3d_syn_cc: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
     interpolation: str = "Linear",
     padding_offset: float = 0.15,  # offset for % by which we pad the segmentation volume at the start and end of each direction
     landmark_dir: str = None,
+    section_thickness: float = 0.02,
+    skip_2d_alignment: bool = False,
     clobber: bool = False,
 ) -> tuple:
     """Perform 3D-2D alignment for each resolution.
@@ -418,47 +369,16 @@ def alignment_iteration(
     3) Align sections to GM volume in 2D.
     """
     print("\t\tCreate intermediate 3d volume")
-    row = chunk_info.iloc[0, :].squeeze()
-    row["resolution"] = resolution
 
     chunk_info_out = pd.DataFrame()
-    sect_info_out = pd.DataFrame()
-
-    cur_out_dir = f"{output_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/{resolution}mm/pass_{pass_step}/"
-
-    row = get_multiresolution_filenames(
-        row,
-        sub,
-        hemisphere,
-        chunk,
-        resolution,
-        resolution_3d,
-        pass_step,
-        cur_out_dir,
-        use_3d_syn_cc=use_3d_syn_cc,
-    )
-
-    dirs_to_create = [
-        row["cur_out_dir"],
-        row["align_3d_dir"],
-        row["seg_dir"],
-        row["nl_2d_dir"],
-    ]
-    for dir_name in dirs_to_create:
-        os.makedirs(dir_name, exist_ok=True)
 
     # downsample the original ref gm mask to current 3d resolution
-    ref_rsl_fn = (
-        row["align_3d_dir"]
-        + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution_3d}mm_mri_gm.nii.gz"
-    )
-
-    if not os.path.exists(ref_rsl_fn):
+    if not os.path.exists(paths.ref_rsl_fn):
         order = 1
         utils.resample_to_resolution(
             ref_vol_fn,
             [resolution_3d] * 3,
-            ref_rsl_fn,
+            paths.ref_rsl_fn,
             order=order,
             dtype=np.uint8,
             factor=255,
@@ -466,6 +386,7 @@ def alignment_iteration(
 
     # insert 2d intersection alignment
     use_2d_intersection = False
+
     if use_2d_intersection:  # Experimental feature, not yet tested
         from brainbuilder.align.align_2d_intersection import align_2d_intersection
 
@@ -479,18 +400,21 @@ def alignment_iteration(
             clobber=clobber,
         )
 
-    world_chunk_limits, vox_chunk_limits = verify_chunk_limits(ref_rsl_fn, chunk_info)
+    world_chunk_limits, vox_chunk_limits = verify_chunk_limits(
+        paths.ref_rsl_fn, chunk_info
+    )
 
-    sect_info = create_intermediate_volume(
+    # define paths
+    sect_info = create_intermediate_acq_volume(
         chunk_info,
         sect_info,
         resolution_itr,
         resolution,
         resolution_list,
         resolution_3d,
-        row["seg_dir"],
-        row["seg_rsl_fn"],
-        row["init_volume"],
+        paths.intermediate_volume_dir,
+        paths.acq_rsl_fn,
+        paths.init_volume,
         num_cores=num_cores,
         interpolation="linear",
         clobber=clobber,
@@ -498,14 +422,13 @@ def alignment_iteration(
 
     # pad the segmented volume so that it can be downsampled by the
     # ammount of times specified by max_downsample_level
-    seg_pad_fn = pad_seg_volume(
-        row["seg_rsl_fn"], resolution, padding_offset=padding_offset
+    pad_acq_volume(
+        paths.acq_rsl_fn, paths.acq_pad_fn, resolution, padding_offset=padding_offset
     )
 
-    if landmark_dir and "ref_landmark" in chunk_info.columns:
+    if landmark_dir and paths.ref_landmark_volume:
         print("\t\tCreate landmark transform")
-        ymax = nib.load(row["init_volume"]).shape[1]
-        section_thickness = chunk_info["section_thickness"].values[0]
+        ymax = nib.load(paths.init_volume).shape[1]
 
         init_tfm = create_landmark_transform(
             sub,
@@ -513,12 +436,14 @@ def alignment_iteration(
             chunk,
             resolution,
             max_resolution_3d,
-            cur_out_dir + "/landmarks/",
+            output_dir + "/landmarks/",
             sect_info,
-            chunk_info["ref_landmark"].values[0],
+            paths.acq_landmark_volume,
+            paths.moving_landmark_volume,
+            paths.fixed_landmark_volume,
             landmark_dir,
-            ref_rsl_fn,
-            seg_pad_fn,
+            paths.moving_volume,
+            paths.fixed_volume,
             ymax,
             section_thickness,
             padding_offset=padding_offset,
@@ -526,7 +451,9 @@ def alignment_iteration(
         )
     else:
         init_tfm = None
+        print(paths.ref_landmark_volume)
         print("\t\tNo landmark transform provided")
+        exit()
 
     ###
     ### Stage 3.2 : Align chunks to MRI
@@ -536,13 +463,11 @@ def alignment_iteration(
         sub,
         hemisphere,
         chunk,
-        seg_pad_fn,
-        ref_rsl_fn,
-        row["align_3d_dir"],
-        row["nl_3d_tfm_fn"],
-        row["nl_3d_tfm_inv_fn"],
-        row["rec_3d_rsl_fn"],
-        row["ref_3d_rsl_fn"],
+        paths.moving_volume,
+        paths.fixed_volume,
+        paths.align_3d_dir,
+        paths.nl_3d_tfm_fn,
+        paths.ref_3d_rsl_fn,
         resolution_3d,
         resolution_list_3d,
         world_chunk_limits,
@@ -556,47 +481,41 @@ def alignment_iteration(
     ###
     ### Stage 3.3 : 2D alignment of receptor to resample MRI GM vol
     ###
-    print("\t\t2D alignment of receptor to resample MRI GM vol")
-    sect_info, ref_space_nat_fn = align_2d(
-        sect_info,
-        row["nl_2d_dir"],
-        ref_rsl_fn,
-        resolution,
-        resolution_list,
-        row["seg_rsl_fn"],
-        vol_tfm_list,
-        row["nl_2d_vol_fn"],
-        row["nl_2d_vol_cls_fn"],
-        row["section_thickness"],
-        file_to_align="seg_rsl",
-        use_syn=use_syn,
-        num_cores=num_cores,
-        clobber=clobber,
-    )
+    print(sect_info["2d_align"].values)
+    if not skip_2d_alignment:
+        print("\t\t2D alignment of receptor to resample MRI GM vol")
+        sect_info, _ = align_2d(
+            sect_info,
+            paths.align_2d_dir,
+            paths.ref_rsl_fn,
+            resolution,
+            resolution_list,
+            paths.acq_rsl_fn,
+            vol_tfm_list,
+            paths.nl_2d_vol_fn,
+            paths.nl_2d_vol_cls_fn,
+            section_thickness,
+            file_to_align="2d_align",
+            use_syn=use_syn,
+            num_cores=num_cores,
+            clobber=clobber,
+        )
 
-    row["ref_space_nat"] = ref_space_nat_fn
+    chunk_info_out = paths.to_dataframe()
 
-    chunk_info_out = pd.concat([chunk_info_out, row.to_frame().T])
+    sect_info_curr_resolution_csv = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_sect_info.csv"
 
-    sect_info_out = pd.concat([sect_info_out, sect_info])
+    sect_info.to_csv(sect_info_curr_resolution_csv, index=False)
 
-    sect_info_curr_resolution_csv = (
-        output_dir
-        + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_sect_info.csv"
-    )
-    sect_info_out.to_csv(sect_info_curr_resolution_csv, index=False)
+    chunk_info_curr_resolution_csv = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_chunk_info.csv"
 
-    chunk_info_curr_resolution_csv = (
-        output_dir
-        + f"/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_chunk_info.csv"
-    )
     chunk_info_out.to_csv(chunk_info_curr_resolution_csv, index=False)
 
-    return chunk_info_out, sect_info_out
+    return chunk_info_out, sect_info
 
 
 def align_chunk(
-    chunk_info: pd.DataFrame,
+    chunk_info_row: pd.DataFrame,
     sect_info: pd.DataFrame,
     resolution_list: list,
     resolution_list_3d: list,
@@ -629,7 +548,7 @@ def align_chunk(
     :param num_cores:          number of cores to use
     :return sect_info: updated sect_info data frame with filenames for nonlinearly 2d aligned sections
     """
-    sub, hemisphere, chunk = utils.get_values_from_df(chunk_info)
+    sub, hemisphere, chunk = utils.get_values_from_df(chunk_info_row)
 
     print("\tAlignment to reference:", sub, hemisphere, chunk)
 
@@ -642,7 +561,7 @@ def align_chunk(
     sect_pass_last_df = pd.DataFrame()
 
     sect_info_out = sect_info
-    chunk_info_out = chunk_info
+    chunk_info_out = chunk_info_row
 
     ### Iterate over progressively finer resolution
     for resolution_itr, resolution in enumerate(resolution_list):
@@ -656,11 +575,38 @@ def align_chunk(
             # 1) Create intermediate GM volume using best availble 2D transforms
             # 2) Align GM volume to MRI in 3D
             # 3) Align sections to GM volume in 2D
+
+            ref_landmark_volume = (
+                chunk_info_row["ref_landmark"].values[0]
+                if "ref_landmark" in chunk_info_row.columns
+                else ""
+            )
+
+            section_thickness = chunk_info_row["section_thickness"].values[0]
+
+            paths = MultiResPaths(
+                sub=sub,
+                hemisphere=hemisphere,
+                chunk=chunk,
+                resolution=resolution,
+                resolution_3d=resolution_3d,
+                pass_step=pass_step,
+                output_dir=Path(output_dir),
+                moving="ref_rsl_fn",
+                fixed="acq_pad_fn",
+                ref_landmark_volume=ref_landmark_volume,
+                section_thickness=section_thickness,
+                moving_landmark_volume=ref_landmark_volume,
+                fixed_landmark="acq_landmark_volume",
+                use_3d_syn_cc=use_3d_syn_cc,
+            )
+
             chunk_info_out, sect_info_out = alignment_iteration(
                 sub,
                 hemisphere,
                 chunk,
                 output_dir,
+                paths,
                 sect_info_out,
                 chunk_info_out,
                 ref_vol_fn,
@@ -670,10 +616,10 @@ def align_chunk(
                 resolution_3d,
                 max_resolution_3d,
                 resolution_list_3d,
-                pass_step=pass_step,
                 use_3d_syn_cc=use_3d_syn_cc,
                 use_syn=use_syn,
                 linear_steps=linear_steps,
+                section_thickness=section_thickness,
                 num_cores=num_cores,
                 interpolation=interpolation,
                 landmark_dir=landmark_dir,
@@ -688,5 +634,45 @@ def align_chunk(
             if pass_step == n_passes - 1 and resolution == resolution_list[-1]:
                 chunk_pass_last_df = pd.concat([chunk_pass_last_df, chunk_info_out])
                 sect_pass_last_df = pd.concat([sect_pass_last_df, sect_info_out])
+
+    paths = MultiResPaths(
+        sub=sub,
+        hemisphere=hemisphere,
+        chunk=chunk,
+        resolution=resolution,
+        resolution_3d=resolution_3d,
+        pass_step=pass_step,
+        output_dir=Path(output_dir),
+        moving="acq_pad_fn",
+        fixed="ref_rsl_fn",
+        ref_landmark_volume=ref_landmark_volume,
+        fixed_landmark_volume=ref_landmark_volume,
+        moving_landmark="acq_landmark_volume",
+        use_3d_syn_cc=use_3d_syn_cc,
+    )
+
+    chunk_info_out, sect_info_out = alignment_iteration(
+        sub,
+        hemisphere,
+        chunk,
+        output_dir,
+        sect_info_out,
+        chunk_info_out,
+        ref_vol_fn,
+        resolution_itr,
+        resolution_list,
+        resolution,
+        resolution_3d,
+        max_resolution_3d,
+        resolution_list_3d,
+        pass_step=pass_step,
+        use_3d_syn_cc=use_3d_syn_cc,
+        use_syn=use_syn,
+        linear_steps=linear_steps,
+        num_cores=num_cores,
+        interpolation=interpolation,
+        landmark_dir=landmark_dir,
+        clobber=clobber,
+    )
 
     return chunk_pass_last_df, sect_pass_last_df

@@ -971,7 +971,6 @@ def parse_resample_arguments(
         if ".nii" in input_arg:
             img = ants.image_read(input_arg)
 
-            vol = img.numpy()
             origin = img.origin
             spacing = img.spacing
             direction = img.direction
@@ -980,6 +979,8 @@ def parse_resample_arguments(
 
             if isinstance(dtype, type(None)):
                 dtype = img.dtype
+
+            vol = img.numpy()
         else:
             vol = load_image(input_arg)
             origin, spacing, direction = get_params_from_affine(aff, len(vol.shape))
@@ -1005,6 +1006,9 @@ def parse_resample_arguments(
         assert isinstance(
             output_filename, str
         ), f"Error: output filename must be as string, got {type(output_filename)}"
+
+    vol = np.array(vol, dtype=dtype)
+    print("vol shape", vol.shape, dtype)
 
     vol_sum = np.sum(np.abs(vol))
     assert (
@@ -1260,8 +1264,6 @@ def resample_to_resolution(
     else:
         sigma = 0
 
-    # sigma[sigma <= 1] = 0
-
     vol = resize(
         vol.astype(float),
         new_dims,
@@ -1269,13 +1271,12 @@ def resample_to_resolution(
         anti_aliasing=True,
         anti_aliasing_sigma=sigma,
     )
+    vol = vol.astype(dtype)
 
     if max_dims is not None:
         vol = pad_to_max_dims(vol, max_dims)
 
     vol *= factor
-
-    vol = vol.astype(dtype)
 
     assert np.sum(np.abs(vol)) > 0, (
         "Error: empty output array for prefilter_and_downsample\n" + output_filename

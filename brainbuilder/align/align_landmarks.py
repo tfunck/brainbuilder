@@ -767,15 +767,17 @@ def check_for_identical_landmark_values(
         raise ValueError("Some labels appear in multiple landmark files.")
 
 
-def validate_landmark_labels(acq_landmark_path: str, ref_landmark_path: str) -> None:
+def validate_landmark_labels(
+    fixed_landmark_path: str, moving_landmark_path: str
+) -> None:
     """Validate that acquisition and reference landmark volumes have matching labels.
 
     :param acq_landmark_path: path to acquisition landmark volume
     :param ref_landmark_path: path to reference landmark volume
     :raises AssertionError: if label sets don't match
     """
-    ar0_img = nib.load(acq_landmark_path)
-    ar1_img = nib.load(ref_landmark_path)
+    ar0_img = nib.load(fixed_landmark_path)
+    ar1_img = nib.load(moving_landmark_path)
 
     ar0 = np.array(ar0_img.dataobj)
     ar1 = np.array(ar1_img.dataobj)
@@ -785,7 +787,7 @@ def validate_landmark_labels(acq_landmark_path: str, ref_landmark_path: str) -> 
 
     assert (
         set(ar0_labels) == set(ar1_labels)
-    ), f"Source and target (ref) landmark volumes have different labels.\n\t{acq_landmark_path}: {ar0_labels}\n\t{ref_landmark_path}: {ar1_labels}"
+    ), f"Source and target (ref) landmark volumes have different labels.\n\t{fixed_landmark_path}: {ar0_labels}\n\t{moving_landmark_path}: {ar1_labels}"
 
 
 def adjust_reference_landmark_labels(
@@ -800,8 +802,8 @@ def adjust_reference_landmark_labels(
     :param clobber: overwrite existing files
     :return: path to adjusted reference landmark file
     """
-    adjusted_ref_landmark_path = f"{output_dir}/adjusted_" + os.path.basename(
-        ref_landmark_path
+    adjusted_ref_landmark_path = (
+        f"{output_dir}/adjusted_{os.path.basename(ref_landmark_path)}"
     )
 
     if os.path.exists(adjusted_ref_landmark_path) and not clobber:
@@ -842,7 +844,9 @@ def create_landmark_transform(
     resolution_3d: float,
     output_dir: str,
     sect_info: pd.DataFrame,
-    ref_landmark_path: str,
+    acq_landmark_path: str,
+    moving_landmark_path: str,
+    fixed_landmark_path: str,
     landmark_dir: str,
     moving_qc_vol_path,
     fixed_qc_vol_path,
@@ -874,15 +878,17 @@ def create_landmark_transform(
 
     transform_type = "bspline"
 
-    acq_landmark_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_acq_landmarks_itr-{resolution}mm.nii.gz"
     landmark_tfm_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_landmark_init_itr-{resolution}mm_{transform_type}_{mesh_size}_Composite.h5"
 
     # if os.path.exists(landmark_tfm_path) and not clobber:
     #    print(f"Landmark transform already exists: {landmark_tfm_path}")
     #    return landmark_tfm_path
-    ref_landmark_path = adjust_reference_landmark_labels(
-        ref_landmark_path, output_dir, clobber=clobber
-    )
+
+    # TODO move this to a separate pre-processing step
+    # moving_landmark_path = adjust_reference_landmark_labels(
+    #    moving_landmark_path, output_dir, clobber=clobber
+    # )
+    # check_for_identical_landmark_values(sect_info["landmark"], moving_landmark_path)
 
     if landmark_dir:
         sect_info["landmark"] = find_landmark_files(sect_info, landmark_dir)
@@ -891,8 +897,6 @@ def create_landmark_transform(
     assert (
         sect_info["landmark"].notnull().sum() > 0
     ), f"No landmark files found in {landmark_dir}."
-
-    check_for_identical_landmark_values(sect_info["landmark"], ref_landmark_path)
 
     sect_info = build_sparse_landmark_volume(
         acq_landmark_path,
@@ -908,13 +912,13 @@ def create_landmark_transform(
         clobber=clobber,
     )
 
-    validate_landmark_labels(acq_landmark_path, ref_landmark_path)
+    validate_landmark_labels(fixed_landmark_path, moving_landmark_path)
 
     print("Creating landmark transform...")
     init_tfms = init_landmark_transform(
         landmark_tfm_path,
-        acq_landmark_path,  # fixed is acq because we are aligning to the acquisition volume
-        ref_landmark_path,  # moving is the ref in template space
+        fixed_landmark_path,  # fixed is acq because we are aligning to the acquisition volume
+        moving_landmark_path,  # moving is the ref in template space
         transform_type=transform_type,
         qc_dir=qc_dir,
         fixed_qc_vol_path=fixed_qc_vol_path,

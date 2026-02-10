@@ -55,8 +55,8 @@ def resample_reference_to_sections(
     """
     basename = os.path.basename(input_fn).split(".")[0]
 
-    iso_output_fn = f"{output_dir}/{basename}_{resolution}mm_iso.nii.gz"
-    output_fn = f"{output_dir}/{basename}_{resolution}mm_space-nat.nii.gz"
+    iso_output_fn = f"{output_dir}/{basename}_iso.nii.gz"
+    output_fn = f"{output_dir}/{basename}_space_nat.nii.gz"
 
     if not os.path.exists(iso_output_fn) or not os.path.exists(output_fn) or clobber:
         # Apply 3d transformation to the reference volume
@@ -337,7 +337,7 @@ def align_2d_parallel(
     resolution: float,
     resolution_list: list,
     row: pd.Series,
-    file_to_align: str = "seg_rsl",
+    file_to_align: str = "2d_align",
     use_syn: bool = True,
     base_lin_itr: int = 100,
     base_nl_itr: int = 30,
@@ -381,6 +381,8 @@ def align_2d_parallel(
 
     mv_fn = row[file_to_align]
 
+    print(file_to_align, mv_fn)
+
     verbose = False
     affine_tfm = affine_trials(
         fx_fn, mv_fn, linParams, prefix, n_trials=n_affine_trials, verbose=verbose
@@ -409,23 +411,7 @@ def align_2d_parallel(
     else:
         syn_tfm = affine_tfm
 
-    cmd = f"antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {mv_fn} -r {fx_fn} -t {syn_tfm} -o {row['2d_align_cls']} "
-
-    shell(cmd, True)
-
     shutil.copy(syn_tfm, row["2d_tfm"])
-
-    plt.imshow(nib.load(fx_fn).get_fdata())
-    plt.imshow(
-        nib.load(row["2d_align_cls"]).get_fdata(), cmap="nipy_spectral", alpha=0.4
-    )
-    plt.savefig(f"{prefix}_qc.png")
-    plt.close()
-
-    # assert np.sum(nib.load(prefix+'_cls_rsl.nii.gz').dataobj) > 0, 'Error: 2d affine transfromation failed'
-    assert os.path.exists(
-        f"{prefix}_cls_rsl.nii.gz"
-    ), f"Error: output does not exist {prefix}_cls_rsl.nii.gz"
 
     return 0
 
@@ -449,7 +435,8 @@ def apply_transforms_parallel(
     :param row: row
     :return: 0
     """
-    out_fn = row["2d_align" + tissue_str]
+    out_fn = row["2d_align" + tissue_str + "_out"]
+    print(tissue_str)
 
     if os.path.exists(out_fn):
         return out_fn
@@ -474,10 +461,6 @@ def apply_transforms_parallel(
 
     # if we're not at the final resolution, we need to downsample the image
     if resolution != img_res[0] or resolution != img_res[1]:
-        # sigma = utils.calculate_sigma_for_downsampling(resolution / img_res)
-        # vol = img.get_fdata()
-        # vol = gaussian_filter(vol, sigma)
-
         resample_to_resolution(
             img_fn,
             [float(resolution), float(resolution)],
@@ -485,7 +468,6 @@ def apply_transforms_parallel(
             output_filename=img_rsl_fn,
         )
 
-        # nib.Nifti1Image(vol, img.affine, direction_order="lpi").to_filename(img_rsl_fn)
     else:
         # if we're at the final resolution, we need to symlink the image
 
@@ -510,6 +492,11 @@ def apply_transforms_parallel(
 
     shell(cmd, True)
 
+    plt.imshow(nib.load(fx_fn).get_fdata())
+    plt.imshow(nib.load(out_fn).get_fdata(), cmap="nipy_spectral", alpha=0.4)
+    plt.savefig(f"{prefix}_qc.png")
+    plt.close()
+
     assert os.path.exists(f"{out_fn}"), "Error apply nl 2d tfm to img autoradiograph"
 
     return out_fn
@@ -527,15 +514,15 @@ def get_align_2d_to_do(sect_info: pd.DataFrame, clobber: bool = False) -> tuple:
     to_do_sect_info = []
     to_do_resample_sect_info = []
 
-    for idx, (_, row) in enumerate(sect_info.iterrows()):
-        cls_fn = row["2d_align_cls"]
+    for _, row in sect_info.iterrows():
         tfm_fn = row["2d_tfm"]
-        out_fn = row["2d_align"]
+        out_fn = row["2d_align_out"]
+        out_cls_fn = row["2d_align_cls_out"]
 
-        if not os.path.exists(tfm_fn) or not os.path.exists(cls_fn) or clobber:
+        if not os.path.exists(tfm_fn) or not os.path.exists(out_cls_fn) or clobber:
             to_do_sect_info.append(row)
 
-        if not os.path.exists(out_fn):
+        if not os.path.exists(out_fn) or True:
             to_do_resample_sect_info.append(row)
 
     return to_do_sect_info, to_do_resample_sect_info
@@ -555,8 +542,8 @@ def get_align_filenames(
 
     sect_info["2d_tfm_affine"] = [""] * sect_info.shape[0]
     sect_info["2d_tfm"] = [""] * sect_info.shape[0]
-    sect_info["2d_align"] = [""] * sect_info.shape[0]
-    sect_info["2d_align_cls"] = [""] * sect_info.shape[0]
+    sect_info["2d_align_out"] = [""] * sect_info.shape[0]
+    sect_info["2d_align_cls_out"] = [""] * sect_info.shape[0]
 
     for idx, (_, row) in enumerate(sect_info.iterrows()):
         y = int(row["sample"])
@@ -570,8 +557,8 @@ def get_align_filenames(
         sect_info.loc[idx, "2d_tfm"] = tfm_fn
         sect_info.loc[idx, "2d_tfm_affine"] = tfm_affine_fn
 
-        sect_info.loc[idx, "2d_align_cls"] = cls_fn
-        sect_info.loc[idx, "2d_align"] = out_fn
+        sect_info.loc[idx, "2d_align_cls_out"] = cls_fn
+        sect_info.loc[idx, "2d_align_out"] = out_fn
 
     return sect_info
 
@@ -611,8 +598,6 @@ def align_sections(
     """
     num_cores = cpu_count() if num_cores == 0 else num_cores
 
-    # num_cores = 1
-
     sect_info.reset_index(drop=True, inplace=True)
 
     tfm_dir = output_dir + os.sep + "tfm"
@@ -639,12 +624,21 @@ def align_sections(
         )
 
     if len(to_do_resample_sect_info) > 0:
-        Parallel(n_jobs=num_cores, backend="multiprocessing")(
-            delayed(apply_transforms_parallel)(
-                tfm_dir, resolution, row, interpolation=interpolation, verbose=verbose
+        for tissue_str in ["", "_cls"]:
+            Parallel(n_jobs=num_cores, backend="multiprocessing")(
+                delayed(apply_transforms_parallel)(
+                    tfm_dir,
+                    resolution,
+                    row,
+                    tissue_str=tissue_str,
+                    interpolation=interpolation,
+                    verbose=verbose,
+                )
+                for row in to_do_resample_sect_info
             )
-            for row in to_do_resample_sect_info
-        )
+
+    sect_info["2d_align"] = sect_info["2d_align_out"]
+    sect_info["2d_align_cls"] = sect_info["2d_align_cls_out"]
 
     return sect_info
 
@@ -700,7 +694,7 @@ def align_2d(
     base_lin_itr: int = 100,
     base_nl_itr: int = 20,
     use_syn: bool = True,
-    file_to_align: str = "seg_rsl",
+    file_to_align: str = "acq_rsl",
     num_cores: int = 1,
     interpolation: str = "Linear",
     clobber: bool = False,
