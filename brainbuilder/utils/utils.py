@@ -578,12 +578,10 @@ def concat_transforms_to_h5(
             )  # .nii/.nii.gz -> DisplacementFieldTransform :contentReference[oaicite:5]{index=5}
 
         ants_tfm_list.append(tx)
-    print(ants_tfm_list)
     # Important: pass in the same order you’d use in ANTs forward transforms (warp then affine). :contentReference[oaicite:6]{index=6}
     comp = ants.compose_ants_transforms(
         ants_tfm_list
     )  # returns CompositeTransform :contentReference[oaicite:7]{index=7}
-    print("-->", out_h5)
     ants.write_transform(
         comp, out_h5
     )  # writes transform to file :contentReference[oaicite:8]{index=8}
@@ -1008,7 +1006,6 @@ def parse_resample_arguments(
         ), f"Error: output filename must be as string, got {type(output_filename)}"
 
     vol = np.array(vol, dtype=dtype)
-    print("vol shape", vol.shape, dtype)
 
     vol_sum = np.sum(np.abs(vol))
     assert (
@@ -1190,12 +1187,9 @@ def check_run_stage(
 
 def pad_to_max_dims(vol: np.ndarray, max_dims: np.ndarray) -> np.ndarray:
     """Pad a volume to the maximum dimensions."""
-    print(vol.shape, max_dims)
     offset0 = int(max_dims[0] - vol.shape[0])
     offset1 = int(max_dims[1] - vol.shape[1])
     offset2 = int(max_dims[2] - vol.shape[2]) if len(vol.shape) == 3 else 0
-
-    print("offsets", offset0, offset1, offset2)
 
     if len(vol.shape) == 2:
         vol = np.pad(vol, ((0, offset0), (0, offset1)), mode="constant")
@@ -1271,13 +1265,13 @@ def resample_to_resolution(
         anti_aliasing=True,
         anti_aliasing_sigma=sigma,
     )
-    vol = vol.astype(dtype)
 
     if max_dims is not None:
         vol = pad_to_max_dims(vol, max_dims)
 
     vol *= factor
 
+    vol = vol.astype(dtype)
     assert np.sum(np.abs(vol)) > 0, (
         "Error: empty output array for prefilter_and_downsample\n" + output_filename
     )

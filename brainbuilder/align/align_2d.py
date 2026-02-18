@@ -337,7 +337,7 @@ def align_2d_parallel(
     resolution: float,
     resolution_list: list,
     row: pd.Series,
-    file_to_align: str = "2d_align",
+    file_to_align: str = "seg_rsl",
     use_syn: bool = True,
     base_lin_itr: int = 100,
     base_nl_itr: int = 30,
@@ -380,8 +380,6 @@ def align_2d_parallel(
     fx_fn = row["fx"]
 
     mv_fn = row[file_to_align]
-
-    print(file_to_align, mv_fn)
 
     verbose = False
     affine_tfm = affine_trials(
@@ -436,7 +434,6 @@ def apply_transforms_parallel(
     :return: 0
     """
     out_fn = row["2d_align" + tissue_str + "_out"]
-    print(tissue_str)
 
     if os.path.exists(out_fn):
         return out_fn
@@ -493,7 +490,7 @@ def apply_transforms_parallel(
     shell(cmd, True)
 
     plt.imshow(nib.load(fx_fn).get_fdata())
-    plt.imshow(nib.load(out_fn).get_fdata(), cmap="nipy_spectral", alpha=0.4)
+    plt.imshow(nib.load(out_fn).get_fdata(), cmap="nipy_spectral", alpha=0.3)
     plt.savefig(f"{prefix}_qc.png")
     plt.close()
 

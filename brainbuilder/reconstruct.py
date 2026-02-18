@@ -216,6 +216,7 @@ def reconstruct(
         landmark_dir=landmark_dir,
         clobber=clobber,
     )
+    exit()
     # qc.data_set_quality_control(align_sect_info_csv, qc_dir, column="init_img")
 
     # Stage: Interpolate missing sections

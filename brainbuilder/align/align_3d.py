@@ -6,7 +6,9 @@ from typing import List, Tuple
 
 import ants
 import brainbuilder.utils.ants_nibabel as nib
+import nibabel
 import numpy as np
+import pandas as pd
 from brainbuilder.utils import utils
 
 logger = utils.get_logger(__name__)
@@ -67,15 +69,15 @@ def pad_volume(
     return vol_padded, affine
 
 
-def get_ref_info(ref_rsl_fn: str) -> tuple:
+def get_ref_info(moving_fn: str) -> tuple:
     """Get reference volume information.
 
     Description: Get the width, min, max, ystep, and ystart of the reference volume
 
-    :param ref_rsl_fn: reference volume filename
+    :param moving_fn: reference volume filename
     :return: ref_width, ref_min, ref_max, ref_ystep, ref_ystart.
     """
-    ref_img = nib.load(ref_rsl_fn)
+    ref_img = nib.load(moving_fn)
     ref_vol = ref_img.get_fdata()
     ref_vol.shape[1]
 
@@ -90,22 +92,22 @@ def get_ref_info(ref_rsl_fn: str) -> tuple:
 
 
 def pad_acq_volume(
-    seg_rsl_fn: str,
+    fixed_fn: str,
     seg_rsl_pad_fn: str,
     resolution: float,
     padding_offset: float = 0.15,
 ) -> str:
     """Pad a volume to center it while keeping it centered in the world coordinates.
 
-    :param seg_rsl_fn: segmentation volume filename
+    :param fixed_fn: segmentation volume filename
     :param max_downsample_level: maximum downsample level
     :param resolution: resolution of the section volume
     :return: padded segmentation volume filename
     """
-    seg_img = nib.load(seg_rsl_fn)
+    seg_img = nib.load(fixed_fn)
     seg_vol = seg_img.get_fdata()
 
-    ants_img = ants.image_read(seg_rsl_fn)
+    ants_img = ants.image_read(fixed_fn)
     direction = ants_img.direction
     com0 = ants.get_center_of_mass(ants_img)
 
@@ -185,17 +187,52 @@ def get_alignment_schedule(
     return max_downsample_level, linParams, nlParams, ccParams
 
 
+def verify_chunk_limits(
+    ref_rsl_fn: str, chunk_info: pd.DataFrame, verbose: bool = False
+) -> tuple:
+    """Get the start and end of the chunk in the reference space.
+
+    :param ref_rsl_fn: reference space file name
+    :param verbose: verbose
+    :return: (y0w, y1w) --> world coordinates; (y0, y1) --> voxel coordinates
+    """
+    img = nibabel.load(ref_rsl_fn)
+
+    ystart = img.affine[1, 3]
+    ystep = img.affine[1, 1]
+    if "caudal_limit" in chunk_info.columns and "rostral_limit" in chunk_info.columns:
+        y0w = chunk_info["caudal_limit"].values[0]
+        y1w = chunk_info["rostral_limit"].values[0]
+
+        y0 = (y0w - ystart) / ystep
+        y1 = (y1w - ystart) / ystep
+
+        y0_temp = min(y0, y1)
+        y1_temp = max(y0, y1)
+        y0 = np.floor(y0_temp).astype(int)
+        y1 = np.ceil(y1_temp).astype(int)
+
+        assert y0 > 0, f"Error: y0 is negative: {y0}"
+        assert y1 > 0, f"Error: y1 is negatove: {y1}"
+        if verbose:
+            print(y0w, y1w, y0, y1)
+
+    else:
+        y0w = ystart
+        y1w = ystart + ystep * img.shape[1]
+        y0 = 0
+        y1 = img.shape[1]
+
+    return [y0, y1], [y0w, y1w]
+
+
 def write_ref_chunk(
+    chunk_info: pd.DataFrame,
     sub: str,
     hemi: str,
     chunk: int,
-    ref_rsl_fn: str,
+    ref_vol_fn: str,
     out_dir: str,
-    y0w: float,
-    y0: int,
-    y1: int,
-    resolution: float,
-    max_downsample_level: int,
     clobber: bool = False,
 ) -> None:
     """Write a chunk from the reference volume that corresponds to the tissue chunk from the section volume.
@@ -203,7 +240,7 @@ def write_ref_chunk(
     :param sub: subject id
     :param hemi: hemisphere
     :param chunk: chunk number
-    :param ref_rsl_fn: reference volume filename
+    :param ref_vol_fn: reference volume filename
     :param out_dir: output directory
     :param y0w: y0 in world coordinates
     :param y0: y0 in voxel coordinates
@@ -215,11 +252,14 @@ def write_ref_chunk(
     :param clobber: overwrite existing files
     :return: None
     """
-    ref_chunk_fn = f"{out_dir}/{sub}_{hemi}_{chunk}_{resolution}mm_ref_{y0}_{y1}.nii.gz"
+    (y0, y1), _ = verify_chunk_limits(ref_vol_fn, chunk_info)
+
+    ref_chunk_fn = f"{out_dir}/{sub}_{hemi}_{chunk}_ref_{y0}_{y1}.nii.gz"
+
     if not os.path.exists(ref_chunk_fn) or clobber:
         # write srv chunk if it does not exist
-        logger.debug(f"\t\tWriting srv chunk for file\n\n{ref_rsl_fn}")
-        ref_img = nib.load(ref_rsl_fn)
+        logger.debug(f"\t\tWriting srv chunk for file\n\n{ref_vol_fn}")
+        ref_img = nib.load(ref_vol_fn)
         direction = np.array(ref_img.direction)
         ref_vol = ref_img.get_fdata()
 
@@ -239,7 +279,9 @@ def write_ref_chunk(
             direction=direction,
             dtype=np.uint8,
         ).to_filename(ref_chunk_fn)
+
         print(f"Written ref chunk: {ref_chunk_fn}")
+
     return ref_chunk_fn
 
 
@@ -281,9 +323,9 @@ def run_alignment(
     :param out_tfm_fn: output transformation filename
     :param out_inv_fn: output inverse transformation filename
     :param out_fn: output filename
-    :param ref_rsl_fn: reference volume filename
+    :param moving_fn: reference volume filename
     :param ref_chunk_fn: reference chunk filename
-    :param seg_rsl_fn: segmentation volume filename
+    :param fixed_fn: segmentation volume filename
     :param linParams: linear parameters
     :param nlParams: nonlinear parameters
     :param ccParams: cross correlation parameters
@@ -421,7 +463,6 @@ def run_alignment(
         orig_mv_fn, fx_fn, out_tfm_list, out_fn, n="BSpline[2]", clobber=clobber
     )
 
-    print(f"\n\n--> init_tfm: {init_tfm}\n{out_tfm_list}\n\n")
     # if os.path.exists(f"{prefix_syn}InverseComposite.h5"):
     #    utils.simple_ants_apply_tfm(
     #        fx_fn, mv_fn, prefix_syn + "InverseComposite.h5", out_inv_fn, n="BSpline[2]",
@@ -434,15 +475,13 @@ def align_3d(
     sub: str,
     hemi: str,
     chunk: int,
-    ref_rsl_fn: str,
-    seg_rsl_fn: str,
+    moving_fn: str,
+    fixed_fn: str,
     out_dir: str,
     out_tfm_fn: str,
     out_fn: str,
     resolution: int,
     resolution_list: List[int],
-    world_chunk_limits: Tuple[float, float],
-    vox_chunk_limits: Tuple[int, int],
     init_tfm: str = None,
     base_nl_itr: int = 200,
     base_lin_itr: int = 500,
@@ -455,8 +494,8 @@ def align_3d(
     :param sub: subject id
     :param hemi: hemisphere
     :param chunk: chunk number
-    :param seg_rsl_fn: segmentation volume filename
-    :param ref_rsl_fn: reference volume filename
+    :param fixed_fn: segmentation volume filename
+    :param moving_fn: reference volume filename
     :param out_dir: output directory
     :param out_tfm_fn: output transformation filename
     :param out_tfm_inv_fn: output inverse transformation filename
@@ -490,28 +529,13 @@ def align_3d(
     )
 
     logger.info(f"\t\tResolution: {resolution}")
-    # extract chunk from srv and write it
-    ref_chunk_fn = write_ref_chunk(
-        sub,
-        hemi,
-        chunk,
-        ref_rsl_fn,
-        out_dir,
-        vox_chunk_limits[0],
-        world_chunk_limits[0],
-        world_chunk_limits[1],
-        resolution,
-        max_downsample_level,
-    )
-
     # run ants alignment between segmented volume (from autoradiographs) to chunk extracte
     vol_tfm_list = run_alignment(
         out_dir,
         out_tfm_fn,
         out_fn,
-        # ref_rsl_fn,
-        ref_chunk_fn,
-        seg_rsl_fn,
+        moving_fn,
+        fixed_fn,
         linParams,
         nlParams,
         ccParams,

@@ -496,8 +496,9 @@ def init_landmark_transform(
         print("Running non-linear landmark-based alignment...")
         cmd = f"antsLandmarkBasedTransformInitializer 3 {fixed_landmarks} {affine_vol_fn}   'bspline' {nl_tfm} {mesh_size}"
 
-        subprocess.run(cmd, shell=True, executable="/bin/bash")
+        stdio = subprocess.run(cmd, shell=True, executable="/bin/bash")
         logger.info(f"[ANTs] {cmd}")
+        logger.info(f"[ANTs] stdout: {stdio.stdout}")
 
         subprocess.run(cmd, shell=True, executable="/bin/bash")
 
@@ -517,7 +518,16 @@ def init_landmark_transform(
         print(
             "\nApplying non-linear transforms to moving QC volume for visual inspection..."
         )
+
+        print("-i", moving_qc_vol_path)
+        print("-t", out_tfm)
         print("-r", fixed_qc_vol_path)
+        print("-o", moving_qc_nl_final_path)
+
+        exit_flag = False
+
+        if not os.path.exists(moving_qc_nl_final_path):
+            exit_flag = True
 
         simple_ants_apply_tfm(
             moving_qc_vol_path,
@@ -528,7 +538,11 @@ def init_landmark_transform(
             n="Linear",
             clobber=clobber,
         )
+
         print(f"wrote: {moving_qc_nl_final_path}\n")
+
+        if exit_flag:
+            exit()
 
     return out_tfm
 
@@ -548,11 +562,8 @@ def find_landmark_files(sect_info: pd.DataFrame, landmark_dir: str) -> pd.Series
         raw_root = _strip_ext(raw_basename)
 
         landmark_str = f"{landmark_dir}/{raw_root}*.nii.gz"
-        print(f"\t\tSearching for landmark files with pattern: {landmark_str}")
 
         landmark_list = glob(landmark_str)
-
-        print(landmark_list)
 
         if len(landmark_list) == 0:
             output_landmark_files.append(None)
@@ -589,7 +600,6 @@ def w2v(idx: np.ndarray, orig: np.ndarray, step: np.ndarray) -> np.ndarray:
     """World to voxel coordinates."""
     ndim = len(idx)
     w = np.rint((idx - orig[0:ndim]) / step[0:ndim]).astype(int)
-    # print("World to voxel:", idx, "->", w)
     return w
 
 
@@ -597,7 +607,6 @@ def v2w(idx: np.ndarray, orig: np.ndarray, step: np.ndarray) -> np.ndarray:
     """Voxel to world coordinates."""
     ndim = len(idx)
     v = idx * step[0:ndim] + orig[0:ndim]
-    # print("Voxel to world:", idx, "->", v)
     return v
 
 
@@ -749,7 +758,6 @@ def check_for_identical_landmark_values(
         lm_img = nib.load(landmark_path)
         lm_data = np.array(lm_img.dataobj)
         lm_labels = set(np.unique(lm_data)[1:])
-        print(f"Checking landmark file \n\t{landmark_path}\n\tlabels:\t{lm_labels}")
 
         # check that all labels in lm_labels are in ref_labels
         assert lm_labels.issubset(
@@ -844,6 +852,7 @@ def create_landmark_transform(
     resolution_3d: float,
     output_dir: str,
     sect_info: pd.DataFrame,
+    acq_rsl_fn: str,
     acq_landmark_path: str,
     moving_landmark_path: str,
     fixed_landmark_path: str,
@@ -900,7 +909,7 @@ def create_landmark_transform(
 
     sect_info = build_sparse_landmark_volume(
         acq_landmark_path,
-        fixed_qc_vol_path,
+        acq_rsl_fn,
         resolution,
         resolution_3d,
         sect_info,

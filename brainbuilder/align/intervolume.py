@@ -274,12 +274,10 @@ def interpolate_missing_sections(
 
             if method == "nearest":
                 d = np.rint(d)
-            print(d)
             z = x * (1 - d) + d * y
             # print(x1,d,ii,y0, '-->', np.mean(x), np.mean(z), np.mean(y))
 
             out_vol[:, ii, :] = z
-        print()
 
     return out_vol
 
@@ -309,7 +307,6 @@ def recenter(
     d_world *= direction
     affine[range(ndim), 3] -= d_world
 
-    print("\tShift in Segmented Volume by:", d_vox)
     vol = shift(vol, d_vox, order=0)
 
     affine[range(ndim), range(ndim)]

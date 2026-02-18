@@ -11,7 +11,7 @@ from skimage.filters import threshold_otsu
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import align_2d
-from brainbuilder.align.align_3d import align_3d, pad_acq_volume
+from brainbuilder.align.align_3d import align_3d, pad_acq_volume, write_ref_chunk
 from brainbuilder.align.align_landmarks import create_landmark_transform
 from brainbuilder.align.intervolume import create_intermediate_acq_volume
 from brainbuilder.align.paths import MultiResPaths
@@ -28,8 +28,7 @@ def check_chunk_outputs(chunk_csv: str) -> None:
     chunk_info = pd.read_csv(chunk_csv, index_col=None)
 
     for col in [
-        "seg_rsl_fn",
-        "rec_3d_rsl_fn",
+        "acq_rsl_fn",
         "ref_3d_rsl_fn",
         "nl_2d_vol_fn",
         "nl_2d_vol_cls_fn",
@@ -88,10 +87,6 @@ def multiresolution_alignment(
     if chunk_output_csv == "":
         chunk_output_csv = f"{output_dir}/chunk_info_multiresolution_alignment.csv"
 
-    if os.path.exists(chunk_output_csv):
-        # Check if the outputs in chunk_info exist, if not delete current <chunk_output_csv>
-        check_chunk_outputs(chunk_output_csv)
-
     qc_dir = f"{output_dir}/qc/"
     os.makedirs(qc_dir, exist_ok=True)
 
@@ -99,6 +94,7 @@ def multiresolution_alignment(
         not os.path.exists(sect_output_csv)
         or not os.path.exists(chunk_output_csv)
         or clobber
+        or True  # FIXME
     ):
         hemi_info = pd.read_csv(hemi_info_csv, index_col=None)
 
@@ -144,13 +140,23 @@ def multiresolution_alignment(
                 .values[0]
             )
 
+            # extract chunk from srv and write it
+            ref_chunk_fn = write_ref_chunk(
+                chunk_info_row,
+                sub,
+                hemisphere,
+                chunk,
+                ref_vol_fn,
+                output_dir,
+            )
+
             chunk_info_row, curr_sect_info = align_chunk(
                 chunk_info_row,
                 curr_sect_info,
                 resolution_list,
                 resolution_list_3d,
                 max_resolution_3d,
-                ref_vol_fn,
+                ref_chunk_fn,
                 output_dir,
                 num_cores=num_cores,
                 use_3d_syn_cc=use_3d_syn_cc,
@@ -175,45 +181,6 @@ def multiresolution_alignment(
     # validate_section_alignment_to_ref(sect_output_csv, qc_dir, clobber=clobber)
 
     return chunk_output_csv, sect_output_csv
-
-
-def verify_chunk_limits(
-    ref_rsl_fn: str, chunk_info: pd.DataFrame, verbose: bool = False
-) -> tuple:
-    """Get the start and end of the chunk in the reference space.
-
-    :param ref_rsl_fn: reference space file name
-    :param verbose: verbose
-    :return: (y0w, y1w) --> world coordinates; (y0, y1) --> voxel coordinates
-    """
-    img = nibabel.load(ref_rsl_fn)
-
-    ystart = img.affine[1, 3]
-    ystep = img.affine[1, 1]
-    if "caudal_limit" in chunk_info.columns and "rostral_limit" in chunk_info.columns:
-        y0w = chunk_info["caudal_limit"].values[0]
-        y1w = chunk_info["rostral_limit"].values[0]
-
-        y0 = (y0w - ystart) / ystep
-        y1 = (y1w - ystart) / ystep
-
-        y0_temp = min(y0, y1)
-        y1_temp = max(y0, y1)
-        y0 = np.floor(y0_temp).astype(int)
-        y1 = np.ceil(y1_temp).astype(int)
-
-        assert y0 > 0, f"Error: y0 is negative: {y0}"
-        assert y1 > 0, f"Error: y1 is negatove: {y1}"
-        if verbose:
-            print(y0w, y1w, y0, y1)
-
-    else:
-        y0w = ystart
-        y1w = ystart + ystep * img.shape[1]
-        y0 = 0
-        y1 = img.shape[1]
-
-    return [y0, y1], [y0w, y1w]
 
 
 def alignment_qc(
@@ -400,10 +367,6 @@ def alignment_iteration(
             clobber=clobber,
         )
 
-    world_chunk_limits, vox_chunk_limits = verify_chunk_limits(
-        paths.ref_rsl_fn, chunk_info
-    )
-
     # define paths
     sect_info = create_intermediate_acq_volume(
         chunk_info,
@@ -436,8 +399,9 @@ def alignment_iteration(
             chunk,
             resolution,
             max_resolution_3d,
-            output_dir + "/landmarks/",
+            paths.landmark_dir,
             sect_info,
+            paths.acq_pad_fn,
             paths.acq_landmark_volume,
             paths.moving_landmark_volume,
             paths.fixed_landmark_volume,
@@ -453,7 +417,6 @@ def alignment_iteration(
         init_tfm = None
         print(paths.ref_landmark_volume)
         print("\t\tNo landmark transform provided")
-        exit()
 
     ###
     ### Stage 3.2 : Align chunks to MRI
@@ -470,8 +433,6 @@ def alignment_iteration(
         paths.ref_3d_rsl_fn,
         resolution_3d,
         resolution_list_3d,
-        world_chunk_limits,
-        vox_chunk_limits,
         use_3d_syn_cc=use_3d_syn_cc,
         linear_steps=linear_steps,
         init_tfm=init_tfm,
@@ -481,7 +442,6 @@ def alignment_iteration(
     ###
     ### Stage 3.3 : 2D alignment of receptor to resample MRI GM vol
     ###
-    print(sect_info["2d_align"].values)
     if not skip_2d_alignment:
         print("\t\t2D alignment of receptor to resample MRI GM vol")
         sect_info, _ = align_2d(
@@ -495,7 +455,7 @@ def alignment_iteration(
             paths.nl_2d_vol_fn,
             paths.nl_2d_vol_cls_fn,
             section_thickness,
-            file_to_align="2d_align",
+            file_to_align="seg_rsl",
             use_syn=use_syn,
             num_cores=num_cores,
             clobber=clobber,
@@ -635,6 +595,8 @@ def align_chunk(
                 chunk_pass_last_df = pd.concat([chunk_pass_last_df, chunk_info_out])
                 sect_pass_last_df = pd.concat([sect_pass_last_df, sect_info_out])
 
+    # un a final alignment
+
     paths = MultiResPaths(
         sub=sub,
         hemisphere=hemisphere,
@@ -643,6 +605,7 @@ def align_chunk(
         resolution_3d=resolution_3d,
         pass_step=pass_step,
         output_dir=Path(output_dir),
+        stage_tag="_final",
         moving="acq_pad_fn",
         fixed="ref_rsl_fn",
         ref_landmark_volume=ref_landmark_volume,
@@ -656,6 +619,7 @@ def align_chunk(
         hemisphere,
         chunk,
         output_dir,
+        paths,
         sect_info_out,
         chunk_info_out,
         ref_vol_fn,
@@ -665,14 +629,15 @@ def align_chunk(
         resolution_3d,
         max_resolution_3d,
         resolution_list_3d,
-        pass_step=pass_step,
         use_3d_syn_cc=use_3d_syn_cc,
         use_syn=use_syn,
+        skip_2d_alignment=True,
         linear_steps=linear_steps,
         num_cores=num_cores,
         interpolation=interpolation,
         landmark_dir=landmark_dir,
         clobber=clobber,
     )
+    exit()
 
     return chunk_pass_last_df, sect_pass_last_df
