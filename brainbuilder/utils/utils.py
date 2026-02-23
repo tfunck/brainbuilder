@@ -1258,6 +1258,7 @@ def resample_to_resolution(
     else:
         sigma = 0
 
+    print("sigma", sigma)
     vol = resize(
         vol.astype(float),
         new_dims,
@@ -1269,7 +1270,14 @@ def resample_to_resolution(
     if max_dims is not None:
         vol = pad_to_max_dims(vol, max_dims)
 
-    vol *= factor
+    # Normalize to [0, 1] before scaling if output dtype is uint8
+    print(dtype, factor)
+    if dtype == np.uint8 or dtype == "uint8":
+        vol = (vol - np.min(vol)) / (np.max(vol) - np.min(vol) + 1e-8)
+        vol *= factor
+        vol = np.clip(vol, 0, 255)
+    else:
+        vol *= factor
 
     vol = vol.astype(dtype)
     assert np.sum(np.abs(vol)) > 0, (

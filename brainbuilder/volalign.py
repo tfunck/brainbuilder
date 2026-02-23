@@ -18,6 +18,8 @@ from brainbuilder.align.paths import MultiResPaths
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
 
+logger = utils.get_logger(__name__)
+
 
 def check_chunk_outputs(chunk_csv: str) -> None:
     """Check if chunk outputs exist, if not remove the chunk output csv and the chunk output directory.
@@ -342,6 +344,8 @@ def alignment_iteration(
     # downsample the original ref gm mask to current 3d resolution
     if not os.path.exists(paths.ref_rsl_fn):
         order = 1
+        print("\n\n-->", ref_vol_fn)
+        print("-->", paths.ref_rsl_fn)
         utils.resample_to_resolution(
             ref_vol_fn,
             [resolution_3d] * 3,
@@ -614,6 +618,9 @@ def align_chunk(
         use_3d_syn_cc=use_3d_syn_cc,
     )
 
+    logger.info(
+        f"Running final alignment iteration at highest (3D) resolution: {resolution_3d}mm"
+    )
     chunk_info_out, sect_info_out = alignment_iteration(
         sub,
         hemisphere,
@@ -638,6 +645,6 @@ def align_chunk(
         landmark_dir=landmark_dir,
         clobber=clobber,
     )
-    exit()
+    logger.info("Finished final alignment iteration at highest resolution")
 
     return chunk_pass_last_df, sect_pass_last_df

@@ -52,6 +52,7 @@ def get_input_file(
             [resolution_2d] * 2,
             seg_rsl_fn,
             dtype=np.uint8,
+            factor=255,
         )
 
     if resolution_2d != resolution_3d:
@@ -65,6 +66,7 @@ def get_input_file(
                 [resolution_3d] * 2,
                 tfm_input_fn,
                 dtype=np.uint8,
+                factor=255,
             )
     return tfm_input_fn
 

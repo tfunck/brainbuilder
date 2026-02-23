@@ -401,8 +401,6 @@ def run_alignment(
         init_str = f"--initial-moving-transform {prefix_affine}Composite.h5"
 
     init_file_str = ""
-    # if init_tfm :
-    #    init_file_str = '_landmark-init'
 
     prefix_mattes_syn = f"{prefix}{init_file_str}_SyN_Mattes_"
     mattes_syn_out_fn = f"{prefix_mattes_syn}volume.nii.gz"
@@ -449,10 +447,6 @@ def run_alignment(
         assert os.path.exists(
             f"{prefix_syn}Composite.h5"
         ), f"Error: {prefix_syn}Composite.h5 does not exist"
-
-    # if init_tfm  :
-    #    print('Concatenating initial landmark-based transform with SyN transform')
-    #    utils.concat_transforms_to_h5([ syn_out_fn, init_tfm], out_tfm_fn)
 
     if init_tfm:
         out_tfm_list = [out_tfm_fn, init_tfm]

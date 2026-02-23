@@ -410,9 +410,10 @@ def convert_transform(
 
 
 def init_landmark_transform(
-    out_tfm_h5: str,
+    out_tfm: str,
     fixed_landmarks: str,
     moving_landmarks: str,
+    output_dir: str,
     transform_type: str = "bspline",  # 'rigid'|'similarity'|'affine'|'bspline'
     mesh_size: str = "5x5x5",
     min_labels_required: int = 12,  # rigid/similarity: 3, affine: 12, bspline: 12 (for now)
@@ -427,13 +428,15 @@ def init_landmark_transform(
     # if os.path.exists(out_tfm_h5) and not clobber:
     #    return out_tfm_h5
 
-    out_tfm = out_tfm_h5
+    affine_vol_fn = output_dir + os.path.basename(out_tfm).replace(
+        ".h5", "_affine_landmark_init.nii.gz"
+    )
 
-    affine_vol_fn = out_tfm.replace(".h5", "_affine_landmark_init.nii.gz")
+    affine_tfm = output_dir + os.path.basename(out_tfm).replace(".h5", "_affine.h5")
 
-    affine_tfm = out_tfm.replace(".h5", "_affine.h5")
-
-    nl_tfm = out_tfm.replace(".h5", f"_{mesh_size}_nl.nii.gz")
+    nl_tfm = output_dir + os.path.basename(out_tfm).replace(
+        ".h5", f"_{mesh_size}_nl.nii.gz"
+    )
 
     if not os.path.exists(fixed_landmarks):
         raise RuntimeError(f"Reference landmarks not found: {fixed_landmarks}")
@@ -510,7 +513,7 @@ def init_landmark_transform(
     if not os.path.exists(out_tfm) or clobber:
         utils.concat_transforms_to_h5([nl_tfm, affine_tfm], out_tfm)
 
-    moving_qc_nl_final_path = moving_qc_vol_path.replace(
+    moving_qc_nl_final_path = output_dir + os.path.basename(moving_qc_vol_path).replace(
         ".nii.gz", f"_{mesh_size}_nl_landmark_qc.nii.gz"
     )
 
@@ -526,8 +529,7 @@ def init_landmark_transform(
 
         exit_flag = False
 
-        if not os.path.exists(moving_qc_nl_final_path):
-            exit_flag = True
+        # if  '0.125' in moving_qc_nl_final_path and 'final' in moving_qc_nl_final_path: #FIXME
 
         simple_ants_apply_tfm(
             moving_qc_vol_path,
@@ -540,9 +542,6 @@ def init_landmark_transform(
         )
 
         print(f"wrote: {moving_qc_nl_final_path}\n")
-
-        if exit_flag:
-            exit()
 
     return out_tfm
 
@@ -889,9 +888,9 @@ def create_landmark_transform(
 
     landmark_tfm_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_landmark_init_itr-{resolution}mm_{transform_type}_{mesh_size}_Composite.h5"
 
-    # if os.path.exists(landmark_tfm_path) and not clobber:
-    #    print(f"Landmark transform already exists: {landmark_tfm_path}")
-    #    return landmark_tfm_path
+    if os.path.exists(landmark_tfm_path) and not clobber:
+        print(f"Landmark transform already exists: {landmark_tfm_path}")
+        return landmark_tfm_path
 
     # TODO move this to a separate pre-processing step
     # moving_landmark_path = adjust_reference_landmark_labels(
@@ -928,6 +927,7 @@ def create_landmark_transform(
         landmark_tfm_path,
         fixed_landmark_path,  # fixed is acq because we are aligning to the acquisition volume
         moving_landmark_path,  # moving is the ref in template space
+        output_dir,
         transform_type=transform_type,
         qc_dir=qc_dir,
         fixed_qc_vol_path=fixed_qc_vol_path,
