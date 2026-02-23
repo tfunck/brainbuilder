@@ -1110,7 +1110,11 @@ def resample_to_resolution(
     affine[dim_range, dim_range] = new_resolution
     affine[dim_range, 3] = origin
 
-    img_out = nib.Nifti1Image(vol, affine, dtype=dtype, direction_order=direction_order)
+    if np.max(vol) < 1 and dtype == np.uint8 or dtype == np.uint32:
+        #rescale to use full uint range
+        vol = (vol - vol.min()) / ( np.max(vol) - np.min(vol) ) * np.iinfo(dtype).max
+
+    img_out = nib.Nifti1Image(vol.astype(dtype), affine, dtype=dtype, direction_order=direction_order)
 
     if isinstance(output_filename, str):
         img_out.to_filename(output_filename)

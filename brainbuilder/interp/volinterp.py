@@ -11,7 +11,8 @@ import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import apply_transforms_parallel
 from brainbuilder.interp.acqvolume import create_thickened_volumes
 from brainbuilder.utils import utils
-from brainbuilder.utils.nl_deformation_flow import nlflow_isometric
+#from brainbuilder.utils.nl_deformation_flow import nlflow_isometric
+from morphint.morphint import morphint
 
 
 def idw(vol, nearest_i, min_dist, p=2):
@@ -129,11 +130,11 @@ def volumetric_interpolation(
         cls_fin = chunk_info_cls_thickened["thickened"].values[0]
         acq_fin = chunk_info_thickened["thickened"].values[0]
 
-        interp_acq_iso_fin, nlflow_tfm_dict = nlflow_isometric(
+        interp_acq_iso_fin, nlflow_tfm_dict = morphint(
             acq_fin, curr_output_dir, resolution, resolution_list, interpolation=interpolation, num_cores=num_cores, clobber=clobber
         )
 
-        interp_cls_iso_fin, _ = nlflow_isometric(
+        interp_cls_iso_fin, _ = morphint(
             cls_fin,
             curr_output_dir + "/cls/",
             resolution,
