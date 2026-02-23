@@ -115,12 +115,12 @@ def compute_ants_alignment(
             cmd += f" --transform SyN[ 0.1,3,0 ] --metric CC[ {sec1_path},{sec0_path},1,4 ]"
             cmd += f" --convergence  {nlParams.itr_str} --shrink-factors {nlParams.f_str} --smoothing-sigmas {nlParams.s_str} "
 
-            # print(cmd)
-
             subprocess.run(cmd, shell=True, executable="/bin/bash")
 
         except RuntimeError as e:
             print("Error in registration:", e)
+
+        print(cmd)
 
     assert os.path.exists(fwd_tfm_path), f"Error: output does not exist {fwd_tfm_path}"
     assert os.path.exists(inv_tfm_path), f"Error: output does not exist {inv_tfm_path}"
@@ -232,7 +232,7 @@ def nl_deformation_flow(
                         output_image = sec0_fwd
                     else:
                         output_image = sec1_inv
-                else :
+                else:
                     output_image = (sec0_fwd + sec1_inv) / 2.0
 
             else:
@@ -381,6 +381,7 @@ def nl_deformation_flow_3d(
 
     for y_list, inter_images, _ in results:
         for y, image_path in zip(y_list, inter_images):
+            print(y, image_path)
             out_vol[:, y, :] = ants.image_read(image_path).numpy()
 
     return out_vol, out_tfm_dict

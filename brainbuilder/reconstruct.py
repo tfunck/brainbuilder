@@ -3,6 +3,7 @@
 import argparse
 import logging
 import os
+from pathlib import Path
 
 import pandas as pd
 
@@ -13,6 +14,7 @@ from brainbuilder.intensity_correction import intensity_correction
 from brainbuilder.interpsections import interpolate_missing_sections
 from brainbuilder.segment import segment
 from brainbuilder.utils.utils import get_logger
+from brainbuilder.utils.validate_inputs import validate_inputs
 from brainbuilder.volalign import multiresolution_alignment
 
 base_file_dir, fn = os.path.split(os.path.abspath(__file__))
@@ -69,6 +71,7 @@ def reconstruct(
     final_resolution: float = None,
     interp_method: str = "volumetric",
     interpolation_2d: str = "Linear",
+    landmark_dir: Path = None,
     skip_interp: bool = False,
     use_intensity_correction: bool = False,
     verbose: bool = False,
@@ -97,7 +100,7 @@ def reconstruct(
     :param max_resolution_3d : float, maximum resolution to use for 3D reference volume
     :param final_resolution : float, final resolution for the output volume, default=None (use max resolution in resolution_list)
     :param use_3d_syn_cc : bool, optional, use 3D nonlinear SyN with cross-correlation, default=True
-    :param use_syn : bool, optional, use 2D nonlinear SyN, default=True 
+    :param use_syn : bool, optional, use 2D nonlinear SyN, default=True
     :param linear_steps : list, optional, linear steps to use for 3D-2D alignment, default=['rigid', 'similarity', 'affine']
     :param skip_interp : bool, optional, skip interpolation step, default=False
     :param use_intensity_correction : bool, optional, use intensity correction, default=False
@@ -153,15 +156,15 @@ def reconstruct(
     logger.info(f"\t\tQuality control: {qc_dir}")
     logger.info(f"\t\tIntensity correction: {intens_corr_dir}")
 
-    # valid_inputs = validate_inputs(
-    #    hemi_info_csv,
-    #    chunk_info_csv,
-    #    sect_info_csv,
-    #    valid_inputs_npz,
-    #    n_jobs=num_cores,
-    #    clobber=clobber,
-    # )
-    # assert valid_inputs, "Error: invalid inputs"
+    valid_inputs = validate_inputs(
+        hemi_info_csv,
+        chunk_info_csv,
+        sect_info_csv,
+        valid_inputs_npz,
+        n_jobs=num_cores,
+        clobber=clobber,
+    )
+    assert valid_inputs, "Error: invalid inputs"
 
     sect_info_csv = downsample_sections(
         chunk_info_csv,
@@ -182,7 +185,6 @@ def reconstruct(
         seg_method=seg_method,
         clobber=clobber,
     )
-
     # qc.data_set_quality_control(seg_df_csv, qc_dir, column="seg")
 
     logger.info("Stage: Initial rigid alignment of sections")
@@ -210,10 +212,10 @@ def reconstruct(
         use_syn=use_syn,
         num_cores=num_cores,
         linear_steps=linear_steps,
-        interpolation = interpolation_2d,
+        interpolation=interpolation_2d,
+        landmark_dir=landmark_dir,
         clobber=clobber,
     )
-
     # qc.data_set_quality_control(align_sect_info_csv, qc_dir, column="init_img")
 
     # Stage: Interpolate missing sections
@@ -228,7 +230,7 @@ def reconstruct(
             n_depths=n_depths,
             interp_method=interp_method,
             final_resolution=final_resolution,
-            interpolation = interpolation_2d,
+            interpolation=interpolation_2d,
             num_cores=num_cores,
             clobber=clobber,
         )

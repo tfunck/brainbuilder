@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 import psutil
 from scipy.ndimage import label
+from skimage.filters import threshold_otsu
 from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
@@ -66,10 +67,6 @@ def convert_gm_com_dist_map(vol: np.ndarray, voxel_sizes: np.ndarray) -> np.ndar
     coords = coords.reshape(3, -1).T
 
     idx_rsl = idx.reshape(-1)
-
-    print(vol.shape)
-    print(coords.shape)
-    print(idx.shape)
 
     coords = coords[idx_rsl, :]
 
@@ -160,10 +157,38 @@ def load_image(fn: str) -> np.ndarray:
         return None
 
 
+def check_dimensions(fns: list, dims: tuple) -> None:
+    """Check the dimensions of a list of files.
+
+    :param fns: list, list of filenames
+    :param dims: tuple, expected dimensions
+    :return: None
+    """
+    sections_okay_flag = True
+    for fn in fns:
+        sec = nibabel.load(fn)
+
+        if sec.shape[0] != dims[0] or sec.shape[1] != dims[2]:
+            print("Warning: section dimensions do not match target dimensions")
+            print("\tSection:", fn, sec.shape)
+            print("\tTarget:", dims)
+            print()
+
+            sections_okay_flag = False
+
+    return sections_okay_flag
+
+
 def concatenate_sections_to_volume(sect_info, target_name, out_fn, dims, affine):
     """Process sections and write the 3D volume to a file."""
     if not os.path.exists(out_fn):
         out_vol = np.zeros(dims, dtype=np.float32)
+
+        sections_okay_flag = check_dimensions(sect_info[target_name].values, dims)
+
+        if not sections_okay_flag:
+            print("Error: section dimensions do not match target dimensions")
+            exit(1)
 
         exit_flag = False
         for i, row in sect_info.iterrows():
@@ -172,6 +197,25 @@ def concatenate_sections_to_volume(sect_info, target_name, out_fn, dims, affine)
 
             try:
                 sec = nibabel.load(fn).get_fdata()
+
+                sec_x = sec.shape[0]
+                sec_z = sec.shape[1]
+
+                dim_x = dims[0]
+                dim_z = dims[2]
+                # if the difference of section dimensions is more than 1 pixel but less than 10 pixels, resize the section to match the target dimensions
+                # FIXME: this is a temporary fix for some datasets with slight mismatched section dimensions
+                d0 = np.abs(sec_x - dim_x)
+                d1 = np.abs(sec_z - dim_z)
+                if (d0 > 0 and d0 < 10) or (d1 > 0 and d1 < 10):
+                    sec = resize(
+                        sec,
+                        (dim_x, dim_z),
+                        order=1,
+                        preserve_range=True,
+                        anti_aliasing=False,
+                    )
+
                 out_vol[:, int(y), :] = sec
             except EOFError:
                 print("Error:", fn)
@@ -481,9 +525,11 @@ def check_transformation_not_empty(
     """
     assert os.path.exists(out_fn), f"Error: transformed file does not exist {out_fn}"
 
+    total_value = np.sum(np.abs(nib.load(out_fn).dataobj))
+
     assert (
-        np.sum(np.abs(nib.load(out_fn).dataobj)) > 0 or empty_ok
-    ), f"Error in applying transformation: \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n"
+        total_value > 0 or empty_ok
+    ), f"Error in applying transformation: sum of pixels/voxels = {total_value}: \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n"
 
 
 def resample_struct_reference_volume(
@@ -599,19 +645,65 @@ def save_sections(
 
     for fn, y in file_list:
         i = 0
-        if np.sum(vol[:, int(y), :]) == 0:
+
+        if np.max(vol[:, int(y), :]) < 1:
             # Create 2D srv section
             # this little while loop thing is so that if we go beyond  brain tissue in vol,
             # we find the closest y segement in vol with brain tissue
-            while np.sum(vol[:, int(y - i), :]) == 0:
-                i += (ystep / np.abs(ystep)) * 1
+            while np.max(vol[:, int(y - i), :]) < 1:
+                i += ystep / np.abs(ystep)
 
         sec = vol[:, int(y - i), :]
+
+        assert np.max(sec) != np.min(sec), f"Error: empty section {fn}"
+
+        if "damp" in fn:
+            print(fn, np.max(sec))
 
         nib.Nifti1Image(sec, affine, dtype=dtype, direction_order="lpi").to_filename(fn)
 
 
-def get_to_do_list(
+def threshold(fn: str) -> str:
+    """Threshold image.
+
+    Description: Threshold image to create mask.
+
+    :param fn: filename
+    :return: mask_fn
+    """
+    img = nib.load(fn)
+    vol = img.get_fdata()
+
+    mask = np.zeros(vol.shape)
+    t = threshold_otsu(vol) * 0.8
+    mask[vol > t] = 1
+
+    mask_fn = fn.replace(".nii.gz", "_mask.nii.gz")
+
+    nib.Nifti1Image(mask, img.affine).to_filename(mask_fn)
+
+    return mask_fn
+
+
+def check_volume(fn: str) -> None:
+    """Check that the file exists, can be opened with nibabel, and is not empty."""
+    assert os.path.exists(fn), f"Error: file does not exist {fn}"
+    try:
+        img = nibabel.load(fn)
+    except Exception as e:
+        raise AssertionError(f"Error: file cannot be opened with nibabel {fn}\n{e}")
+
+    data = img.get_fdata()
+
+    assert np.min(data) != np.max(data), f"Error: file is empty {fn}"
+
+    # Calculate Otsu threshold and check that there are voxels above the threshold
+    n_foreground = np.sum(data > threshold_otsu(data))
+
+    return n_foreground
+
+
+def get_fx_list(
     df: pd.DataFrame, out_dir: str, str_var: str, ext: str = ".nii.gz"
 ) -> List[Tuple[str, int]]:
     """Get the to-do list for processing.
@@ -622,22 +714,27 @@ def get_to_do_list(
     :param ext: str, filename extension
     :return: List[Tuple[str, int]], to-do list
     """
-    to_do_list = []
-    for idx, (i, row) in enumerate(df.iterrows()):
+    tfm_dir = f"{out_dir}/tfm/"
+
+    os.makedirs(tfm_dir, exist_ok=True)
+
+    fx_list = []
+    for _, row in df.iterrows():
         y = int(row["sample"])
         base = os.path.basename(row["raw"]).split(".")[0]
         assert int(y) >= 0, f"Error: negative y value found {y}"
-        prefix = f"{out_dir}/{base}_y-{y}"
+        prefix = f"{tfm_dir}/{base}_y-{y}"
         fn = gen_2d_fn(prefix, str_var, ext=ext)
-        if not os.path.exists(fn):
-            to_do_list.append((fn, y))
-    return to_do_list
+
+        fx_list.append(fn)
+
+    return fx_list
 
 
 def create_2d_sections(
-    df: pd.DataFrame,
+    fx_list: list,
+    y_list: list,
     srv_fn: str,
-    resolution: float,
     output_dir: str,
     dtype: int = None,
     clobber: bool = False,
@@ -658,7 +755,9 @@ def create_2d_sections(
     os.makedirs(tfm_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
-    fx_to_do = get_to_do_list(df, tfm_dir, "_fx")
+    fx_to_do = [
+        (fn, y) for fn, y in zip(fx_list, y_list) if (not os.path.exists(fn) or clobber)
+    ]
 
     if len(fx_to_do) > 0:
         srv_img = nib.load(srv_fn)
@@ -858,9 +957,9 @@ def parse_resample_arguments(
         ), f"Error: output filename must be as string, got {type(output_filename)}"
 
     vol_sum = np.sum(np.abs(vol))
-    assert vol_sum > 0, (
-        f"Error: empty ({vol_sum}) input file for resample_to_resolution\n" + input_arg
-    )
+    assert (
+        vol_sum > 0
+    ), f"Error: empty ({vol_sum}) input file for resample_to_resolution\n"
     ndim = len(vol.shape)
 
     if ndim == 3:
@@ -936,6 +1035,22 @@ def get_new_dims(
 
     new_dims = np.ceil(old_dimensions * scale)
     return new_dims, downsample_factor
+
+# Check if all dimensions are the same for 2D_align, seg_rsl, seg_rsl_tfm
+def check_consistent_dimensions(sect_info: pd.DataFrame, column_name: str) -> bool:
+    """Check if all dimensions are the same for a given column in a dataframe."""
+    
+    dims = None 
+    
+    for _, row in sect_info.iterrows():
+        section_dims = nib.load(row[column_name]).shape
+
+        if dims is None:
+            dims = section_dims
+        else:
+            assert dims == section_dims, f"Error: Inconsistent dimensions in {column_name} files: {dims} vs {section_dims}"
+
+    return True
 
 
 def check_run_stage(
@@ -1023,6 +1138,9 @@ def pad_to_max_dims(vol: np.ndarray, max_dims: np.ndarray) -> np.ndarray:
     offset0 = int(max_dims[0] - vol.shape[0])
     offset1 = int(max_dims[1] - vol.shape[1])
     offset2 = int(max_dims[2] - vol.shape[2]) if len(vol.shape) == 3 else 0
+
+    print("offsets", offset0, offset1, offset2)
+
     if len(vol.shape) == 2:
         vol = np.pad(vol, ((0, offset0), (0, offset1)), mode="constant")
     elif len(vol.shape) == 3:
@@ -1081,20 +1199,24 @@ def resample_to_resolution(
         ndim,
     ) = parse_resample_arguments(input_arg, output_filename, affine, dtype)
 
-    print(old_resolution, new_resolution)
     new_dims, downsample_factor = get_new_dims(
         old_resolution, new_resolution, vol.shape
     )
 
-    print(new_dims, downsample_factor)
+    if order != 0:
+        sigma = calculate_sigma_for_downsampling(downsample_factor)
+    else:
+        sigma = 0
 
-    sigma = calculate_sigma_for_downsampling(downsample_factor)
-    
     # sigma[sigma <= 1] = 0
 
     vol = resize(
-        vol, new_dims, order=order, anti_aliasing=True, anti_aliasing_sigma=sigma
-    )
+        vol.astype(float),
+        new_dims,
+        order=order,
+        anti_aliasing=True,
+        anti_aliasing_sigma=sigma,
+    ).astype(dtype)
 
     if max_dims is not None:
         vol = pad_to_max_dims(vol, max_dims)

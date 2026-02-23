@@ -83,10 +83,9 @@ def thicken_sections_within_chunk(
     thickened_fn: str,
     source_image_fn: str,
     section_thickness: float,
-    acquisition: str,
     chunk_sect_info: pd.DataFrame,
     resolution: float,
-    tissue_type: str = None,
+    target_section: str = "2d_align",
     gaussian_sd: float = 0,
     width: int = None,
 ) -> None:
@@ -105,11 +104,6 @@ def thicken_sections_within_chunk(
     array_img = nib.load(source_image_fn)
     array_src = array_img.get_fdata()
 
-    if tissue_type != None:  # FIXME Not great coding
-        target_section = f"2d_align_{tissue_type}"
-    else:
-        target_section = "2d_align"
-
     assert np.sum(array_src) != 0, (
         "Error: source volume for thickening sections is empty\n" + source_image_fn
     )
@@ -118,9 +112,14 @@ def thicken_sections_within_chunk(
         width = get_thicken_width(resolution, section_thickness, scale=1)
 
     print("\t\tThickening sections to ", 0.02 * width * 2)
+    print(chunk_sect_info.columns)
 
     example_2d_fin = chunk_sect_info.iloc[0][target_section]
+
     example_2d_hd = nib.load(example_2d_fin)
+    print(target_section)
+    print(example_2d_hd.shape)
+    print(example_2d_fin)
 
     xdim = example_2d_hd.shape[0]
     ydim = array_src.shape[1]
@@ -134,10 +133,8 @@ def thicken_sections_within_chunk(
     for row_i, row in chunk_sect_info.iterrows():
         y = int(row["sample"])
 
-        
-
         nl_2d_rsl = row[target_section]
-        print(nl_2d_rsl); 
+        print(nl_2d_rsl)
 
         assert os.path.exists(
             nl_2d_rsl
@@ -155,7 +152,7 @@ def thicken_sections_within_chunk(
             else array_src.shape[1]
         )
 
-        print(section.shape,'==', dim)
+        print(section.shape, "==", dim)
 
         rep = np.repeat(section.reshape(dim), y1 - y0, axis=1)
 
@@ -188,7 +185,7 @@ def thicken_sections_within_chunk(
     )
 
     affine = array_img.affine
-    affine[0,0] = affine[2,2] = resolution
+    affine[0, 0] = affine[2, 2] = resolution
 
     print("\tthickened_fn", thickened_fn)
     nib.Nifti1Image(rec_vol, array_img.affine, direction_order="lpi").to_filename(
@@ -343,8 +340,8 @@ def create_thickened_volumes(
     chunk_info: pd.DataFrame,
     sect_info: pd.DataFrame,
     resolution: float,
-    struct_vol_rsl_fn: str,
     tissue_type: str = None,
+    target_section: str = "2d_align",
     gaussian_sd: float = 0,
     width: int = None,
     clobber: bool = False,
@@ -407,10 +404,9 @@ def create_thickened_volumes(
                     chunk_info_row["thickened"],
                     chunk_info_row["nl_2d_vol_fn"],
                     chunk_info_row["section_thickness"],
-                    acquisition,
                     chunk_sect_info,
                     resolution,
-                    tissue_type=tissue_type,
+                    target_section=target_section,
                     gaussian_sd=gaussian_sd,
                     width=width,
                 )

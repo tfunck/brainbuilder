@@ -137,15 +137,13 @@ def local_metric(
     :param: offset: int
     :return: local_dice_volume: np.ndarray
     """
-    fx_vol = prepare_volume(fx_vol)
-    mv_vol = prepare_volume(mv_vol)
 
     local_dice_section = np.zeros(fx_vol.shape)
 
     xy = [
         (x, y)
-        for y in range(fx_vol.shape[0])
-        for x in range(fx_vol.shape[1])
+        for y in range(mv_vol.shape[0])
+        for x in range(mv_vol.shape[1])
         if mv_vol[y, x] > 0
     ]
 
@@ -225,6 +223,8 @@ def get_section_metric(
     :param verbose: Whether to enable verbose mode.
     :return: None
     """
+    print('\tfx_fn:', fx_fn)
+    print('\tmv_fn:', mv_fn)
     img0 = nib.load(fx_fn)
     fx_vol = img0.get_fdata()
     img1 = nib.load(mv_fn)

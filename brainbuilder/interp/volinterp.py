@@ -29,16 +29,119 @@ def idw(vol, nearest_i, min_dist, p=2):
 
     return interp
 
+
+def apply_final_2d_transforms(
+    curr_sect_info: pd.DataFrame,
+    final_tfm_dir: str,
+    final_resolution: float,
+    interpolation: str = "Linear",
+    num_cores: int = -1,
+):
+    """Apply the final 2D transforms to the raw and segmented images.
+    Parameters
+    ----------
+    curr_sect_info : pd.DataFrame
+        DataFrame containing the section information for a single chunk.
+    final_tfm_dir : str
+        Directory to save the final transformed images.
+    final_resolution : float
+        Final resolution of the images.
+    interpolation : str
+        Interpolation method to use. Options are 'Linear', 'NearestNeighbor', 'Gaussian', 'MultiLabel'.
+    num_cores : int
+        Number of cores to use for parallel processing.
+    """
+    os.makedirs(final_tfm_dir, exist_ok=True)
+
+    curr_sect_info["2d_align"] = curr_sect_info["2d_align"].apply(
+        lambda x: f"{final_tfm_dir}/{os.path.basename(x)}"
+    )
+    curr_sect_info["2d_align_cls"] = curr_sect_info["2d_align_cls"].apply(
+        lambda x: f"{final_tfm_dir}/{os.path.basename(x)}"
+    )
+
+    Parallel(n_jobs=num_cores, backend="multiprocessing")(
+        delayed(apply_transforms_parallel)(
+            final_tfm_dir,
+            final_resolution,
+            row,
+            interpolation=interpolation,
+            file_str="raw",
+        )
+        for _, row in curr_sect_info.iterrows()
+    )
+
+    Parallel(n_jobs=num_cores, backend="multiprocessing")(
+        delayed(apply_transforms_parallel)(
+            final_tfm_dir, final_resolution, row, tissue_str="_cls", file_str="seg"
+        )
+        for _, row in curr_sect_info.iterrows()
+    )
+
+    return curr_sect_info
+
+
 def volumetric_interpolation(
+    curr_sect_info: pd.DataFrame,
+    curr_chunk_info: pd.DataFrame,
+    output_dir: str,
+    resolution: float,
+    resolution_list: list,
+    interpolation: str = "Linear",
+    tissue_type: str = "acq",
+    target_section: str = "2d_align",
+    nlflow_tfm_dict: dict = None,
+    num_cores: int = -1,
+    clobber: bool = False,
+) -> pd.DataFrame:
+    os.makedirs(output_dir, exist_ok=True)
+
+    chunk_info_thickened_csv = create_thickened_volumes(
+        output_dir,
+        curr_chunk_info,
+        curr_sect_info,
+        resolution,
+        tissue_type=tissue_type,
+        target_section=target_section,
+        clobber=clobber,
+        width=1,
+    )
+
+    chunk_info_thickened = pd.read_csv(chunk_info_thickened_csv)
+
+    assert (
+        len(chunk_info_thickened) == 1
+    ), "Error: More than one chunk in the chunk info, should only be 1."
+
+    acq_fin = chunk_info_thickened["thickened"].values[0]
+    print(tissue_type, target_section)
+    print("acq_fin:", acq_fin)
+
+    interp_iso_fin, nlflow_tfm_dict = nlflow_isometric(
+        acq_fin,
+        output_dir,
+        resolution,
+        resolution_list,
+        interpolation=interpolation,
+        tfm_dict=nlflow_tfm_dict,
+        num_jobs=num_cores,
+        clobber=clobber,
+    )
+
+    return interp_iso_fin, nlflow_tfm_dict
+
+
+def volumetric_interpolation_over_dataframe(
     sect_info: pd.DataFrame,
     chunk_info: pd.DataFrame,
-    struct_ref_vol: str,
     output_dir: str,
     resolution: float,
     resolution_list: list,
     clobber: bool = False,
     final_resolution: float = None,
     interpolation: str = "Linear",
+    tissue_type: str = "cls",
+    target_section: str = "2d_align",
     num_cores: int = -1,
 ) -> pd.DataFrame:
     """Interpolates the volumes of the sections in the chunk_info dataframe.
@@ -67,7 +170,6 @@ def volumetric_interpolation(
         resolution_list += [final_resolution]
         resolution = final_resolution
 
-
     for (sub, hemisphere, chunk, acq), curr_sect_info in sect_info.groupby(
         ["sub", "hemisphere", "chunk", "acquisition"]
     ):
@@ -75,52 +177,28 @@ def volumetric_interpolation(
             f"{output_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/acq-{acq}/"
         )
 
-        final_tfm_dir = curr_output_dir + "/final_tfm_2d"
-
-        os.makedirs(final_tfm_dir, exist_ok=True)
-
-        curr_sect_info['2d_align'] = curr_sect_info['2d_align'].apply( lambda x :f'{final_tfm_dir}/{os.path.basename(x)}' )
-        curr_sect_info['2d_align_cls'] = curr_sect_info['2d_align_cls'].apply( lambda x :f'{final_tfm_dir}/{os.path.basename(x)}' )
-
-
         if final_resolution is not None and isinstance(final_resolution, float):
-            Parallel(n_jobs=num_cores, backend="multiprocessing")(
-                delayed(apply_transforms_parallel)(
-                    final_tfm_dir, final_resolution, row, interpolation=interpolation, file_str="raw"
-                )
-                for _, row in curr_sect_info.iterrows()
-            )
-            
-            Parallel(n_jobs=num_cores, backend="multiprocessing")(
-                delayed(apply_transforms_parallel)(
-                    final_tfm_dir, final_resolution, row, tissue_str='_cls', file_str="seg"
-                )
-                for _, row in curr_sect_info.iterrows()
-            )
+            final_tfm_dir = curr_output_dir + "/final_tfm_2d"
 
-        os.makedirs(curr_output_dir, exist_ok=True)
+            curr_sect_info = apply_final_2d_transforms(
+                curr_sect_info,
+                final_tfm_dir,
+                final_resolution,
+                interpolation,
+                num_cores,
+            )
 
         curr_chunk_info = chunk_info[(chunk_info["chunk"] == chunk)]
 
-        chunk_info_thickened_csv = create_thickened_volumes(
-            curr_output_dir,
-            curr_chunk_info,
+        interp_acq_iso_fin, nlflow_tfm_dict = volumetric_interpolation(
             curr_sect_info,
-            resolution,
-            struct_ref_vol,
-            clobber=clobber,
-            width=1,
-        )
-
-        chunk_info_cls_thickened_csv = create_thickened_volumes(
-            curr_output_dir + "/cls/",
             curr_chunk_info,
-            curr_sect_info,
+            curr_output_dir + "/acq/",
             resolution,
-            struct_ref_vol,
-            tissue_type="cls",
+            resolution_list,
+            interpolation=interpolation,
+            num_cores=num_cores,
             clobber=clobber,
-            width=1,
         )
 
         chunk_info_thickened = pd.read_csv(chunk_info_thickened_csv)
@@ -139,7 +217,9 @@ def volumetric_interpolation(
             curr_output_dir + "/cls/",
             resolution,
             resolution_list,
-            tfm_dict=nlflow_tfm_dict,
+            tissue_type=tissue_type,
+            target_section=target_section,
+            nlflow_tfm_dict=nlflow_tfm_dict,
             num_cores=num_cores,
             clobber=clobber,
         )
@@ -174,6 +254,96 @@ def create_mask(fn, out_fn, clobber: bool = False):
         nib.Nifti1Image(data, img.affine, direction_order="lpi").to_filename(out_fn)
 
 
+def chunked_percentile(
+    fins,
+    fout,
+    p=50,
+    bins=256,
+    vmin=None,
+    vmax=None,
+    background=None,
+    chunk=(48, 48, 48),
+    out_dtype=np.float32,
+):
+    """Compute the voxel-wise p-th percentile across a set of volumes in chunks to save memory."""
+    ref = nib.load(fins[0])
+
+    shape, affine = ref.shape, ref.affine
+
+    Z, Y, X = shape
+    cz, cy, cx = chunk
+
+    # Establish global value range for binning (or pass your known range)
+    if vmin is None or vmax is None:
+        vmin, vmax = np.inf, -np.inf
+        for f in fins:
+            img = nib.load(f)
+            # sample sparsely for speed
+            s = np.asarray(img.dataobj[::8, ::8, ::8])
+            if background is not None:
+                s = s[s != background]
+            if s.size:
+                vmin = min(vmin, float(np.nanmin(s)))
+                vmax = max(vmax, float(np.nanmax(s)))
+        if not np.isfinite(vmin):  # degenerate
+            vmin, vmax = 0.0, 1.0
+
+    edges = np.linspace(vmin, vmax, bins + 1, dtype=np.float32)
+    centers = 0.5 * (edges[:-1] + edges[1:])
+
+    out = np.zeros(shape, dtype=np.float32)
+
+    for z0 in range(0, Z, cz):
+        for y0 in range(0, Y, cy):
+            for x0 in range(0, X, cx):
+                z1, y1, x1 = min(z0 + cz, Z), min(y0 + cy, Y), min(x0 + cx, X)
+                sz, sy, sx = z1 - z0, y1 - y0, x1 - x0
+                H = np.zeros((sz, sy, sx, bins), dtype=np.uint32)
+
+                for f in fins:
+                    print("\tIncluding", f)
+                    blk = np.asarray(nib.load(f).dataobj[z0:z1, y0:y1, x0:x1])
+                    if background is not None:
+                        blk = np.where(blk == background, np.nan, blk)
+                    # Map values to bin indices
+                    # scale to [0, bins-1]
+                    idx = np.floor(
+                        (blk - vmin) / (vmax - vmin + 1e-12) * (bins - 1)
+                    ).astype(np.int32)
+                    # mask NaNs / outside
+                    m = ~np.isnan(blk)
+                    idx = np.clip(idx, 0, bins - 1, out=idx)
+                    # Update histograms
+                    # vectorized add: one bincount per voxel would be slow,
+                    # so flatten spatial dims for one big add.at
+                    flat_m = m.ravel()
+                    flat_idx = idx.ravel()[flat_m]
+                    # Build coordinates for add.at
+                    # linear voxel index (0..sz*sy*sx-1)
+                    lin = np.arange(sz * sy * sx, dtype=np.int32).repeat(1)[flat_m]
+                    # Faster: use np.add.at on a 2D (voxels, bins) view
+                    H2 = H.reshape(-1, bins)
+                    np.add.at(H2, (lin, flat_idx), 1)
+
+                # Turn histograms into the desired percentile
+                Hc = np.cumsum(H, axis=-1)
+                counts = Hc[..., -1]
+                target = (p / 100.0) * counts
+                # first bin where cumsum >= target
+                # handle empty (all NaN / all background)
+                empty = counts == 0
+                idxp = np.argmax(Hc >= target[..., None], axis=-1)
+
+                val = centers[idxp]
+                val[empty] = np.nan if background is None else background
+
+                out[z0:z1, y0:y1, x0:x1] = val
+    print(fout)
+    print(out.shape)
+    out = out.astype(out_dtype)
+    nib.Nifti1Image(out, affine, direction_order="lpi").to_filename(fout)
+
+
 def create_acq_atlas(chunk_info, output_dir, atlas_fin, clobber: bool = False):
     """To save memory, for each volume :
         1. load and z-score it,
@@ -202,7 +372,9 @@ def create_acq_atlas(chunk_info, output_dir, atlas_fin, clobber: bool = False):
 
             img = nib.load(interp_vol_fin)
             print(i / n, interp_vol_fin)
+
             vol = img.get_fdata()
+
             vol = (vol - np.mean(vol)) / np.std(vol)
 
             if mean_vol is None:
@@ -233,7 +405,11 @@ def create_acq_atlas(chunk_info, output_dir, atlas_fin, clobber: bool = False):
 
 
 def apply_final_transform_to_files(
-    chunk_info:pd.DataFrame, ref_vol_fin:str, nl_3d_tfm_fn:str, interpolation:str='Linear', clobber: bool = False
+    chunk_info: pd.DataFrame,
+    ref_vol_fin: str,
+    nl_3d_tfm_fn: str,
+    interpolation: str = "Linear",
+    clobber: bool = False,
 ):
     for _, row in chunk_info.iterrows():
         interp_nat_fin = row["interp_nat"]
@@ -287,53 +463,15 @@ def create_final_transform(
 
     nl_3d_tfm_fn = chunk_info["nl_3d_tfm_fn"].values[0]
 
-    # resolution_3d = min(resolution_list_3d)
-
-    # ref_rsl_3d_fin = utils.resample_struct_reference_volume(
-    #    in_ref_rsl_fin, resolution_3d, output_dir, clobber=clobber
-    # )
-
-    # world_chunk_limits, vox_chunk_limits = verify_chunk_limits(
-    #    ref_rsl_3d_fin, chunk_info
-    # )
-
-    # out_nl_3d_tfm_fn = (
-    #    f"{mask_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_SyN_CC_Composite.h5"
-    # )
-
-    # nl_3d_tfm_inv_fn = f"{mask_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_SyN_CC_InverseComposite.h5"
-    # rec_3d_rsl_fn = (
-    #    f"{mask_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_rec_3d_rsl.nii.gz"
-    # )
-    # ref_3d_rsl_fn = (
-    #    f"{mask_out_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_ref_3d_rsl.nii.gz"
-    # )
-    # align_3d(
-    #    sub,
-    #    hemisphere,
-    #    chunk,
-    #    atlas_vol_fin,  # moving
-    #    ref_rsl_3d_fin,  # fixed
-    #    mask_out_dir,
-    #    out_nl_3d_tfm_fn,
-    #    nl_3d_tfm_inv_fn,
-    #    rec_3d_rsl_fn,
-    #    ref_3d_rsl_fn,
-    #    resolution_3d,
-    #    resolution_list_3d,
-    #    world_chunk_limits,
-    #    vox_chunk_limits,
-    #    init_tfm = nl_3d_tfm_fn,
-    #    linear_steps = [],
-    #    use_3d_syn_cc = True,
-    #    use_pad_volume = True,
-    #    clobber = clobber,
-    # )
     out_nl_3d_tfm_fn = nl_3d_tfm_fn
     print("atlas_vol_fn:", atlas_vol_fin)
 
     chunk_info = apply_final_transform_to_files(
-        chunk_info, ref_rsl_2d_fin, out_nl_3d_tfm_fn, interpolation=interpolation, clobber=True
+        chunk_info,
+        ref_rsl_2d_fin,
+        out_nl_3d_tfm_fn,
+        interpolation=interpolation,
+        clobber=True,
     )
 
     return chunk_info
@@ -375,16 +513,17 @@ def volumetric_pipeline(
 
         ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
 
+        ref_resolution = resolution if final_resolution is None else final_resolution
+
         ref_vol_rsl_fn = utils.resample_struct_reference_volume(
-            ref_vol_fn, resolution, output_dir, clobber=clobber
+            ref_vol_fn, ref_resolution, output_dir, clobber=clobber
         )
 
         # Volumetric interpolation
         print("Volumetric Interpolation for sub:", sub, "hemi:", hemisphere)
-        curr_chunk_info = volumetric_interpolation(
+        curr_chunk_info = volumetric_interpolation_over_dataframe(
             sect_info_sub_hemi,
             curr_chunk_info,
-            ref_vol_fn,
             output_dir,
             resolution,
             resolution_list,
