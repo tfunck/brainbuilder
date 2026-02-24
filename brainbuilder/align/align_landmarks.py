@@ -842,7 +842,7 @@ def create_landmark_transform(
             output_dir,
             acq_landmark_path,
             ref_landmark_path,
-            transform_type=transform_type,
+            transform_type = transform_type,
             clobber=clobber,
         )
 
