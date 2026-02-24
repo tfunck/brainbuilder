@@ -276,6 +276,7 @@ def run_alignment(
     metric: str = "GC",
     nbins: int = None,
     init_tfm: str = None,
+    landmark_point_sets: Tuple[str, str] = None,
     sampling: float = 0.9,
     use_3d_syn_cc: bool = True,
     linear_steps: str = ["rigid", "similarity", "affine"],
@@ -296,7 +297,7 @@ def run_alignment(
     :param resolution: resolution of the section volume
     :param metric: metric to use for registration
     :param nbins: number of bins for registration
-    :param use_init_tfm: use initial transformation
+    :param init_tfm: use initial transformation
     :param sampling: sampling for registration
     :param clobber: overwrite existing files
     :return: None.
@@ -325,11 +326,11 @@ def run_alignment(
     ref_tgt_fn = ref_chunk_fn
     step = 0.5
     sampling = 0.9
-
+    
     unique_fixed_values = np.unique(nib.load(ref_chunk_fn).get_fdata())
     unique_moving_values = np.unique(nib.load(seg_rsl_fn).get_fdata())
 
-    nbins = min(256, max(len(unique_fixed_values), len(unique_moving_values)))
+    nbins = min(256, max(len(unique_fixed_values), len(unique_moving_values))//4)
 
     nl_metric = f"Mattes[{ref_chunk_fn},{seg_rsl_fn},1,32,Random,{sampling}]"
 
@@ -344,36 +345,47 @@ def run_alignment(
             F.write(cmd)
         return None
 
+    
     # set initial transform
-    # calculate rigid registration
-
-    if init_tfm is None:
-        init_str = f" --initial-moving-transform [{ref_chunk_fn},{seg_rsl_fn},1] "
-    else:
+    if init_tfm is not None:
         init_str = f" --initial-moving-transform {init_tfm} "
+    else : 
+        init_str = f" --initial-moving-transform [{ref_chunk_fn},{seg_rsl_fn},1] "
+
+    if landmark_point_sets is not None:
+        point_set_weight = 0.5
+        #init_str = f" --initial-moving-transform {init_tfm} "
+        point_set_metric = f" -m JHCT[{landmark_point_sets[0]},{landmark_point_sets[1]},{point_set_weight},1,0,1,10] " # [fx, mv, weight, sampling, boundryPointsOnly, pointSetSigma, kNeighborhood, alpha, useAnisotropicCovariances]
+        # JHCT[fixedPointSet,movingPointSet,metricWeight,<samplingPercentage=[0,1]>,<boundaryPointsOnly=0>,<pointSetSigma=1>,<kNeighborhood=50>,<alpha=1.1>,<useAnisotropicCovariances=1>
+    else:
+        point_set_metric = ""
 
     verbose = 0 if logger.getEffectiveLevel() == logging.INFO else 1
 
+
     # calculate rigid registration
     if not os.path.exists(f"{prefix_rigid}Composite.h5") and "rigid" in linear_steps:
-        rigid_cmd = f"{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] "
+        rigid_cmd = f"{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  {point_set_metric}  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o {prefix_rigid} "
         utils.shell(rigid_cmd, verbose=verbose)
         write_log(out_dir, "rigid", rigid_cmd)
         init_str = f"--initial-moving-transform  {prefix_rigid}Composite.h5"
+
+    #,{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz]
 
     # calculate similarity registration
     if (
         not os.path.exists(f"{prefix_similarity}Composite.h5")
         and "similarity" in linear_steps
     ):
-        similarity_cmd = f"{base}  {init_str} -t Similarity[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] "
+        similarity_cmd = f"{base}  {init_str} -t Similarity[{step}] -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  {point_set_metric}  -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] "
         utils.shell(similarity_cmd, verbose=verbose)
         write_log(out_dir, "similarity", similarity_cmd)
         init_str = f"--initial-moving-transform {prefix_similarity}Composite.h5"
 
     # calculate affine registration
+    # ,{affine_out_fn},{affine_inv_fn}]
     if not os.path.exists(f"{prefix_affine}Composite.h5") and "affine" in linear_steps:
-        affine_cmd = f"{base}  {init_str} -t Affine[{step}] -m {metric}[{ref_tgt_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] "
+        affine_cmd = f"{base}  {init_str} -t Affine[{step}] -m {metric}[{ref_tgt_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}] {point_set_metric}  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o {prefix_affine} "
         utils.shell(affine_cmd, verbose=verbose)
         write_log(out_dir, "affine", affine_cmd)
         init_str = f"--initial-moving-transform {prefix_affine}Composite.h5"
@@ -400,9 +412,9 @@ def run_alignment(
         # nl_base += f" -t SyN[{syn_rate}] -m {nl_metric}  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} "
 
         if use_3d_syn_cc:
-            nl_base += f" -t SyN[{syn_rate}] -m {cc_metric} -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str} "
+            nl_base += f" -t SyN[{syn_rate}] -m {cc_metric}  {point_set_metric}  -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str} "
         else:
-            nl_base += f" -t SyN[{syn_rate}] -m {nl_metric}  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} "
+            nl_base += f" -t SyN[{syn_rate}] -m {nl_metric}  {point_set_metric}  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} "
 
         utils.shell(nl_base, verbose=verbose)
 
@@ -414,9 +426,10 @@ def run_alignment(
             f"{prefix_syn}Composite.h5"
         ), f"Error: {prefix_syn}Composite.h5 does not exist"
 
-        assert os.path.exists(
-            f"{prefix_syn}InverseComposite.h5"
-        ), f"Error: {prefix_syn}InverseComposite.h5 does not exist"
+        if not init_tfm :
+            assert os.path.exists(
+                f"{prefix_syn}InverseComposite.h5"
+            ), f"Error: {prefix_syn}InverseComposite.h5 does not exist"
 
     utils.simple_ants_apply_tfm(
         seg_rsl_fn, ref_rsl_fn, prefix_syn + "Composite.h5", out_fn, n="BSpline[2]"

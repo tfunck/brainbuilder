@@ -577,7 +577,15 @@ def simple_ants_apply_tfm(
     :return: None
     """
     if not os.path.exists(out_fn) or clobber:
-        str0 = f"antsApplyTransforms -n {n} -v 0 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}"
+        
+        if isinstance(tfm_fn, str) :
+            tfm_string = f' -t {tfm_fn} '
+        elif isinstance(tfm_fn, list) :
+            tfm_string = ' '.join([f' -t {tfm} ' for tfm in tfm_fn])
+        else :
+            raise ValueError("tfm_fn must be a string or a list of strings")
+
+        str0 = f"antsApplyTransforms -n {n} -v 0 -d {ndim} -i {in_fn} -r {ref_fn} {tfm_string}  -o {out_fn}"
         shell(str0, verbose=True)
         check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn, empty_ok=empty_ok)
 
@@ -1142,9 +1150,9 @@ def pad_to_max_dims(vol: np.ndarray, max_dims: np.ndarray) -> np.ndarray:
     print("offsets", offset0, offset1, offset2)
 
     if len(vol.shape) == 2:
-        vol = np.pad(vol, ((0, offset0), (0, offset1)), mode="constant")
+        vol = np.pad(vol, ((offset0, 0), (offset1, 0)), mode="constant")
     elif len(vol.shape) == 3:
-        vol = np.pad(vol, ((0, offset0), (0, offset1), (0, offset2)), mode="constant")
+        vol = np.pad(vol, ((offset0, 0), (offset1, 0), (offset2, 0)), mode="constant")
     return vol
 
 
@@ -1209,6 +1217,9 @@ def resample_to_resolution(
         sigma = 0
 
     # sigma[sigma <= 1] = 0
+    print('new_resolution:', new_resolution)
+    print('max_dims:', max_dims)
+    print('new_dims:', new_dims)
 
     vol = resize(
         vol.astype(float),
@@ -1232,6 +1243,7 @@ def resample_to_resolution(
     affine[dim_range, dim_range] = new_resolution
     affine[dim_range, 3] = origin
 
+    print(affine)
     img_out = nib.Nifti1Image(vol, affine, dtype=dtype, direction_order=direction_order)
 
     if isinstance(output_filename, str):

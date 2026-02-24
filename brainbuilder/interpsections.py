@@ -30,6 +30,7 @@ def interpolate_missing_sections(
     interp_method: str = METHOD_VOLUMETRIC,
     interpolation: str = "Linear",
     num_cores: int = -1,
+    use_final_transform: bool = True,
     clobber: bool = False,
 ) -> str:
     """Interpolate missing sections in a volume.
@@ -58,6 +59,7 @@ def interpolate_missing_sections(
         final_resolution=final_resolution,
         interpolation=interpolation,
         num_cores=num_cores,
+        use_final_transform=use_final_transform,
         clobber=clobber,
     )
     assert (
@@ -99,14 +101,17 @@ def interpolate_missing_sections(
                     f"\t\t\tReconstructed cortex file: {reconstructed_cortex_fn}"
                 )
 
-                ref_vol_rsl_fn = acq_chunk_info["ref_vol_rsl_fn"].values[
-                    0
-                ]  # if 'ref_vol_rsl_fn' in acq_chunk_info.columns else ref_vol_fn
+
+                mask_fn = None
+                if "ref_vol_rsl_fn" in acq_chunk_info.columns:
+                    mask_fn = acq_chunk_info["ref_vol_rsl_fn"].values[
+                        0
+                    ]  # if 'ref_vol_rsl_fn' in acq_chunk_info.columns else ref_vol_fn
 
                 combine_volumes(
                     acq_chunk_info["interp_stx"].values,
                     reconstructed_cortex_fn,
-                    mask_fn=ref_vol_rsl_fn,
+                    mask_fn=mask_fn,
                     clobber=clobber,
                 )
 

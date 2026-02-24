@@ -330,7 +330,7 @@ def alignment_stage(
     vol_fn_str: str,
     output_dir: str,
     transforms: list,
-    linParams: str,
+    linParams: utils.AntsParams,
     desc: Tuple[int, int, int] = (0, 0, 0),
     target_acquisition: Optional[str] = None,
     target_tier: int = 1,
@@ -360,9 +360,10 @@ def alignment_stage(
     smooth_sigma = re.sub("vox", "", linParams.s_str)
     iterations = linParams.itr_str.split(",")[0][1:]
 
+
     shrink_factor = "4x3x2x1"
     smooth_sigma = ".8x0.66x.3x0"
-    iterations = "200x100x50x25"
+    iterations = "2000x1000x500x250"
 
     csv_fn = vol_fn_str.format(
         output_dir,
@@ -621,7 +622,7 @@ def align_chunk(
     chunk: str,
     output_dir: str,
     sect_info: pd.DataFrame,
-    linParams: str,
+    linParams: utils.AntsParams,
     chunk_info: pd.DataFrame,
     clobber: bool = False,
 ) -> pd.DataFrame:
@@ -653,9 +654,8 @@ def align_chunk(
     chunk_img_fn_str = "{}/sub-{}_hemi-{}_chunk-{}_acquisition_{}_{}_init_align_{}.{}"
 
     n_acquisitions = len(df["acquisition"].unique())
-    _, z_mm, y_mm = utils.get_chunk_pixel_size(sub, hemisphere, chunk, chunk_info)
+    _, _, y_mm = utils.get_chunk_pixel_size(sub, hemisphere, chunk, chunk_info)
 
-    direction = utils.get_chunk_direction(sub, hemisphere, chunk, chunk_info)
 
     ###########
     # Stage 1 #

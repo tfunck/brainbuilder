@@ -13,9 +13,10 @@ import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import align_2d
 from brainbuilder.align.align_3d import align_3d
 from brainbuilder.align.align_landmarks import create_landmark_transform
-from brainbuilder.align.intervolume import create_intermediate_volume
+from brainbuilder.align.intervolume import create_acquisition_volume
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
+from brainbuilder.utils.utils import simple_ants_apply_tfm
 
 
 def get_multiresolution_filenames(
@@ -473,9 +474,8 @@ def alignment_iteration(
             clobber=clobber,
         )
 
-    world_chunk_limits, vox_chunk_limits = verify_chunk_limits(ref_rsl_fn, chunk_info)
 
-    sect_info = create_intermediate_volume(
+    sect_info = create_acquisition_volume(
         chunk_info,
         sect_info,
         resolution_itr,
@@ -495,7 +495,7 @@ def alignment_iteration(
         ymax = nib.load(row["init_volume"]).shape[1]
         section_thickness = chunk_info["section_thickness"].values[0]
 
-        init_tfm = create_landmark_transform(
+        fixed_point_set_path, moving_point_set_path, landmark_tfm_path, landmark_inv_tfm_path = create_landmark_transform(
             sub,
             hemisphere,
             chunk,
@@ -512,13 +512,17 @@ def alignment_iteration(
             num_cores=num_cores,
             clobber=clobber,
         )
-    else:
-        init_tfm = None
-        print("\t\tNo landmark transform provided")
-
+    else :
+        landmark_point_sets = None
+        landmark_tfm_path = None
+    
+    
     ###
     ### Stage 3.2 : Align chunks to MRI
     ###
+    
+    world_chunk_limits, vox_chunk_limits = verify_chunk_limits(ref_rsl_fn, chunk_info)
+
     print("\t\tAlign chunks to MRI")
     align_3d(
         sub,
@@ -537,7 +541,8 @@ def alignment_iteration(
         vox_chunk_limits,
         use_3d_syn_cc=use_3d_syn_cc,
         linear_steps=linear_steps,
-        init_tfm=init_tfm,
+        init_tfm=landmark_tfm_path,
+        #landmark_point_set=(fixed_point_set_path, moving_point_set_path),
         clobber=clobber,
     )
 
