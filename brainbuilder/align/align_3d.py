@@ -60,10 +60,11 @@ def pad_volume(
     def padded_dim(dim: int, max_factor: int, min_voxel_size: int) -> int:
         downsampled_dim = np.ceil(dim / 2 ** (max_factor - 1))
 
-        if downsampled_dim < min_voxel_size:
-            return np.ceil((min_voxel_size - downsampled_dim) / 2).astype(int)
-        else:
-            return 0
+        return int(dim * 0.1)
+        # if downsampled_dim < min_voxel_size:
+        #    return np.ceil((min_voxel_size - downsampled_dim) / 2).astype(int)
+        # else:
+        #    return 0
 
     x_pad = padded_dim(xdim, max_factor, min_voxel_size)
     y_pad = padded_dim(ydim, max_factor, min_voxel_size)

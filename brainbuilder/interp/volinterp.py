@@ -256,7 +256,9 @@ def chunked_percentile(
     vmax=None,
     background=None,
     chunk=(48, 48, 48),
+    out_dtype=np.float32,
 ):
+    """Compute the voxel-wise p-th percentile across a set of volumes in chunks to save memory."""
     ref = nib.load(fins[0])
 
     shape, affine = ref.shape, ref.affine
@@ -331,6 +333,7 @@ def chunked_percentile(
                 out[z0:z1, y0:y1, x0:x1] = val
     print(fout)
     print(out.shape)
+    out = out.astype(out_dtype)
     nib.Nifti1Image(out, affine, direction_order="lpi").to_filename(fout)
 
 
@@ -549,6 +552,14 @@ def volumetric_pipeline(
             (hemi_info["sub"] == sub) & (hemi_info["hemisphere"] == hemisphere)
         ]
         assert len(curr_hemi_info) > 0, "Error: no hemisphere info found"
+
+        ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
+
+        ref_resolution = resolution if final_resolution is None else final_resolution
+
+        ref_vol_rsl_fn = utils.resample_struct_reference_volume(
+            ref_vol_fn, ref_resolution, output_dir, clobber=clobber
+        )
 
         # Volumetric interpolation
         print("Volumetric Interpolation for sub:", sub, "hemi:", hemisphere)
