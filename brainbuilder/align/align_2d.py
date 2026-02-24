@@ -25,7 +25,11 @@ from skimage.transform import resize
 
 logger = utils.get_logger(__name__)
 
-
+def get_base_from_raw(x):
+    """Get base from raw filename."""
+    
+    return os.path.basename(x).split(".")[0]
+    
 def resample_reference_to_sections(
     resolution: float,
     input_fn: str,
@@ -373,7 +377,8 @@ def align_2d_parallel(
     nlParams = AntsParams(resolution_list, resolution, base_nl_itr)
 
     y = int(row["sample"])
-    base = row["base"]
+    base = get_base_from_raw(row["raw"])
+
 
     prefix = f"{tfm_dir}/{base}_y-{y}"
 
@@ -440,7 +445,7 @@ def apply_transforms_parallel(
 
     y = int(row["sample"])
 
-    base = row["base"]
+    base = get_base_from_raw(row["raw"])
 
     prefix = f"{tfm_dir}/{base}_y-{y}"
 
@@ -485,6 +490,12 @@ def apply_transforms_parallel(
 
     tfm_fn = row["2d_tfm"]
 
+    if not isinstance(tfm_fn, str) : # assume identity transform
+        print(f"Warning: transform file does not exist, assuming identity transform in:\n{base}")
+        # copy img_rsl_fn to out_fn 
+        shutil.copy(img_rsl_fn, out_fn)
+        return out_fn
+    
     cmd = f"antsApplyTransforms -v {int(verbose)} -d 2 -n {interpolation} -i {img_rsl_fn} -r {fx_fn} -t {tfm_fn} -o {out_fn} "
 
     shell(cmd, True)
@@ -599,7 +610,10 @@ def align_sections(
 
     tfm_dir = output_dir + os.sep + "tfm"
 
+
+
     sect_info = get_align_filenames(tfm_dir, sect_info)
+
 
     # get lists of files that need to be aligned and resampled
     to_do_sect_info, to_do_resample_sect_info = get_align_2d_to_do(sect_info)
@@ -751,7 +765,7 @@ def align_2d(
 
     logger.info("\t\tStep 4: 2d nl alignment")
     sect_info["base"] = sect_info["raw"].apply(
-        lambda x: os.path.basename(x).split(".")[0]
+        lambda x: get_base_from_raw(x)
     )
 
     # Align 2D sections to sections from reference volume using ANTs

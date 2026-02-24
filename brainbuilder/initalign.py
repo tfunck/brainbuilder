@@ -332,7 +332,7 @@ def alignment_stage(
     vol_fn_str: str,
     output_dir: str,
     transforms: list,
-    linParams: str,
+    linParams: utils.AntsParams,
     desc: Tuple[int, int, int] = (0, 0, 0),
     target_acquisition: Optional[str] = None,
     target_tier: int = 1,
@@ -362,9 +362,10 @@ def alignment_stage(
     smooth_sigma = re.sub("vox", "", linParams.s_str)
     iterations = linParams.itr_str.split(",")[0][1:]
 
+
     shrink_factor = "4x3x2x1"
     smooth_sigma = ".8x0.66x.3x0"
-    iterations = "500x250x125x65"
+    iterations = "2000x1000x500x250"
 
     csv_fn = vol_fn_str.format(
         output_dir,
@@ -634,7 +635,7 @@ def align_chunk(
     init_align_fn: Path,
     init_align_dir: Path,
     sect_info: pd.DataFrame,
-    linParams: str,
+    linParams: utils.AntsParams,
     chunk_info: pd.DataFrame,
     clobber: bool = False,
 ) -> pd.DataFrame:

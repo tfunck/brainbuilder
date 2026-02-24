@@ -13,10 +13,11 @@ import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import align_2d
 from brainbuilder.align.align_3d import align_3d, pad_acq_volume, write_ref_chunk
 from brainbuilder.align.align_landmarks import create_landmark_transform
-from brainbuilder.align.intervolume import create_intermediate_acq_volume
+from brainbuilder.align.intervolume import create_acquisition_volume
 from brainbuilder.align.paths import MultiResPaths
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
+from brainbuilder.utils.utils import simple_ants_apply_tfm
 
 logger = utils.get_logger(__name__)
 
@@ -371,8 +372,8 @@ def alignment_iteration(
             clobber=clobber,
         )
 
-    # define paths
-    sect_info = create_intermediate_acq_volume(
+
+    sect_info = create_acquisition_volume(
         chunk_info,
         sect_info,
         resolution_itr,
@@ -397,7 +398,7 @@ def alignment_iteration(
         print("\t\tCreate landmark transform")
         ymax = nib.load(paths.init_volume).shape[1]
 
-        init_tfm = create_landmark_transform(
+        fixed_point_set_path, moving_point_set_path, landmark_tfm_path, landmark_inv_tfm_path = create_landmark_transform(
             sub,
             hemisphere,
             chunk,
@@ -425,6 +426,7 @@ def alignment_iteration(
     ###
     ### Stage 3.2 : Align chunks to MRI
     ###
+    
     print("\t\tAlign chunks to MRI")
     vol_tfm_list = align_3d(
         sub,
@@ -439,7 +441,8 @@ def alignment_iteration(
         resolution_list_3d,
         use_3d_syn_cc=use_3d_syn_cc,
         linear_steps=linear_steps,
-        init_tfm=init_tfm,
+        init_tfm=landmark_tfm_path,
+        #landmark_point_set=(fixed_point_set_path, moving_point_set_path),
         clobber=clobber,
     )
 

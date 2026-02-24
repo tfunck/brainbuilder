@@ -341,7 +341,11 @@ def load_2d_sections_to_volume(sect_info, in_dir, resolution_3d, dims):
     return data
 
 
+<<<<<<< HEAD
 def create_intermediate_acq_volume(
+=======
+def create_acquisition_volume(
+>>>>>>> master
     chunk_info: pd.DataFrame,
     sect_info: pd.DataFrame,
     resolution_itr: int,
@@ -351,7 +355,6 @@ def create_intermediate_acq_volume(
     out_dir: str,
     seg_rsl_fn: str,
     init_align_fn: str,
-    interpolation: str = "nearest",
     num_cores: int = 0,
     clobber: bool = False,
 ) -> None:
