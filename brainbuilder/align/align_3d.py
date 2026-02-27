@@ -359,25 +359,11 @@ def run_alignment(
 
     step = 0.5
     sampling = 0.9
-<<<<<<< HEAD
     nbins = 32
 
     orig_mv_fn = mv_fn
 
     init_str, mv_fn, init_tfm_list = set_init_tfm(init_tfm, fx_fn, mv_fn)
-=======
-    
-    unique_fixed_values = np.unique(nib.load(ref_chunk_fn).get_fdata())
-    unique_moving_values = np.unique(nib.load(seg_rsl_fn).get_fdata())
-
-    nbins = min(256, max(len(unique_fixed_values), len(unique_moving_values))//4)
-
-    nl_metric = f"Mattes[{ref_chunk_fn},{seg_rsl_fn},1,32,Random,{sampling}]"
-
-    cc_metric = f"CC[{ref_chunk_fn},{seg_rsl_fn},1,3,Random,{sampling}]"
-
-    syn_rate = "0.1"
->>>>>>> master
 
     base = "antsRegistration -v 1 -a 1 -d 3 "
 
@@ -388,33 +374,15 @@ def run_alignment(
 
     
     # set initial transform
-<<<<<<< HEAD
     # calculate rigid registration
-=======
-    if init_tfm is not None:
-        init_str = f" --initial-moving-transform {init_tfm} "
-    else : 
-        init_str = f" --initial-moving-transform [{ref_chunk_fn},{seg_rsl_fn},1] "
 
-    if landmark_point_sets is not None:
-        point_set_weight = 0.5
-        #init_str = f" --initial-moving-transform {init_tfm} "
-        point_set_metric = f" -m JHCT[{landmark_point_sets[0]},{landmark_point_sets[1]},{point_set_weight},1,0,1,10] " # [fx, mv, weight, sampling, boundryPointsOnly, pointSetSigma, kNeighborhood, alpha, useAnisotropicCovariances]
-        # JHCT[fixedPointSet,movingPointSet,metricWeight,<samplingPercentage=[0,1]>,<boundaryPointsOnly=0>,<pointSetSigma=1>,<kNeighborhood=50>,<alpha=1.1>,<useAnisotropicCovariances=1>
-    else:
-        point_set_metric = ""
->>>>>>> master
 
     verbose = 0 if logger.getEffectiveLevel() == logging.INFO else 1
 
 
     # calculate rigid registration
     if not os.path.exists(f"{prefix_rigid}Composite.h5") and "rigid" in linear_steps:
-<<<<<<< HEAD
         rigid_cmd = f"{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] "
-=======
-        rigid_cmd = f"{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  {point_set_metric}  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o {prefix_rigid} "
->>>>>>> master
         utils.shell(rigid_cmd, verbose=verbose)
         write_log(out_dir, "rigid", rigid_cmd)
         init_str = f"--initial-moving-transform  {prefix_rigid}Composite.h5"
@@ -426,11 +394,7 @@ def run_alignment(
         not os.path.exists(f"{prefix_similarity}Composite.h5")
         and "similarity" in linear_steps
     ):
-<<<<<<< HEAD
         similarity_cmd = f"{base}  {init_str} -t Similarity[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] "
-=======
-        similarity_cmd = f"{base}  {init_str} -t Similarity[{step}] -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  {point_set_metric}  -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] "
->>>>>>> master
         utils.shell(similarity_cmd, verbose=verbose)
         write_log(out_dir, "similarity", similarity_cmd)
         init_str = f"--initial-moving-transform {prefix_similarity}Composite.h5"
@@ -438,11 +402,7 @@ def run_alignment(
     # calculate affine registration
     # ,{affine_out_fn},{affine_inv_fn}]
     if not os.path.exists(f"{prefix_affine}Composite.h5") and "affine" in linear_steps:
-<<<<<<< HEAD
         affine_cmd = f"{base}  {init_str} -t Affine[{step}] -m {metric}[{fx_fn},{mv_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] "
-=======
-        affine_cmd = f"{base}  {init_str} -t Affine[{step}] -m {metric}[{ref_tgt_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}] {point_set_metric}  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o {prefix_affine} "
->>>>>>> master
         utils.shell(affine_cmd, verbose=verbose)
         write_log(out_dir, "affine", affine_cmd)
         init_str = f"--initial-moving-transform {prefix_affine}Composite.h5"
@@ -478,18 +438,12 @@ def run_alignment(
         # nl_base += f" -t SyN[{syn_rate}] -m {nl_metric}  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} "
 
         if use_3d_syn_cc:
-<<<<<<< HEAD
             nl_base += f" -t SyN[{syn_rate}] -m {cc_metric} -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str} "
             # BSplineSyN
             # nl_base += f" -t BSplineSyN[{syn_rate},5x5x5] -m {cc_metric} -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str} "
         else:
             nl_base += f" -t SyN[{syn_rate}] -m {nl_metric}  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} "
             # nl_base += f" -t BSplineSyN[{syn_rate},5x5x5] -m {nl_metric}  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} "
-=======
-            nl_base += f" -t SyN[{syn_rate}] -m {cc_metric}  {point_set_metric}  -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str} "
-        else:
-            nl_base += f" -t SyN[{syn_rate}] -m {nl_metric}  {point_set_metric}  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} "
->>>>>>> master
 
         utils.shell(nl_base, verbose=verbose)
 
@@ -501,17 +455,10 @@ def run_alignment(
             f"{prefix_syn}Composite.h5"
         ), f"Error: {prefix_syn}Composite.h5 does not exist"
 
-<<<<<<< HEAD
     if init_tfm:
         out_tfm_list = [out_tfm_fn, init_tfm]
     else:
         out_tfm_list = [out_tfm_fn]
-=======
-        if not init_tfm :
-            assert os.path.exists(
-                f"{prefix_syn}InverseComposite.h5"
-            ), f"Error: {prefix_syn}InverseComposite.h5 does not exist"
->>>>>>> master
 
     utils.simple_ants_apply_tfm(
         orig_mv_fn, fx_fn, out_tfm_list, out_fn, n="BSpline[2]", clobber=clobber

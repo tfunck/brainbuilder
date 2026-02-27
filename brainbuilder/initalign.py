@@ -487,10 +487,10 @@ def create_final_outputs(
                 # standard rigid transformation for moving image
                 shutil.copy(row["init_tfm"].values[0], final_tfm_fn)
 
-                if not os.path.exists(final_section_fn) and not os.path.islink(
-                    final_section_fn
-                ):
-                    os.symlink(row["img"].values[0], final_section_fn)
+                #if not os.path.exists(final_section_fn) and not os.path.islink(
+                #    final_section_fn
+                #):
+                #    os.symlink(row["img"].values[0], final_section_fn)
             else:
                 if not os.path.exists(final_section_fn) and not os.path.islink(
                     final_section_fn
@@ -499,7 +499,7 @@ def create_final_outputs(
                 final_tfm_fn = None
 
         df["init_tfm"].loc[idx] = final_tfm_fn
-        df["init_img"].loc[idx] = final_section_fn
+        df["init_img"].loc[idx] = row['img'].values[0]
     return df
 
 
@@ -671,7 +671,7 @@ def align_chunk(
     ###########
     logger.info("\t\tAlignment: Stage 1")
     # Perform within acquisition alignment
-    output_dir_1 = init_align_dir + os.sep + "stage_1"
+    output_dir_1 = f"{init_align_dir}/stage_1"
 
     # Iterate data frames over each acquisition
     df_acquisition = df.loc[df["acquisition"] == acquisition_contrast_order[0]]
@@ -701,7 +701,7 @@ def align_chunk(
     # Stage 2 #
     ###########
     # Align acquisitions to one another based on mean pixel intensity. Start with highest first because these have better contrast
-    output_dir_2 = init_align_dir + os.sep + "stage_2"
+    output_dir_2 = f"{init_align_dir}/stage_2"
     concat_list = [
         df_acquisition.loc[
             df_acquisition["acquisition"] == acquisition_contrast_order[0]
@@ -753,7 +753,7 @@ def align_chunk(
     ###########
     # Stage 3 #
     ###########
-    final_tfm_dir = init_align_dir + os.sep + "final_tfm"
+    final_tfm_dir = f"{init_align_dir}/final_tfm"
     os.makedirs(final_tfm_dir, exist_ok=True)
     df = stage_2_df
     df = create_final_outputs(final_tfm_dir, df, 1)

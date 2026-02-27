@@ -289,11 +289,6 @@ class MultiResPaths:
             self.fixed_landmark_volume = sel1["fixed_landmark_volume"]
             self.moving_landmark_volume = sel1["moving_landmark_volume"]
 
-        print(self.as_record())
-        print(self.moving_volume)
-        print(self.fixed_volume)
-        print(self.moving_landmark_volume)
-        print(self.fixed_landmark_volume)
 
 
 @dataclass()
