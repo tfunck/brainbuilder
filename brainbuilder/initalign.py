@@ -769,7 +769,7 @@ def align_chunk(
         combine_sections_to_vol(df, y_mm, init_align_fn)
 
     sect_info["init_tfm"] = df["init_tfm"]
-    sect_info["init_img"] = df["init_img"]
+    sect_info["2d_align_out"] = sect_info["init_img"] = df["init_img"]
 
     chunk_info["init_volume"] = init_align_fn
 

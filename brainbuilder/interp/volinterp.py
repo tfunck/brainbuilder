@@ -8,7 +8,7 @@ import pandas as pd
 from joblib import Parallel, delayed
 
 # from brainbuilder.utils.nl_deformation_flow import nlflow_isometric
-from morphint.morphint import morphint
+from morphint.morphint.morphint import morphint
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import apply_transforms_parallel
@@ -74,12 +74,14 @@ def apply_final_2d_transforms(
         for _, row in curr_sect_info.iterrows()
     )
 
-    Parallel(n_jobs=num_cores, backend="multiprocessing")(
-        delayed(apply_transforms_parallel)(
-            final_tfm_dir, final_resolution, row, tissue_str="_cls", file_str="seg"
+    # if cls in curr_sect_info.columns:
+    if '2d_align_cls_out' in curr_sect_info.columns:
+        Parallel(n_jobs=num_cores, backend="multiprocessing")(
+            delayed(apply_transforms_parallel)(
+                final_tfm_dir, final_resolution, row, tissue_str="_cls", file_str="seg"
+            )
+            for _, row in curr_sect_info.iterrows()
         )
-        for _, row in curr_sect_info.iterrows()
-    )
 
     return curr_sect_info
 
@@ -557,14 +559,6 @@ def volumetric_pipeline(
             (hemi_info["sub"] == sub) & (hemi_info["hemisphere"] == hemisphere)
         ]
         assert len(curr_hemi_info) > 0, "Error: no hemisphere info found"
-
-        ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
-
-        ref_resolution = resolution if final_resolution is None else final_resolution
-
-        ref_vol_rsl_fn = utils.resample_struct_reference_volume(
-            ref_vol_fn, ref_resolution, output_dir, clobber=clobber
-        )
 
         # Volumetric interpolation
         print("Volumetric Interpolation for sub:", sub, "hemi:", hemisphere)
