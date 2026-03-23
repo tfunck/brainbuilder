@@ -601,6 +601,7 @@ def simple_ants_apply_tfm(
     ndim: int = 3,
     n: str = "Linear",
     empty_ok: bool = False,
+    invert: Union[bool, list] = False,
     clobber: bool = False,
 ) -> None:
     """Apply transformation using ANTs.
@@ -622,20 +623,56 @@ def simple_ants_apply_tfm(
             tfm_str += f" -t {t} "
 
     if not os.path.exists(out_fn) or clobber:
-        
-        if isinstance(tfm_fn, str) :
-            tfm_string = f' -t {tfm_fn} '
-        elif isinstance(tfm_fn, list) :
-            tfm_string = ' '.join([f' -t {tfm} ' for tfm in tfm_fn])
-        else :
+        if isinstance(tfm, str):
+            tfm_string = f" -t {tfm} "
+        elif isinstance(tfm, list):
+            invert_list = [invert] * len(tfm) if isinstance(invert, bool) else invert
+            tfm_string = ""
+            for tfm, inv in zip(tfm, invert_list):
+                if inv:
+                    tfm_string += f" -t [{tfm},1] "
+                else:
+                    tfm_string += f" -t {tfm} "
+        else:
             raise ValueError("tfm_fn must be a string or a list of strings")
 
         str0 = f"antsApplyTransforms -n {n} -v 0 -d {ndim} -i {in_fn} -r {ref_fn} {tfm_string}  -o {out_fn}"
         shell(str0, verbose=True)
-        for tfm_fn in tfm if isinstance(tfm, list) else [tfm]:
+        tfm_list = tfm if isinstance(tfm, list) else [tfm]
+
+        for tfm_fn in tfm_list:
             check_transformation_not_empty(
                 in_fn, ref_fn, tfm_fn, out_fn, empty_ok=empty_ok
             )
+
+
+def pad_volume(
+    vol: np.ndarray,
+    affine: np.ndarray,
+    direction: List[int] = [1, 1, 1],
+    padding_offset=0.15,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Pad the volume so that it can be downsampled by the maximum downsample factor.
+
+    :param vol: volume to pad
+    :param max_factor: maximum downsample factor
+    :param affine: affine matrix
+    :param min_voxel_size: minimum voxel size
+    :param direction: direction of the affine matrix
+    :return: padded volume, padded affine matrix.
+    """
+    xdim, ydim, zdim = vol.shape
+
+    x_pad = int(xdim * padding_offset)
+    y_pad = int(ydim * padding_offset)
+    z_pad = int(zdim * padding_offset)
+
+    vol_padded = np.pad(vol, ((x_pad, x_pad), (y_pad, y_pad), (z_pad, z_pad)))
+    affine[0, 3] -= x_pad * abs(affine[0, 0]) * direction[0]
+    affine[1, 3] -= y_pad * abs(affine[1, 1]) * direction[1]
+    affine[2, 3] -= z_pad * abs(affine[2, 2]) * direction[2]
+
+    return vol_padded, affine
 
 
 def get_seg_fn(
@@ -1193,17 +1230,68 @@ def check_run_stage(
     return run_stage
 
 
-def pad_to_max_dims(vol: np.ndarray, max_dims: np.ndarray) -> np.ndarray:
+def pad_to_max_dims(
+    vol: np.ndarray, max_dims: np.ndarray, affine: np.ndarray, direction: np.array
+) -> np.ndarray:
     """Pad a volume to the maximum dimensions."""
-    offset0 = int(max_dims[0] - vol.shape[0])
-    offset1 = int(max_dims[1] - vol.shape[1])
-    offset2 = int(max_dims[2] - vol.shape[2]) if len(vol.shape) == 3 else 0
+    # Compute total padding needed in each dimension (no padding if already >= max_dims)
+    ndim = len(vol.shape)
 
-    if len(vol.shape) == 2:
-        vol = np.pad(vol, ((offset0, 0), (offset1, 0)), mode="constant")
+    pad0_total = max(int(max_dims[0] - vol.shape[0]), 0)
+    pad1_total = max(int(max_dims[1] - vol.shape[1]), 0)
+
+    if ndim == 3:
+        pad2_total = (
+            max(int(max_dims[2] - vol.shape[2]), 0) if len(vol.shape) == 3 else 0
+        )
+    else:
+        pad2_total = 0
+
+    # Split padding to center the volume within the padded output
+    pad0_before = pad0_total // 2
+    pad0_after = pad0_total - pad0_before
+
+    pad1_before = pad1_total // 2
+    pad1_after = pad1_total - pad1_before
+
+    pad2_before = pad2_total // 2
+    pad2_after = pad2_total - pad2_before
+
+    if ndim == 2:
+        direction = direction[0, 0], direction[1, 1]
+    elif ndim == 3:
+        direction = direction[0, 0], direction[1, 1], direction[2, 2]
+    else:
+        raise ValueError(f"Error: volume must be 2D or 3D, got shape {vol.shape}")
+
+    if ndim == 2:
+        vol = np.pad(
+            vol,
+            ((pad0_before, pad0_after), (pad1_before, pad1_after)),
+            mode="constant",
+        )
+        # for 2D images, we assume the direction order is "li" (left-to-right, inferior-to-superior)
+
+        affine[0, 3] -= pad0_before * abs(affine[0, 0]) * direction[0]
+        affine[1, 3] -= pad1_before * abs(affine[1, 1]) * direction[1]
     elif len(vol.shape) == 3:
-        vol = np.pad(vol, ((offset0, 0), (offset1, 0), (offset2, 0)), mode="constant")
-    return vol
+        vol = np.pad(
+            vol,
+            (
+                (pad0_before, pad0_after),
+                (pad1_before, pad1_after),
+                (pad2_before, pad2_after),
+            ),
+            mode="constant",
+        )
+
+        affine[0, 3] -= pad0_before * abs(affine[0, 0]) * direction[0]
+        affine[1, 3] -= pad1_before * abs(affine[1, 1]) * direction[1]
+        affine[2, 3] -= pad2_before * abs(affine[2, 2]) * direction[2]
+    else:
+        raise ValueError(f"Error: volume must be 2D or 3D, got shape {vol.shape}")
+
+    return vol, affine
 
 
 def calculate_sigma_for_downsampling(new_pixel_spacing: float) -> float:
@@ -1274,11 +1362,16 @@ def resample_to_resolution(
         anti_aliasing_sigma=sigma,
     )
 
+    # Set output affine
+    affine = np.eye(4, 4)
+    dim_range = range(ndim)
+    affine[dim_range, dim_range] = new_resolution
+    affine[dim_range, 3] = origin
+
     if max_dims is not None:
-        vol = pad_to_max_dims(vol, max_dims)
+        vol, affine = pad_to_max_dims(vol, max_dims, affine, direction=direction)
 
     # Normalize to [0, 1] before scaling if output dtype is uint8
-    print(dtype, factor)
     if dtype == np.uint8 or dtype == "uint8":
         vol = (vol - np.min(vol)) / (np.max(vol) - np.min(vol) + 1e-8)
         vol *= factor
@@ -1291,12 +1384,6 @@ def resample_to_resolution(
         "Error: empty output array for prefilter_and_downsample\n" + output_filename
     )
 
-    affine = np.eye(4, 4)
-    dim_range = range(ndim)
-    affine[dim_range, dim_range] = new_resolution
-    affine[dim_range, 3] = origin
-
-    print(affine)
     img_out = nib.Nifti1Image(vol, affine, dtype=dtype, direction_order=direction_order)
 
     if isinstance(output_filename, str):

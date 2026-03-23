@@ -17,9 +17,16 @@ from brainbuilder.align.intervolume import create_acquisition_volume
 from brainbuilder.align.paths import MultiResPaths
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
-from brainbuilder.utils.utils import simple_ants_apply_tfm
 
 logger = utils.get_logger(__name__)
+
+
+def _set_use_landmark_transform(ref_landmark_volume, landmark_dir):
+    return (
+        True
+        if os.path.exists(ref_landmark_volume) and os.path.exists(landmark_dir)
+        else False
+    )
 
 
 def check_chunk_outputs(chunk_csv: str) -> None:
@@ -97,7 +104,6 @@ def multiresolution_alignment(
         not os.path.exists(sect_output_csv)
         or not os.path.exists(chunk_output_csv)
         or clobber
-        or True  # FIXME
     ):
         hemi_info = pd.read_csv(hemi_info_csv, index_col=None)
 
@@ -143,23 +149,13 @@ def multiresolution_alignment(
                 .values[0]
             )
 
-            # extract chunk from srv and write it
-            ref_chunk_fn = write_ref_chunk(
-                chunk_info_row,
-                sub,
-                hemisphere,
-                chunk,
-                ref_vol_fn,
-                output_dir,
-            )
-
             chunk_info_row, curr_sect_info = align_chunk(
                 chunk_info_row,
                 curr_sect_info,
                 resolution_list,
                 resolution_list_3d,
                 max_resolution_3d,
-                ref_chunk_fn,
+                ref_vol_fn,
                 output_dir,
                 num_cores=num_cores,
                 use_3d_syn_cc=use_3d_syn_cc,
@@ -345,8 +341,7 @@ def alignment_iteration(
     # downsample the original ref gm mask to current 3d resolution
     if not os.path.exists(paths.ref_rsl_fn):
         order = 1
-        print("\n\n-->", ref_vol_fn)
-        print("-->", paths.ref_rsl_fn)
+
         utils.resample_to_resolution(
             ref_vol_fn,
             [resolution_3d] * 3,
@@ -372,7 +367,6 @@ def alignment_iteration(
             clobber=clobber,
         )
 
-
     sect_info = create_acquisition_volume(
         chunk_info,
         sect_info,
@@ -384,7 +378,6 @@ def alignment_iteration(
         paths.acq_rsl_fn,
         paths.init_volume,
         num_cores=num_cores,
-        interpolation="linear",
         clobber=clobber,
     )
 
@@ -394,23 +387,27 @@ def alignment_iteration(
         paths.acq_rsl_fn, paths.acq_pad_fn, resolution, padding_offset=padding_offset
     )
 
-    if landmark_dir and paths.ref_landmark_volume:
+    use_landmark_transform = _set_use_landmark_transform(
+        paths.ref_landmark_volume, landmark_dir
+    )
+
+    if use_landmark_transform:
         print("\t\tCreate landmark transform")
         ymax = nib.load(paths.init_volume).shape[1]
 
-        fixed_point_set_path, moving_point_set_path, landmark_tfm_path, landmark_inv_tfm_path = create_landmark_transform(
+        landmark_composite_tfm_path = create_landmark_transform(
             sub,
             hemisphere,
             chunk,
             resolution,
             max_resolution_3d,
-            paths.landmark_dir,
             sect_info,
             paths.acq_pad_fn,
             paths.acq_landmark_volume,
             paths.moving_landmark_volume,
             paths.fixed_landmark_volume,
             landmark_dir,
+            paths.landmark_dir,
             paths.moving_volume,
             paths.fixed_volume,
             ymax,
@@ -419,18 +416,14 @@ def alignment_iteration(
             clobber=clobber,
         )
     else:
-        init_tfm = None
-        print(paths.ref_landmark_volume)
+        landmark_composite_tfm_path = None
         print("\t\tNo landmark transform provided")
 
     ###
     ### Stage 3.2 : Align chunks to MRI
     ###
-    
     print("\t\tAlign chunks to MRI")
     vol_tfm_list = align_3d(
-        sub,
-        hemisphere,
         chunk,
         paths.moving_volume,
         paths.fixed_volume,
@@ -441,8 +434,7 @@ def alignment_iteration(
         resolution_list_3d,
         use_3d_syn_cc=use_3d_syn_cc,
         linear_steps=linear_steps,
-        init_tfm=landmark_tfm_path,
-        #landmark_point_set=(fixed_point_set_path, moving_point_set_path),
+        init_tfm=landmark_composite_tfm_path,
         clobber=clobber,
     )
 
@@ -548,6 +540,26 @@ def align_chunk(
                 if "ref_landmark" in chunk_info_row.columns
                 else ""
             )
+
+            use_landmark_trasform = _set_use_landmark_transform(
+                ref_landmark_volume, landmark_dir
+            )
+
+            if not use_landmark_trasform:
+                write_ref_chunk(
+                    sect_info,
+                    chunk_info_row,
+                    sub,
+                    hemisphere,
+                    chunk,
+                    ref_vol_fn,
+                    landmark_dir,
+                    output_dir,
+                    max_resolution_3d,
+                    ref_landmark_volume,
+                    chunk_info_row["init_volume"].values[0],
+                    clobber=clobber,
+                )
 
             section_thickness = chunk_info_row["section_thickness"].values[0]
 

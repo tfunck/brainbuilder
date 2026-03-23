@@ -9,12 +9,10 @@ from glob import glob
 import ants
 import numpy as np
 import pandas as pd
-from brainbuilder.align.align_3d import pad_volume
 from brainbuilder.utils import ants_nibabel as nib
 from brainbuilder.utils import utils
-from brainbuilder.utils.utils import simple_ants_apply_tfm
+from brainbuilder.utils.utils import pad_volume, simple_ants_apply_tfm
 from joblib import Parallel, delayed
-from matplotlib import pyplot as plt
 from scipy.ndimage import binary_dilation, center_of_mass
 from skimage.transform import resize
 
@@ -23,10 +21,12 @@ logger = utils.get_logger(__name__)
 
 # ---------- helpers
 
+
 def get_unique_values(path):
     img = nib.load(path)
     data = np.array(img.dataobj)
     return np.unique(data)[1:]
+
 
 def _strip_ext(p: p) -> str:
     """Return root (without .nii/.nii.gz)."""
@@ -152,13 +152,16 @@ def _init_parameters(
 
     return affine, dims, target_dims, scaling, r, steps
 
+
 def get_transform_type(labels: np.ndarray) -> str:
     n_landmarks = len(np.unique(labels))
-   
+
     if n_landmarks < 2:
-        print(f"Not enough landmarks ({n_landmarks}) found for chunk {chunk}, skipping.")
+        print(
+            f"Not enough landmarks ({n_landmarks}) found for chunk {chunk}, skipping."
+        )
         return None
-    elif n_landmarks < 12 :
+    elif n_landmarks < 12:
         transform_type = "rigid"
     elif n_landmarks < 20:
         transform_type = "affine"
@@ -168,6 +171,7 @@ def get_transform_type(labels: np.ndarray) -> str:
     print(f"Using transform type '{transform_type}' with {n_landmarks} landmarks.")
 
     return transform_type
+
 
 # ---------- main API
 def _process_and_save_sparse_landmark_volume(
@@ -196,10 +200,10 @@ def _process_and_save_sparse_landmark_volume(
     unique_labels_list = []
     for _, row in sect_info.iterrows():
         y = int(row["sample"])
-        
+
         xmax, zmax = np.array(nib.load(row["raw"]).shape)
-        
-        warped_slice_path = row["landmark_2d_tfm"]
+
+        warped_slice_path = row["landmark_2d_rsl"]
 
         if not warped_slice_path:
             continue
@@ -319,31 +323,31 @@ def apply_tfm_and_check(
 
 def process_row(row: pd.Series, clobber: bool = False) -> None:
     """Process a single row: warp 2D landmark and paste into out_data."""
-    output_path = str(row["landmark_2d_rsl"])
-    
+    landmark_2d_rsl = str(row["landmark_2d_rsl"])
+
     lm_path = row["landmark"]
     if not lm_path or not os.path.exists(lm_path):
         return None
 
     tfm_path = row["2d_tfm"]
     raw_path = row["raw"]
-    
-    landmark_tfm = row["landmark_2d_tfm"]
 
+    # landmark_tfm = row["landmark_2d_tfm"]
 
     if not isinstance(tfm_path, str) or (
         isinstance(tfm_path, str) and not os.path.exists(tfm_path)
     ):
         # Copy landmark as is (no transform)
         print(f"No transform found for section {lm_path}, copying landmark as is.")
-        shutil.copy(str(lm_path), str(landmark_tfm))
+        # shutil.copy(str(lm_path), str(landmark_tfm))
+        shutil.copy(str(lm_path), str(landmark_2d_rsl))
 
-    if output_path and not os.path.exists(output_path) or clobber:
+    if landmark_2d_rsl and not os.path.exists(landmark_2d_rsl) or clobber:
         print(
-            f"\tWarping landmark {lm_path} to {output_path} using transform {tfm_path}."
+            f"\tWarping landmark {lm_path} to {landmark_2d_rsl} using transform {tfm_path}."
         )
 
-        apply_tfm_and_check(lm_path, raw_path, tfm_path, output_path)
+        apply_tfm_and_check(lm_path, raw_path, tfm_path, landmark_2d_rsl)
 
 
 def build_sparse_landmark_volume(
@@ -374,7 +378,7 @@ def build_sparse_landmark_volume(
     os.makedirs(output_2d_dir, exist_ok=True)
 
     # Create a new column with paths to warped 2D landmarks in output_dir. add {resolution}mm_rsl suffix
-    sect_info["landmark_2d_tfm"] = sect_info["landmark"].apply(
+    sect_info["landmark_2d_rsl"] = sect_info["landmark"].apply(
         lambda p: f"{output_2d_dir}/{_strip_ext(p)}_itr-{resolution}mm_rsl.nii.gz"
         if isinstance(p, str)
         else None
@@ -385,7 +389,6 @@ def build_sparse_landmark_volume(
         if isinstance(p, str)
         else None
     )
-
 
     if not os.path.exists(out_vol_path) or clobber:
         Parallel(n_jobs=-1)(
@@ -455,8 +458,7 @@ def init_landmark_transform(
     qc_dir: str | None = None,
     clobber: bool = False,
 ) -> str:
-    """Run antsLandmarkBasedTransformInitializer in two stages: affine and the bspline. 
-    """
+    """Run antsLandmarkBasedTransformInitializer in two stages: affine and the bspline."""
     # if os.path.exists(out_tfm_h5) and not clobber:
     #    return out_tfm_h5
 
@@ -506,8 +508,12 @@ def init_landmark_transform(
         moving_qc_affine_path = moving_qc_vol_path.replace(
             ".nii.gz", "_affine_landmark_qc.nii.gz"
         )
-        
-    assert transform_type in ['rigid', 'affine', 'bspline'], f"Invalid transform type: {transform_type}"
+
+    assert transform_type in [
+        "rigid",
+        "affine",
+        "bspline",
+    ], f"Invalid transform type: {transform_type}"
 
     print("\nApplying transforms to moving QC volume for visual inspection...")
     simple_ants_apply_tfm(
@@ -577,7 +583,7 @@ def init_landmark_transform(
 
         print(f"wrote: {moving_qc_nl_final_path}\n")
 
-    return out_tfm
+    return affine_tfm, nl_tfm, out_tfm
 
 
 def find_landmark_files(sect_info: pd.DataFrame, landmark_dir: str) -> pd.Series:
@@ -643,163 +649,17 @@ def v2w(idx: np.ndarray, orig: np.ndarray, step: np.ndarray) -> np.ndarray:
     return v
 
 
-def create_qc_images(
-    sect_info: pd.DataFrame,
-    landmark_volume_rsl_path: str,
-    ref_landmark_path: str,
-    moving_qc_vol_path: str,
-    fixed_qc_vol_path: str,
-    qc_dir: str,
-    r1: int = 10,
-    clobber: bool = False,
-) -> None:
-    """For each label, create qc image with subplots for 4 coronal sections showing:
-    1) <label> from "landmark" overlayed on "raw" image in sect_info
-    2) <label> from "landmark_tfm" overlayed on "2d_align" in sect_info
-    3) <label> from landmark_volume_rsl_path overlayed on "fixed_qc_vol_path"
-    4) <label> from ref_landmark_path overlayed on "fixed_qc_vol_path"
-    """
-    acq_img, acq_vol, acq_orig, acq_step = load(landmark_volume_rsl_path)
-    ref_img, ref_vol, ref_orig, ref_step = load(ref_landmark_path)
-    mv_img, mv_vol, mv_orig, mv_step = load(moving_qc_vol_path, dtype=float)
-    fx_img, fx_vol, fx_orig, fx_step = load(fixed_qc_vol_path, dtype=float)
-
-    for _, row in sect_info.iterrows():
-        landmark_path = row["landmark"]
-        landmark_tfm_path = row["landmark_2d_tfm"]
-
-        # if landmark_path is None, continue
-        if not landmark_path or not os.path.exists(landmark_path):
-            continue
-
-        landmark = np.squeeze(np.array(nib.load(landmark_path).dataobj, np.uint32))
-
-        raw = np.squeeze(np.array(nib.load(row["raw"]).dataobj, np.uint32))
-
-        _, align_2d, align_2d_orig, align_2d_step = load(row["2d_align"])
-        _, landmark_tfm, landmark_tfm_orig, landmark_tfm_step = load(landmark_tfm_path)
-
-        unique_labels = np.unique(landmark.astype(np.uint32))[1:]
-
-        for label in unique_labels:
-            label = int(label)
-
-            qc_output_path = f"{qc_dir}/qc_sub-{row['sub']}_hemi-{row['hemisphere']}_chunk-{row['chunk']}_sample-{row['sample']}_label-{label}_qc.png"
-
-            if os.path.exists(qc_output_path) and not clobber:
-                continue
-
-            # Get center of mass for current label in landmark
-            idx0 = np.argwhere(landmark == label)
-            assert idx0.size > 0, f"Label {label} not found in landmark."
-
-            idx1 = np.argwhere(landmark_tfm == label)
-            assert idx1.size > 0, f"Label {label} not found in landmark_tfm."
-
-            x0_com, z0_com = get_com(landmark, label).astype(int)
-            x1_com, z1_com = w2v(
-                v2w(
-                    get_com(landmark_tfm, label).astype(int),
-                    landmark_tfm_orig,
-                    landmark_tfm_step,
-                ),
-                align_2d_orig,
-                align_2d_step,
-            )
-
-            x2_com, y2_com, z2_com = w2v(
-                v2w(get_com(acq_vol, label), acq_orig, acq_step), fx_orig, fx_step
-            )
-            x3_com, y3_com, z3_com = w2v(
-                v2w(get_com(ref_vol, label), ref_orig, ref_step), fx_orig, fx_step
-            )
-
-            if (
-                np.any(np.isnan([x2_com, y2_com, z2_com, x3_com, y3_com, z3_com]))
-                or np.min([x2_com, y2_com, z2_com, x3_com, y3_com, z3_com]) < 0
-            ):
-                continue
-
-            r0 = max(1, int(0.02 * np.min(raw.shape)))
-            r1 = max(1, int(0.02 * np.min(align_2d.shape)))
-            r2 = max(1, int(0.02 * np.min(mv_vol.shape)))
-            r3 = max(1, int(0.02 * np.min(fx_vol.shape)))
-
-            mask_0 = np.zeros_like(raw)
-            mask_0[x0_com - r0 : x0_com + r0, z0_com - r0 : z0_com + r0] = 10.0
-
-            mask_1 = np.zeros_like(align_2d)
-            mask_1[x1_com - r1 : x1_com + r1, z1_com - r1 : z1_com + r1] = 10.0
-
-            mask_2 = np.zeros_like(fx_vol[:, y2_com, :])
-            mask_2[x2_com - r2 : x2_com + r2, z2_com - r2 : z2_com + r2] = 10.0
-
-            mask_3 = np.zeros_like(fx_vol[:, y3_com, :])
-            mask_3[x3_com - r3 : x3_com + r3, z3_com - r3 : z3_com + r3] = 10.0
-
-            fig = plt.figure(figsize=(10, 10))
-            plt.suptitle(
-                f"Subject: {row['sub']}, Hemisphere: {row['hemisphere']}, Chunk: {row['chunk']}, Sample: {row['sample']}, Label: {label}"
-            )
-
-            plt.subplot(2, 2, 1)
-            plt.title("Original Landmark on Raw")
-            plt.imshow(raw.T, cmap="gray", origin="lower")
-            plt.imshow(mask_0.T, cmap="Reds", alpha=0.6, origin="lower")
-
-            plt.subplot(2, 2, 2)
-            plt.title("2D Aligned Landmark on 2D Align")
-            plt.imshow(align_2d.T, cmap="gray", origin="lower")
-            plt.imshow(mask_1.T, cmap="Reds", alpha=0.8, origin="lower")
-
-            plt.subplot(2, 2, 3)
-            plt.title("Acq Landmark RSL on Fixed QC Volume")
-            plt.imshow(fx_vol[:, y2_com, :].T, cmap="gray", origin="lower")
-            plt.imshow(mask_2.T, cmap="Reds", alpha=0.8, origin="lower")
-
-            plt.subplot(2, 2, 4)
-            plt.title("Ref Landmark on Fixed QC Volume")
-            plt.imshow(fx_vol[:, y3_com, :].T, cmap="gray", origin="lower")
-            plt.imshow(mask_3.T, cmap="Reds", alpha=0.8, origin="lower")
-
-            plt.tight_layout()
-            plt.savefig(qc_output_path, dpi=150)
-            plt.close(fig)
-            print(f"Saved QC image to {qc_output_path}\n")
-
 def write_vtk_points(points_lps: np.ndarray, vtk_path: str):
     P = np.asarray(points_lps, float)
     with open(vtk_path, "w") as f:
         f.write("# vtk DataFile Version 3.0\npoints\nASCII\nDATASET POLYDATA\n")
         f.write(f"POINTS {len(P)} float\n")
-        for x,y,z in P:
+        for x, y, z in P:
             f.write(f"{x:.6f} {y:.6f} {z:.6f}\n")
         f.write(f"VERTICES {len(P)} {len(P)*2}\n")
         for i in range(len(P)):
             f.write(f"1 {i}\n")
 
-def write_com_point_set(
-    landmark_volume_path: str,
-    point_set_path: str,
-) -> None:
-    """Write center of mass point set from landmark volume to VTK file."""
-    import vtk
-
-    img = nib.load(landmark_volume_path)
-    data = np.array(img.dataobj)
-    orig = img.affine[0:3, 3]
-    step = np.array([img.affine[0, 0], img.affine[1, 1], img.affine[2, 2]])
-
-    unique_labels = np.unique(data)[1:]
-
-    points = [] 
-    for label in unique_labels:
-        com_voxel = get_com(data, label)
-        com_world = v2w(com_voxel, orig, step)
-        #convert from LPI to LPS
-        com_world[2] = -com_world[2]
-        points.append(com_world)
-    write_vtk_points(points, point_set_path)
 
 def check_for_identical_landmark_values(
     landmark_series: pd.Series, ref_landmark_path: str
@@ -916,13 +776,13 @@ def create_landmark_transform(
     chunk: int,
     resolution: float,
     resolution_3d: float,
-    output_dir: str,
     sect_info: pd.DataFrame,
     acq_rsl_fn: str,
     acq_landmark_path: str,
     moving_landmark_path: str,
     fixed_landmark_path: str,
-    landmark_dir: str,
+    source_landmark_dir: str,
+    output_landmark_dir: str,
     moving_qc_vol_path,
     fixed_qc_vol_path,
     ymax: int,
@@ -940,7 +800,6 @@ def create_landmark_transform(
     :param hemisphere: hemisphere name
     :param chunk: chunk number
     :param resolution: resolution
-    :param output_dir: output directory
     :param sect_info: section information dataframe
     :param init_volume: initial volume path
     :param ref_landmark_path: reference landmark path
@@ -948,12 +807,11 @@ def create_landmark_transform(
     :param clobber: overwrite existing files
     :return: path to the landmark transform file
     """
-    qc_dir = f"{output_dir}/qc/"
-    os.makedirs(qc_dir, exist_ok=True)
-
     transform_type = "bspline"
 
-    landmark_tfm_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_landmark_init_itr-{resolution}mm_{transform_type}_{mesh_size}_Composite.h5"
+    landmark_tfm_path = f"{output_landmark_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_landmark_init_itr-{resolution}mm_{transform_type}_{mesh_size}_Composite.h5"
+
+    os.makedirs(output_landmark_dir, exist_ok=True)
 
     if os.path.exists(landmark_tfm_path) and not clobber:
         print(f"Landmark transform already exists: {landmark_tfm_path}")
@@ -965,13 +823,12 @@ def create_landmark_transform(
     # )
     # check_for_identical_landmark_values(sect_info["landmark"], moving_landmark_path)
 
-    if landmark_dir:
-        sect_info["landmark"] = find_landmark_files(sect_info, landmark_dir)
+    sect_info["landmark"] = find_landmark_files(sect_info, source_landmark_dir)
 
     # check that at least some landmarks are found
     assert (
         sect_info["landmark"].notnull().sum() > 0
-    ), f"No landmark files found in {landmark_dir}."
+    ), f"No landmark files found in {source_landmark_dir}."
 
     sect_info = build_sparse_landmark_volume(
         acq_landmark_path,
@@ -979,7 +836,7 @@ def create_landmark_transform(
         resolution,
         resolution_3d,
         sect_info,
-        f"{output_dir}/",
+        output_landmark_dir,
         section_thickness,
         ymax,
         padding_offset=padding_offset,
@@ -990,13 +847,13 @@ def create_landmark_transform(
     validate_landmark_labels(fixed_landmark_path, moving_landmark_path)
 
     print("Creating landmark transform...")
-    init_tfms = init_landmark_transform(
+    affine_tfm, nl_tfm, composite_tfm = init_landmark_transform(
         landmark_tfm_path,
-        fixed_landmark_path,  # fixed is acq because we are aligning to the acquisition volume
-        moving_landmark_path,  # moving is the ref in template space
-        output_dir,
+        fixed_landmark_path,
+        moving_landmark_path,
+        output_landmark_dir,
         transform_type=transform_type,
-        qc_dir=qc_dir,
+        qc_dir=output_landmark_dir + "/qc",
         fixed_qc_vol_path=fixed_qc_vol_path,
         moving_qc_vol_path=moving_qc_vol_path,
         mesh_size=mesh_size,
@@ -1004,7 +861,7 @@ def create_landmark_transform(
     )
     print("Done")
 
-    return init_tfms
+    return composite_tfm
     landmark_volume_rsl_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_acq_landmarks_{resolution}mm_{transform_type}_rsl.nii.gz"
 
     simple_ants_apply_tfm(
@@ -1012,13 +869,13 @@ def create_landmark_transform(
         ref_landmark_path,
         init_tfms,
         landmark_volume_rsl_path,
-        ndim = 3,
-        n = "NearestNeighbor",
+        ndim=3,
+        n="NearestNeighbor",
         clobber=clobber,
     )
 
     ar2_labels = get_unique_values(landmark_volume_rsl_path)
-    
+
     assert (
         set(ar1_labels) == set(ar2_labels)
     ), f"Acq rsl and ref landmark volumes have different labels.\n\tRef values: {ref_landmark_path}\n\t{ar1_labels}\n\tLandmark rsl values:\n\t{landmark_volume_rsl_path}\n\t{ar2_labels}"

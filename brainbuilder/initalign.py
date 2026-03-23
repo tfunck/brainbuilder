@@ -12,7 +12,7 @@ import pandas as pd
 from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
-from brainbuilder.align.paths import MultiResPaths
+from brainbuilder.align.paths import _init_align_dir, _init_align_filename
 from brainbuilder.utils import utils
 from brainbuilder.utils.ANTs import ANTs
 from brainbuilder.utils.utils import AntsParams, get_logger
@@ -362,7 +362,6 @@ def alignment_stage(
     smooth_sigma = re.sub("vox", "", linParams.s_str)
     iterations = linParams.itr_str.split(",")[0][1:]
 
-
     shrink_factor = "4x3x2x1"
     smooth_sigma = ".8x0.66x.3x0"
     iterations = "2000x1000x500x250"
@@ -487,9 +486,9 @@ def create_final_outputs(
                 # standard rigid transformation for moving image
                 shutil.copy(row["init_tfm"].values[0], final_tfm_fn)
 
-                #if not os.path.exists(final_section_fn) and not os.path.islink(
+                # if not os.path.exists(final_section_fn) and not os.path.islink(
                 #    final_section_fn
-                #):
+                # ):
                 #    os.symlink(row["img"].values[0], final_section_fn)
             else:
                 if not os.path.exists(final_section_fn) and not os.path.islink(
@@ -499,7 +498,7 @@ def create_final_outputs(
                 final_tfm_fn = None
 
         df["init_tfm"].loc[idx] = final_tfm_fn
-        df["init_img"].loc[idx] = row['img'].values[0]
+        df["init_img"].loc[idx] = row["img"].values[0]
     return df
 
 
@@ -527,8 +526,12 @@ def initalign(
     #    chunk_info_csv, valinpts.chunk_info_required_columns
     # ), f"Invalid chunk info csv file: {chunk_info_csv}"
 
-    initalign_sect_info_csv = os.path.join(output_dir, "initalign_sect_info.csv")
-    initalign_chunk_info_csv = os.path.join(output_dir, "initalign_chunk_info.csv")
+    init_align_dir = _init_align_dir(output_dir)
+
+    os.makedirs(init_align_dir, exist_ok=True)
+
+    initalign_sect_info_csv = os.path.join(init_align_dir, "initalign_sect_info.csv")
+    initalign_chunk_info_csv = os.path.join(init_align_dir, "initalign_chunk_info.csv")
     initalign_sect_info = pd.DataFrame({})
     initalign_chunk_info = pd.DataFrame({})
 
@@ -562,22 +565,14 @@ def initalign(
             )
             curr_chunk_info = chunk_info.loc[idx]
 
-            paths = MultiResPaths(
-                sub=sub,
-                hemisphere=hemisphere,
-                chunk=chunk,
-                resolution=None,
-                resolution_3d=None,
-                pass_step=None,
-                output_dir=Path(output_dir),
-            )
+            init_volume = _init_align_filename(output_dir, sub, hemisphere, chunk)
 
             curr_sect_info, curr_chunk_info = align_chunk(
                 sub,
                 hemisphere,
                 chunk,
-                paths.init_volume,
-                paths.init_align_dir,
+                init_volume,
+                init_align_dir,
                 curr_sect_info,
                 linParams,
                 curr_chunk_info,

@@ -8,6 +8,22 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 
+def _init_align_filename(output_dir, sub, hemi, chunk) -> Path:
+    init_align_dir = _init_align_dir(output_dir)
+    init_align_chunk_dir = _init_align_chunk_dir(init_align_dir, sub, hemi, chunk)
+    return (
+        f"{init_align_chunk_dir}/sub-{sub}_hemi-{hemi}_chunk-{chunk}_init_align.nii.gz"
+    )
+
+
+def _init_align_chunk_dir(output_dir, sub, hemi, chunk) -> Path:
+    return f"{output_dir}/sub-{sub}/hemi-{hemi}/chunk-{chunk}/"
+
+
+def _init_align_dir(output_dir) -> Path:
+    return f"{output_dir}/2_init_align/"
+
+
 class Stage(Enum):
     INIT_ALIGN = "init_align"  # 2_init_align
     LANDMARK_ALIGN = "landmark_align"  # landmark_align
@@ -68,7 +84,9 @@ class MultiResPaths:
 
     @property
     def init_volume(self) -> Path:
-        return f"{self.init_align_dir}/sub-{self.sub}_hemi-{self.hemisphere}_chunk-{self.chunk}_init_align.nii.gz"
+        return _init_align_filename(
+            self.output_dir, self.sub, self.hemisphere, self.chunk
+        )
 
     @property
     def nl_method(self) -> str:
@@ -78,9 +96,7 @@ class MultiResPaths:
 
     @property
     def init_align_dir(self) -> Path:
-        return Path(
-            f"{self.output_dir}/2_init_align/sub-{self.sub}/hemi-{self.hemisphere}/chunk-{self.chunk}/"
-        )
+        return _init_align_dir(self.output_dir)
 
     @property
     def intermediate_volume_dir(self) -> Path:
@@ -288,7 +304,6 @@ class MultiResPaths:
             )
             self.fixed_landmark_volume = sel1["fixed_landmark_volume"]
             self.moving_landmark_volume = sel1["moving_landmark_volume"]
-
 
 
 @dataclass()

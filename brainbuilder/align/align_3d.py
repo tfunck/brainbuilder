@@ -2,13 +2,14 @@
 import logging
 import os
 import re
-from typing import List, Tuple
+from typing import List
 
 import ants
 import brainbuilder.utils.ants_nibabel as nib
 import nibabel
 import numpy as np
 import pandas as pd
+from brainbuilder.align.align_landmarks import create_landmark_transform
 from brainbuilder.utils import utils
 
 logger = utils.get_logger(__name__)
@@ -38,35 +39,6 @@ def find_vol_min_max(vol: np.ndarray) -> tuple:
     srvMin = np.argwhere(profile >= 0.01)[0][0]
     srvMax = np.argwhere(profile >= 0.01)[-1][0]
     return srvMin, srvMax
-
-
-def pad_volume(
-    vol: np.ndarray,
-    affine: np.ndarray,
-    direction: List[int] = [1, 1, 1],
-    padding_offset=0.15,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Pad the volume so that it can be downsampled by the maximum downsample factor.
-
-    :param vol: volume to pad
-    :param max_factor: maximum downsample factor
-    :param affine: affine matrix
-    :param min_voxel_size: minimum voxel size
-    :param direction: direction of the affine matrix
-    :return: padded volume, padded affine matrix.
-    """
-    xdim, ydim, zdim = vol.shape
-
-    x_pad = int(xdim * padding_offset)
-    y_pad = int(ydim * padding_offset)
-    z_pad = int(zdim * padding_offset)
-
-    vol_padded = np.pad(vol, ((x_pad, x_pad), (y_pad, y_pad), (z_pad, z_pad)))
-    affine[0, 3] -= x_pad * abs(affine[0, 0]) * direction[0]
-    affine[1, 3] -= y_pad * abs(affine[1, 1]) * direction[1]
-    affine[2, 3] -= z_pad * abs(affine[2, 2]) * direction[2]
-
-    return vol_padded, affine
 
 
 def get_ref_info(moving_fn: str) -> tuple:
@@ -111,7 +83,7 @@ def pad_acq_volume(
     direction = ants_img.direction
     com0 = ants.get_center_of_mass(ants_img)
 
-    pad_seg_volume, pad_affine = pad_volume(
+    pad_seg_volume, pad_affine = utils.pad_volume(
         seg_vol,
         seg_img.affine,
         padding_offset=padding_offset,
@@ -204,6 +176,10 @@ def verify_chunk_limits(
         y0w = chunk_info["caudal_limit"].values[0]
         y1w = chunk_info["rostral_limit"].values[0]
 
+        # check if y0w and y1w are float, if not return 0 and img.shape[1]
+        y0w = y0w if isinstance(y0w, float) else ystart
+        y1w = y1w if isinstance(y1w, float) else ystart + ystep * img.shape[1]
+
         y0 = (y0w - ystart) / ystep
         y1 = (y1w - ystart) / ystep
 
@@ -226,7 +202,36 @@ def verify_chunk_limits(
     return [y0, y1], [y0w, y1w]
 
 
-def write_ref_chunk(
+def crop_volume_with_indicator(
+    ref_vol_fn: str,
+    ref_indicator_volume: str,
+    out_dir: str,
+    sub: str,
+    hemi: str,
+    chunk: int,
+    clobber: bool,
+):
+    """Crop the reference volume with the indicator volume to get the reference chunk."""
+    ref_chunk_fn = f"{out_dir}/sub-{sub}_hemi-{hemi}_chunk-{chunk}_ref_chunk.nii.gz"
+    if not os.path.exists(ref_chunk_fn) or clobber:
+        ref_indicator_img = nib.load(ref_indicator_volume)
+        ref_indicator_vol = ref_indicator_img.get_fdata()
+
+        ref_img = nib.load(ref_vol_fn)
+        ref_vol = ref_img.get_fdata()
+
+        ref_chunk_vol = np.where(ref_indicator_vol > 0, ref_vol, 0).astype(np.uint8)
+
+        nib.Nifti1Image(
+            ref_chunk_vol,
+            ref_img.affine,
+            direction="lpi",
+            dtype=np.uint8,
+        ).to_filename(ref_chunk_fn)
+    return ref_chunk_fn
+
+
+def write_ref_chunk_with_fixed_limits(
     chunk_info: pd.DataFrame,
     sub: str,
     hemi: str,
@@ -234,27 +239,10 @@ def write_ref_chunk(
     ref_vol_fn: str,
     out_dir: str,
     clobber: bool = False,
-) -> None:
-    """Write a chunk from the reference volume that corresponds to the tissue chunk from the section volume.
-
-    :param sub: subject id
-    :param hemi: hemisphere
-    :param chunk: chunk number
-    :param ref_vol_fn: reference volume filename
-    :param out_dir: output directory
-    :param y0w: y0 in world coordinates
-    :param y0: y0 in voxel coordinates
-    :param y1: y1 in voxel coordinates
-    :param resolution: resolution of the section volume
-    :param ref_ystep: ystep of the reference volume
-    :param ref_ystart: ystart of the reference volume
-    :param max_downsample_level: maximum downsample level
-    :param clobber: overwrite existing files
-    :return: None
-    """
+) -> str:
     (y0, y1), _ = verify_chunk_limits(ref_vol_fn, chunk_info)
 
-    ref_chunk_fn = f"{out_dir}/{sub}_{hemi}_{chunk}_ref_{y0}_{y1}.nii.gz"
+    ref_chunk_fn = f"{out_dir}/sub-{sub}_hemi-{hemi}_chunk-{chunk}_ref_{y0}_{y1}.nii.gz"
 
     if not os.path.exists(ref_chunk_fn) or clobber:
         # write srv chunk if it does not exist
@@ -281,6 +269,157 @@ def write_ref_chunk(
         ).to_filename(ref_chunk_fn)
 
         print(f"Written ref chunk: {ref_chunk_fn}")
+
+    return ref_chunk_fn
+
+
+def create_indicator_volume(
+    acq_landmark_volume: str, output_dir: str, clobber: bool = False
+) -> str:
+    acq_indicator_volume = f"{output_dir}/{os.path.basename(acq_landmark_volume).replace('.nii.gz', '_indicator.nii.gz')}"
+
+    if not os.path.exists(acq_indicator_volume) or clobber:
+        img = nib.load(acq_landmark_volume)
+
+        vol = np.ones(img.shape, dtype=np.uint8)
+
+        nib.Nifti1Image(vol, img.affine, direction="lpi", dtype=np.uint8).to_filename(
+            acq_indicator_volume
+        )
+
+    return acq_indicator_volume
+
+
+def write_ref_chunk_with_landmark_transform(
+    sect_info: pd.DataFrame,
+    chunk_info: pd.DataFrame,
+    sub: str,
+    hemi: str,
+    chunk: int,
+    ref_vol_fn: str,
+    out_dir: str,
+    max_resolution_3d: int,
+    landmark_dir: str,
+    output_dir: str,
+    ref_landmark_volume: str,
+    acq_rsl_fn: str,
+    padding_offset: float = 0.15,
+    clobber: bool = False,
+):
+    # 1 Calculate the landmark transform from acquisition to reference space
+    ymax = nib.load(chunk_info["init_volume"].values[0]).shape[1]
+
+    landmarks_out_dir = output_dir + "/ref_chunk_landmarks/"
+    os.makedirs(landmarks_out_dir, exist_ok=True)
+
+    acq_landmark_volume = f"{landmarks_out_dir}/sub-{sub}_hemi-{hemi}_chunk-{chunk}_acq_landmark_volume.nii.gz"
+
+    _, _, landmark_composite_tfm_path = create_landmark_transform(
+        sub,
+        hemi,
+        chunk,
+        max_resolution_3d,
+        max_resolution_3d,
+        sect_info,
+        acq_landmark_volume,  # acq landmark volume
+        acq_landmark_volume,  # moving landmark volume
+        ref_landmark_volume,  # fixed landmark volume
+        landmark_dir,
+        landmarks_out_dir,
+        acq_rsl_fn,
+        ref_vol_fn,
+        ymax,
+        chunk_info["section_thickness"],
+        padding_offset=padding_offset,
+        clobber=clobber,
+    )
+
+    # 2 Create a indicator .nii.gz volume of all 1s and save in space of acquisition volume
+    acq_indicator_volume = create_indicator_volume(
+        acq_landmark_volume, output_dir, clobber=clobber
+    )
+
+    # 3 Apply the landmark transform to the indicator volume to get a warped indicator volume in the space of the reference volume, with nearest neighbours
+    ref_indicator_volume = acq_indicator_volume.replace(".nii.gz", "_space-stx.nii.gz")
+    utils.simple_ants_apply_tfm(
+        acq_indicator_volume,
+        ref_vol_fn,
+        landmark_composite_tfm_path,
+        ref_indicator_volume,
+        n="NearestNeighbor",
+        clobber=clobber,
+    )
+
+    # 4 Use the reference space warped indicator volume to mask the reference volume to get the reference chunk
+    ref_chunk_fn = crop_volume_with_indicator(
+        ref_vol_fn, ref_indicator_volume, out_dir, sub, hemi, chunk, clobber
+    )
+
+    return ref_chunk_fn
+
+
+def write_ref_chunk(
+    sect_info: pd.DataFrame,
+    chunk_info: pd.DataFrame,
+    sub: str,
+    hemi: str,
+    chunk: int,
+    ref_vol_fn: str,
+    landmark_dir: str,
+    out_dir: str,
+    max_resolution_3d: int,
+    ref_landmark_volume: str,
+    acq_rsl_fn: str,
+    padding_offset: float = 0.15,
+    use_landmark_transfrom: bool = False,
+    clobber: bool = False,
+) -> None:
+    """Write a chunk from the reference volume that corresponds to the tissue chunk from the section volume.
+
+    :param sub: subject id
+    :param hemi: hemisphere
+    :param chunk: chunk number
+    :param ref_vol_fn: reference volume filename
+    :param out_dir: output directory
+    :param clobber: overwrite existing files
+    :return: None
+    """
+    if not use_landmark_transfrom:
+        if (
+            "caudal_limit" not in chunk_info.columns
+            or "rostral_limit" not in chunk_info.columns
+        ):
+            logger.warning(
+                "caudal_limit and rostral_limit not found in chunk_info, using full volume"
+            )
+            return ref_vol_fn
+
+        # if landmark transform is not provided, use the fixed limits from the chunk_info.csv to get the reference chunk.
+        # This is because the fixed limits may not be accurate and may not correspond to the actual tissue chunk in the reference space,
+        # but it is better than nothing and will allow us to get a reference chunk that is at least in the right area of the brain.
+
+        ref_chunk_fn = write_ref_chunk_with_fixed_limits(
+            chunk_info, sub, hemi, chunk, ref_vol_fn, out_dir, clobber
+        )
+    else:
+        # if landmark transform is provided, use the landmark transform to get the reference chunk that corresponds to the tissue chunk, instead of using the fixed limits from the chunk_info.csv. This is because the fixed limits may not be accurate and may not correspond to the actual tissue chunk in the reference space.
+        # The landmark transform will allow us to get a more accurate reference chunk that corresponds to the tissue chunk in the reference space.
+        ref_chunk_fn = write_ref_chunk_with_landmark_transform(
+            sect_info,
+            chunk_info,
+            sub,
+            hemi,
+            chunk,
+            ref_vol_fn,
+            out_dir,
+            max_resolution_3d,
+            landmark_dir,
+            output_dir,
+            ref_landmark_volume,
+            acq_rsl_fn,
+            padding_offset=padding_offset,
+            clobber=clobber,
+        )
 
     return ref_chunk_fn
 
@@ -312,7 +451,6 @@ def run_alignment(
     metric: str = "GC",
     nbins: int = None,
     init_tfm: str = None,
-    landmark_point_sets: Tuple[str, str] = None,
     sampling: float = 0.9,
     use_3d_syn_cc: bool = True,
     linear_steps: str = ["rigid", "similarity", "affine"],
@@ -372,13 +510,10 @@ def run_alignment(
             F.write(cmd)
         return None
 
-    
     # set initial transform
     # calculate rigid registration
 
-
     verbose = 0 if logger.getEffectiveLevel() == logging.INFO else 1
-
 
     # calculate rigid registration
     if not os.path.exists(f"{prefix_rigid}Composite.h5") and "rigid" in linear_steps:
@@ -387,7 +522,7 @@ def run_alignment(
         write_log(out_dir, "rigid", rigid_cmd)
         init_str = f"--initial-moving-transform  {prefix_rigid}Composite.h5"
 
-    #,{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz]
+    # ,{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz]
 
     # calculate similarity registration
     if (
@@ -473,8 +608,6 @@ def run_alignment(
 
 
 def align_3d(
-    sub: str,
-    hemi: str,
     chunk: int,
     moving_fn: str,
     fixed_fn: str,
@@ -518,7 +651,7 @@ def align_3d(
     # get maximum number steps by which the srv image will be downsampled by
     # with ants, each step means dividing the image size by 2^(level-1)
     (
-        max_downsample_level,
+        _,
         linParams,
         nlParams,
         ccParams,

@@ -149,7 +149,7 @@ def downsample_within_chunk(
             raw_file,
             [resolution, resolution],
             downsample_file,
-            affine=affine,
+            # affine=affine, DEBUG : use the file affine
             order=1,
             factor=factor,
             max_dims=(max_dim_0, max_dim_1),

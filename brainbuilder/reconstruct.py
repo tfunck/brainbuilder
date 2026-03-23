@@ -73,7 +73,7 @@ def reconstruct(
     interpolation_2d: str = "Linear",
     landmark_dir: Path = None,
     use_intensity_correction: bool = False,
-    use_3d_align_stage: bool = True, 
+    use_3d_align_stage: bool = True,
     use_interp_stage: bool = True,
     verbose: bool = False,
     clobber: bool = False,
@@ -192,7 +192,7 @@ def reconstruct(
     logger.info("Stage: Initial rigid alignment of sections")
     # Stage: Initial rigid aligment of sections
     sect_info_csv, chunk_info_csv = initalign(
-        sect_info_csv, chunk_info_csv, initalign_dir, resolution_list, clobber=clobber
+        sect_info_csv, chunk_info_csv, output_dir, resolution_list, clobber=clobber
     )
 
     if use_intensity_correction:
@@ -202,9 +202,9 @@ def reconstruct(
             sect_info_csv, chunk_info_csv, intens_corr_dir, clobber=clobber
         )
 
-    if use_3d_align_stage : 
+    if use_3d_align_stage:
         # Stage: Multiresolution alignment of sections to structural reference volume
-        _, align_sect_info_csv = multiresolution_alignment(
+        _, sect_info_csv = multiresolution_alignment(
             hemi_info_csv,
             chunk_info_csv,
             sect_info_csv,
@@ -219,12 +219,11 @@ def reconstruct(
             landmark_dir=landmark_dir,
             clobber=clobber,
         )
-        print("\nhello")
     # qc.data_set_quality_control(align_sect_info_csv, qc_dir, column="init_img")
 
     # Stage: Interpolate missing sections
     if use_interp_stage:
-        reconstructed_chunk_info_csv = interpolate_missing_sections(
+        chunk_info_csv = interpolate_missing_sections(
             hemi_info_csv,
             chunk_info_csv,
             sect_info_csv,
@@ -236,7 +235,7 @@ def reconstruct(
             final_resolution=final_resolution,
             interpolation=interpolation_2d,
             num_cores=num_cores,
-            use_final_transform=use_3d_align_stage, # only apply the final transform if we did the 3D alignment stage
+            use_final_transform=use_3d_align_stage,  # only apply the final transform if we did the 3D alignment stage
             clobber=clobber,
         )
 

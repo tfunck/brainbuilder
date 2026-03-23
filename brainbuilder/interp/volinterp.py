@@ -8,7 +8,7 @@ import pandas as pd
 from joblib import Parallel, delayed
 
 # from brainbuilder.utils.nl_deformation_flow import nlflow_isometric
-from morphint.morphint.morphint import morphint
+from morphint.morphint import morphint
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import apply_transforms_parallel
@@ -63,19 +63,19 @@ def apply_final_2d_transforms(
 
     Parallel(n_jobs=num_cores, backend="multiprocessing")(
         # FIXME need to put the raw images through the same padding process as in downsample
-        # otherwise we cannot put them together in the same volume. 
+        # otherwise we cannot put them together in the same volume.
         delayed(apply_transforms_parallel)(
             final_tfm_dir,
             final_resolution,
             row,
             interpolation=interpolation,
-            file_str="img", #'raw'
+            file_str="img",  #'raw'
         )
         for _, row in curr_sect_info.iterrows()
     )
 
     # if cls in curr_sect_info.columns:
-    if '2d_align_cls_out' in curr_sect_info.columns:
+    if "2d_align_cls_out" in curr_sect_info.columns:
         Parallel(n_jobs=num_cores, backend="multiprocessing")(
             delayed(apply_transforms_parallel)(
                 final_tfm_dir, final_resolution, row, tissue_str="_cls", file_str="seg"
@@ -179,7 +179,10 @@ def volumetric_interpolation_over_dataframe(
         curr_output_dir = (
             f"{output_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/acq-{acq}/"
         )
-        if 'align_2d' not in curr_sect_info.columns or 'align_2d_cls' not in curr_sect_info.columns:
+        if (
+            "align_2d" not in curr_sect_info.columns
+            or "align_2d_cls" not in curr_sect_info.columns
+        ):
             final_resolution = float(resolution_list[-1])
 
         if final_resolution is not None and isinstance(final_resolution, float):
@@ -476,6 +479,7 @@ def create_final_transform(
 
     return chunk_info
 
+
 def prepare_chunk_info_for_stx(chunk_info, curr_chunk_info):
     """Prepare and modify curr_chunk_info for final alignment to stx space."""
     merged = pd.merge(
@@ -484,15 +488,18 @@ def prepare_chunk_info_for_stx(chunk_info, curr_chunk_info):
 
     if "acquisition_y" in merged.columns:
         merged["acquisition"] = merged["acquisition_y"]
-    if 'acquisition_y' in merged.columns:
+    if "acquisition_y" in merged.columns:
         del merged["acquisition_y"]
 
     merged["interp_stx"] = merged["interp_nat"].apply(
-    lambda x: x.replace("_iso", "_stx")
+        lambda x: x.replace("_iso", "_stx")
     )
     return merged
 
-def apply_interpolated_volumes_to_stx(curr_chunk_info, curr_hemi_info, resolution, output_dir, interpolation, clobber):
+
+def apply_interpolated_volumes_to_stx(
+    curr_chunk_info, curr_hemi_info, resolution, output_dir, interpolation, clobber
+):
     ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
 
     ref_vol_rsl_fn = utils.resample_struct_reference_volume(
@@ -518,11 +525,10 @@ def apply_interpolated_volumes_to_stx(curr_chunk_info, curr_hemi_info, resolutio
 
             run(cmd, shell=True)
 
-            assert (
-            nib.load(interp_stx_fin).get_fdata().sum() > 0
-            ), "Error: Empty Output"
+            assert nib.load(interp_stx_fin).get_fdata().sum() > 0, "Error: Empty Output"
 
     return curr_chunk_info
+
 
 def volumetric_pipeline(
     sect_info: pd.DataFrame,
@@ -542,10 +548,7 @@ def volumetric_pipeline(
     for (sub, hemisphere), sect_info_sub_hemi in sect_info.groupby(
         ["sub", "hemisphere"]
     ):
-        idx = (
-            (chunk_info["sub"] == sub)
-            & (chunk_info["hemisphere"] == hemisphere)
-        )
+        idx = (chunk_info["sub"] == sub) & (chunk_info["hemisphere"] == hemisphere)
         if "resolution" in chunk_info.columns:
             idx = idx & (chunk_info["resolution"] == resolution)
 
@@ -580,9 +583,13 @@ def volumetric_pipeline(
 
         if use_final_transform:
             curr_chunk_info = apply_interpolated_volumes_to_stx(
-                curr_chunk_info, curr_hemi_info, resolution, output_dir, interpolation, clobber
+                curr_chunk_info,
+                curr_hemi_info,
+                resolution,
+                output_dir,
+                interpolation,
+                clobber,
             )
-
 
     chunk_info_out = pd.concat(chunk_info_list, ignore_index=True)
 
