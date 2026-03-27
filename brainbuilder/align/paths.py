@@ -6,11 +6,14 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import pandas as pd
-
+import os
 
 def _init_align_filename(output_dir, sub, hemi, chunk) -> Path:
     init_align_dir = _init_align_dir(output_dir)
     init_align_chunk_dir = _init_align_chunk_dir(init_align_dir, sub, hemi, chunk)
+
+    os.makedirs(init_align_chunk_dir, exist_ok=True)
+    
     return (
         f"{init_align_chunk_dir}/sub-{sub}_hemi-{hemi}_chunk-{chunk}_init_align.nii.gz"
     )
