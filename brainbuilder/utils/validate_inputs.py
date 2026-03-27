@@ -2,15 +2,15 @@
 import os
 from typing import Union
 
-import nibabel as nib
 import numpy as np
 import pandas as pd
 from joblib import Parallel, cpu_count, delayed
-from PIL import Image
 
 import brainbuilder.utils.utils as utils
 from brainbuilder.utils.mesh_io import load_mesh_ext
 from brainbuilder.utils.utils import get_logger
+import nibabel as nib
+from PIL import Image
 
 global chunk_info_required_columns
 global sect_info_required_columns
@@ -82,9 +82,9 @@ class Column:
 sub = Column("sub", None)
 hemisphere = Column("hemisphere", None)
 chunk = Column("chunk", None)
-# direction = Column("direction", None) #DEPRECIATED
-# pixel_size_0 = Column("pixel_size_0", float) #DEPRECIATED
-# pixel_size_1 = Column("pixel_size_1", float) #DEPRECIATED
+#direction = Column("direction", None) #DEPRECIATED
+#pixel_size_0 = Column("pixel_size_0", float) #DEPRECIATED
+#pixel_size_1 = Column("pixel_size_1", float) #DEPRECIATED
 section_thickness = Column("section_thickness", float)
 acquisition = Column("acquisition", None)
 sample = Column("sample", int)
@@ -94,13 +94,12 @@ raw = Column("raw", "volume")
 struct_ref_vol = Column("struct_ref_vol", "volume")
 
 # Surfaces
-# gm_surf = Column("gm_surf", "surface", False) #DEPRECIATED
-# wm_surf = Column("wm_surf", "surface", False) #DEPRECIATED
+#gm_surf = Column("gm_surf", "surface", False) #DEPRECIATED
+#wm_surf = Column("wm_surf", "surface", False) #DEPRECIATED
 
-
-chunk_info_required_columns = [sub, hemisphere, chunk, section_thickness]
-sect_info_required_columns = [acquisition, sub, hemisphere, chunk, raw, sample]
-hemi_info_required_columns = [sub, hemisphere, struct_ref_vol]
+chunk_info_required_columns = [sub, hemisphere, chunk, section_thickness ]
+sect_info_required_columns = [acquisition, sub, hemisphere, chunk, raw, sample ]
+hemi_info_required_columns = [sub, hemisphere, struct_ref_vol ] 
 
 
 def validate_dataframe(
@@ -212,7 +211,6 @@ def _can_open_volume(path: str) -> bool:
         logger.critical(last_exc)
     return False
 
-
 def validate_volume(fn: str, check_not_empty: bool = False) -> bool:
     """Validate that a volume exists and that it is not empty.
 
@@ -227,13 +225,13 @@ def validate_volume(fn: str, check_not_empty: bool = False) -> bool:
         valid_inputs = False
     else:
         try:
-            if check_not_empty:
+            if check_not_empty :
                 vol = utils.load_image(fn)
 
                 if np.sum(np.abs(vol)) == 0:
                     valid_inputs = False
                     logger.info(f"\tMissing input: empty template file {fn}")
-            else:
+            else :
                 valid_inputs = _can_open_volume(fn)
 
         except Exception as e:

@@ -518,14 +518,16 @@ def apply_interpolated_volumes_to_stx(
             .values[0]
         )
 
-        if not os.path.exists(interp_stx_fin) or clobber:
-            cmd = f"antsApplyTransforms -d 3 -n {interpolation} -i {interp_nat_fin} -o {interp_stx_fin} -r {ref_vol_rsl_fn} -t {nl_3d_tfm_fn} --float 1"
 
-            print(cmd)
+        utils.simple_ants_apply_transforms(
+            interp_nat_fin,
+            interp_stx_fin,
+            ref_vol_rsl_fn,
+            nl_3d_tfm_fn,
+            interpolation=interpolation,
+            clobber=clobber,
+        )
 
-            run(cmd, shell=True)
-
-            assert nib.load(interp_stx_fin).get_fdata().sum() > 0, "Error: Empty Output"
 
     return curr_chunk_info
 

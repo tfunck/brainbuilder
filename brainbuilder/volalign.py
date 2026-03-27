@@ -462,6 +462,9 @@ def alignment_iteration(
 
     chunk_info_out = paths.to_dataframe()
 
+    # set the nl_3d_tfm_fn column in chunk_info_out to the list of 3D transforms used for the current chunk and resolution
+    chunk_info_out["nl_3d_tfm_fn"] = vol_tfm_list
+
     sect_info_curr_resolution_csv = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_sect_info.csv"
 
     sect_info.to_csv(sect_info_curr_resolution_csv, index=False)
@@ -513,11 +516,6 @@ def align_chunk(
 
     qc_dir = f"{output_dir}/qc/"
     os.makedirs(qc_dir, exist_ok=True)
-
-    chunk_pass_df = pd.DataFrame()
-    sect_pass_df = pd.DataFrame()
-    chunk_pass_last_df = pd.DataFrame()
-    sect_pass_last_df = pd.DataFrame()
 
     sect_info_out = sect_info
     chunk_info_out = chunk_info_row
@@ -604,15 +602,7 @@ def align_chunk(
                 landmark_dir=landmark_dir,
                 clobber=clobber,
             )
-            chunk_info_out["pass"] = pass_step
-            sect_info_out["pass"] = pass_step
 
-            chunk_pass_df = pd.concat([chunk_pass_df, chunk_info_out])
-            sect_pass_df = pd.concat([sect_pass_df, sect_info_out])
-
-            if pass_step == n_passes - 1 and resolution == resolution_list[-1]:
-                chunk_pass_last_df = pd.concat([chunk_pass_last_df, chunk_info_out])
-                sect_pass_last_df = pd.concat([sect_pass_last_df, sect_info_out])
 
     # un a final alignment
 
@@ -660,6 +650,7 @@ def align_chunk(
         landmark_dir=landmark_dir,
         clobber=clobber,
     )
+    chunk_info_out['pass'] = pass_step
     logger.info("Finished final alignment iteration at highest resolution")
 
-    return chunk_pass_last_df, sect_pass_last_df
+    return chunk_info_out, sect_info_out
