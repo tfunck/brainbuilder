@@ -1,19 +1,24 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import pandas as pd
-import os
+
+
+def _multires_root_dir(output_dir):
+    return f"{output_dir}/3_multires_align/"
+
 
 def _init_align_filename(output_dir, sub, hemi, chunk) -> Path:
     init_align_dir = _init_align_dir(output_dir)
     init_align_chunk_dir = _init_align_chunk_dir(init_align_dir, sub, hemi, chunk)
 
     os.makedirs(init_align_chunk_dir, exist_ok=True)
-    
+
     return (
         f"{init_align_chunk_dir}/sub-{sub}_hemi-{hemi}_chunk-{chunk}_init_align.nii.gz"
     )
@@ -75,7 +80,8 @@ class MultiResPaths:
 
     @property
     def multires_out_dir(self) -> Path:
-        return f"{self.output_dir}/3_multires_align/sub-{self.sub}/hemi-{self.hemisphere}/chunk-{self.chunk}/{self.resolution}mm{self.stage_tag}/pass_{self.pass_step}/"
+        root_dir = _multires_root_dir(self.output_dir)
+        return f"{root_dir}/sub-{self.sub}/hemi-{self.hemisphere}/chunk-{self.chunk}/{self.resolution}mm{self.stage_tag}/pass_{self.pass_step}/"
 
     @property
     def prefix(self) -> str:

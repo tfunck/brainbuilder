@@ -518,7 +518,6 @@ def apply_interpolated_volumes_to_stx(
             .values[0]
         )
 
-
         utils.simple_ants_apply_transforms(
             interp_nat_fin,
             interp_stx_fin,
@@ -527,7 +526,6 @@ def apply_interpolated_volumes_to_stx(
             interpolation=interpolation,
             clobber=clobber,
         )
-
 
     return curr_chunk_info
 
@@ -547,6 +545,8 @@ def volumetric_pipeline(
 ):
     chunk_info_list = []
 
+    print(sect_info["sub"].unique())
+    exit()
     for (sub, hemisphere), sect_info_sub_hemi in sect_info.groupby(
         ["sub", "hemisphere"]
     ):
