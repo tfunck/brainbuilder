@@ -6,7 +6,7 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
-from scipy.ndimage import gaussian_filter, label
+from scipy.ndimage import label
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils.utils import (
@@ -102,11 +102,10 @@ def thicken_sections_within_chunk(
     :param gaussian_sd: standard deviation of gaussian filter
     :return: None
     """
-
     if width is None:
         width = get_thicken_width(resolution, section_thickness, scale=1)
 
-    print("\t\tThickening sections to ", 0.02 * width * 2, 'with width', width)
+    print("\t\tThickening sections to ", 0.02 * width * 2, "with width", width)
 
     example_2d_fin = chunk_sect_info.iloc[0][target_section]
 
@@ -133,7 +132,7 @@ def thicken_sections_within_chunk(
 
         section = nib.load(nl_2d_rsl).get_fdata().copy()
 
-        # check section has correct shape 
+        # check section has correct shape
         if section.shape != (xdim, zdim):
             raise ValueError(
                 f"Error: section {nl_2d_rsl}  has shape {section.shape} but expected {(xdim, zdim)}\n"
@@ -143,16 +142,12 @@ def thicken_sections_within_chunk(
             print(f"Warning: empty frame {row_i} {row}\n")
 
         y0 = int(y) - width if int(y) - width > 0 else 0
-        y1 = (
-            1 + int(y) + width
-            if 1 + int(y) + width < ydim 
-            else ydim
-        )
+        y1 = 1 + int(y) + width if 1 + int(y) + width < ydim else ydim
 
-        if width > 0 :
+        if width > 0:
             rep = np.repeat(section.reshape(dim), y1 - y0, axis=1)
             rec_vol[:, y0:y1, :] += rep
-        else :
+        else:
             rec_vol[:, y, :] += section
 
         n[:, y0:y1, :] += 1
@@ -164,7 +159,7 @@ def thicken_sections_within_chunk(
     rec_vol[n > 0] = rec_vol[n > 0] / n[n > 0]
     rec_vol[n == 0] = 0
 
-    #if "batch_offset" in chunk_sect_info.columns:
+    # if "batch_offset" in chunk_sect_info.columns:
     #    batch_offset = chunk_sect_info["batch_offset"].values[0]
     #    rec_vol = rec_vol + batch_offset
 
@@ -179,9 +174,7 @@ def thicken_sections_within_chunk(
     affine[0, 0] = affine[2, 2] = resolution
 
     print("\tthickened_fn", thickened_fn, rec_vol.shape)
-    nib.Nifti1Image(rec_vol, affine, direction_order="lpi").to_filename(
-        thickened_fn
-    )
+    nib.Nifti1Image(rec_vol, affine, direction_order="lpi").to_filename(thickened_fn)
 
     return rec_vol
 
@@ -390,19 +383,20 @@ def create_thickened_volumes(
             chunk_info_row["thickened"] = thickened_fn
             chunk_info_row["thickened_stx"] = thickened_stx_fn
 
-
-            if 'nl_2d_vol_fn' in chunk_info.columns:
-                acq_ref_coord_vol = 'nl_2d_vol_fn'
-            elif 'init_volume' in chunk_info.columns :
-                acq_ref_coord_vol = 'init_volume'
+            if "nl_2d_vol_fn" in chunk_info.columns:
+                acq_ref_coord_vol = "nl_2d_vol_fn"
+            elif "init_volume" in chunk_info.columns:
+                acq_ref_coord_vol = "init_volume"
             else:
-                raise ValueError(f"Error: no column found for acquisition reference coordinate volume. Check that either 'nl_2d_vol_fn' or 'init_volume' is in chunk_info.\n\tColumns: {chunk_info.columns}")
-           
-            acq_ref_coord_img = nib.load(chunk_info_row[acq_ref_coord_vol]) 
-            ydim = acq_ref_coord_img.shape[1]
-            affine = acq_ref_coord_img.affine
+                raise ValueError(
+                    f"Error: no column found for acquisition reference coordinate volume. Check that either 'nl_2d_vol_fn' or 'init_volume' is in chunk_info.\n\tColumns: {chunk_info.columns}"
+                )
 
             if not os.path.exists(thickened_fn) or clobber:
+                acq_ref_coord_img = nib.load(chunk_info_row[acq_ref_coord_vol])
+                ydim = acq_ref_coord_img.shape[1]
+                affine = acq_ref_coord_img.affine
+
                 thicken_sections_within_chunk(
                     chunk_info_row["thickened"],
                     ydim,

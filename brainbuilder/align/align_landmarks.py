@@ -567,8 +567,6 @@ def init_landmark_transform(
         print("-r", fixed_qc_vol_path)
         print("-o", moving_qc_nl_final_path)
 
-        exit_flag = False
-
         # if  '0.125' in moving_qc_nl_final_path and 'final' in moving_qc_nl_final_path: #FIXME
 
         simple_ants_apply_tfm(

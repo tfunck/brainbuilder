@@ -14,9 +14,9 @@ from brainbuilder.align.align_2d import align_2d
 from brainbuilder.align.align_3d import align_3d, pad_acq_volume, write_ref_chunk
 from brainbuilder.align.align_landmarks import create_landmark_transform
 from brainbuilder.align.intervolume import create_acquisition_volume
-from brainbuilder.align.paths import MultiResPaths
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
+from brainbuilder.utils.paths import MultiResPaths, _multires_root_dir
 
 logger = utils.get_logger(__name__)
 
@@ -47,7 +47,9 @@ def check_chunk_outputs(chunk_csv: str) -> None:
     ]:
         for fn in chunk_info[col].values:
             if not os.path.exists(fn):
-                print(f"Warning: {fn} does not exist. Deleting {chunk_csv}.")
+                logger.warning(
+                    "Warning: %s does not exist. Deleting %s.", fn, chunk_csv
+                )
                 os.remove(chunk_csv)
                 return None
 
@@ -91,13 +93,17 @@ def multiresolution_alignment(
     assert valinpts.validate_csv(sect_info_csv, valinpts.sect_info_required_columns)
     assert valinpts.validate_csv(chunk_info_csv, multi_resolution_required_columns)
 
+    align_output_dir = _multires_root_dir(output_dir)
+
     if sect_output_csv == "":
-        sect_output_csv = f"{output_dir}/sect_info_multiresolution_alignment.csv"
+        sect_output_csv = f"{align_output_dir}/sect_info_multiresolution_alignment.csv"
 
     if chunk_output_csv == "":
-        chunk_output_csv = f"{output_dir}/chunk_info_multiresolution_alignment.csv"
+        chunk_output_csv = (
+            f"{align_output_dir}/chunk_info_multiresolution_alignment.csv"
+        )
 
-    qc_dir = f"{output_dir}/qc/"
+    qc_dir = f"{align_output_dir}/qc/"
     os.makedirs(qc_dir, exist_ok=True)
 
     if (
@@ -217,7 +223,6 @@ def alignment_qc(
 
         normalized_sample = df.groupby("chunk")["sample"].transform(normalize)
         df["Coronal Section %"] = normalized_sample
-        print("Coronal Section")
         df["Dice"] = df["dice"]
         df["Slab"] = df["chunk"]
 
@@ -334,7 +339,7 @@ def alignment_iteration(
     2) Align GM volume to MRI in 3D
     3) Align sections to GM volume in 2D.
     """
-    print("\t\tCreate intermediate 3d volume")
+    logger.info("\t\tCreate intermediate 3d volume")
 
     chunk_info_out = pd.DataFrame()
 
@@ -392,7 +397,7 @@ def alignment_iteration(
     )
 
     if use_landmark_transform:
-        print("\t\tCreate landmark transform")
+        logger.info("\t\tCreate landmark transform")
         ymax = nib.load(paths.init_volume).shape[1]
 
         landmark_composite_tfm_path = create_landmark_transform(
@@ -417,12 +422,12 @@ def alignment_iteration(
         )
     else:
         landmark_composite_tfm_path = None
-        print("\t\tNo landmark transform provided")
+        logger.info("\t\tNo landmark transform provided")
 
     ###
     ### Stage 3.2 : Align chunks to MRI
     ###
-    print("\t\tAlign chunks to MRI")
+    logger.info("\t\tAlign chunks to MRI")
     vol_tfm_list = align_3d(
         chunk,
         paths.moving_volume,
@@ -442,7 +447,7 @@ def alignment_iteration(
     ### Stage 3.3 : 2D alignment of receptor to resample MRI GM vol
     ###
     if not skip_2d_alignment:
-        print("\t\t2D alignment of receptor to resample MRI GM vol")
+        logger.info("\t\t2D alignment of receptor to resample MRI GM vol")
         sect_info, _ = align_2d(
             sect_info,
             paths.align_2d_dir,
@@ -462,8 +467,10 @@ def alignment_iteration(
 
     chunk_info_out = paths.to_dataframe()
 
-    # set the nl_3d_tfm_fn column in chunk_info_out to the list of 3D transforms used for the current chunk and resolution
-    chunk_info_out["nl_3d_tfm_fn"] = vol_tfm_list
+    # Keep `nl_3d_tfm_fn` as the composite transform filename (string) for
+    # downstream pipeline steps, but store the full transform chain (e.g.
+    # [composite, init]) separately.
+    chunk_info_out["nl_3d_tfm_list"] = [vol_tfm_list]
 
     sect_info_curr_resolution_csv = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_sect_info.csv"
 
@@ -512,7 +519,7 @@ def align_chunk(
     """
     sub, hemisphere, chunk = utils.get_values_from_df(chunk_info_row)
 
-    print("\tAlignment to reference:", sub, hemisphere, chunk)
+    logger.info("\tAlignment to reference: %s %s %s", sub, hemisphere, chunk)
 
     qc_dir = f"{output_dir}/qc/"
     os.makedirs(qc_dir, exist_ok=True)
@@ -523,8 +530,10 @@ def align_chunk(
     ### Iterate over progressively finer resolution
     for resolution_itr, resolution in enumerate(resolution_list):
         resolution_3d = resolution_list_3d[resolution_itr]
-        print(
-            f"\tMulti-Resolution Alignement: {resolution}mm, 3D max = {resolution_3d}"
+        logger.info(
+            "\tMulti-Resolution Alignement: %smm, 3D max = %s",
+            resolution,
+            resolution_3d,
         )
 
         for pass_step in range(n_passes):
@@ -603,7 +612,6 @@ def align_chunk(
                 clobber=clobber,
             )
 
-
     # un a final alignment
 
     paths = MultiResPaths(
@@ -650,7 +658,7 @@ def align_chunk(
         landmark_dir=landmark_dir,
         clobber=clobber,
     )
-    chunk_info_out['pass'] = pass_step
+    chunk_info_out["pass"] = pass_step
     logger.info("Finished final alignment iteration at highest resolution")
 
     return chunk_info_out, sect_info_out

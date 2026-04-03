@@ -1,5 +1,6 @@
 """Utility functions for brainbuilder."""
 
+import ast
 import contextlib
 import logging
 import multiprocessing
@@ -593,6 +594,41 @@ def concat_transforms_to_h5(
     return out_h5
 
 
+def check_tfm_list(tfm):
+    # If `tfm` came from a CSV/DataFrame cell, a Python list may have been
+    # serialized and read back as a string like "['a.h5', 'b.mat']".
+    # In that case, coerce it back into a real list.
+    if isinstance(tfm, str):
+        tfm_stripped = tfm.strip()
+        if tfm_stripped.startswith("[") and tfm_stripped.endswith("]"):
+            try:
+                parsed = ast.literal_eval(tfm_stripped)
+            except (ValueError, SyntaxError):
+                parsed = None
+            if isinstance(parsed, (list, tuple)):
+                tfm = list(parsed)
+    return tfm
+
+
+def parse_tfm(tfm, invert):
+    if isinstance(tfm, str):
+        tfm_string = f" -t {tfm} "
+
+    elif isinstance(tfm, list):
+        invert_list = [invert] * len(tfm) if isinstance(invert, bool) else invert
+
+        tfm_string = ""
+
+        for tfm_element, inv in zip(tfm, invert_list):
+            if inv:
+                tfm_string += f" -t [{tfm_element},1] "
+            else:
+                tfm_string += f" -t {tfm_element} "
+    else:
+        raise ValueError("tfm_fn must be a string or a list of strings")
+    return tfm_string
+
+
 def simple_ants_apply_tfm(
     in_fn: str,
     ref_fn: str,
@@ -615,29 +651,15 @@ def simple_ants_apply_tfm(
     :param empty_ok: bool, whether empty files are allowed
     :return: None
     """
-    if isinstance(tfm, str):
-        tfm_str = f" -t {tfm} "
-    if isinstance(tfm, list):
-        tfm_str = ""
-        for t in tfm:
-            tfm_str += f" -t {t} "
-
     if not os.path.exists(out_fn) or clobber:
-        if isinstance(tfm, str):
-            tfm_string = f" -t {tfm} "
-        elif isinstance(tfm, list):
-            invert_list = [invert] * len(tfm) if isinstance(invert, bool) else invert
-            tfm_string = ""
-            for tfm, inv in zip(tfm, invert_list):
-                if inv:
-                    tfm_string += f" -t [{tfm},1] "
-                else:
-                    tfm_string += f" -t {tfm} "
-        else:
-            raise ValueError("tfm_fn must be a string or a list of strings")
+        tfm = check_tfm_list(tfm)
+
+        tfm_string = parse_tfm(tfm, invert)
 
         str0 = f"antsApplyTransforms -n {n} -v 0 -d {ndim} -i {in_fn} -r {ref_fn} {tfm_string}  -o {out_fn}"
+
         shell(str0, verbose=True)
+
         tfm_list = tfm if isinstance(tfm, list) else [tfm]
 
         for tfm_fn in tfm_list:
@@ -749,9 +771,6 @@ def save_sections(
         sec = vol[:, int(y - i), :]
 
         assert np.max(sec) != np.min(sec), f"Error: empty section {fn}"
-
-        if "damp" in fn:
-            print(fn, np.max(sec))
 
         nib.Nifti1Image(sec, affine, dtype=dtype, direction_order="lpi").to_filename(fn)
 

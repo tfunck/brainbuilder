@@ -12,9 +12,9 @@ import pandas as pd
 from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
-from brainbuilder.align.paths import _init_align_dir, _init_align_filename
 from brainbuilder.utils import utils
 from brainbuilder.utils.ANTs import ANTs
+from brainbuilder.utils.paths import _init_align_dir, _init_align_filename
 from brainbuilder.utils.utils import AntsParams, get_logger
 
 logger = get_logger(__name__)

@@ -204,7 +204,7 @@ def reconstruct(
 
     if use_3d_align_stage:
         # Stage: Multiresolution alignment of sections to structural reference volume
-        _, sect_info_csv = multiresolution_alignment(
+        chunk_info_csv, sect_info_csv = multiresolution_alignment(
             hemi_info_csv,
             chunk_info_csv,
             sect_info_csv,
@@ -219,8 +219,7 @@ def reconstruct(
             landmark_dir=landmark_dir,
             clobber=clobber,
         )
-    print(sect_info_csv)
-    exit()
+
     # qc.data_set_quality_control(align_sect_info_csv, qc_dir, column="init_img")
 
     # Stage: Interpolate missing sections
@@ -247,6 +246,8 @@ def reconstruct(
         #    interp_dir + "/qc",
         #    clobber=clobber,
         # )
+
+    logger.info("##### Reconstruction Complete #####")
     return output_csv
 
 
