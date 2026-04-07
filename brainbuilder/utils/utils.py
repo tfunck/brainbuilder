@@ -1,5 +1,6 @@
 """Utility functions for brainbuilder."""
 
+import ast
 import contextlib
 import logging
 import multiprocessing
@@ -525,11 +526,11 @@ def check_transformation_not_empty(
     """
     assert os.path.exists(out_fn), f"Error: transformed file does not exist {out_fn}"
 
-    total_value = np.sum(np.abs(nib.load(out_fn).dataobj))
+    dataobj = nibabel.load(out_fn).dataobj
 
     assert (
-        total_value > 0 or empty_ok
-    ), f"Error in applying transformation: sum of pixels/voxels = {total_value}: \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n"
+        np.min(dataobj) != np.max(dataobj) or empty_ok
+    ), f"Error in applying transformation: empty output \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n"
 
 
 def resample_struct_reference_volume(
@@ -555,21 +556,95 @@ def resample_struct_reference_volume(
     return struct_vol_rsl_fn
 
 
+def concat_transforms_to_h5(
+    tfm_list: list[str],
+    out_h5: str,
+) -> str:
+    """Concatenate a displacement-field warp (.nii/.nii.gz) with an affine (.h5/.mat)
+    into a single CompositeTransform saved as .h5.
+
+    Forward convention (fixed -> moving): [warp, affine]  (warp first, then affine).
+    """
+    ants_tfm_list = []
+
+    for tfm in tfm_list:
+        if ".nii.gz" in tfm:
+            field = ants.image_read(
+                tfm
+            )  # .nii/.nii.gz -> DisplacementFieldImage :contentReference[oaicite:4]{index=4}
+            tx = ants.transform_from_displacement_field(field)
+        else:
+            tx = ants.read_transform(
+                tfm
+            )  # .nii/.nii.gz -> DisplacementFieldTransform :contentReference[oaicite:5]{index=5}
+
+        ants_tfm_list.append(tx)
+    # Important: pass in the same order you’d use in ANTs forward transforms (warp then affine). :contentReference[oaicite:6]{index=6}
+    comp = ants.compose_ants_transforms(
+        ants_tfm_list
+    )  # returns CompositeTransform :contentReference[oaicite:7]{index=7}
+    ants.write_transform(
+        comp, out_h5
+    )  # writes transform to file :contentReference[oaicite:8]{index=8}
+
+    assert os.path.exists(out_h5) and ants.read_transform(
+        out_h5
+    ), f"Concatenated transform not created: {out_h5}"
+
+    return out_h5
+
+
+def check_tfm_list(tfm):
+    # If `tfm` came from a CSV/DataFrame cell, a Python list may have been
+    # serialized and read back as a string like "['a.h5', 'b.mat']".
+    # In that case, coerce it back into a real list.
+    if isinstance(tfm, str):
+        tfm_stripped = tfm.strip()
+        if tfm_stripped.startswith("[") and tfm_stripped.endswith("]"):
+            try:
+                parsed = ast.literal_eval(tfm_stripped)
+            except (ValueError, SyntaxError):
+                parsed = None
+            if isinstance(parsed, (list, tuple)):
+                tfm = list(parsed)
+    return tfm
+
+
+def parse_tfm(tfm, invert):
+    if isinstance(tfm, str):
+        tfm_string = f" -t {tfm} "
+
+    elif isinstance(tfm, list):
+        invert_list = [invert] * len(tfm) if isinstance(invert, bool) else invert
+
+        tfm_string = ""
+
+        for tfm_element, inv in zip(tfm, invert_list):
+            if inv:
+                tfm_string += f" -t [{tfm_element},1] "
+            else:
+                tfm_string += f" -t {tfm_element} "
+    else:
+        raise ValueError("tfm_fn must be a string or a list of strings")
+    return tfm_string
+
+
 def simple_ants_apply_tfm(
     in_fn: str,
     ref_fn: str,
-    tfm_fn: str,
+    tfm: Union[str, list],  # list or string
     out_fn: str,
     ndim: int = 3,
     n: str = "Linear",
     empty_ok: bool = False,
+    invert: Union[bool, list] = False,
     clobber: bool = False,
 ) -> None:
     """Apply transformation using ANTs.
 
     :param in_fn: str, input filename
     :param ref_fn: str, reference filename
-    :param tfm_fn: str, transformation filename
+    :param tfm: str | list, transformation filename(s)
     :param out_fn: str, output filename
     :param ndim: int, number of dimensions
     :param n: str, transformation -type
@@ -577,9 +652,49 @@ def simple_ants_apply_tfm(
     :return: None
     """
     if not os.path.exists(out_fn) or clobber:
-        str0 = f"antsApplyTransforms -n {n} -v 0 -d {ndim} -i {in_fn} -r {ref_fn} -t {tfm_fn}  -o {out_fn}"
+        tfm = check_tfm_list(tfm)
+
+        tfm_string = parse_tfm(tfm, invert)
+
+        str0 = f"antsApplyTransforms -n {n} -v 0 -d {ndim} -i {in_fn} -r {ref_fn} {tfm_string}  -o {out_fn}"
+
         shell(str0, verbose=True)
-        check_transformation_not_empty(in_fn, ref_fn, tfm_fn, out_fn, empty_ok=empty_ok)
+
+        tfm_list = tfm if isinstance(tfm, list) else [tfm]
+
+        for tfm_fn in tfm_list:
+            check_transformation_not_empty(
+                in_fn, ref_fn, tfm_fn, out_fn, empty_ok=empty_ok
+            )
+
+
+def pad_volume(
+    vol: np.ndarray,
+    affine: np.ndarray,
+    direction: List[int] = [1, 1, 1],
+    padding_offset=0.15,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Pad the volume so that it can be downsampled by the maximum downsample factor.
+
+    :param vol: volume to pad
+    :param max_factor: maximum downsample factor
+    :param affine: affine matrix
+    :param min_voxel_size: minimum voxel size
+    :param direction: direction of the affine matrix
+    :return: padded volume, padded affine matrix.
+    """
+    xdim, ydim, zdim = vol.shape
+
+    x_pad = int(xdim * padding_offset)
+    y_pad = int(ydim * padding_offset)
+    z_pad = int(zdim * padding_offset)
+
+    vol_padded = np.pad(vol, ((x_pad, x_pad), (y_pad, y_pad), (z_pad, z_pad)))
+    affine[0, 3] -= x_pad * abs(affine[0, 0]) * direction[0]
+    affine[1, 3] -= y_pad * abs(affine[1, 1]) * direction[1]
+    affine[2, 3] -= z_pad * abs(affine[2, 2]) * direction[2]
+
+    return vol_padded, affine
 
 
 def get_seg_fn(
@@ -656,9 +771,6 @@ def save_sections(
         sec = vol[:, int(y - i), :]
 
         assert np.max(sec) != np.min(sec), f"Error: empty section {fn}"
-
-        if "damp" in fn:
-            print(fn, np.max(sec))
 
         nib.Nifti1Image(sec, affine, dtype=dtype, direction_order="lpi").to_filename(fn)
 
@@ -921,7 +1033,6 @@ def parse_resample_arguments(
         if ".nii" in input_arg:
             img = ants.image_read(input_arg)
 
-            vol = img.numpy()
             origin = img.origin
             spacing = img.spacing
             direction = img.direction
@@ -930,6 +1041,8 @@ def parse_resample_arguments(
 
             if isinstance(dtype, type(None)):
                 dtype = img.dtype
+
+            vol = img.numpy()
         else:
             vol = load_image(input_arg)
             origin, spacing, direction = get_params_from_affine(aff, len(vol.shape))
@@ -955,6 +1068,8 @@ def parse_resample_arguments(
         assert isinstance(
             output_filename, str
         ), f"Error: output filename must be as string, got {type(output_filename)}"
+
+    vol = np.array(vol, dtype=dtype)
 
     vol_sum = np.sum(np.abs(vol))
     assert (
@@ -1036,19 +1151,21 @@ def get_new_dims(
     new_dims = np.ceil(old_dimensions * scale)
     return new_dims, downsample_factor
 
+
 # Check if all dimensions are the same for 2D_align, seg_rsl, seg_rsl_tfm
 def check_consistent_dimensions(sect_info: pd.DataFrame, column_name: str) -> bool:
     """Check if all dimensions are the same for a given column in a dataframe."""
-    
-    dims = None 
-    
+    dims = None
+
     for _, row in sect_info.iterrows():
         section_dims = nib.load(row[column_name]).shape
 
         if dims is None:
             dims = section_dims
         else:
-            assert dims == section_dims, f"Error: Inconsistent dimensions in {column_name} files: {dims} vs {section_dims}"
+            assert (
+                dims == section_dims
+            ), f"Error: Inconsistent dimensions in {column_name} files: {dims} vs {section_dims}"
 
     return True
 
@@ -1132,20 +1249,68 @@ def check_run_stage(
     return run_stage
 
 
-def pad_to_max_dims(vol: np.ndarray, max_dims: np.ndarray) -> np.ndarray:
+def pad_to_max_dims(
+    vol: np.ndarray, max_dims: np.ndarray, affine: np.ndarray, direction: np.array
+) -> np.ndarray:
     """Pad a volume to the maximum dimensions."""
-    print(vol.shape, max_dims)
-    offset0 = int(max_dims[0] - vol.shape[0])
-    offset1 = int(max_dims[1] - vol.shape[1])
-    offset2 = int(max_dims[2] - vol.shape[2]) if len(vol.shape) == 3 else 0
+    # Compute total padding needed in each dimension (no padding if already >= max_dims)
+    ndim = len(vol.shape)
 
-    print("offsets", offset0, offset1, offset2)
+    pad0_total = max(int(max_dims[0] - vol.shape[0]), 0)
+    pad1_total = max(int(max_dims[1] - vol.shape[1]), 0)
 
-    if len(vol.shape) == 2:
-        vol = np.pad(vol, ((0, offset0), (0, offset1)), mode="constant")
+    if ndim == 3:
+        pad2_total = (
+            max(int(max_dims[2] - vol.shape[2]), 0) if len(vol.shape) == 3 else 0
+        )
+    else:
+        pad2_total = 0
+
+    # Split padding to center the volume within the padded output
+    pad0_before = pad0_total // 2
+    pad0_after = pad0_total - pad0_before
+
+    pad1_before = pad1_total // 2
+    pad1_after = pad1_total - pad1_before
+
+    pad2_before = pad2_total // 2
+    pad2_after = pad2_total - pad2_before
+
+    if ndim == 2:
+        direction = direction[0, 0], direction[1, 1]
+    elif ndim == 3:
+        direction = direction[0, 0], direction[1, 1], direction[2, 2]
+    else:
+        raise ValueError(f"Error: volume must be 2D or 3D, got shape {vol.shape}")
+
+    if ndim == 2:
+        vol = np.pad(
+            vol,
+            ((pad0_before, pad0_after), (pad1_before, pad1_after)),
+            mode="constant",
+        )
+        # for 2D images, we assume the direction order is "li" (left-to-right, inferior-to-superior)
+
+        affine[0, 3] -= pad0_before * abs(affine[0, 0]) * direction[0]
+        affine[1, 3] -= pad1_before * abs(affine[1, 1]) * direction[1]
     elif len(vol.shape) == 3:
-        vol = np.pad(vol, ((0, offset0), (0, offset1), (0, offset2)), mode="constant")
-    return vol
+        vol = np.pad(
+            vol,
+            (
+                (pad0_before, pad0_after),
+                (pad1_before, pad1_after),
+                (pad2_before, pad2_after),
+            ),
+            mode="constant",
+        )
+
+        affine[0, 3] -= pad0_before * abs(affine[0, 0]) * direction[0]
+        affine[1, 3] -= pad1_before * abs(affine[1, 1]) * direction[1]
+        affine[2, 3] -= pad2_before * abs(affine[2, 2]) * direction[2]
+    else:
+        raise ValueError(f"Error: volume must be 2D or 3D, got shape {vol.shape}")
+
+    return vol, affine
 
 
 def calculate_sigma_for_downsampling(new_pixel_spacing: float) -> float:
@@ -1208,35 +1373,37 @@ def resample_to_resolution(
     else:
         sigma = 0
 
-    # sigma[sigma <= 1] = 0
-
     vol = resize(
         vol.astype(float),
         new_dims,
         order=order,
         anti_aliasing=True,
         anti_aliasing_sigma=sigma,
-    ).astype(dtype)
-
-    if max_dims is not None:
-        vol = pad_to_max_dims(vol, max_dims)
-
-    vol *= factor
-
-    assert np.sum(np.abs(vol)) > 0, (
-        "Error: empty output array for prefilter_and_downsample\n" + output_filename
     )
 
+    # Set output affine
     affine = np.eye(4, 4)
     dim_range = range(ndim)
     affine[dim_range, dim_range] = new_resolution
     affine[dim_range, 3] = origin
 
-    if np.max(vol) < 1 and dtype == np.uint8 or dtype == np.uint32:
-        #rescale to use full uint range
-        vol = (vol - vol.min()) / ( np.max(vol) - np.min(vol) ) * np.iinfo(dtype).max
+    if max_dims is not None:
+        vol, affine = pad_to_max_dims(vol, max_dims, affine, direction=direction)
 
-    img_out = nib.Nifti1Image(vol.astype(dtype), affine, dtype=dtype, direction_order=direction_order)
+    # Normalize to [0, 1] before scaling if output dtype is uint8
+    if dtype == np.uint8 or dtype == "uint8":
+        vol = (vol - np.min(vol)) / (np.max(vol) - np.min(vol) + 1e-8)
+        vol *= factor
+        vol = np.clip(vol, 0, 255)
+    else:
+        vol *= factor
+
+    vol = vol.astype(dtype)
+    assert np.sum(np.abs(vol)) > 0, (
+        "Error: empty output array for prefilter_and_downsample\n" + output_filename
+    )
+
+    img_out = nib.Nifti1Image(vol, affine, dtype=dtype, direction_order=direction_order)
 
     if isinstance(output_filename, str):
         img_out.to_filename(output_filename)

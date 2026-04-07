@@ -3,6 +3,7 @@
 import os
 import re
 import shutil
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -13,6 +14,7 @@ from skimage.transform import resize
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
 from brainbuilder.utils.ANTs import ANTs
+from brainbuilder.utils.paths import _init_align_dir, _init_align_filename
 from brainbuilder.utils.utils import AntsParams, get_logger
 
 logger = get_logger(__name__)
@@ -330,7 +332,7 @@ def alignment_stage(
     vol_fn_str: str,
     output_dir: str,
     transforms: list,
-    linParams: str,
+    linParams: utils.AntsParams,
     desc: Tuple[int, int, int] = (0, 0, 0),
     target_acquisition: Optional[str] = None,
     target_tier: int = 1,
@@ -362,7 +364,7 @@ def alignment_stage(
 
     shrink_factor = "4x3x2x1"
     smooth_sigma = ".8x0.66x.3x0"
-    iterations = "200x100x50x25"
+    iterations = "2000x1000x500x250"
 
     csv_fn = vol_fn_str.format(
         output_dir,
@@ -484,10 +486,10 @@ def create_final_outputs(
                 # standard rigid transformation for moving image
                 shutil.copy(row["init_tfm"].values[0], final_tfm_fn)
 
-                if not os.path.exists(final_section_fn) and not os.path.islink(
-                    final_section_fn
-                ):
-                    os.symlink(row["img"].values[0], final_section_fn)
+                # if not os.path.exists(final_section_fn) and not os.path.islink(
+                #    final_section_fn
+                # ):
+                #    os.symlink(row["img"].values[0], final_section_fn)
             else:
                 if not os.path.exists(final_section_fn) and not os.path.islink(
                     final_section_fn
@@ -496,7 +498,7 @@ def create_final_outputs(
                 final_tfm_fn = None
 
         df["init_tfm"].loc[idx] = final_tfm_fn
-        df["init_img"].loc[idx] = final_section_fn
+        df["init_img"].loc[idx] = row["img"].values[0]
     return df
 
 
@@ -524,8 +526,12 @@ def initalign(
     #    chunk_info_csv, valinpts.chunk_info_required_columns
     # ), f"Invalid chunk info csv file: {chunk_info_csv}"
 
-    initalign_sect_info_csv = os.path.join(output_dir, "initalign_sect_info.csv")
-    initalign_chunk_info_csv = os.path.join(output_dir, "initalign_chunk_info.csv")
+    init_align_dir = _init_align_dir(output_dir)
+
+    os.makedirs(init_align_dir, exist_ok=True)
+
+    initalign_sect_info_csv = os.path.join(init_align_dir, "initalign_sect_info.csv")
+    initalign_chunk_info_csv = os.path.join(init_align_dir, "initalign_chunk_info.csv")
     initalign_sect_info = pd.DataFrame({})
     initalign_chunk_info = pd.DataFrame({})
 
@@ -559,18 +565,20 @@ def initalign(
             )
             curr_chunk_info = chunk_info.loc[idx]
 
-            curr_output_dir = f"{output_dir}/{sub}_{hemisphere}_{chunk}/"
+            init_volume = _init_align_filename(output_dir, sub, hemisphere, chunk)
 
             curr_sect_info, curr_chunk_info = align_chunk(
                 sub,
                 hemisphere,
                 chunk,
-                curr_output_dir,
+                init_volume,
+                init_align_dir,
                 curr_sect_info,
                 linParams,
                 curr_chunk_info,
                 clobber=clobber,
             )
+
             initalign_sect_info = pd.concat([initalign_sect_info, curr_sect_info])
             initalign_chunk_info = pd.concat([initalign_chunk_info, curr_chunk_info])
 
@@ -619,9 +627,10 @@ def align_chunk(
     sub: str,
     hemisphere: str,
     chunk: str,
-    output_dir: str,
+    init_align_fn: Path,
+    init_align_dir: Path,
     sect_info: pd.DataFrame,
-    linParams: str,
+    linParams: utils.AntsParams,
     chunk_info: pd.DataFrame,
     clobber: bool = False,
 ) -> pd.DataFrame:
@@ -636,10 +645,7 @@ def align_chunk(
     param clobber: overwrite existing files
     return: dataframe containing section information
     """
-    os.makedirs(output_dir, exist_ok=True)
-
-    init_align_fn = f"{output_dir}/{sub}_{hemisphere}_{chunk}_init_align.nii.gz"
-    init_tfm_csv = f"{output_dir}/{sub}_{hemisphere}_{chunk}_init_tfm.csv"
+    init_tfm_csv = f"{init_align_dir}/{sub}_{hemisphere}_{chunk}_init_tfm.csv"
 
     df = sect_info.copy()
 
@@ -653,16 +659,14 @@ def align_chunk(
     chunk_img_fn_str = "{}/sub-{}_hemi-{}_chunk-{}_acquisition_{}_{}_init_align_{}.{}"
 
     n_acquisitions = len(df["acquisition"].unique())
-    _, z_mm, y_mm = utils.get_chunk_pixel_size(sub, hemisphere, chunk, chunk_info)
-
-    direction = utils.get_chunk_direction(sub, hemisphere, chunk, chunk_info)
+    _, _, y_mm = utils.get_chunk_pixel_size(sub, hemisphere, chunk, chunk_info)
 
     ###########
     # Stage 1 #
     ###########
     logger.info("\t\tAlignment: Stage 1")
     # Perform within acquisition alignment
-    output_dir_1 = output_dir + os.sep + "stage_1"
+    output_dir_1 = f"{init_align_dir}/stage_1"
 
     # Iterate data frames over each acquisition
     df_acquisition = df.loc[df["acquisition"] == acquisition_contrast_order[0]]
@@ -692,7 +696,7 @@ def align_chunk(
     # Stage 2 #
     ###########
     # Align acquisitions to one another based on mean pixel intensity. Start with highest first because these have better contrast
-    output_dir_2 = output_dir + os.sep + "stage_2"
+    output_dir_2 = f"{init_align_dir}/stage_2"
     concat_list = [
         df_acquisition.loc[
             df_acquisition["acquisition"] == acquisition_contrast_order[0]
@@ -744,7 +748,7 @@ def align_chunk(
     ###########
     # Stage 3 #
     ###########
-    final_tfm_dir = output_dir + os.sep + "final_tfm"
+    final_tfm_dir = f"{init_align_dir}/final_tfm"
     os.makedirs(final_tfm_dir, exist_ok=True)
     df = stage_2_df
     df = create_final_outputs(final_tfm_dir, df, 1)
@@ -760,7 +764,7 @@ def align_chunk(
         combine_sections_to_vol(df, y_mm, init_align_fn)
 
     sect_info["init_tfm"] = df["init_tfm"]
-    sect_info["init_img"] = df["init_img"]
+    sect_info["2d_align_out"] = sect_info["init_img"] = df["init_img"]
 
     chunk_info["init_volume"] = init_align_fn
 

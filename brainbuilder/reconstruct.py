@@ -72,8 +72,9 @@ def reconstruct(
     interp_method: str = "volumetric",
     interpolation_2d: str = "Linear",
     landmark_dir: Path = None,
-    skip_interp: bool = False,
     use_intensity_correction: bool = False,
+    use_3d_align_stage: bool = True,
+    use_interp_stage: bool = True,
     verbose: bool = False,
     clobber: bool = False,
 ) -> None:
@@ -127,7 +128,7 @@ def reconstruct(
     if num_cores is None or num_cores == 0:
         num_cores = -1
 
-    max_resolution_list = resolution_list[-1]
+    max_resolution_2d = resolution_list[-1]
 
     logger.info("Reconstructing 2D sections to 3D volume")
     logger.info("\tInputs:")
@@ -144,15 +145,16 @@ def reconstruct(
     logger.info(f"\t\tUse 2D nonlinear: {use_syn}")
     logger.info(f"\t\tMissing Section Interpolation method: {interp_method}")
     logger.info(f"\t\t2D interpolation method: {interpolation_2d}")
-    logger.info(f"\t\tSkip interpolation: {skip_interp}")
     logger.info(f"\t\tUse intensity correction: {use_intensity_correction}")
     logger.info(f"\t\tClobber: {clobber}")
-    logger.info("\tOutput directories:")
+    logger.info("\tStages to run:")
     logger.info(f"\t\tDownsample: {downsample_dir}")
     logger.info(f"\t\tSegment: {seg_dir}")
     logger.info(f"\t\tInitial alignment: {initalign_dir}")
-    logger.info(f"\t\tMultiresolution alignment: {multires_align_dir}")
-    logger.info(f"\t\tInterpolation: {interp_dir}")
+    if use_3d_align_stage:
+        logger.info(f"\t\tMultiresolution alignment: {multires_align_dir}")
+    if use_interp_stage:
+        logger.info(f"\t\tInterpolation: {interp_dir}")
     logger.info(f"\t\tQuality control: {qc_dir}")
     logger.info(f"\t\tIntensity correction: {intens_corr_dir}")
 
@@ -181,7 +183,7 @@ def reconstruct(
         chunk_info_csv,
         sect_info_csv,
         seg_dir,
-        max_resolution_list,
+        max_resolution_2d,
         seg_method=seg_method,
         clobber=clobber,
     )
@@ -189,8 +191,8 @@ def reconstruct(
 
     logger.info("Stage: Initial rigid alignment of sections")
     # Stage: Initial rigid aligment of sections
-    sect_info_csv, init_chunk_csv = initalign(
-        sect_info_csv, chunk_info_csv, initalign_dir, resolution_list, clobber=clobber
+    sect_info_csv, chunk_info_csv = initalign(
+        sect_info_csv, chunk_info_csv, output_dir, resolution_list, clobber=clobber
     )
 
     if use_intensity_correction:
@@ -200,31 +202,33 @@ def reconstruct(
             sect_info_csv, chunk_info_csv, intens_corr_dir, clobber=clobber
         )
 
-    # Stage: Multiresolution alignment of sections to structural reference volume
-    align_chunk_info_csv, align_sect_info_csv = multiresolution_alignment(
-        hemi_info_csv,
-        init_chunk_csv,
-        sect_info_csv,
-        resolution_list,
-        multires_align_dir,
-        max_resolution_3d=max_resolution_3d,
-        use_3d_syn_cc=use_3d_syn_cc,
-        use_syn=use_syn,
-        num_cores=num_cores,
-        linear_steps=linear_steps,
-        interpolation=interpolation_2d,
-        landmark_dir=landmark_dir,
-        clobber=clobber,
-    )
+    if use_3d_align_stage:
+        # Stage: Multiresolution alignment of sections to structural reference volume
+        chunk_info_csv, sect_info_csv = multiresolution_alignment(
+            hemi_info_csv,
+            chunk_info_csv,
+            sect_info_csv,
+            resolution_list,
+            output_dir,
+            max_resolution_3d=max_resolution_3d,
+            use_3d_syn_cc=use_3d_syn_cc,
+            use_syn=use_syn,
+            num_cores=num_cores,
+            linear_steps=linear_steps,
+            interpolation=interpolation_2d,
+            landmark_dir=landmark_dir,
+            clobber=clobber,
+        )
+
     # qc.data_set_quality_control(align_sect_info_csv, qc_dir, column="init_img")
 
     # Stage: Interpolate missing sections
-    if not skip_interp:
-        reconstructed_chunk_info_csv = interpolate_missing_sections(
+    if use_interp_stage:
+        chunk_info_csv = interpolate_missing_sections(
             hemi_info_csv,
-            align_chunk_info_csv,
-            align_sect_info_csv,
-            max_resolution_list,
+            chunk_info_csv,
+            sect_info_csv,
+            max_resolution_2d,
             resolution_list,
             interp_dir,
             n_depths=n_depths,
@@ -232,6 +236,7 @@ def reconstruct(
             final_resolution=final_resolution,
             interpolation=interpolation_2d,
             num_cores=num_cores,
+            use_final_transform=use_3d_align_stage,  # only apply the final transform if we did the 3D alignment stage
             clobber=clobber,
         )
 
@@ -241,6 +246,8 @@ def reconstruct(
         #    interp_dir + "/qc",
         #    clobber=clobber,
         # )
+
+    logger.info("##### Reconstruction Complete #####")
     return output_csv
 
 

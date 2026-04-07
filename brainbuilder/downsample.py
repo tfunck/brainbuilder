@@ -47,7 +47,6 @@ def compute_max_new_dims(
 
             new_dims, _ = utils.get_new_dims(old_resolution, new_resolution, vol_shape)
 
-            print(raw_file, vol_shape, new_dims)
             return new_dims
 
         results = Parallel(n_jobs=num_cores)(
@@ -144,12 +143,13 @@ def downsample_within_chunk(
                 (raw_file, downsample_file, affine, resolution, conversion_factor)
             )
 
+    print("downsampling")
     Parallel(n_jobs=num_cores, backend="multiprocessing")(
         delayed(utils.resample_to_resolution)(
             raw_file,
             [resolution, resolution],
             downsample_file,
-            affine=affine,
+            # affine=affine, DEBUG : use the file affine
             order=1,
             factor=factor,
             max_dims=(max_dim_0, max_dim_1),

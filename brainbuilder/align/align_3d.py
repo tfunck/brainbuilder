@@ -2,12 +2,14 @@
 import logging
 import os
 import re
-from typing import List, Tuple
+from typing import List
 
 import ants
 import brainbuilder.utils.ants_nibabel as nib
 import nibabel
 import numpy as np
+import pandas as pd
+from brainbuilder.align.align_landmarks import create_landmark_transform
 from brainbuilder.utils import utils
 
 logger = utils.get_logger(__name__)
@@ -39,54 +41,15 @@ def find_vol_min_max(vol: np.ndarray) -> tuple:
     return srvMin, srvMax
 
 
-def pad_volume(
-    vol: np.ndarray,
-    max_factor: int,
-    affine: np.ndarray,
-    min_voxel_size: int = 29,
-    direction: List[int] = [1, 1, 1],
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Pad the volume so that it can be downsampled by the maximum downsample factor.
-
-    :param vol: volume to pad
-    :param max_factor: maximum downsample factor
-    :param affine: affine matrix
-    :param min_voxel_size: minimum voxel size
-    :param direction: direction of the affine matrix
-    :return: padded volume, padded affine matrix.
-    """
-    xdim, ydim, zdim = vol.shape
-
-    def padded_dim(dim: int, max_factor: int, min_voxel_size: int) -> int:
-        downsampled_dim = np.ceil(dim / 2 ** (max_factor - 1))
-
-        return int(dim * 0.1)
-        # if downsampled_dim < min_voxel_size:
-        #    return np.ceil((min_voxel_size - downsampled_dim) / 2).astype(int)
-        # else:
-        #    return 0
-
-    x_pad = padded_dim(xdim, max_factor, min_voxel_size)
-    y_pad = padded_dim(ydim, max_factor, min_voxel_size)
-    z_pad = padded_dim(zdim, max_factor, min_voxel_size)
-
-    vol_padded = np.pad(vol, ((x_pad, x_pad), (y_pad, y_pad), (z_pad, z_pad)))
-    affine[0, 3] -= x_pad * abs(affine[0, 0]) * direction[0]
-    affine[1, 3] -= y_pad * abs(affine[1, 1]) * direction[1]
-    affine[2, 3] -= z_pad * abs(affine[2, 2]) * direction[2]
-
-    return vol_padded, affine
-
-
-def get_ref_info(ref_rsl_fn: str) -> tuple:
+def get_ref_info(moving_fn: str) -> tuple:
     """Get reference volume information.
 
     Description: Get the width, min, max, ystep, and ystart of the reference volume
 
-    :param ref_rsl_fn: reference volume filename
+    :param moving_fn: reference volume filename
     :return: ref_width, ref_min, ref_max, ref_ystep, ref_ystart.
     """
-    ref_img = nib.load(ref_rsl_fn)
+    ref_img = nib.load(moving_fn)
     ref_vol = ref_img.get_fdata()
     ref_vol.shape[1]
 
@@ -100,29 +63,32 @@ def get_ref_info(ref_rsl_fn: str) -> tuple:
     return ref_width, ref_min, ref_max, ref_ystep, ref_ystart
 
 
-def pad_seg_vol(seg_rsl_fn: str, max_downsample_level: str, resolution: float) -> str:
+def pad_acq_volume(
+    fixed_fn: str,
+    seg_rsl_pad_fn: str,
+    resolution: float,
+    padding_offset: float = 0.15,
+) -> str:
     """Pad a volume to center it while keeping it centered in the world coordinates.
 
-    :param seg_rsl_fn: segmentation volume filename
+    :param fixed_fn: segmentation volume filename
     :param max_downsample_level: maximum downsample level
     :param resolution: resolution of the section volume
     :return: padded segmentation volume filename
     """
-    seg_img = nib.load(seg_rsl_fn)
+    seg_img = nib.load(fixed_fn)
     seg_vol = seg_img.get_fdata()
 
-    ants_img = ants.image_read(seg_rsl_fn)
+    ants_img = ants.image_read(fixed_fn)
     direction = ants_img.direction
     com0 = ants.get_center_of_mass(ants_img)
 
-    pad_seg_volume, pad_affine = pad_volume(
+    pad_seg_volume, pad_affine = utils.pad_volume(
         seg_vol,
-        max_downsample_level,
         seg_img.affine,
+        padding_offset=padding_offset,
         direction=direction[[0, 1, 2], [0, 1, 2]],
     )
-
-    seg_rsl_pad_fn = re.sub(".nii", "_padded.nii", seg_rsl_fn)
 
     nib.Nifti1Image(
         pad_seg_volume, pad_affine, direction=direction, dtype=np.uint8
@@ -193,17 +159,219 @@ def get_alignment_schedule(
     return max_downsample_level, linParams, nlParams, ccParams
 
 
-def write_ref_chunk(
+def verify_chunk_limits(
+    ref_rsl_fn: str, chunk_info: pd.DataFrame, verbose: bool = False
+) -> tuple:
+    """Get the start and end of the chunk in the reference space.
+
+    :param ref_rsl_fn: reference space file name
+    :param verbose: verbose
+    :return: (y0w, y1w) --> world coordinates; (y0, y1) --> voxel coordinates
+    """
+    img = nibabel.load(ref_rsl_fn)
+
+    ystart = img.affine[1, 3]
+    ystep = img.affine[1, 1]
+    if "caudal_limit" in chunk_info.columns and "rostral_limit" in chunk_info.columns:
+        y0w = chunk_info["caudal_limit"].values[0]
+        y1w = chunk_info["rostral_limit"].values[0]
+
+        # check if y0w and y1w are float, if not return 0 and img.shape[1]
+        y0w = y0w if isinstance(y0w, float) else ystart
+        y1w = y1w if isinstance(y1w, float) else ystart + ystep * img.shape[1]
+
+        y0 = (y0w - ystart) / ystep
+        y1 = (y1w - ystart) / ystep
+
+        y0_temp = min(y0, y1)
+        y1_temp = max(y0, y1)
+        y0 = np.floor(y0_temp).astype(int)
+        y1 = np.ceil(y1_temp).astype(int)
+
+        assert y0 > 0, f"Error: y0 is negative: {y0}"
+        assert y1 > 0, f"Error: y1 is negatove: {y1}"
+        if verbose:
+            print(y0w, y1w, y0, y1)
+
+    else:
+        y0w = ystart
+        y1w = ystart + ystep * img.shape[1]
+        y0 = 0
+        y1 = img.shape[1]
+
+    return [y0, y1], [y0w, y1w]
+
+
+def crop_volume_with_indicator(
+    ref_vol_fn: str,
+    ref_indicator_volume: str,
+    out_dir: str,
     sub: str,
     hemi: str,
     chunk: int,
-    ref_rsl_fn: str,
+    clobber: bool,
+):
+    """Crop the reference volume with the indicator volume to get the reference chunk."""
+    ref_chunk_fn = f"{out_dir}/sub-{sub}_hemi-{hemi}_chunk-{chunk}_ref_chunk.nii.gz"
+    if not os.path.exists(ref_chunk_fn) or clobber:
+        ref_indicator_img = nib.load(ref_indicator_volume)
+        ref_indicator_vol = ref_indicator_img.get_fdata()
+
+        ref_img = nib.load(ref_vol_fn)
+        ref_vol = ref_img.get_fdata()
+
+        ref_chunk_vol = np.where(ref_indicator_vol > 0, ref_vol, 0).astype(np.uint8)
+
+        nib.Nifti1Image(
+            ref_chunk_vol,
+            ref_img.affine,
+            direction="lpi",
+            dtype=np.uint8,
+        ).to_filename(ref_chunk_fn)
+    return ref_chunk_fn
+
+
+def write_ref_chunk_with_fixed_limits(
+    chunk_info: pd.DataFrame,
+    sub: str,
+    hemi: str,
+    chunk: int,
+    ref_vol_fn: str,
     out_dir: str,
-    y0w: float,
-    y0: int,
-    y1: int,
-    resolution: float,
-    max_downsample_level: int,
+    clobber: bool = False,
+) -> str:
+    (y0, y1), _ = verify_chunk_limits(ref_vol_fn, chunk_info)
+
+    ref_chunk_fn = f"{out_dir}/sub-{sub}_hemi-{hemi}_chunk-{chunk}_ref_{y0}_{y1}.nii.gz"
+
+    if not os.path.exists(ref_chunk_fn) or clobber:
+        # write srv chunk if it does not exist
+        logger.debug(f"\t\tWriting srv chunk for file\n\n{ref_vol_fn}")
+        ref_img = nib.load(ref_vol_fn)
+        direction = np.array(ref_img.direction)
+        ref_vol = ref_img.get_fdata()
+
+        aff = ref_img.affine
+
+        ref_vol[:, :y0, :] = 0
+        ref_vol[:, y1 + 1 :, :] = 0
+
+        # rescale 0-255
+        ref_vol = (
+            255 * (ref_vol - np.min(ref_vol)) / (np.max(ref_vol) - np.min(ref_vol))
+        ).astype(np.uint8)
+
+        nib.Nifti1Image(
+            ref_vol,
+            aff,
+            direction=direction,
+            dtype=np.uint8,
+        ).to_filename(ref_chunk_fn)
+
+        print(f"Written ref chunk: {ref_chunk_fn}")
+
+    return ref_chunk_fn
+
+
+def create_indicator_volume(
+    acq_landmark_volume: str, output_dir: str, clobber: bool = False
+) -> str:
+    acq_indicator_volume = f"{output_dir}/{os.path.basename(acq_landmark_volume).replace('.nii.gz', '_indicator.nii.gz')}"
+
+    if not os.path.exists(acq_indicator_volume) or clobber:
+        img = nib.load(acq_landmark_volume)
+
+        vol = np.ones(img.shape, dtype=np.uint8)
+
+        nib.Nifti1Image(vol, img.affine, direction="lpi", dtype=np.uint8).to_filename(
+            acq_indicator_volume
+        )
+
+    return acq_indicator_volume
+
+
+def write_ref_chunk_with_landmark_transform(
+    sect_info: pd.DataFrame,
+    chunk_info: pd.DataFrame,
+    sub: str,
+    hemi: str,
+    chunk: int,
+    ref_vol_fn: str,
+    out_dir: str,
+    max_resolution_3d: int,
+    landmark_dir: str,
+    output_dir: str,
+    ref_landmark_volume: str,
+    acq_rsl_fn: str,
+    padding_offset: float = 0.15,
+    clobber: bool = False,
+):
+    # 1 Calculate the landmark transform from acquisition to reference space
+    ymax = nib.load(chunk_info["init_volume"].values[0]).shape[1]
+
+    landmarks_out_dir = output_dir + "/ref_chunk_landmarks/"
+    os.makedirs(landmarks_out_dir, exist_ok=True)
+
+    acq_landmark_volume = f"{landmarks_out_dir}/sub-{sub}_hemi-{hemi}_chunk-{chunk}_acq_landmark_volume.nii.gz"
+
+    _, _, landmark_composite_tfm_path = create_landmark_transform(
+        sub,
+        hemi,
+        chunk,
+        max_resolution_3d,
+        max_resolution_3d,
+        sect_info,
+        acq_landmark_volume,  # acq landmark volume
+        acq_landmark_volume,  # moving landmark volume
+        ref_landmark_volume,  # fixed landmark volume
+        landmark_dir,
+        landmarks_out_dir,
+        acq_rsl_fn,
+        ref_vol_fn,
+        ymax,
+        chunk_info["section_thickness"],
+        padding_offset=padding_offset,
+        clobber=clobber,
+    )
+
+    # 2 Create a indicator .nii.gz volume of all 1s and save in space of acquisition volume
+    acq_indicator_volume = create_indicator_volume(
+        acq_landmark_volume, output_dir, clobber=clobber
+    )
+
+    # 3 Apply the landmark transform to the indicator volume to get a warped indicator volume in the space of the reference volume, with nearest neighbours
+    ref_indicator_volume = acq_indicator_volume.replace(".nii.gz", "_space-stx.nii.gz")
+    utils.simple_ants_apply_tfm(
+        acq_indicator_volume,
+        ref_vol_fn,
+        landmark_composite_tfm_path,
+        ref_indicator_volume,
+        n="NearestNeighbor",
+        clobber=clobber,
+    )
+
+    # 4 Use the reference space warped indicator volume to mask the reference volume to get the reference chunk
+    ref_chunk_fn = crop_volume_with_indicator(
+        ref_vol_fn, ref_indicator_volume, out_dir, sub, hemi, chunk, clobber
+    )
+
+    return ref_chunk_fn
+
+
+def write_ref_chunk(
+    sect_info: pd.DataFrame,
+    chunk_info: pd.DataFrame,
+    sub: str,
+    hemi: str,
+    chunk: int,
+    ref_vol_fn: str,
+    landmark_dir: str,
+    out_dir: str,
+    max_resolution_3d: int,
+    ref_landmark_volume: str,
+    acq_rsl_fn: str,
+    padding_offset: float = 0.15,
+    use_landmark_transfrom: bool = False,
     clobber: bool = False,
 ) -> None:
     """Write a chunk from the reference volume that corresponds to the tissue chunk from the section volume.
@@ -211,66 +379,72 @@ def write_ref_chunk(
     :param sub: subject id
     :param hemi: hemisphere
     :param chunk: chunk number
-    :param ref_rsl_fn: reference volume filename
+    :param ref_vol_fn: reference volume filename
     :param out_dir: output directory
-    :param y0w: y0 in world coordinates
-    :param y0: y0 in voxel coordinates
-    :param y1: y1 in voxel coordinates
-    :param resolution: resolution of the section volume
-    :param ref_ystep: ystep of the reference volume
-    :param ref_ystart: ystart of the reference volume
-    :param max_downsample_level: maximum downsample level
     :param clobber: overwrite existing files
     :return: None
     """
-    ref_chunk_fn = f"{out_dir}/{sub}_{hemi}_{chunk}_{resolution}mm_ref_{y0}_{y1}.nii.gz"
-    if not os.path.exists(ref_chunk_fn) or clobber:
-        # write srv chunk if it does not exist
-        logger.debug(f"\t\tWriting srv chunk for file\n\n{ref_rsl_fn}")
-        ref_img = nib.load(ref_rsl_fn)
-        direction = np.array(ref_img.direction)
-        ref_vol = ref_img.get_fdata()
-        aff = ref_img.affine
+    if not use_landmark_transfrom:
+        if (
+            "caudal_limit" not in chunk_info.columns
+            or "rostral_limit" not in chunk_info.columns
+        ):
+            logger.warning(
+                "caudal_limit and rostral_limit not found in chunk_info, using full volume"
+            )
+            return ref_vol_fn
 
-        real_aff = nibabel.load(ref_rsl_fn).affine
-        real_aff[1, 1]
-        real_aff[1, 3]
-        aff[1, 3] = direction[1, 1] * y0w
+        # if landmark transform is not provided, use the fixed limits from the chunk_info.csv to get the reference chunk.
+        # This is because the fixed limits may not be accurate and may not correspond to the actual tissue chunk in the reference space,
+        # but it is better than nothing and will allow us to get a reference chunk that is at least in the right area of the brain.
 
-        ref_chunk = ref_vol[:, y0:y1, :]
-
-        pad_ref_chunk, pad_aff = pad_volume(
-            ref_chunk,
-            max_downsample_level,
-            aff,
-            direction=direction[[0, 1, 2], [0, 1, 2]],
+        ref_chunk_fn = write_ref_chunk_with_fixed_limits(
+            chunk_info, sub, hemi, chunk, ref_vol_fn, out_dir, clobber
+        )
+    else:
+        # if landmark transform is provided, use the landmark transform to get the reference chunk that corresponds to the tissue chunk, instead of using the fixed limits from the chunk_info.csv. This is because the fixed limits may not be accurate and may not correspond to the actual tissue chunk in the reference space.
+        # The landmark transform will allow us to get a more accurate reference chunk that corresponds to the tissue chunk in the reference space.
+        ref_chunk_fn = write_ref_chunk_with_landmark_transform(
+            sect_info,
+            chunk_info,
+            sub,
+            hemi,
+            chunk,
+            ref_vol_fn,
+            out_dir,
+            max_resolution_3d,
+            landmark_dir,
+            output_dir,
+            ref_landmark_volume,
+            acq_rsl_fn,
+            padding_offset=padding_offset,
+            clobber=clobber,
         )
 
-        # rescale 0-255
-        pad_ref_chunk = (
-            255
-            * (pad_ref_chunk - np.min(pad_ref_chunk))
-            / (np.max(pad_ref_chunk) - np.min(pad_ref_chunk))
-        ).astype(np.uint8)
-
-        nib.Nifti1Image(
-            pad_ref_chunk,
-            pad_aff,
-            direction=direction,
-            dtype=np.uint8,
-        ).to_filename(ref_chunk_fn)
-
     return ref_chunk_fn
+
+
+def set_init_tfm(init_tfm, fx_fn, mv_fn) -> str:
+    init_tfm_list = []
+
+    if init_tfm is None:
+        init_str = f" --initial-moving-transform [{fx_fn},{mv_fn},1] "
+    else:
+        mv_rsl_fn = re.sub(".nii", "_init_moving.nii", mv_fn)
+        utils.simple_ants_apply_tfm(mv_fn, fx_fn, init_tfm, mv_rsl_fn, n="BSpline[2]")
+        mv_fn = mv_rsl_fn
+        init_str = ""
+        init_tfm_list = init_tfm
+
+    return init_str, mv_fn, init_tfm_list
 
 
 def run_alignment(
     out_dir: str,
     out_tfm_fn: str,
-    out_inv_fn: str,
     out_fn: str,
-    ref_rsl_fn: str,
-    ref_chunk_fn: str,
-    seg_rsl_fn: str,
+    mv_fn: str,
+    fx_fn: str,
     linParams: utils.AntsParams,
     nlParams: utils.AntsParams,
     ccParams: utils.AntsParams,
@@ -288,16 +462,16 @@ def run_alignment(
     :param out_tfm_fn: output transformation filename
     :param out_inv_fn: output inverse transformation filename
     :param out_fn: output filename
-    :param ref_rsl_fn: reference volume filename
+    :param moving_fn: reference volume filename
     :param ref_chunk_fn: reference chunk filename
-    :param seg_rsl_fn: segmentation volume filename
+    :param fixed_fn: segmentation volume filename
     :param linParams: linear parameters
     :param nlParams: nonlinear parameters
     :param ccParams: cross correlation parameters
     :param resolution: resolution of the section volume
     :param metric: metric to use for registration
     :param nbins: number of bins for registration
-    :param use_init_tfm: use initial transformation
+    :param init_tfm: use initial transformation
     :param sampling: sampling for registration
     :param clobber: overwrite existing files
     :return: None.
@@ -311,8 +485,6 @@ def run_alignment(
             "_SyN_Mattes_Composite.h5", "", out_tfm_fn
         )  # FIXME this is bad coding
 
-    f"{prefix}/log.txt"
-
     prefix + "_init_"
     prefix_rigid = prefix + "_Rigid_"
     prefix_similarity = prefix + "_Similarity_"
@@ -323,20 +495,13 @@ def run_alignment(
     affine_inv_fn = f"{prefix_affine}volume_inverse.nii.gz"
     f"{prefix_manual}Composite.nii.gz"
 
-    ref_tgt_fn = ref_chunk_fn
     step = 0.5
     sampling = 0.9
+    nbins = 32
 
-    unique_fixed_values = np.unique(nib.load(ref_chunk_fn).get_fdata())
-    unique_moving_values = np.unique(nib.load(seg_rsl_fn).get_fdata())
+    orig_mv_fn = mv_fn
 
-    nbins = min(256, max(len(unique_fixed_values), len(unique_moving_values)))
-
-    nl_metric = f"Mattes[{ref_chunk_fn},{seg_rsl_fn},1,32,Random,{sampling}]"
-
-    cc_metric = f"CC[{ref_chunk_fn},{seg_rsl_fn},1,3,Random,{sampling}]"
-
-    syn_rate = "0.1"
+    init_str, mv_fn, init_tfm_list = set_init_tfm(init_tfm, fx_fn, mv_fn)
 
     base = "antsRegistration -v 1 -a 1 -d 3 "
 
@@ -348,48 +513,49 @@ def run_alignment(
     # set initial transform
     # calculate rigid registration
 
-    if init_tfm is None:
-        init_str = f" --initial-moving-transform [{ref_chunk_fn},{seg_rsl_fn},1] "
-    else:
-        init_str = f" --initial-moving-transform {init_tfm} "
-
     verbose = 0 if logger.getEffectiveLevel() == logging.INFO else 1
 
     # calculate rigid registration
     if not os.path.exists(f"{prefix_rigid}Composite.h5") and "rigid" in linear_steps:
-        rigid_cmd = f"{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] "
+        rigid_cmd = f"{base}  {init_str}  -t Rigid[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_rigid},{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz] "
         utils.shell(rigid_cmd, verbose=verbose)
         write_log(out_dir, "rigid", rigid_cmd)
         init_str = f"--initial-moving-transform  {prefix_rigid}Composite.h5"
+
+    # ,{prefix_rigid}volume.nii.gz,{prefix_rigid}volume_inverse.nii.gz]
 
     # calculate similarity registration
     if (
         not os.path.exists(f"{prefix_similarity}Composite.h5")
         and "similarity" in linear_steps
     ):
-        similarity_cmd = f"{base}  {init_str} -t Similarity[{step}]  -m {metric}[{ref_chunk_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] "
+        similarity_cmd = f"{base}  {init_str} -t Similarity[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{nbins},Random,{sampling}]   -s {linParams.s_str} -f {linParams.f_str} -c {linParams.itr_str}  -o [{prefix_similarity},{prefix_similarity}volume.nii.gz,{prefix_similarity}volume_inverse.nii.gz] "
         utils.shell(similarity_cmd, verbose=verbose)
         write_log(out_dir, "similarity", similarity_cmd)
         init_str = f"--initial-moving-transform {prefix_similarity}Composite.h5"
 
     # calculate affine registration
+    # ,{affine_out_fn},{affine_inv_fn}]
     if not os.path.exists(f"{prefix_affine}Composite.h5") and "affine" in linear_steps:
-        affine_cmd = f"{base}  {init_str} -t Affine[{step}] -m {metric}[{ref_tgt_fn},{seg_rsl_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] "
+        affine_cmd = f"{base}  {init_str} -t Affine[{step}] -m {metric}[{fx_fn},{mv_fn},1,{nbins},Random,{sampling}]  -s {linParams.s_str} -f {linParams.f_str}  -c {linParams.itr_str}  -o [{prefix_affine},{affine_out_fn},{affine_inv_fn}] "
         utils.shell(affine_cmd, verbose=verbose)
         write_log(out_dir, "affine", affine_cmd)
         init_str = f"--initial-moving-transform {prefix_affine}Composite.h5"
 
-    prefix_mattes_syn = f"{prefix}_SyN_Mattes_"
+    init_file_str = ""
+
+    prefix_mattes_syn = f"{prefix}{init_file_str}_SyN_Mattes_"
     mattes_syn_out_fn = f"{prefix_mattes_syn}volume.nii.gz"
     mattes_syn_inv_fn = f"{prefix_mattes_syn}volume_inverse.nii.gz"
 
-    prefix_cc_syn = f"{prefix}_SyN_CC_"
+    prefix_cc_syn = f"{prefix}{init_file_str}_SyN_CC_"
     cc_syn_out_fn = f"{prefix_cc_syn}volume.nii.gz"
     cc_syn_inv_fn = f"{prefix_cc_syn}volume_inverse.nii.gz"
 
     prefix_syn = prefix_mattes_syn
     syn_out_fn = mattes_syn_out_fn
     syn_inv_fn = mattes_syn_inv_fn
+
     # calculate nonlinear registration with Mattes metric
     if use_3d_syn_cc:
         prefix_syn = prefix_cc_syn
@@ -397,13 +563,22 @@ def run_alignment(
         syn_inv_fn = cc_syn_inv_fn
 
     if not os.path.exists(f"{prefix_syn}Composite.h5"):
+        nl_metric = f"Mattes[{fx_fn},{mv_fn},1,32,Random,{sampling}]"
+
+        cc_metric = f"CC[{fx_fn},{mv_fn},1,3,Random,{sampling}]"
+
+        syn_rate = "0.1"
+
         nl_base = f"{base}   {init_str} -o [{prefix_syn},{syn_out_fn},{syn_inv_fn}] "
         # nl_base += f" -t SyN[{syn_rate}] -m {nl_metric}  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} "
 
         if use_3d_syn_cc:
             nl_base += f" -t SyN[{syn_rate}] -m {cc_metric} -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str} "
+            # BSplineSyN
+            # nl_base += f" -t BSplineSyN[{syn_rate},5x5x5] -m {cc_metric} -s {ccParams.s_str} -f {ccParams.f_str} -c {ccParams.itr_str} "
         else:
             nl_base += f" -t SyN[{syn_rate}] -m {nl_metric}  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} "
+            # nl_base += f" -t BSplineSyN[{syn_rate},5x5x5] -m {nl_metric}  -s {nlParams.s_str} -f {nlParams.f_str} -c {nlParams.itr_str} "
 
         utils.shell(nl_base, verbose=verbose)
 
@@ -415,45 +590,36 @@ def run_alignment(
             f"{prefix_syn}Composite.h5"
         ), f"Error: {prefix_syn}Composite.h5 does not exist"
 
-        assert os.path.exists(
-            f"{prefix_syn}InverseComposite.h5"
-        ), f"Error: {prefix_syn}InverseComposite.h5 does not exist"
+    if init_tfm:
+        out_tfm_list = [out_tfm_fn, init_tfm]
+    else:
+        out_tfm_list = [out_tfm_fn]
 
     utils.simple_ants_apply_tfm(
-        seg_rsl_fn, ref_rsl_fn, prefix_syn + "Composite.h5", out_fn, n="BSpline[2]"
+        orig_mv_fn, fx_fn, out_tfm_list, out_fn, n="BSpline[2]", clobber=clobber
     )
 
-    utils.simple_ants_apply_tfm(
-        ref_rsl_fn,
-        seg_rsl_fn,
-        prefix_syn + "InverseComposite.h5",
-        out_inv_fn,
-        n="BSpline[2]",
-    )
+    # if os.path.exists(f"{prefix_syn}InverseComposite.h5"):
+    #    utils.simple_ants_apply_tfm(
+    #        fx_fn, mv_fn, prefix_syn + "InverseComposite.h5", out_inv_fn, n="BSpline[2]",
+    #    )
 
-    return None
+    return out_tfm_list
 
 
 def align_3d(
-    sub: str,
-    hemi: str,
     chunk: int,
-    seg_rsl_fn: str,
-    ref_rsl_fn: str,
+    moving_fn: str,
+    fixed_fn: str,
     out_dir: str,
     out_tfm_fn: str,
-    out_tfm_inv_fn: str,
     out_fn: str,
-    out_inv_fn: str,
     resolution: int,
     resolution_list: List[int],
-    world_chunk_limits: Tuple[float, float],
-    vox_chunk_limits: Tuple[int, int],
     init_tfm: str = None,
     base_nl_itr: int = 200,
     base_lin_itr: int = 500,
     use_3d_syn_cc: bool = True,
-    use_pad_volume: bool = True,
     linear_steps: str = ["rigid", "similarity", "affine"],
     clobber: bool = False,
 ) -> int:
@@ -462,8 +628,8 @@ def align_3d(
     :param sub: subject id
     :param hemi: hemisphere
     :param chunk: chunk number
-    :param seg_rsl_fn: segmentation volume filename
-    :param ref_rsl_fn: reference volume filename
+    :param fixed_fn: segmentation volume filename
+    :param moving_fn: reference volume filename
     :param out_dir: output directory
     :param out_tfm_fn: output transformation filename
     :param out_tfm_inv_fn: output inverse transformation filename
@@ -478,67 +644,40 @@ def align_3d(
     :param clobber: overwrite existing files
     :return: 0.
     """
-    if not os.path.exists(out_tfm_fn) or not os.path.exists(out_tfm_inv_fn) or clobber:
-        logger.info("\t\t3D Volumetric Alignment")
-        chunk = int(chunk)
+    logger.info("\t\t3D Volumetric Alignment")
+    chunk = int(chunk)
 
-        # get iteration schedules for the linear and non-linear portion of the ants alignment
-        # get maximum number steps by which the srv image will be downsampled by
-        # with ants, each step means dividing the image size by 2^(level-1)
-        (
-            max_downsample_level,
-            linParams,
-            nlParams,
-            ccParams,
-        ) = get_alignment_schedule(
-            resolution_list,
-            resolution,
-            base_nl_itr=base_nl_itr,
-            base_lin_itr=base_lin_itr,
-        )
+    # get iteration schedules for the linear and non-linear portion of the ants alignment
+    # get maximum number steps by which the srv image will be downsampled by
+    # with ants, each step means dividing the image size by 2^(level-1)
+    (
+        _,
+        linParams,
+        nlParams,
+        ccParams,
+    ) = get_alignment_schedule(
+        resolution_list,
+        resolution,
+        base_nl_itr=base_nl_itr,
+        base_lin_itr=base_lin_itr,
+    )
 
-        # pad the segmented volume so that it can be downsampled by the
-        # ammount of times specified by max_downsample_level
-        if use_pad_volume:
-            seg_pad_fn = pad_seg_vol(seg_rsl_fn, max_downsample_level, resolution)
-        else:
-            seg_pad_fn = seg_rsl_fn
+    logger.info(f"\t\tResolution: {resolution}")
+    # run ants alignment between segmented volume (from autoradiographs) to chunk extracte
+    vol_tfm_list = run_alignment(
+        out_dir,
+        out_tfm_fn,
+        out_fn,
+        moving_fn,
+        fixed_fn,
+        linParams,
+        nlParams,
+        ccParams,
+        sampling=0.95,
+        use_3d_syn_cc=use_3d_syn_cc,
+        linear_steps=linear_steps,
+        metric="Mattes",
+        init_tfm=init_tfm,
+    )
 
-        img = nib.load(ref_rsl_fn)
-        img.shape[1]
-
-        logger.info("\t\tRestolution: {resolution}")
-        # extract chunk from srv and write it
-        ref_chunk_fn = write_ref_chunk(
-            sub,
-            hemi,
-            chunk,
-            ref_rsl_fn,
-            out_dir,
-            vox_chunk_limits[0],
-            world_chunk_limits[0],
-            world_chunk_limits[1],
-            resolution,
-            max_downsample_level,
-        )
-
-        # run ants alignment between segmented volume (from autoradiographs) to chunk extracte
-        run_alignment(
-            out_dir,
-            out_tfm_fn,
-            out_inv_fn,
-            out_fn,
-            ref_rsl_fn,
-            ref_chunk_fn,
-            seg_pad_fn,
-            linParams,
-            nlParams,
-            ccParams,
-            sampling=0.95,
-            init_tfm=init_tfm,
-            use_3d_syn_cc=use_3d_syn_cc,
-            linear_steps=linear_steps,
-            metric="Mattes",
-        )
-
-    return 0
+    return vol_tfm_list

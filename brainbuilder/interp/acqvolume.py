@@ -6,7 +6,7 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
-from scipy.ndimage import gaussian_filter, label
+from scipy.ndimage import label
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils.utils import (
@@ -81,7 +81,8 @@ def setup_section_normalization(
 
 def thicken_sections_within_chunk(
     thickened_fn: str,
-    source_image_fn: str,
+    ydim: int,
+    affine: np.ndarray,
     section_thickness: float,
     chunk_sect_info: pd.DataFrame,
     resolution: float,
@@ -101,28 +102,16 @@ def thicken_sections_within_chunk(
     :param gaussian_sd: standard deviation of gaussian filter
     :return: None
     """
-    array_img = nib.load(source_image_fn)
-    array_src = array_img.get_fdata()
-
-    assert np.sum(array_src) != 0, (
-        "Error: source volume for thickening sections is empty\n" + source_image_fn
-    )
-
     if width is None:
         width = get_thicken_width(resolution, section_thickness, scale=1)
 
-    print("\t\tThickening sections to ", 0.02 * width * 2)
-    print(chunk_sect_info.columns)
+    print("\t\tThickening sections to ", 0.02 * width * 2, "with width", width)
 
     example_2d_fin = chunk_sect_info.iloc[0][target_section]
 
     example_2d_hd = nib.load(example_2d_fin)
-    print(target_section)
-    print(example_2d_hd.shape)
-    print(example_2d_fin)
 
     xdim = example_2d_hd.shape[0]
-    ydim = array_src.shape[1]
     zdim = example_2d_hd.shape[1]
 
     dim = [xdim, 1, zdim]
@@ -134,6 +123,7 @@ def thicken_sections_within_chunk(
         y = int(row["sample"])
 
         nl_2d_rsl = row[target_section]
+
         print(nl_2d_rsl)
 
         assert os.path.exists(
@@ -142,21 +132,23 @@ def thicken_sections_within_chunk(
 
         section = nib.load(nl_2d_rsl).get_fdata().copy()
 
+        # check section has correct shape
+        if section.shape != (xdim, zdim):
+            raise ValueError(
+                f"Error: section {nl_2d_rsl}  has shape {section.shape} but expected {(xdim, zdim)}\n"
+            )
+
         if np.sum(section) == 0:
             print(f"Warning: empty frame {row_i} {row}\n")
 
         y0 = int(y) - width if int(y) - width > 0 else 0
-        y1 = (
-            1 + int(y) + width
-            if 1 + int(y) + width < array_src.shape[1]
-            else array_src.shape[1]
-        )
+        y1 = 1 + int(y) + width if 1 + int(y) + width < ydim else ydim
 
-        print(section.shape, "==", dim)
-
-        rep = np.repeat(section.reshape(dim), y1 - y0, axis=1)
-
-        rec_vol[:, y0:y1, :] += rep
+        if width > 0:
+            rep = np.repeat(section.reshape(dim), y1 - y0, axis=1)
+            rec_vol[:, y0:y1, :] += rep
+        else:
+            rec_vol[:, y, :] += section
 
         n[:, y0:y1, :] += 1
 
@@ -167,14 +159,9 @@ def thicken_sections_within_chunk(
     rec_vol[n > 0] = rec_vol[n > 0] / n[n > 0]
     rec_vol[n == 0] = 0
 
-    if np.sum(gaussian_sd) > 0:
-        empty_voxels = rec_vol < np.max(rec_vol) * 0.05
-        rec_vol = gaussian_filter(rec_vol, gaussian_sd)
-        rec_vol[empty_voxels] = 0
-
-    if "batch_offset" in chunk_sect_info.columns:
-        batch_offset = chunk_sect_info["batch_offset"].values[0]
-        rec_vol = rec_vol + batch_offset
+    # if "batch_offset" in chunk_sect_info.columns:
+    #    batch_offset = chunk_sect_info["batch_offset"].values[0]
+    #    rec_vol = rec_vol + batch_offset
 
     assert np.sum(rec_vol) != 0, "Error: thickened volume is empty"
     print(
@@ -184,13 +171,10 @@ def thicken_sections_within_chunk(
         np.max(rec_vol),
     )
 
-    affine = array_img.affine
     affine[0, 0] = affine[2, 2] = resolution
 
-    print("\tthickened_fn", thickened_fn)
-    nib.Nifti1Image(rec_vol, array_img.affine, direction_order="lpi").to_filename(
-        thickened_fn
-    )
+    print("\tthickened_fn", thickened_fn, rec_vol.shape)
+    nib.Nifti1Image(rec_vol, affine, direction_order="lpi").to_filename(thickened_fn)
 
     return rec_vol
 
@@ -399,10 +383,24 @@ def create_thickened_volumes(
             chunk_info_row["thickened"] = thickened_fn
             chunk_info_row["thickened_stx"] = thickened_stx_fn
 
+            if "nl_2d_vol_fn" in chunk_info.columns:
+                acq_ref_coord_vol = "nl_2d_vol_fn"
+            elif "init_volume" in chunk_info.columns:
+                acq_ref_coord_vol = "init_volume"
+            else:
+                raise ValueError(
+                    f"Error: no column found for acquisition reference coordinate volume. Check that either 'nl_2d_vol_fn' or 'init_volume' is in chunk_info.\n\tColumns: {chunk_info.columns}"
+                )
+
             if not os.path.exists(thickened_fn) or clobber:
+                acq_ref_coord_img = nib.load(chunk_info_row[acq_ref_coord_vol])
+                ydim = acq_ref_coord_img.shape[1]
+                affine = acq_ref_coord_img.affine
+
                 thicken_sections_within_chunk(
                     chunk_info_row["thickened"],
-                    chunk_info_row["nl_2d_vol_fn"],
+                    ydim,
+                    affine,
                     chunk_info_row["section_thickness"],
                     chunk_sect_info,
                     resolution,

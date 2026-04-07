@@ -9,6 +9,8 @@ from joblib import Parallel, cpu_count, delayed
 import brainbuilder.utils.utils as utils
 from brainbuilder.utils.mesh_io import load_mesh_ext
 from brainbuilder.utils.utils import get_logger
+import nibabel as nib
+from PIL import Image
 
 global chunk_info_required_columns
 global sect_info_required_columns
@@ -80,9 +82,9 @@ class Column:
 sub = Column("sub", None)
 hemisphere = Column("hemisphere", None)
 chunk = Column("chunk", None)
-direction = Column("direction", None)
-pixel_size_0 = Column("pixel_size_0", float)
-pixel_size_1 = Column("pixel_size_1", float)
+#direction = Column("direction", None) #DEPRECIATED
+#pixel_size_0 = Column("pixel_size_0", float) #DEPRECIATED
+#pixel_size_1 = Column("pixel_size_1", float) #DEPRECIATED
 section_thickness = Column("section_thickness", float)
 acquisition = Column("acquisition", None)
 sample = Column("sample", int)
@@ -92,21 +94,12 @@ raw = Column("raw", "volume")
 struct_ref_vol = Column("struct_ref_vol", "volume")
 
 # Surfaces
-gm_surf = Column("gm_surf", "surface", False)
-wm_surf = Column("wm_surf", "surface", False)
+#gm_surf = Column("gm_surf", "surface", False) #DEPRECIATED
+#wm_surf = Column("wm_surf", "surface", False) #DEPRECIATED
 
-
-chunk_info_required_columns = [
-    sub,
-    hemisphere,
-    chunk,
-    direction,
-    pixel_size_0,
-    pixel_size_1,
-    section_thickness,
-]
-sect_info_required_columns = [acquisition, sub, hemisphere, chunk, raw, sample]
-hemi_info_required_columns = [sub, hemisphere, struct_ref_vol, gm_surf, wm_surf]
+chunk_info_required_columns = [sub, hemisphere, chunk, section_thickness ]
+sect_info_required_columns = [acquisition, sub, hemisphere, chunk, raw, sample ]
+hemi_info_required_columns = [sub, hemisphere, struct_ref_vol ] 
 
 
 def validate_dataframe(
@@ -190,7 +183,35 @@ def validate_surface(surface_filename: str) -> bool:
     return valid_inputs
 
 
-def validate_volume(fn: str) -> bool:
+def _can_open_volume(path: str) -> bool:
+    """Return True if `path` can be opened by nibabel or PIL."""
+    loaders = [
+        ("nibabel", lambda p: nib.load(p)),
+        ("PIL", lambda p: (Image.open(p).__enter__().verify())),  # type: ignore[misc]
+    ]
+
+    last_exc: Exception | None = None
+    for name, loader in loaders:
+        try:
+            # NOTE: PIL verify() needs an opened image; keep it lightweight.
+            if name == "PIL":
+                with Image.open(path) as im:
+                    im.verify()
+            else:
+                loader(path)
+            return True
+        except Exception as exc:
+            last_exc = exc
+            logger.debug(f"\t{path}: failed to load with {name}: {exc}")
+
+    if last_exc is not None:
+        logger.critical(
+            f"\tError: could not load volume file {path} with nibabel or PIL"
+        )
+        logger.critical(last_exc)
+    return False
+
+def validate_volume(fn: str, check_not_empty: bool = False) -> bool:
     """Validate that a volume exists and that it is not empty.
 
     :param fn : str, Path to .nii.gz file that serves as structural reference volume to use for reconstruction
@@ -204,11 +225,15 @@ def validate_volume(fn: str) -> bool:
         valid_inputs = False
     else:
         try:
-            vol = utils.load_image(fn)
+            if check_not_empty :
+                vol = utils.load_image(fn)
 
-            if np.sum(np.abs(vol)) == 0:
-                valid_inputs = False
-                logger.info(f"\tMissing input: empty template file {fn}")
+                if np.sum(np.abs(vol)) == 0:
+                    valid_inputs = False
+                    logger.info(f"\tMissing input: empty template file {fn}")
+            else :
+                valid_inputs = _can_open_volume(fn)
+
         except Exception as e:
             valid_inputs = False
             logger.critical(

@@ -52,6 +52,7 @@ def get_input_file(
             [resolution_2d] * 2,
             seg_rsl_fn,
             dtype=np.uint8,
+            factor=255,
         )
 
     if resolution_2d != resolution_3d:
@@ -65,6 +66,7 @@ def get_input_file(
                 [resolution_3d] * 2,
                 tfm_input_fn,
                 dtype=np.uint8,
+                factor=255,
             )
     return tfm_input_fn
 
@@ -157,6 +159,19 @@ def resample_and_transform(
         )
 
     row["2d_align"] = img_rsl_tfm_fn  # Final transformed 2D image at 2D resolution
+
+    if resolution_2d == resolution_3d:
+        row["2d_align_3d_res"] = img_rsl_tfm_fn  # If same resolution, use same file
+    else:  # Resample transformed 2D image to 3D resolution, used for creating intermediate volume later (which is always at 3D resolution)
+        img_rsl_tfm_3d_fn = f'{output_dir}/{row["base"]}_y-{row["sample"]}_itr-{resolution_2d}_{resolution_3d}mm_rsl_tfm.nii.gz'
+        resample_to_resolution(
+            img_rsl_tfm_fn,
+            [resolution_3d] * 2,
+            output_filename=img_rsl_tfm_3d_fn,
+            order=1,
+        )
+        row["2d_align_3d_res"] = img_rsl_tfm_3d_fn
+
     row[
         "seg_rsl"
     ] = seg_rsl_fn  # Resampled segmented image at 2D resolution in native space
@@ -215,6 +230,7 @@ def resample_transform_segmented_images(
     sect_info = pd.DataFrame(results)
 
     check_consistent_dimensions(sect_info, "2d_align")
+    check_consistent_dimensions(sect_info, "2d_align_3d_res")
     check_consistent_dimensions(sect_info, "seg_rsl")
     check_consistent_dimensions(sect_info, "seg_rsl_tfm")
 
@@ -260,12 +276,10 @@ def interpolate_missing_sections(
 
             if method == "nearest":
                 d = np.rint(d)
-            print(d)
             z = x * (1 - d) + d * y
             # print(x1,d,ii,y0, '-->', np.mean(x), np.mean(z), np.mean(y))
 
             out_vol[:, ii, :] = z
-        print()
 
     return out_vol
 
@@ -295,7 +309,6 @@ def recenter(
     d_world *= direction
     affine[range(ndim), 3] -= d_world
 
-    print("\tShift in Segmented Volume by:", d_vox)
     vol = shift(vol, d_vox, order=0)
 
     affine[range(ndim), range(ndim)]
@@ -328,7 +341,7 @@ def load_2d_sections_to_volume(sect_info, in_dir, resolution_3d, dims):
     return data
 
 
-def create_intermediate_volume(
+def create_acquisition_volume(
     chunk_info: pd.DataFrame,
     sect_info: pd.DataFrame,
     resolution_itr: int,
@@ -338,11 +351,10 @@ def create_intermediate_volume(
     out_dir: str,
     seg_rsl_fn: str,
     init_align_fn: str,
-    interpolation: str = "nearest",
     num_cores: int = 0,
     clobber: bool = False,
 ) -> None:
-    """Create intermediate volume for use in registration to the structural reference volume.
+    """Create intermediate acquisition volume for use in registration to the structural reference volume.
 
     param: sect_info: dataframe containing information about each section
     param: chunk_info: dataframe containing information about each chunk
@@ -354,9 +366,9 @@ def create_intermediate_volume(
     param: init_align_fn: filename of the initial alignment volume
     return: None
     """
-    out_2d_dir = out_dir + "/2d/"
+    out_2d_dir = f"{out_dir}/2d/"
 
-    sect_info_csv = out_dir + "/section_info.csv"
+    sect_info_csv = f"{out_dir}/section_info.csv"
 
     os.makedirs(out_2d_dir, exist_ok=True)
 
@@ -385,11 +397,7 @@ def create_intermediate_volume(
         )
 
         # write 2d segmented sections at current resolution. apply initial transform
-        curr_align_fn = (
-            out_dir
-            + "/"
-            + os.path.basename(seg_rsl_fn).replace(".nii.gz", "_rsl_2d.nii.gz")
-        )
+        curr_align_fn = f"{out_dir}/{os.path.basename(seg_rsl_fn).replace('.nii.gz', '_rsl_2d.nii.gz')}"
 
         img = nib.load(init_align_fn)
 
@@ -438,7 +446,7 @@ def create_intermediate_volume(
             vmin=None,
             vmax=None,
             background=0,
-            out_dtype=np.uint8,
+            dtype=np.uint8,
             chunk=(48, 48, 48),
         )
         print("created:", seg_rsl_fn)

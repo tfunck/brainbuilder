@@ -5,7 +5,6 @@ import json
 import logging
 import os
 import shutil
-import tempfile
 
 import brainbuilder.utils.ants_nibabel as nib
 import matplotlib.pyplot as plt
@@ -21,17 +20,22 @@ from brainbuilder.utils.utils import (
     shell,
     threshold,
 )
-from joblib import Parallel, cpu_count, delayed
+from joblib import Parallel, cpu_count, delayed, parallel_backend
 from skimage.transform import resize
 
 logger = utils.get_logger(__name__)
+
+
+def get_base_from_raw(x):
+    """Get base from raw filename."""
+    return os.path.basename(x).split(".")[0]
 
 
 def resample_reference_to_sections(
     resolution: float,
     input_fn: str,
     ref_fn: str,
-    tfm_inv_fn: str,
+    tfm_fn: str,
     output_dir: str,
     xmax: int,
     ymax: int,
@@ -50,20 +54,23 @@ def resample_reference_to_sections(
         :param resolution:     current resolution level
         :param input_fn:     gm super-resolution volume (srv) extracted from donor brain
         :param ref_fn:     brain mask of segmented autoradiographs
-        :param tfm_inv_fn:   3d transformation from mni to receptor coordinate space
+        :param tfm_fn:   3d transformation from mni to receptor coordinate space
         :return iso_output_fn:   gm srv volume in receptor coordinate space with isotropic voxels at <resolution>mm
         :return output_fn:  gm srv volume in receptor coordinate space with <section_thickness> dimension size along the y axis
     """
     basename = os.path.basename(input_fn).split(".")[0]
 
-    iso_output_fn = f"{output_dir}/{basename}_{resolution}mm_iso.nii.gz"
-    output_fn = f"{output_dir}/{basename}_{resolution}mm_space-nat.nii.gz"
+    iso_output_fn = f"{output_dir}/{basename}_iso.nii.gz"
+    output_fn = f"{output_dir}/{basename}_space_nat.nii.gz"
 
     if not os.path.exists(iso_output_fn) or not os.path.exists(output_fn) or clobber:
         # Apply 3d transformation to the reference volume
-        rand = tempfile.NamedTemporaryFile().name
+        print("-i", input_fn)
+        print("-r", ref_fn)
+        print("-t", tfm_fn)
+        print("-o", iso_output_fn)
 
-        utils.simple_ants_apply_tfm(input_fn, ref_fn, tfm_inv_fn, iso_output_fn, ndim=3)
+        utils.simple_ants_apply_tfm(input_fn, ref_fn, tfm_fn, iso_output_fn, ndim=3)
 
         img = nib.load(iso_output_fn)
         vol = img.get_fdata()
@@ -90,21 +97,19 @@ def resample_reference_to_sections(
 
         # Resample the transformed volume to the resolution of the section width on the y axis and the resolution of the reconstruction on the x and z axis
         affine = img.affine.copy()
-        affine[0, 0] = affine[2,2] = resolution
+        affine[0, 0] = affine[2, 2] = resolution
         affine[1, 1] = section_thickness
 
         assert np.sum(vol) > 0, f"Error: empty volume {output_fn}"
-        print(np.unique(vol))
 
         vol = resize(
-            vol.astype(float), (xmax, ymax+1, zmax), order=1
+            vol.astype(float), (xmax, ymax + 1, zmax), order=1
         )  # .astype(np.uint8)
         img_out = nib.Nifti1Image(vol, affine, direction_order="lpi")
 
         img_out.to_filename(output_fn)
 
         assert np.sum(vol) > 0, f"Error: empty volume {output_fn}"
-
 
     return iso_output_fn, output_fn
 
@@ -235,7 +240,8 @@ def ants_registration_2d_section(
             else:
                 init_str = f"--initial-moving-transform [{fx_fn},{mv_fn},1]"
 
-            command_str = f"antsRegistration -v 1 -d 2 --write-composite-transform {write_composite_transform} {init_str} -o [{prefix}_{transform}_{metric}_,{mv_rsl_fn},/tmp/out_inv.nii.gz] -t {transform}[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} "
+            inv_out = f"{prefix}_{transform}_{metric}_inv.nii.gz"
+            command_str = f"antsRegistration -v 1 -d 2 --write-composite-transform {write_composite_transform} {init_str} -o [{prefix}_{transform}_{metric}_,{mv_rsl_fn},{inv_out}] -t {transform}[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} "
 
             if int(verbose) <= 0:
                 command_str += f" &> {output_log_fname}"
@@ -373,7 +379,7 @@ def align_2d_parallel(
     nlParams = AntsParams(resolution_list, resolution, base_nl_itr)
 
     y = int(row["sample"])
-    base = row["base"]
+    base = get_base_from_raw(row["raw"])
 
     prefix = f"{tfm_dir}/{base}_y-{y}"
 
@@ -409,23 +415,7 @@ def align_2d_parallel(
     else:
         syn_tfm = affine_tfm
 
-    cmd = f"antsApplyTransforms -v 0 -d 2 -n NearestNeighbor -i {mv_fn} -r {fx_fn} -t {syn_tfm} -o {row['2d_align_cls']} "
-
-    shell(cmd, True)
-
     shutil.copy(syn_tfm, row["2d_tfm"])
-
-    plt.imshow(nib.load(fx_fn).get_fdata())
-    plt.imshow(
-        nib.load(row["2d_align_cls"]).get_fdata(), cmap="nipy_spectral", alpha=0.4
-    )
-    plt.savefig(f"{prefix}_qc.png")
-    plt.close()
-
-    # assert np.sum(nib.load(prefix+'_cls_rsl.nii.gz').dataobj) > 0, 'Error: 2d affine transfromation failed'
-    assert os.path.exists(
-        f"{prefix}_cls_rsl.nii.gz"
-    ), f"Error: output does not exist {prefix}_cls_rsl.nii.gz"
 
     return 0
 
@@ -449,14 +439,14 @@ def apply_transforms_parallel(
     :param row: row
     :return: 0
     """
-    out_fn = row["2d_align" + tissue_str]
+    out_fn = row["2d_align" + tissue_str + "_out"]
 
     if os.path.exists(out_fn):
         return out_fn
 
     y = int(row["sample"])
 
-    base = row["base"]
+    base = get_base_from_raw(row["raw"])
 
     prefix = f"{tfm_dir}/{base}_y-{y}"
 
@@ -474,10 +464,6 @@ def apply_transforms_parallel(
 
     # if we're not at the final resolution, we need to downsample the image
     if resolution != img_res[0] or resolution != img_res[1]:
-        # sigma = utils.calculate_sigma_for_downsampling(resolution / img_res)
-        # vol = img.get_fdata()
-        # vol = gaussian_filter(vol, sigma)
-
         resample_to_resolution(
             img_fn,
             [float(resolution), float(resolution)],
@@ -485,7 +471,6 @@ def apply_transforms_parallel(
             output_filename=img_rsl_fn,
         )
 
-        # nib.Nifti1Image(vol, img.affine, direction_order="lpi").to_filename(img_rsl_fn)
     else:
         # if we're at the final resolution, we need to symlink the image
 
@@ -506,9 +491,22 @@ def apply_transforms_parallel(
 
     tfm_fn = row["2d_tfm"]
 
+    if not isinstance(tfm_fn, str):  # assume identity transform
+        print(
+            f"Warning: transform file does not exist, assuming identity transform in:\n{base}"
+        )
+        # copy img_rsl_fn to out_fn
+        shutil.copy(img_rsl_fn, out_fn)
+        return out_fn
+
     cmd = f"antsApplyTransforms -v {int(verbose)} -d 2 -n {interpolation} -i {img_rsl_fn} -r {fx_fn} -t {tfm_fn} -o {out_fn} "
 
     shell(cmd, True)
+
+    plt.imshow(nib.load(fx_fn).get_fdata())
+    plt.imshow(nib.load(out_fn).get_fdata(), cmap="nipy_spectral", alpha=0.3)
+    plt.savefig(f"{prefix}_qc.png")
+    plt.close()
 
     assert os.path.exists(f"{out_fn}"), "Error apply nl 2d tfm to img autoradiograph"
 
@@ -527,15 +525,15 @@ def get_align_2d_to_do(sect_info: pd.DataFrame, clobber: bool = False) -> tuple:
     to_do_sect_info = []
     to_do_resample_sect_info = []
 
-    for idx, (_, row) in enumerate(sect_info.iterrows()):
-        cls_fn = row["2d_align_cls"]
+    for _, row in sect_info.iterrows():
         tfm_fn = row["2d_tfm"]
-        out_fn = row["2d_align"]
+        out_fn = row["2d_align_out"]
+        out_cls_fn = row["2d_align_cls_out"]
 
-        if not os.path.exists(tfm_fn) or not os.path.exists(cls_fn) or clobber:
+        if not os.path.exists(tfm_fn) or not os.path.exists(out_cls_fn) or clobber:
             to_do_sect_info.append(row)
 
-        if not os.path.exists(out_fn):
+        if not os.path.exists(out_fn) or True:
             to_do_resample_sect_info.append(row)
 
     return to_do_sect_info, to_do_resample_sect_info
@@ -555,8 +553,8 @@ def get_align_filenames(
 
     sect_info["2d_tfm_affine"] = [""] * sect_info.shape[0]
     sect_info["2d_tfm"] = [""] * sect_info.shape[0]
-    sect_info["2d_align"] = [""] * sect_info.shape[0]
-    sect_info["2d_align_cls"] = [""] * sect_info.shape[0]
+    sect_info["2d_align_out"] = [""] * sect_info.shape[0]
+    sect_info["2d_align_cls_out"] = [""] * sect_info.shape[0]
 
     for idx, (_, row) in enumerate(sect_info.iterrows()):
         y = int(row["sample"])
@@ -570,8 +568,8 @@ def get_align_filenames(
         sect_info.loc[idx, "2d_tfm"] = tfm_fn
         sect_info.loc[idx, "2d_tfm_affine"] = tfm_affine_fn
 
-        sect_info.loc[idx, "2d_align_cls"] = cls_fn
-        sect_info.loc[idx, "2d_align"] = out_fn
+        sect_info.loc[idx, "2d_align_cls_out"] = cls_fn
+        sect_info.loc[idx, "2d_align_out"] = out_fn
 
     return sect_info
 
@@ -611,8 +609,6 @@ def align_sections(
     """
     num_cores = cpu_count() if num_cores == 0 else num_cores
 
-    # num_cores = 1
-
     sect_info.reset_index(drop=True, inplace=True)
 
     tfm_dir = output_dir + os.sep + "tfm"
@@ -623,28 +619,39 @@ def align_sections(
     to_do_sect_info, to_do_resample_sect_info = get_align_2d_to_do(sect_info)
 
     if len(to_do_sect_info) > 0:
-        Parallel(n_jobs=num_cores, backend="multiprocessing")(
-            delayed(align_2d_parallel)(
-                tfm_dir,
-                resolution,
-                resolution_list,
-                row,
-                base_lin_itr=base_lin_itr,
-                base_nl_itr=base_nl_itr,
-                file_to_align=file_to_align,
-                use_syn=use_syn,
-                verbose=verbose,
+        with parallel_backend("loky", inner_max_num_threads=1):
+            Parallel(n_jobs=num_cores, backend="loky", prefer="processes")(
+                delayed(align_2d_parallel)(
+                    tfm_dir,
+                    resolution,
+                    resolution_list,
+                    row,
+                    base_lin_itr=base_lin_itr,
+                    base_nl_itr=base_nl_itr,
+                    file_to_align=file_to_align,
+                    use_syn=use_syn,
+                    verbose=verbose,
+                )
+                for row in to_do_sect_info
             )
-            for row in to_do_sect_info
-        )
 
     if len(to_do_resample_sect_info) > 0:
-        Parallel(n_jobs=num_cores, backend="multiprocessing")(
-            delayed(apply_transforms_parallel)(
-                tfm_dir, resolution, row, interpolation=interpolation, verbose=verbose
-            )
-            for row in to_do_resample_sect_info
-        )
+        for tissue_str in ["", "_cls"]:
+            with parallel_backend("loky", inner_max_num_threads=1):
+                Parallel(n_jobs=num_cores, backend="loky", prefer="processes")(
+                    delayed(apply_transforms_parallel)(
+                        tfm_dir,
+                        resolution,
+                        row,
+                        tissue_str=tissue_str,
+                        interpolation=interpolation,
+                        verbose=verbose,
+                    )
+                    for row in to_do_resample_sect_info
+                )
+
+    sect_info["2d_align"] = sect_info["2d_align_out"]
+    sect_info["2d_align_cls"] = sect_info["2d_align_cls_out"]
 
     return sect_info
 
@@ -693,14 +700,14 @@ def align_2d(
     resolution: float,
     resolution_list: list,
     seg_rsl_fn: str,
-    nl_3d_tfm_inv_fn: str,
+    nl_3d_tfm_fn: str,
     nl_2d_vol_fn: str,
     nl_2d_cls_fn: str,
     section_thickness: float,
     base_lin_itr: int = 100,
     base_nl_itr: int = 20,
     use_syn: bool = True,
-    file_to_align: str = "seg_rsl",
+    file_to_align: str = "acq_rsl",
     num_cores: int = 1,
     interpolation: str = "Linear",
     clobber: bool = False,
@@ -728,11 +735,9 @@ def align_2d(
     :param target_str: target string
     :return: sect_info
     """
-    example_2d_fn =sect_info["seg_rsl"].values[0]
+    example_2d_fn = sect_info["seg_rsl"].values[0]
     xmax, zmax = nib.load(example_2d_fn).shape
     ymax = sect_info["sample"].max() + 1
-
-    print(example_2d_fn, xmax,  zmax)
 
     # Apply 3D transformation to reference volume and resample to the resolution
     # of the reconstruction and to the section thickness along the y-axis
@@ -740,7 +745,7 @@ def align_2d(
         float(resolution),
         ref_rsl_fn,
         seg_rsl_fn,
-        nl_3d_tfm_inv_fn,
+        nl_3d_tfm_fn,
         nl_2d_dir,
         xmax,
         ymax,
@@ -761,9 +766,7 @@ def align_2d(
     )
 
     logger.info("\t\tStep 4: 2d nl alignment")
-    sect_info["base"] = sect_info["raw"].apply(
-        lambda x: os.path.basename(x).split(".")[0]
-    )
+    sect_info["base"] = sect_info["raw"].apply(lambda x: get_base_from_raw(x))
 
     # Align 2D sections to sections from reference volume using ANTs
     sect_info = align_sections(
