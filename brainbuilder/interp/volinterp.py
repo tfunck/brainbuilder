@@ -13,6 +13,8 @@ from brainbuilder.align.align_2d import apply_transforms_parallel
 from brainbuilder.interp.acqvolume import create_thickened_volumes
 from brainbuilder.utils import utils
 
+logger = utils.get_logger(__name__)
+
 
 def idw(vol, nearest_i, min_dist, p=2):
     # Inverse Distance Weighted interpolation (IDW) with Shepard's method
@@ -61,23 +63,25 @@ def apply_final_2d_transforms(
 
     Parallel(n_jobs=num_cores, backend="multiprocessing")(
         # FIXME need to put the raw images through the same padding process as in downsample
-        # otherwise we cannot put them together in the same volume. 
+        # otherwise we cannot put them together in the same volume.
         delayed(apply_transforms_parallel)(
             final_tfm_dir,
             final_resolution,
             row,
             interpolation=interpolation,
-            file_str="img", #'raw'
+            file_str="img",  #'raw'
         )
         for _, row in curr_sect_info.iterrows()
     )
 
-    Parallel(n_jobs=num_cores, backend="multiprocessing")(
-        delayed(apply_transforms_parallel)(
-            final_tfm_dir, final_resolution, row, tissue_str="_cls", file_str="seg"
+    # if cls in curr_sect_info.columns:
+    if "2d_align_cls_out" in curr_sect_info.columns:
+        Parallel(n_jobs=num_cores, backend="multiprocessing")(
+            delayed(apply_transforms_parallel)(
+                final_tfm_dir, final_resolution, row, tissue_str="_cls", file_str="seg"
+            )
+            for _, row in curr_sect_info.iterrows()
         )
-        for _, row in curr_sect_info.iterrows()
-    )
 
     return curr_sect_info
 
@@ -97,6 +101,7 @@ def volumetric_interpolation(
 ) -> pd.DataFrame:
     os.makedirs(output_dir, exist_ok=True)
 
+    print("Volumetric Interpolation")
     chunk_info_thickened_csv = create_thickened_volumes(
         output_dir,
         curr_chunk_info,
@@ -172,10 +177,16 @@ def volumetric_interpolation_over_dataframe(
     for (sub, hemisphere, chunk, acq), curr_sect_info in sect_info.groupby(
         ["sub", "hemisphere", "chunk", "acquisition"]
     ):
+        print(
+            f"Processing sub: {sub}, hemisphere: {hemisphere}, chunk: {chunk}, acquisition: {acq}"
+        )
         curr_output_dir = (
             f"{output_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/acq-{acq}/"
         )
-        if 'align_2d' not in curr_sect_info.columns or 'align_2d_cls' not in curr_sect_info.columns:
+        if (
+            "align_2d" not in curr_sect_info.columns
+            or "align_2d_cls" not in curr_sect_info.columns
+        ):
             final_resolution = float(resolution_list[-1])
 
         if final_resolution is not None and isinstance(final_resolution, float):
@@ -520,6 +531,73 @@ def apply_interpolated_volumes_to_stx(curr_chunk_info, curr_hemi_info, resolutio
 
     return curr_chunk_info
 
+def prepare_chunk_info_for_stx(chunk_info, acq_interp_chunk_info):
+    """Prepare and modify curr_chunk_info for final alignment to stx space.
+    This is necessary because chunk_info adds the 'acquisition' column and is used
+    in the final transformation of each reconstrucred acquisition volume into stx space
+    """
+    print(chunk_info.columns)
+
+    merged = pd.DataFrame()
+    for acq, temp_acq_chunk_info in acq_interp_chunk_info.groupby("acquisition"):
+        for _, row in chunk_info.iterrows():
+            row["acquisition"] = acq
+            row["interp_nat"] = temp_acq_chunk_info["interp_nat"].values[0]
+            row["interp_cls_nat"] = temp_acq_chunk_info["interp_cls_nat"].values[0]
+
+            merged = pd.concat([merged, pd.DataFrame([row])], ignore_index=True)
+
+    merged["interp_stx"] = merged["interp_nat"].apply(
+        lambda x: x.replace("_iso", "_stx")
+    )
+
+    return merged
+
+
+def apply_interpolated_volumes_to_stx(
+    curr_chunk_info, curr_hemi_info, resolution, output_dir, interpolation, clobber
+):
+    ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
+
+    ref_vol_rsl_fn = utils.resample_struct_reference_volume(
+        ref_vol_fn, resolution, output_dir, clobber=clobber
+    )
+
+    curr_chunk_info["ref_vol_rsl_list"] = ref_vol_rsl_fn
+
+    for _, row in curr_chunk_info.iterrows():
+        interp_nat_fin = row["interp_nat"]
+        interp_stx_fin = row["interp_stx"]
+
+        nl_3d_tfm_list = (
+            curr_chunk_info["nl_3d_tfm_list"]
+            .loc[curr_chunk_info["chunk"] == row["chunk"]]
+            .values[0]
+        )
+
+        logger.info(
+            "Applying final transform to stx space for file: %s", interp_nat_fin
+        )
+        logger.info("Reference volume for stx space: %s", ref_vol_rsl_fn)
+        logger.info("Nonlinear 3D transform file: %s", nl_3d_tfm_list)
+        logger.info("Output file in stx space: %s", interp_stx_fin)
+        logger.info("")
+        utils.simple_ants_apply_tfm(
+            interp_nat_fin,
+            ref_vol_rsl_fn,
+            nl_3d_tfm_list,
+            interp_stx_fin,
+            n=interpolation,
+            clobber=clobber,
+        )
+
+        assert os.path.exists(
+            interp_stx_fin
+        ), f"Error: Output file not found: {interp_stx_fin}"
+
+    return curr_chunk_info
+
+
 def volumetric_pipeline(
     sect_info: pd.DataFrame,
     chunk_info: pd.DataFrame,
@@ -538,10 +616,7 @@ def volumetric_pipeline(
     for (sub, hemisphere), sect_info_sub_hemi in sect_info.groupby(
         ["sub", "hemisphere"]
     ):
-        idx = (
-            (chunk_info["sub"] == sub)
-            & (chunk_info["hemisphere"] == hemisphere)
-        )
+        idx = (chunk_info["sub"] == sub) & (chunk_info["hemisphere"] == hemisphere)
         if "resolution" in chunk_info.columns:
             idx = idx & (chunk_info["resolution"] == resolution)
 
@@ -556,17 +631,9 @@ def volumetric_pipeline(
         ]
         assert len(curr_hemi_info) > 0, "Error: no hemisphere info found"
 
-        ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
-
-        ref_resolution = resolution if final_resolution is None else final_resolution
-
-        ref_vol_rsl_fn = utils.resample_struct_reference_volume(
-            ref_vol_fn, ref_resolution, output_dir, clobber=clobber
-        )
-
         # Volumetric interpolation
         print("Volumetric Interpolation for sub:", sub, "hemi:", hemisphere)
-        curr_chunk_info = volumetric_interpolation_over_dataframe(
+        acq_interp_chunk_info = volumetric_interpolation_over_dataframe(
             sect_info_sub_hemi,
             curr_chunk_info,
             output_dir,
@@ -578,15 +645,21 @@ def volumetric_pipeline(
             clobber=clobber,
         )
 
-        curr_chunk_info = prepare_chunk_info_for_stx(chunk_info, curr_chunk_info)
+        curr_chunk_info = prepare_chunk_info_for_stx(chunk_info, acq_interp_chunk_info)
 
         chunk_info_list.append(curr_chunk_info)
 
+        print("Are we getting here???")
+
         if use_final_transform:
             curr_chunk_info = apply_interpolated_volumes_to_stx(
-                curr_chunk_info, curr_hemi_info, resolution, output_dir, interpolation, clobber
+                curr_chunk_info,
+                curr_hemi_info,
+                resolution,
+                output_dir,
+                interpolation,
+                clobber,
             )
-
 
     chunk_info_out = pd.concat(chunk_info_list, ignore_index=True)
 
