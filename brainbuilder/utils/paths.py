@@ -1,12 +1,59 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import pandas as pd
+
+
+def define_new_path_column(df: pd.DataFrame, output_dir: str, tag: str, col:str='img') -> pd.DataFrame:
+    """
+    Define a new column in the dataframe for the downsampled image paths based on the raw file paths.
+
+    :param df: input dataframe containing a 'raw' column with the paths to the raw files
+    :param output_dir: base output directory where the downsampled files will be saved
+    :param tag: tag to add to the filename to indicate the type of downsampled file (e.g., 'downsampled')
+    :param col: name of the new column to be added to the dataframe (default='img')
+    :return: updated dataframe with the new column containing the paths to the new file names
+    """
+
+    # check that the dataframe has the required columns
+    required_cols = ['sub', 'hemisphere', 'chunk', 'raw']
+    for c in required_cols:
+        if c not in df.columns:
+            raise ValueError(f"DataFrame must contain the following columns: {required_cols}. Missing column: {c}")
+
+    df[col] = [""] * len(df)
+
+    # group by sub, hemisphere, chunk to define the new path column for each group
+    for (sub, hemi, chunk), df_sub_hemi_chunk in df.groupby(
+        ["sub", "hemisphere", "chunk"]
+    ):
+        curr_dir = f"{output_dir}/sub-{sub}/hemi-{hemi}/chunk-{chunk}/"
+
+        # ensure the directory exists
+        os.makedirs(curr_dir, exist_ok=True)
+
+        for idx, row in df_sub_hemi_chunk.iterrows():
+            raw_file = row["raw"]
+
+            if ".nii.gz" not in raw_file:
+                # If the raw file does not have the .nii.gz extension, add the tag before the extension
+                out_file = os.path.splitext(raw_file)[0] + f"_{tag}.nii.gz"
+            else:
+                # If the raw file has the .nii.gz extension, replace it with _{tag}.nii.gz
+                out_file = re.sub(".nii.gz", f"_{tag}.nii.gz", raw_file)
+
+            downsample_file = f"{curr_dir}/{out_file}"
+
+            df.at[idx, col] = downsample_file
+
+    return df
+
 
 
 def _multires_root_dir(output_dir):

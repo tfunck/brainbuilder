@@ -20,6 +20,7 @@ from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
+from brainbuilder.utils.utils import define_new_path_column
 
 logger = utils.get_logger(__name__)
 
@@ -239,21 +240,6 @@ def convert_2d_array_to_nifti(
 
         logger.info("Wrote: " + output_filename)
 
-
-def assign_seg_filenames(
-    df: pd.DataFrame, resolution: float, output_dir: str
-) -> pd.DataFrame:
-    """Assign segmentation filenames to the dataframe.
-
-    param: df: dataframe with columns: raw, seg_fn
-    param: resolution: resolution of the raw images
-    param: output_dir: directory to save output
-    return: dataframe with columns: raw, seg_fn
-    """
-    df["seg"] = df["raw"].apply(
-        lambda fn: utils.gen_new_filename(fn, output_dir, f"_{resolution}mm_seg.nii.gz")
-    )
-    return df
 
 
 def apply_histogram_threshold(
@@ -673,7 +659,7 @@ def segment(
 
     sect_info = pd.read_csv(sect_info_csv, index_col=False)
 
-    sect_info = assign_seg_filenames(sect_info, resolution, output_dir)
+    sect_info = define_new_path_column(sect_info, output_dir, tag=f"{resolution}mm_seg", col='seg')
 
     for _, df in sect_info.groupby(["hemisphere", "chunk"]):
         run_stage = utils.check_run_stage(

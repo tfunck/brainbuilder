@@ -10,6 +10,7 @@ from joblib import Parallel, delayed
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
+from brainbuilder.utils.paths import define_new_path_column
 from brainbuilder.utils.utils import get_logger
 
 logger = get_logger(__name__)
@@ -158,6 +159,9 @@ def downsample_within_chunk(
     )
 
 
+
+
+
 def downsample_sections(
     chunk_info_csv: str,
     sect_info_csv: str,
@@ -183,19 +187,8 @@ def downsample_sections(
     if num_cores is None or num_cores == 0:
         num_cores = -1
 
-    def get_base(x: str) -> str:
-        """Get base filename."""
-        if ".nii.gz" not in x:
-            x = os.path.splitext(x)[0] + f"_{resolution}mm.nii.gz"
-        else:
-            x = re.sub(".nii.gz", f"_{resolution}mm.nii.gz", x)
-
-        x = os.path.basename(x)
-        return output_dir + "/" + x
-
     # define downsample img filenames based on current resolution
-
-    sect_info["img"] = sect_info["raw"].apply(get_base)
+    sect_info = define_new_path_column(sect_info, output_dir, tag=f"{resolution}mm", col='img')
 
     os.makedirs(output_dir, exist_ok=True)
 
