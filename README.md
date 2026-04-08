@@ -66,9 +66,11 @@ This .csv file contains the information specifying the essential information for
 
 **struct_ref_vol** : path to structural reference volume
 
-**gm_surf** : path to gray matter surface file (.surf.gii or .pial)
+#### Optional
 
-**wm_surf** : path to white matter surface file (.surf.gii or .pial)
+**gm_surf** : path to gray matter surface file (.surf.gii or .pial), used to stitch multiple chunks of tissue together by interpolating over cortical surface. 
+
+**wm_surf** : path to white matter surface file (.surf.gii or .pial), used to stich multiple chunks of tissue together by interpolating over cortical surface.
 
 ### Chunk Info
 This .csv file contains the information for each tissue chunk from which the images are acquired.
@@ -79,10 +81,6 @@ This .csv file contains the information for each tissue chunk from which the ima
 **hemisphere** : hemisphere
 
 **chunk** : id for the tissue chunk (aka slab) 
-
-**pixel_size_0** : pixel size in the x dimension (mm)
-
-**pixel_size_1** : pixel size in the z dimension (mm)
 
 **section_thickness** : thickness of the section (mm)
 
@@ -104,7 +102,7 @@ This .csv contains information specific to each image file that will be used in 
 
 **chunk** : id for the tissue chunk (aka slab) 
 
-**sample** : integer sample number that indicates the order of the section within the data set
+**sample** : integer sample number that indicates the order of the section within the data set. the order is assumed to go from posterior to anterior, so the smallest sample should be at the back of the brain.
 
 **acquisition** : the kind of acquisition (e.g., autoradiography ligand or histological staining)
 
