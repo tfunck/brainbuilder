@@ -455,17 +455,13 @@ def create_final_transform(
         chunk_info, output_dir, output_dir + "/atlas.nii.gz", clobber=clobber
     )
 
+    chunk_output_dir = f"{output_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/"
+
     # drop rows with Nan
     chunk_info = chunk_info.dropna()
 
-    mask_out_dir = f"{output_dir}/mask/"
-    atlas_out_dir = f"{output_dir}/atlas/"
-
-    os.makedirs(mask_out_dir, exist_ok=True)
-    os.makedirs(atlas_out_dir, exist_ok=True)
-
     ref_rsl_2d_fin = utils.resample_struct_reference_volume(
-        in_ref_rsl_fin, resolution, output_dir, clobber=clobber
+        in_ref_rsl_fin, resolution, chunk_output_dir, clobber=clobber
     )
 
     nl_3d_tfm_fn = chunk_info["nl_3d_tfm_fn"].values[0]
@@ -617,6 +613,8 @@ def volumetric_pipeline(
         ["sub", "hemisphere"]
     ):
         idx = (chunk_info["sub"] == sub) & (chunk_info["hemisphere"] == hemisphere)
+
+
         if "resolution" in chunk_info.columns:
             idx = idx & (chunk_info["resolution"] == resolution)
 
@@ -648,8 +646,6 @@ def volumetric_pipeline(
         curr_chunk_info = prepare_chunk_info_for_stx(chunk_info, acq_interp_chunk_info)
 
         chunk_info_list.append(curr_chunk_info)
-
-        print("Are we getting here???")
 
         if use_final_transform:
             curr_chunk_info = apply_interpolated_volumes_to_stx(

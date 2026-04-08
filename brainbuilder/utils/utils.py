@@ -551,6 +551,9 @@ def resample_struct_reference_volume(
     struct_vol_rsl_fn = f"{output_dir}/{base_name}"
 
     if not os.path.exists(struct_vol_rsl_fn) or clobber:
+
+        os.makedirs(output_dir, exist_ok=True)
+        
         resample_to_resolution(orig_struct_vol_fn, [resolution] * 3, struct_vol_rsl_fn)
 
     return struct_vol_rsl_fn
