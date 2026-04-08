@@ -2,11 +2,13 @@
 import os
 import re
 import shutil
+import json
 from glob import glob
 
 import numpy as np
 import pandas as pd
 import SimpleITK as sitk
+import torch
 from joblib import Parallel, delayed
 from skimage.filters import (
     threshold_li,
@@ -174,6 +176,7 @@ def convert_2d_array_to_nifti(
     input_filename: str,
     output_filename: str,
     res: list,
+    x_scale : int = 414 ,
     spacing: tuple = (1, 1, 1),
     clobber: bool = False,
 ) -> None:
@@ -212,7 +215,7 @@ def convert_2d_array_to_nifti(
 
         # testing this downsampling for nnUNet
         img = nib.load(input_filename).get_fdata()
-        scale = 414 / img.shape[0]
+        scale = x_scale / img.shape[0]
         xdim = int(img.shape[0] * scale)
         ydim = int(img.shape[1] * scale)
         img = resize(img, (xdim, ydim), anti_aliasing=True)
@@ -472,12 +475,15 @@ def calculate_relative_distance(sect_info, num_cores=4):
 
 
 def run_nnunet_segmentation(
-    seg_method,
-    nnunet_in_dir,
-    nnunet_out_dir,
-    model_dir,
-    nnUNet_dir,
-    nnunet_failed=False,
+    seg_method:str,
+    nnunet_in_dir:str,
+    nnunet_out_dir:str,
+    model_dir:str,
+    nnUNet_dir:str,
+    datasetname:str,
+    fold:int=0,
+    device:str="cpu",
+    nnunet_failed:bool=False,
 ):
     """Runs nnUNet segmentation using either nnUNet v1 or v2 based on the specified segmentation method.
 
@@ -501,7 +507,7 @@ def run_nnunet_segmentation(
         logger.info("\tSegmenting with nnUNet")
         try:
             utils.shell(
-                f"nnUNetv2_predict_from_modelfolder --c --verbose -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir} -f 0  -d Dataset501_Brain -device cpu",
+                f"nnUNetv2_predict_from_modelfolder --c --verbose -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir} -f {fold}  -d {datasetname} -device {device}",
                 exit_on_failure=False,
             )
         except Exception as e:
@@ -514,7 +520,7 @@ def run_nnunet_segmentation(
             os.environ["RESULTS_FOLDER"] = f"{nnUNet_dir}/../"
             utils.shell("echo results_folder $RESULTS_FOLDER")
             utils.shell(
-                f"nnUNet_predict -i {nnunet_in_dir} -o {nnunet_out_dir} -t 'Task502_cortex'  -m '2d'",
+                f"nnUNet_predict -i {nnunet_in_dir} -o {nnunet_out_dir} -t {datasetname}  -m '2d'",
                 exit_on_failure=False,
             )
         except Exception as e:
@@ -526,7 +532,13 @@ def run_nnunet_segmentation(
 
 
 def process_nnunet_to_nifti(
-    sect_info, nnunet_out_dir, nnunet_input_str, num_cores, seg_method, clobber
+    sect_info:pd.DataFrame, 
+    nnunet_out_dir:str, 
+    nnunet_input_str:str, 
+    num_cores:int, 
+    seg_method:str, 
+    foreground_labels:list=[1], 
+    clobber:bool=False
 ):
     """Converts nnUNet output files to standard NIfTI files using parallel processing.
 
@@ -554,7 +566,7 @@ def process_nnunet_to_nifti(
 
         Parallel(n_jobs=num_cores)(
             delayed(convert_from_nnunet)(
-                nnunet_fn, raw_fn, seg_fn, seg_method=seg_method
+                nnunet_fn, raw_fn, seg_fn, seg_method=seg_method, foreground_labels=foreground_labels
             )
             for nnunet_fn, raw_fn, seg_fn in nnunet2nifti_to_do
         )
@@ -591,8 +603,9 @@ def convert_nifti_to_nnunet(
     sect_info: pd.DataFrame,
     nnunet_in_dir: str,
     nnunet_input_str: str,
-    clobber: bool,
-    num_cores: int,
+    x_scale: int = 414,
+    num_cores: int=-1,
+    clobber: bool=False,
 ) -> None:
     """Converts NIfTI files to nnUNet format using parallel processing.
 
@@ -617,7 +630,7 @@ def convert_nifti_to_nnunet(
 
     Parallel(n_jobs=num_cores)(
         delayed(convert_2d_array_to_nifti)(
-            ii_fn, oo_fn, [pixel_size_0, pixel_size_1], clobber=clobber
+            ii_fn, oo_fn, [pixel_size_0, pixel_size_1], x_scale=x_scale, clobber=clobber
         )
         for ii_fn, pixel_size_0, pixel_size_1, oo_fn in nifti2nnunet_to_do
     )
@@ -629,6 +642,7 @@ def segment(
     output_dir: str,
     resolution: float,
     model_dir: str = f"{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/",
+    nnunet_config_json: str = f"{repo_dir}/nnUNet/nnunet_config/primate_v1.json",
     output_csv: str = "",
     num_cores: int = 0,
     seg_method: str = "nnunetv1",
@@ -672,6 +686,14 @@ def segment(
         os.makedirs(nnunet_in_dir, exist_ok=True)
         os.makedirs(nnunet_out_dir, exist_ok=True)
 
+        with open(nnunet_config_json, "r") as f:
+            nnunet_config = json.load(f)
+
+        x_scale = nnunet_config['x_scale']
+        foreground_labels = nnunet_config['foreground_labels']
+        datasetname = nnunet_config['datasetname']
+        fold = nnunet_config['fold']
+
         num_cores = utils.set_cores(num_cores)
 
         chunk_info = pd.read_csv(chunk_info_csv, index_col=False)
@@ -681,6 +703,7 @@ def segment(
             sect_info,
             nnunet_in_dir,
             nnunet_input_str=nnunet_input_str,
+            x_scale=x_scale,
             clobber=clobber,
             num_cores=num_cores,
         )
@@ -691,6 +714,8 @@ def segment(
 
         nnunet_failed = False
 
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
         print("\tSegmenting with method:", seg_method)
         if missing_segmentations or clobber:
             run_nnunet_segmentation(
@@ -700,6 +725,9 @@ def segment(
                 model_dir,
                 nnUNet_dir,
                 nnunet_failed,
+                datasetname,
+                fold=fold,
+                device = device
             )
 
         if nnunet_failed or seg_method in HISTOGRAM_METHODS:
@@ -716,7 +744,8 @@ def segment(
                 nnunet_input_str,
                 num_cores,
                 seg_method,
-                clobber,
+                foreground_labels = foreground_labels,
+                clobber = clobber,
             )
 
         for _, temp_sect_info in sect_info.groupby(["sub", "hemisphere", "chunk"]):
@@ -733,7 +762,7 @@ def segment(
 
 
 def convert_from_nnunet(
-    input_fn: str, reference_fn: str, output_fn: str, seg_method: str = "nnunetv1"
+    input_fn: str, reference_fn: str, output_fn: str, foreground_labels = [1], seg_method: str = "nnunetv1"
 ) -> None:
     """Convert segmented files from the nnunet output to an easier to use.
 
@@ -746,11 +775,14 @@ def convert_from_nnunet(
     ref_img = nib.load(reference_fn)
     ar = nib.load(input_fn).get_fdata()
 
-    def _nnunet(ar):
-        gm = ar == 1
-        ar *= 0
-        ar[gm] = 1
-        return ar
+    def _nnunet(ar, foreground_labels=foreground_labels):
+        
+        out = np.zeros_like(ar)
+
+        for label in foreground_labels:
+            out[ar == label] = 1
+
+        return out
 
     if (np.sum(ar == 1) / np.product(ar.shape)) < 0.02:
         logger.info("\nWarning: Found a section that nnUNet failed to segment!\n")

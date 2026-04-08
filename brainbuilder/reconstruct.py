@@ -66,6 +66,7 @@ def reconstruct(
     use_syn: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
     seg_method: str = "nnunetv1",
+    nnunet_config_json: str = f"{repo_dir}/nnUNet/nnunet_config/primate_v1.json",
     num_cores: int = None,
     max_resolution_3d: float = 0.3,
     final_resolution: float = None,
@@ -185,6 +186,7 @@ def reconstruct(
         seg_dir,
         max_resolution_2d,
         seg_method=seg_method,
+        nnunet_config_json=nnunet_config_json,
         clobber=clobber,
     )
     # qc.data_set_quality_control(seg_df_csv, qc_dir, column="seg")
@@ -331,6 +333,12 @@ def setup_argparse() -> argparse.ArgumentParser:
         dest="pytorch_model_dir",
         default=f"{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/",
         help="Numer of cores to use for segmentation (Default=0; This is will set the number of cores to use to the maximum number of cores availale)",
+    )
+    parser.add_argument(
+        "--nnunet-config-json",
+        dest="nnunet_config_json",
+        default=f"{repo_dir}/nnUNet/nnunet_config/primate_v1.json",
+        help="Path to nnUNet configuration JSON file",
     )
     # Add verbosity flag
 
