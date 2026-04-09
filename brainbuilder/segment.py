@@ -243,13 +243,13 @@ def convert_2d_array_to_nnunet(
 
         assert np.sum(np.abs(img)) > 0
 
-        for _, i in enumerate(img):
-            if '.nii.gz' in output_filename:
+        if '.nii.gz' in output_filename:
+            for _, i in enumerate(img):
                 itk_img = sitk.GetImageFromArray(i)
                 itk_img.SetSpacing(list(spacing)[::-1])
                 sitk.WriteImage(itk_img, output_filename)
-            else:  # use imageio to write as tiff / png / jpg / etc
-                iio.imwrite(output_filename, i)
+        else:  # use imageio to write as tiff / png / jpg / etc
+            iio.imwrite(output_filename, img)
 
     logger.info("Wrote: " + output_filename)
 
