@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import SimpleITK as sitk
 import torch
+import imageio.v3 as iio
 from joblib import Parallel, delayed
 from skimage.filters import (
     threshold_li,
@@ -231,12 +232,14 @@ def convert_2d_array_to_nnunet(
 
         assert np.sum(np.abs(img)) > 0
 
-        for j, i in enumerate(img):
-            itk_img = sitk.GetImageFromArray(i)
-            itk_img.SetSpacing(list(spacing)[::-1])
-            # sitk.WriteImage(itk_img, output_filename_truncated + "_%04.0d.nii.gz" % j)
-            sitk.WriteImage(itk_img, output_filename)
-            # nib.Nifti1Image(i, nii_img.affine).to_filename(output_filename)
+        for _, i in enumerate(img):
+            if '.nii.gz' in output_filename:
+                itk_img = sitk.GetImageFromArray(i)
+                itk_img.SetSpacing(list(spacing)[::-1])
+                sitk.WriteImage(itk_img, output_filename)
+            else :
+                # use imageio to write as tiff / png / jpg / etc 
+                iio.imwrite(output_filename, i)
 
         logger.info("Wrote: " + output_filename)
 
@@ -779,8 +782,13 @@ def convert_from_nnunet(
     param: seg_dir: directory to save output
     return: None
     """
+
     ref_img = nib.load(reference_fn)
-    ar = nib.load(input_fn).get_fdata()
+    
+    if '.nii' in input_fn:
+        ar = nib.load(input_fn).get_fdata()
+    else :
+        ar = iio.imread(input_fn)
 
     def _nnunet(ar, foreground_labels=foreground_labels):
         
@@ -804,7 +812,7 @@ def convert_from_nnunet(
         ar = ar.reshape([ar.shape[0], ar.shape[1]])
         # ar = ar.T
         ar = resize(ar, ref_img.shape, order=0)
-        ar = np.fliplr(np.flipud(ar))
+        ar = np.fliplr(np.flipud(ar)) #WARNING: not sure if this will generalize to everyone's data, check to make sure orientation is correct
 
         if "hybrid" in seg_method:
             logger.info("\tUsing nnUNet hybrid segmentation")
