@@ -173,7 +173,7 @@ typeDataFrame = type(pd.DataFrame({}))
 base_file_dir, fn = os.path.split(os.path.abspath(__file__))
 
 
-def convert_2d_array_to_nifti(
+def convert_2d_array_to_nnunet(
     input_filename: str,
     output_filename: str,
     res: list,
@@ -316,10 +316,11 @@ def convert_from_nnunet_list(
 
 
 def convert_to_nnunet_list(
-    chunk_info: typeDataFrame,
-    sect_info: typeDataFrame,
+    chunk_info: pd.DataFrame,
+    sect_info: pd.DataFrame,
     nnunet_in_dir: str,
     nnunet_input_str: str = "img",
+    nnunet_ext: str = ".nii.gz",
     clobber: bool = False,
 ) -> list:
     """Convert the raw images to nnunet format.
@@ -332,7 +333,8 @@ def convert_to_nnunet_list(
     return: list of files to convert
     """
     to_do = []
-    for i, row in sect_info.iterrows():
+
+    for _, row in sect_info.iterrows():
         f = row[nnunet_input_str]
 
         pixel_size_0, pixel_size_1, _ = utils.get_chunk_pixel_size(
@@ -341,7 +343,7 @@ def convert_to_nnunet_list(
 
         fname = re.sub(".nii.gz", "", os.path.basename(f))
         output_filename_truncated = os.path.join(nnunet_in_dir, fname)
-        output_filename = output_filename_truncated + "_0000.nii.gz"
+        output_filename = output_filename_truncated + "_0000" + nnunet_ext
         if (
             not os.path.exists(output_filename)
             or not utils.newer_than(output_filename, f)
@@ -468,6 +470,7 @@ def run_nnunet_segmentation(
     nnUNet_dir:str,
     datasetname:str,
     fold:int=0,
+    checkpoint:str = "checkpoint_best.pth",
     device:str="cpu",
     nnunet_failed:bool=False,
 ):
@@ -493,7 +496,7 @@ def run_nnunet_segmentation(
         logger.info("\tSegmenting with nnUNet")
         try:
             utils.shell(
-                f"nnUNetv2_predict_from_modelfolder --c --verbose -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir} -f {fold}  -d {datasetname} -device {device}",
+                f"nnUNetv2_predict_from_modelfolder --c --verbose -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir} -f {fold}  -d {datasetname} -device {device} -chk {checkpoint}",
                 exit_on_failure=False,
             )
         except Exception as e:
@@ -590,6 +593,7 @@ def convert_nifti_to_nnunet(
     nnunet_in_dir: str,
     nnunet_input_str: str,
     x_scale: int = 414,
+    nnunet_ext:str = ".nii.gz",
     num_cores: int=-1,
     clobber: bool=False,
 ) -> None:
@@ -611,15 +615,36 @@ def convert_nifti_to_nnunet(
         sect_info,
         nnunet_in_dir,
         nnunet_input_str=nnunet_input_str,
+        nnunet_ext=nnunet_ext,
         clobber=clobber,
     )
 
     Parallel(n_jobs=num_cores)(
-        delayed(convert_2d_array_to_nifti)(
+        delayed(convert_2d_array_to_nnunet)(
             ii_fn, oo_fn, [pixel_size_0, pixel_size_1], x_scale=x_scale, clobber=clobber
         )
         for ii_fn, pixel_size_0, pixel_size_1, oo_fn in nifti2nnunet_to_do
     )
+
+
+def get_nnunet_parameters(nnunet_config_json: str, model_dir: str):
+        with open(nnunet_config_json, "r") as f:
+            nnunet_config = json.load(f)
+
+        x_scale = nnunet_config['x_scale']
+        foreground_labels = nnunet_config['foreground_labels']
+        datasetname = nnunet_config['datasetname']
+        fold = nnunet_config['fold']
+        checkpoint = nnunet_config['checkpoint']
+
+        nnunet_dataset_json = f"{model_dir}/dataset.json"
+        with open(nnunet_dataset_json, "r") as f:
+            nnunet_dataset = json.load(f)
+        
+        nnunet_ext = nnunet_dataset['file_ending']
+
+        return x_scale, foreground_labels, datasetname, fold, checkpoint, nnunet_ext
+
 
 
 def segment(
@@ -672,13 +697,7 @@ def segment(
         os.makedirs(nnunet_in_dir, exist_ok=True)
         os.makedirs(nnunet_out_dir, exist_ok=True)
 
-        with open(nnunet_config_json, "r") as f:
-            nnunet_config = json.load(f)
-
-        x_scale = nnunet_config['x_scale']
-        foreground_labels = nnunet_config['foreground_labels']
-        datasetname = nnunet_config['datasetname']
-        fold = nnunet_config['fold']
+        x_scale, foreground_labels, datasetname, fold, checkpoint, nnunet_ext = get_nnunet_parameters(nnunet_config_json, model_dir)
 
         num_cores = utils.set_cores(num_cores)
 
@@ -690,6 +709,7 @@ def segment(
             nnunet_in_dir,
             nnunet_input_str=nnunet_input_str,
             x_scale=x_scale,
+            nnunet_ext = nnunet_ext,
             clobber=clobber,
             num_cores=num_cores,
         )
@@ -713,6 +733,7 @@ def segment(
                 nnunet_failed,
                 datasetname,
                 fold=fold,
+                checkpoint=checkpoint,
                 device = device
             )
 

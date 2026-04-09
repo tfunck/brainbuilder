@@ -2,5 +2,6 @@
     "x_scale": 1000,
     "foreground_labels": [1],
     "datasetname": "Dataset501_Brain",
+    "checkpoint": "checkpoint_best.pth",
     "fold": 0
 }
