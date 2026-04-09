@@ -133,15 +133,9 @@ def downsample_within_chunk(
         except KeyError:
             conversion_factor = 1
 
-        pixel_size_0, pixel_size_1, section_thickness = utils.get_chunk_pixel_size(
-            sub, hemi, chunk, chunk_info
-        )
-
-        affine = utils.create_2d_affine(pixel_size_0, pixel_size_1, section_thickness)
-
         if utils.check_run_stage([downsample_file], [raw_file], clobber=clobber):
             to_do.append(
-                (raw_file, downsample_file, affine, resolution, conversion_factor)
+                (raw_file, downsample_file, resolution, conversion_factor)
             )
 
     print("downsampling")
@@ -155,7 +149,7 @@ def downsample_within_chunk(
             factor=factor,
             max_dims=(max_dim_0, max_dim_1),
         )
-        for raw_file, downsample_file, affine, resolution, factor in to_do
+        for raw_file, downsample_file, resolution, factor in to_do
     )
 
 

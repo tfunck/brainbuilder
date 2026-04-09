@@ -6,6 +6,7 @@ import json
 from glob import glob
 
 import numpy as np
+import ants
 import pandas as pd
 import SimpleITK as sitk
 import torch
@@ -217,6 +218,8 @@ def convert_2d_array_to_nnunet(
 
         # testing this downsampling for nnUNet
         img = nib.load(input_filename).get_fdata()
+        
+        
         scale = x_scale / img.shape[0]
         xdim = int(img.shape[0] * scale)
         ydim = int(img.shape[1] * scale)
@@ -340,9 +343,11 @@ def convert_to_nnunet_list(
     for _, row in sect_info.iterrows():
         f = row[nnunet_input_str]
 
-        pixel_size_0, pixel_size_1, _ = utils.get_chunk_pixel_size(
-            row["sub"], row["hemisphere"], row["chunk"], chunk_info
-        )
+        #DEPRECEATED: no longer use pixel size from chunk_info, read from files
+        # pixel_size_0, pixel_size_1, _ = utils.get_chunk_pixel_size(
+        #    row["sub"], row["hemisphere"], row["chunk"], chunk_info
+        #)
+        pixel_size_0, pixel_size_1 = ants.ants_image_read(f).spacing[:2]
 
         fname = re.sub(".nii.gz", "", os.path.basename(f))
         output_filename_truncated = os.path.join(nnunet_in_dir, fname)
