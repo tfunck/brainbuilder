@@ -66,7 +66,7 @@ def reconstruct(
     use_syn: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
     seg_method: str = "nnunetv1",
-    pytorch_model_dir: str = f"{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/",
+    nnunet_model_dir: str = f"{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/",
     nnunet_config_json: str = f"{repo_dir}/nnUNet/nnunet_config/primate_v1.json",
     num_cores: int = None,
     max_resolution_3d: float = 0.3,
@@ -102,7 +102,7 @@ def reconstruct(
     :param use_syn: bool, use 2D nonlinear SyN (default=True)
     :param linear_steps: list, linear transformation steps for alignment (default=['rigid', 'similarity', 'affine'])
     :param seg_method: str, segmentation method ('nnunetv1', 'nnunetv2', 'otsu', 'triangle') (default='nnunetv1')
-    :param pytorch_model_dir: str, path to PyTorch model directory for segmentation
+    :param nnunet_model_dir: str, path to nnUNet model directory for segmentation
     :param nnunet_config_json: str, path to nnUNet configuration JSON file
     :param num_cores: int, number of cores for multiprocessing (default=None, uses all available)
     :param max_resolution_3d: float, maximum resolution for 3D alignment (default=0.3)
@@ -193,7 +193,7 @@ def reconstruct(
         seg_dir,
         max_resolution_2d,
         seg_method=seg_method,
-        model_dir = pytorch_model_dir,
+        model_dir = nnunet_model_dir,
         nnunet_config_json=nnunet_config_json,
         clobber=clobber,
     )
