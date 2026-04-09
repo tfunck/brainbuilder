@@ -1373,6 +1373,10 @@ def  convert_coordinate_system(vol:np.ndarray, origin, step:np.array, in_dir:Uni
     in_dir = preprocess_direction_argument(in_dir, str_to_dir)
     out_dir = preprocess_direction_argument(out_dir, str_to_dir)
 
+    # out_dir needs to be the same length as the in_dir, 
+    # e.g., if "LPI" is passed for out_dir but the input volume is 2D, 
+    # then out_dir should be "LP" or [1, -1]
+    out_dir = out_dir[:vol.ndim][:vol.ndim]
 
     assert len(in_dir) == len(out_dir) == vol.ndim, "Dimension mismatch between volume and direction vectors."
     for i in range(vol.ndim):
