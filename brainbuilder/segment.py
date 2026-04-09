@@ -237,13 +237,13 @@ def convert_2d_array_to_nnunet(
 
         assert len(img.shape) == 2
 
-        img = img[None, None]  # add dimensions
-        # image is now (c, y, x, z) where x=1 since it's 2d
-        img = img.astype(np.float32)
-
         assert np.sum(np.abs(img)) > 0
 
         if '.nii.gz' in output_filename:
+            img = img[None, None]  # add dimensions
+            # image is now (c, y, x, z) where x=1 since it's 2d
+            img = img.astype(np.float32)
+
             for _, i in enumerate(img):
                 itk_img = sitk.GetImageFromArray(i)
                 itk_img.SetSpacing(list(spacing)[::-1])
