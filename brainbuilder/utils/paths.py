@@ -39,7 +39,7 @@ def define_new_path_column(df: pd.DataFrame, output_dir: str, tag: str, col:str=
         os.makedirs(curr_dir, exist_ok=True)
 
         for idx, row in df_sub_hemi_chunk.iterrows():
-            raw_file = row["raw"]
+            raw_file = os.path.basename(row["raw"])
 
             if ".nii.gz" not in raw_file:
                 # If the raw file does not have the .nii.gz extension, add the tag before the extension
