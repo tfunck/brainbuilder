@@ -179,7 +179,7 @@ def convert_2d_array_to_nnunet(
     input_filename: str,
     output_filename: str,
     res: list,
-    x_scale : int = 414 ,
+    x_scale: int = 414,
     spacing: tuple = (1, 1, 1),
     clobber: bool = False,
 ) -> None:
@@ -212,14 +212,13 @@ def convert_2d_array_to_nnunet(
 
         # Commented out because this possible produces the wrong sized dimensinos for the the unet
         # nii_img = utils.resample_to_resolution(
-        #    input_filename, [0.2, 0.2], affine=aff, order=1
+        # input_filename, [0.2, 0.2], affine=aff, order=1
         # )
         # img = nii_img.get_fdata()
 
         # testing this downsampling for nnUNet
         img = nib.load(input_filename).get_fdata()
-        
-        
+
         scale = x_scale / img.shape[0]
         xdim = int(img.shape[0] * scale)
         ydim = int(img.shape[1] * scale)
@@ -240,12 +239,10 @@ def convert_2d_array_to_nnunet(
                 itk_img = sitk.GetImageFromArray(i)
                 itk_img.SetSpacing(list(spacing)[::-1])
                 sitk.WriteImage(itk_img, output_filename)
-            else :
-                # use imageio to write as tiff / png / jpg / etc 
+            else:  # use imageio to write as tiff / png / jpg / etc
                 iio.imwrite(output_filename, i)
 
-        logger.info("Wrote: " + output_filename)
-
+    logger.info("Wrote: " + output_filename)
 
 
 def apply_histogram_threshold(
@@ -264,6 +261,7 @@ def apply_histogram_threshold(
         )
         for _, row in sect_info.iterrows()
     )
+
     return None
 
 
@@ -296,7 +294,7 @@ def convert_from_nnunet_list(
     """Convert the nnunet images to regular nifti images.
 
     param: sect_info: dataframe with columns: img, seg_fn
-    param: nnunet_out_dir: directory to save nnunet images
+    param: nnunet_out_dir: base output directory (subject folders live here)
     param: nnunet_input_str: column name for nnunet input
     param: clobber: overwrite existing files
     return: list of files to convert
@@ -307,7 +305,8 @@ def convert_from_nnunet_list(
         img_fn = row[nnunet_input_str]
         seg_fn = row["seg"]
 
-        curr_dir = f"{nnunet_out_dir}/sub-{row['sub']}/hemi-{row['hemisphere']}/chunk-{row['chunk']}"
+        # *** CHANGED: nnunet_out now lives inside the subject folder ***
+        curr_dir = f"{nnunet_out_dir}/sub-{row['sub']}/nnunet_out/hemi-{row['hemisphere']}/chunk-{row['chunk']}/"
 
         os.makedirs(curr_dir, exist_ok=True)
 
@@ -320,7 +319,7 @@ def convert_from_nnunet_list(
             if warning_flag:
                 logger.warning(f"\Could not find file: {seg_fn}")
 
-            to_do.append((nnunet_fn, img_fn, seg_fn))
+        to_do.append((nnunet_fn, img_fn, seg_fn))
 
     return to_do
 
@@ -336,7 +335,7 @@ def convert_to_nnunet_list(
 
     param: chunk_info: dataframe with columns: sub, hemisphere, chunk
     param: sect_info: dataframe with columns: raw, seg_fn
-    param: nnunet_in_dir: directory to save nnunet images
+    param: nnunet_in_dir: base directory (subject folders live here)
     param: nnunet_input_str: column name for nnunet input
     param: clobber: overwrite existing files
     return: list of files to convert
@@ -348,13 +347,14 @@ def convert_to_nnunet_list(
 
         #DEPRECEATED: no longer use pixel size from chunk_info, read from files
         # pixel_size_0, pixel_size_1, _ = utils.get_chunk_pixel_size(
-        #    row["sub"], row["hemisphere"], row["chunk"], chunk_info
+        # row["sub"], row["hemisphere"], row["chunk"], chunk_info
         #)
         pixel_size_0, pixel_size_1 = ants.image_read(f).spacing[:2]
 
         fname = re.sub(".nii.gz", "", os.path.basename(f))
 
-        curr_dir = f"{nnunet_in_dir}/sub-{row['sub']}/hemi-{row['hemisphere']}/chunk-{row['chunk']}"
+        # *** CHANGED: nnunet now lives inside the subject folder ***
+        curr_dir = f"{nnunet_in_dir}/sub-{row['sub']}/nnunet/hemi-{row['hemisphere']}/chunk-{row['chunk']}"
 
         os.makedirs(curr_dir, exist_ok=True)
 
@@ -380,7 +380,7 @@ def check_seg_files(
     Also verify that they all have the same dimensions as one another.
 
     :param sect_info: dataframe with columns: raw, seg_fn
-    :param nnunet_out_dir: directory to save nnunet images
+    :param nnunet_out_dir: base output directory (subject folders live here)
     :param warning_flag: bool, optional, if True, logger.info warning message if file is missing, default=False
     :return: True if all files exist, False otherwise
     """
@@ -392,7 +392,12 @@ def check_seg_files(
         if os.path.exists(row["seg"]) and not utils.newer_than(
             row["seg"], row[nnunet_input_str]
         ):
-            nnunet_filename = get_nnunet_filename(row[nnunet_input_str], nnunet_out_dir)
+            # *** CHANGED: compute per-row nnunet_out path to correctly locate stale files ***
+            curr_nnunet_out_dir = (
+                f"{nnunet_out_dir}/sub-{row['sub']}/nnunet_out/"
+                f"hemi-{row['hemisphere']}/chunk-{row['chunk']}/"
+            )
+            nnunet_filename = get_nnunet_filename(row[nnunet_input_str], curr_nnunet_out_dir)
             os.remove(row["seg"])
             if os.path.exists(nnunet_filename):
                 os.remove(nnunet_filename)
@@ -442,6 +447,7 @@ def calculate_relative_distance(sect_info, num_cores=4):
                 np.min(np.where(seg_data > 0)[0]),
                 np.max(np.where(seg_data > 0)[0]),
             )
+
             # min_y, max_y = np.min(np.where(seg_data > 0)[1]), np.max(np.where(seg_data > 0)[1])
             min_z, max_z = (
                 np.min(np.where(seg_data > 0)[1]),
@@ -455,7 +461,7 @@ def calculate_relative_distance(sect_info, num_cores=4):
             seg_data[min_x : max_x + 1, :, :] *= x_range[:, None]  # Scale x dimension
             seg_data[:, :, min_z : max_z + 1] *= z_range[None, :]  # Scale z dimension
 
-            seg_data *= y
+            seg_data *= y  # multiply by relative y position
 
             # Save the distance map
             nib.Nifti1Image(
@@ -479,16 +485,16 @@ def calculate_relative_distance(sect_info, num_cores=4):
 
 
 def run_nnunet_segmentation(
-    seg_method:str,
-    nnunet_in_dir:str,
-    nnunet_out_dir:str,
-    model_dir:str,
-    nnUNet_dir:str,
-    datasetname:str,
-    fold:int=0,
-    checkpoint:str = "checkpoint_best.pth",
-    device:str="cpu",
-    nnunet_failed:bool=False,
+    seg_method: str,
+    nnunet_in_dir: str,
+    nnunet_out_dir: str,
+    model_dir: str,
+    nnUNet_dir: str,
+    datasetname: str,
+    fold: int = 0,
+    checkpoint: str = "checkpoint_best.pth",
+    device: str = "cpu",
+    nnunet_failed: bool = False,
 ):
     """Runs nnUNet segmentation using either nnUNet v1 or v2 based on the specified segmentation method.
 
@@ -512,7 +518,7 @@ def run_nnunet_segmentation(
         logger.info("\tSegmenting with nnUNet")
         try:
             utils.shell(
-                f"nnUNetv2_predict_from_modelfolder --c --verbose -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir} -f {fold}  -d {datasetname} -device {device} -chk {checkpoint}",
+                f"nnUNetv2_predict_from_modelfolder --c --verbose -i {nnunet_in_dir} -o {nnunet_out_dir} -m {model_dir} -f {fold} -d {datasetname} -device {device} -chk {checkpoint}",
                 exit_on_failure=False,
             )
         except Exception as e:
@@ -525,7 +531,7 @@ def run_nnunet_segmentation(
             os.environ["RESULTS_FOLDER"] = f"{nnUNet_dir}/../"
             utils.shell("echo results_folder $RESULTS_FOLDER")
             utils.shell(
-                f"nnUNet_predict -i {nnunet_in_dir} -o {nnunet_out_dir} -t {datasetname}  -m '2d'",
+                f"nnUNet_predict -i {nnunet_in_dir} -o {nnunet_out_dir} -t {datasetname} -m '2d'",
                 exit_on_failure=False,
             )
         except Exception as e:
@@ -537,19 +543,19 @@ def run_nnunet_segmentation(
 
 
 def process_nnunet_to_nifti(
-    sect_info:pd.DataFrame, 
-    nnunet_out_dir:str, 
-    nnunet_input_str:str, 
-    num_cores:int, 
-    seg_method:str, 
-    foreground_labels:list=[1], 
-    clobber:bool=False
+    sect_info: pd.DataFrame,
+    nnunet_out_dir: str,
+    nnunet_input_str: str,
+    num_cores: int,
+    seg_method: str,
+    foreground_labels: list = [1],
+    clobber: bool = False,
 ):
     """Converts nnUNet output files to standard NIfTI files using parallel processing.
 
     Args:
         sect_info (pd.DataFrame): DataFrame containing segmentation information.
-        nnunet_out_dir (str): Directory containing nnUNet output files.
+        nnunet_out_dir (str): Base directory containing subject folders with nnunet_out inside.
         nnunet_input_str (str): Column name for nnUNet input.
         num_cores (int): Number of CPU cores to use for parallel processing.
         seg_method (str): Segmentation method used.
@@ -596,6 +602,7 @@ def copy_unsegmented_images(
         + "/"
         + os.path.basename(x).replace(".nii.gz", "_seg.nii.gz")
     )
+
     for seg_fn, img_fn in zip(sect_info["seg"], sect_info["img"]):
         if not os.path.exists(seg_fn) or clobber:
             shutil.copy(img_fn, seg_fn)
@@ -608,15 +615,15 @@ def convert_nifti_to_nnunet(
     nnunet_in_dir: str,
     nnunet_input_str: str,
     x_scale: int = 414,
-    nnunet_ext:str = ".nii.gz",
-    num_cores: int=-1,
-    clobber: bool=False,
+    nnunet_ext: str = ".nii.gz",
+    num_cores: int = -1,
+    clobber: bool = False,
 ) -> None:
     """Converts NIfTI files to nnUNet format using parallel processing.
 
     Args:
         sect_info (pd.DataFrame): DataFrame containing section information.
-        nnunet_in_dir (str): Directory to save nnUNet input files.
+        nnunet_in_dir (str): Base directory; nnunet subfolder created per subject inside.
         nnunet_input_str (str): Column name for nnUNet input.
         clobber (bool): Overwrite existing files if True.
         num_cores (int): Number of CPU cores to use for parallel processing.
@@ -641,23 +648,22 @@ def convert_nifti_to_nnunet(
 
 
 def get_nnunet_parameters(nnunet_config_json: str, model_dir: str):
-        with open(nnunet_config_json, "r") as f:
-            nnunet_config = json.load(f)
+    with open(nnunet_config_json, "r") as f:
+        nnunet_config = json.load(f)
 
-        x_scale = nnunet_config['x_scale']
-        foreground_labels = nnunet_config['foreground_labels']
-        datasetname = nnunet_config['datasetname']
-        fold = nnunet_config['fold']
-        checkpoint = nnunet_config['checkpoint']
+    x_scale = nnunet_config['x_scale']
+    foreground_labels = nnunet_config['foreground_labels']
+    datasetname = nnunet_config['datasetname']
+    fold = nnunet_config['fold']
+    checkpoint = nnunet_config['checkpoint']
 
-        nnunet_dataset_json = f"{model_dir}/dataset.json"
-        with open(nnunet_dataset_json, "r") as f:
-            nnunet_dataset = json.load(f)
-        
-        nnunet_ext = nnunet_dataset['file_ending']
+    nnunet_dataset_json = f"{model_dir}/dataset.json"
+    with open(nnunet_dataset_json, "r") as f:
+        nnunet_dataset = json.load(f)
 
-        return x_scale, foreground_labels, datasetname, fold, checkpoint, nnunet_ext
+    nnunet_ext = nnunet_dataset['file_ending']
 
+    return x_scale, foreground_labels, datasetname, fold, checkpoint, nnunet_ext
 
 
 def segment(
@@ -690,9 +696,7 @@ def segment(
             + os.sep
             + os.path.splitext(os.path.basename(sect_info_csv))[0]
             + "_segment.csv"
-        )
-
-    # check it 'seg' files are all newer than 'img' files
+        )  # check it 'seg' files are all newer than 'img' files
 
     sect_info = pd.read_csv(sect_info_csv, index_col=False)
 
@@ -703,83 +707,95 @@ def segment(
             df["seg"], df["img"], output_csv, clobber=clobber
         )
 
-    if run_stage:
-        nnunet_in_dir = f"{output_dir}/nnunet/"
-        nnunet_out_dir = f"{output_dir}/nnunet_out/"
-        os.makedirs(nnunet_in_dir, exist_ok=True)
-        os.makedirs(nnunet_out_dir, exist_ok=True)
+        if run_stage:
+            # *** CHANGED: nnunet and nnunet_out now live inside each subject folder.
+            #     Use output_dir as the base; per-subject subdirs are created inside
+            #     convert_nifti_to_nnunet / convert_from_nnunet_list automatically. ***
+            nnunet_base_dir = output_dir
 
-        x_scale, foreground_labels, datasetname, fold, checkpoint, nnunet_ext = get_nnunet_parameters(nnunet_config_json, model_dir)
-
-        num_cores = utils.set_cores(num_cores)
-
-
-        convert_nifti_to_nnunet(
-            sect_info,
-            nnunet_in_dir,
-            nnunet_input_str=nnunet_input_str,
-            x_scale=x_scale,
-            nnunet_ext = nnunet_ext,
-            clobber=clobber,
-            num_cores=num_cores,
-        )
-
-        missing_segmentations = not check_seg_files(
-            sect_info, nnunet_out_dir, False, nnunet_input_str=nnunet_input_str
-        )
-
-        nnunet_failed = False
-
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-
-        print("\tSegmenting with method:", seg_method)
-        if missing_segmentations or clobber:
-            run_nnunet_segmentation(
-                seg_method,
-                nnunet_in_dir,
-                nnunet_out_dir,
-                model_dir,
-                nnUNet_dir,
-                nnunet_failed,
-                datasetname,
-                fold=fold,
-                checkpoint=checkpoint,
-                device = device
+            x_scale, foreground_labels, datasetname, fold, checkpoint, nnunet_ext = get_nnunet_parameters(
+                nnunet_config_json, model_dir
             )
 
-        if nnunet_failed or seg_method in HISTOGRAM_METHODS:
-            apply_histogram_threshold(sect_info, num_cores=num_cores, method=seg_method)
-        elif (
-            seg_method not in HISTOGRAM_METHODS and "nnunet" not in seg_method
-        ):  # No segmentation method specified, use unsegmented images instead
-            sect_info = copy_unsegmented_images(sect_info, output_dir, clobber)
+            num_cores = utils.set_cores(num_cores)
 
-        if not nnunet_failed:
-            process_nnunet_to_nifti(
+            convert_nifti_to_nnunet(
                 sect_info,
-                nnunet_out_dir,
-                nnunet_input_str,
-                num_cores,
-                seg_method,
-                foreground_labels = foreground_labels,
-                clobber = clobber,
+                nnunet_base_dir,
+                nnunet_input_str=nnunet_input_str,
+                x_scale=x_scale,
+                nnunet_ext=nnunet_ext,
+                clobber=clobber,
+                num_cores=num_cores,
             )
 
-        for _, temp_sect_info in sect_info.groupby(["sub", "hemisphere", "chunk"]):
-            assert check_seg_files(
-                temp_sect_info,
-                nnunet_out_dir,
-                warning_flag=True,
-                nnunet_input_str=nnunet_input_str,
-            ), "Missing segmentations"
+            # *** CHANGED: check segmentation files per subject using per-subject nnunet_out dirs ***
+            missing_segmentations = False
+            for sub, sub_df in sect_info.groupby("sub"):
+                sub_nnunet_out = f"{output_dir}/sub-{sub}/nnunet_out/"
+                if not check_seg_files(
+                    sub_df, output_dir, False, nnunet_input_str=nnunet_input_str
+                ):
+                    missing_segmentations = True
 
-        sect_info.to_csv(output_csv, index=False)
+            nnunet_failed = False
+
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+
+            print("\tSegmenting with method:", seg_method)
+
+            # *** CHANGED: run nnunet per subject so each gets its own nnunet/nnunet_out dirs ***
+            if missing_segmentations or clobber:
+                for sub, sub_df in sect_info.groupby("sub"):
+                    sub_nnunet_in  = f"{output_dir}/sub-{sub}/nnunet/"
+                    sub_nnunet_out = f"{output_dir}/sub-{sub}/nnunet_out/"
+                    os.makedirs(sub_nnunet_in,  exist_ok=True)
+                    os.makedirs(sub_nnunet_out, exist_ok=True)
+                    nnunet_failed = run_nnunet_segmentation(
+                        seg_method,
+                        sub_nnunet_in,
+                        sub_nnunet_out,
+                        model_dir,
+                        nnUNet_dir,
+                        datasetname,
+                        fold=fold,
+                        checkpoint=checkpoint,
+                        device=device,
+                    )
+
+            if nnunet_failed or seg_method in HISTOGRAM_METHODS:
+                apply_histogram_threshold(sect_info, num_cores=num_cores, method=seg_method)
+            elif (
+                seg_method not in HISTOGRAM_METHODS and "nnunet" not in seg_method
+            ):  # No segmentation method specified, use unsegmented images instead
+                sect_info = copy_unsegmented_images(sect_info, output_dir, clobber)
+
+            if not nnunet_failed:
+                process_nnunet_to_nifti(
+                    sect_info,
+                    nnunet_base_dir,
+                    nnunet_input_str,
+                    num_cores,
+                    seg_method,
+                    foreground_labels=foreground_labels,
+                    clobber=clobber,
+                )
+
+            for _, temp_sect_info in sect_info.groupby(["sub", "hemisphere", "chunk"]):
+                assert check_seg_files(
+                    temp_sect_info,
+                    nnunet_base_dir,
+                    warning_flag=True,
+                    nnunet_input_str=nnunet_input_str,
+                ), "Missing segmentations"
+
+    sect_info.to_csv(output_csv, index=False)
 
     return output_csv
 
 
 def convert_from_nnunet(
-    input_fn: str, reference_fn: str, output_fn: str, foreground_labels = [1], seg_method: str = "nnunetv1"
+    input_fn: str, reference_fn: str, output_fn: str, foreground_labels=[1], seg_method: str = "nnunetv1"
 ) -> None:
     """Convert segmented files from the nnunet output to an easier to use.
 
@@ -791,14 +807,14 @@ def convert_from_nnunet(
     """
 
     ref_img = nib.load(reference_fn)
-    
+
     if '.nii' in input_fn:
         ar = nib.load(input_fn).get_fdata()
-    else :
+    else:
         ar = iio.imread(input_fn)
 
     def _nnunet(ar, foreground_labels=foreground_labels):
-        
+
         out = np.zeros_like(ar)
 
         for label in foreground_labels:
@@ -819,7 +835,7 @@ def convert_from_nnunet(
         ar = ar.reshape([ar.shape[0], ar.shape[1]])
         # ar = ar.T
         ar = resize(ar, ref_img.shape, order=0)
-        ar = np.fliplr(np.flipud(ar)) #WARNING: not sure if this will generalize to everyone's data, check to make sure orientation is correct
+        ar = np.fliplr(np.flipud(ar))  # WARNING: not sure if this will generalize to everyone's data, check to make sure orientation is correct
 
         if "hybrid" in seg_method:
             logger.info("\tUsing nnUNet hybrid segmentation")
