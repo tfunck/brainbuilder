@@ -188,7 +188,6 @@ def reconstruct(
 
     # Stage: Segment
     sect_info_csv = segment(
-        chunk_info_csv,
         sect_info_csv,
         seg_dir,
         max_resolution_2d,

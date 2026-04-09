@@ -303,11 +303,15 @@ def convert_from_nnunet_list(
     """
     to_do = []
 
-    for i, row in sect_info.iterrows():
+    for _, row in sect_info.iterrows():
         img_fn = row[nnunet_input_str]
         seg_fn = row["seg"]
 
-        nnunet_fn = get_nnunet_filename(img_fn, nnunet_out_dir)
+        curr_dir = f"{nnunet_out_dir}/sub-{row['sub']}/hemi-{row['hemisphere']}/chunk-{row['chunk']}"
+
+        os.makedirs(curr_dir, exist_ok=True)
+
+        nnunet_fn = get_nnunet_filename(img_fn, curr_dir)
 
         if nnunet_fn == "":
             continue
@@ -322,7 +326,6 @@ def convert_from_nnunet_list(
 
 
 def convert_to_nnunet_list(
-    chunk_info: pd.DataFrame,
     sect_info: pd.DataFrame,
     nnunet_in_dir: str,
     nnunet_input_str: str = "img",
@@ -350,7 +353,12 @@ def convert_to_nnunet_list(
         pixel_size_0, pixel_size_1 = ants.ants_image_read(f).spacing[:2]
 
         fname = re.sub(".nii.gz", "", os.path.basename(f))
-        output_filename_truncated = os.path.join(nnunet_in_dir, fname)
+
+        curr_dir = f"{nnunet_in_dir}/sub-{row['sub']}/hemi-{row['hemisphere']}/chunk-{row['chunk']}"
+
+        os.makedirs(curr_dir, exist_ok=True)
+
+        output_filename_truncated = os.path.join(curr_dir, fname)
         output_filename = output_filename_truncated + "_0000" + nnunet_ext
         if (
             not os.path.exists(output_filename)
@@ -596,7 +604,6 @@ def copy_unsegmented_images(
 
 
 def convert_nifti_to_nnunet(
-    chunk_info: pd.DataFrame,
     sect_info: pd.DataFrame,
     nnunet_in_dir: str,
     nnunet_input_str: str,
@@ -608,7 +615,6 @@ def convert_nifti_to_nnunet(
     """Converts NIfTI files to nnUNet format using parallel processing.
 
     Args:
-        chunk_info (pd.DataFrame): DataFrame containing chunk information.
         sect_info (pd.DataFrame): DataFrame containing section information.
         nnunet_in_dir (str): Directory to save nnUNet input files.
         nnunet_input_str (str): Column name for nnUNet input.
@@ -619,7 +625,6 @@ def convert_nifti_to_nnunet(
         None
     """
     nifti2nnunet_to_do = convert_to_nnunet_list(
-        chunk_info,
         sect_info,
         nnunet_in_dir,
         nnunet_input_str=nnunet_input_str,
@@ -656,7 +661,6 @@ def get_nnunet_parameters(nnunet_config_json: str, model_dir: str):
 
 
 def segment(
-    chunk_info_csv: str,
     sect_info_csv: str,
     output_dir: str,
     resolution: float,
@@ -709,10 +713,8 @@ def segment(
 
         num_cores = utils.set_cores(num_cores)
 
-        chunk_info = pd.read_csv(chunk_info_csv, index_col=False)
 
         convert_nifti_to_nnunet(
-            chunk_info,
             sect_info,
             nnunet_in_dir,
             nnunet_input_str=nnunet_input_str,
