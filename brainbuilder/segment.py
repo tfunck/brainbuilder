@@ -22,7 +22,7 @@ from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
-from brainbuilder.utils.utils import define_new_path_column
+from brainbuilder.utils.paths import define_new_path_column
 
 logger = utils.get_logger(__name__)
 
@@ -350,7 +350,7 @@ def convert_to_nnunet_list(
         # pixel_size_0, pixel_size_1, _ = utils.get_chunk_pixel_size(
         #    row["sub"], row["hemisphere"], row["chunk"], chunk_info
         #)
-        pixel_size_0, pixel_size_1 = ants.ants_image_read(f).spacing[:2]
+        pixel_size_0, pixel_size_1 = ants.image_read(f).spacing[:2]
 
         fname = re.sub(".nii.gz", "", os.path.basename(f))
 
