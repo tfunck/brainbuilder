@@ -731,10 +731,10 @@ def segment(
 
             # *** CHANGED: check segmentation files per subject using per-subject nnunet_out dirs ***
             missing_segmentations = False
-            for sub, sub_df in sect_info.groupby("sub"):
-                sub_nnunet_out = f"{output_dir}/sub-{sub}/nnunet_out/"
+            for (sub, hemi, chunk), sub_df in sect_info.groupby(["sub","hemisphere","chunk"]):
+                sub_nnunet_out = f"{output_dir}/sub-{sub}/hemi-{hemi}/chunk-{chunk}/nnunet_out/" #FIXME shouldn't write path separately 
                 if not check_seg_files(
-                    sub_df, output_dir, False, nnunet_input_str=nnunet_input_str
+                    sub_df, sub_nnunet_out, False, nnunet_input_str=nnunet_input_str
                 ):
                     missing_segmentations = True
 
@@ -746,11 +746,13 @@ def segment(
 
             # *** CHANGED: run nnunet per subject so each gets its own nnunet/nnunet_out dirs ***
             if missing_segmentations or clobber:
-                for sub, sub_df in sect_info.groupby("sub"):
-                    sub_nnunet_in  = f"{output_dir}/sub-{sub}/nnunet/"
-                    sub_nnunet_out = f"{output_dir}/sub-{sub}/nnunet_out/"
+                for (sub, hemi, chunk), sub_df in sect_info.groupby(["sub","hemisphere","chunk"]):
+                    sub_nnunet_in  = f"{output_dir}/sub-{sub}/hemi-{hemi}/chunk-{chunk}/nnunet/"
+                    sub_nnunet_out = f"{output_dir}/sub-{sub}/hemi-{hemi}/chunk-{chunk}/nnunet_out/"
+
                     os.makedirs(sub_nnunet_in,  exist_ok=True)
                     os.makedirs(sub_nnunet_out, exist_ok=True)
+
                     nnunet_failed = run_nnunet_segmentation(
                         seg_method,
                         sub_nnunet_in,
