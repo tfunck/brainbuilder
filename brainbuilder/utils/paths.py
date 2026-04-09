@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 
-def define_new_path_column(df: pd.DataFrame, output_dir: str, tag: str, col:str='img') -> pd.DataFrame:
+def define_new_path_column(df: pd.DataFrame, output_dir: str, tag: str, col:str='img', ext:str='.nii.gz') -> pd.DataFrame:
     """
     Define a new column in the dataframe for the downsampled image paths based on the raw file paths.
 
@@ -43,10 +43,10 @@ def define_new_path_column(df: pd.DataFrame, output_dir: str, tag: str, col:str=
 
             if ".nii.gz" not in raw_file:
                 # If the raw file does not have the .nii.gz extension, add the tag before the extension
-                out_file = os.path.splitext(raw_file)[0] + f"_{tag}.nii.gz"
+                out_file = os.path.splitext(raw_file)[0] + f"_{tag}{ext}"
             else:
                 # If the raw file has the .nii.gz extension, replace it with _{tag}.nii.gz
-                out_file = re.sub(".nii.gz", f"_{tag}.nii.gz", raw_file)
+                out_file = re.sub(".nii.gz", f"_{tag}{ext}", raw_file)
 
             downsample_file = f"{curr_dir}/{out_file}"
 
