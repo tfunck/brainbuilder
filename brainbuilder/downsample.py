@@ -10,6 +10,7 @@ from joblib import Parallel, delayed
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
+from brainbuilder.utils.paths import define_new_path_column
 from brainbuilder.utils.utils import get_logger
 
 logger = get_logger(__name__)
@@ -132,15 +133,9 @@ def downsample_within_chunk(
         except KeyError:
             conversion_factor = 1
 
-        pixel_size_0, pixel_size_1, section_thickness = utils.get_chunk_pixel_size(
-            sub, hemi, chunk, chunk_info
-        )
-
-        affine = utils.create_2d_affine(pixel_size_0, pixel_size_1, section_thickness)
-
         if utils.check_run_stage([downsample_file], [raw_file], clobber=clobber):
             to_do.append(
-                (raw_file, downsample_file, affine, resolution, conversion_factor)
+                (raw_file, downsample_file, resolution, conversion_factor)
             )
 
     Parallel(n_jobs=num_cores, backend="multiprocessing")(
@@ -153,8 +148,11 @@ def downsample_within_chunk(
             factor=factor,
             max_dims=(max_dim_0, max_dim_1),
         )
-        for raw_file, downsample_file, affine, resolution, factor in to_do
+        for raw_file, downsample_file, resolution, factor in to_do
     )
+
+
+
 
 
 def downsample_sections(
@@ -182,19 +180,8 @@ def downsample_sections(
     if num_cores is None or num_cores == 0:
         num_cores = -1
 
-    def get_base(x: str) -> str:
-        """Get base filename."""
-        if ".nii.gz" not in x:
-            x = os.path.splitext(x)[0] + f"_{resolution}mm.nii.gz"
-        else:
-            x = re.sub(".nii.gz", f"_{resolution}mm.nii.gz", x)
-
-        x = os.path.basename(x)
-        return output_dir + "/" + x
-
     # define downsample img filenames based on current resolution
-
-    sect_info["img"] = sect_info["raw"].apply(get_base)
+    sect_info = define_new_path_column(sect_info, output_dir, tag=f"{resolution}mm", col='img')
 
     os.makedirs(output_dir, exist_ok=True)
 

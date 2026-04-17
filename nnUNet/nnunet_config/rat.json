@@ -1,0 +1,7 @@
+{
+    "x_scale": 0,
+    "foreground_labels": [],
+    "datasetname": "",
+    "checkpoint": "checkpoint_best.pth",
+    "fold": ""
+}

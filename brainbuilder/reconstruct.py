@@ -66,6 +66,8 @@ def reconstruct(
     use_syn: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
     seg_method: str = "nnunetv1",
+    nnunet_model_dir: str = f"{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/",
+    nnunet_config_json: str = f"{repo_dir}/nnUNet/nnunet_config/primate_v1.json",
     num_cores: int = None,
     max_resolution_3d: float = 0.3,
     final_resolution: float = None,
@@ -81,33 +83,39 @@ def reconstruct(
     """Reconstruct 2D histological sections to 3D volume using a structural reference volume (e.g., T1w MRI from brain donor, stereotaxic template).
 
      Processing Steps
-        1. Segment
-        2. Init Alignment (Rigid 2D, per chunk)
-        3.1 GM MRI to autoradiograph volume (Nonlinear 3D, per chunk)
-        3.2 Autoradiograph to GM MRI (2D nonlinear, per chunk)
-        4. Interpolate missing vertices on sphere, interpolate back to 3D volume
-        5. Quality control
+        1. Downsample
+        2. Segment
+        3. Initial Alignment (Rigid 2D, per chunk)
+        4. Multiresolution Alignment (3D nonlinear, per chunk)
+        5. Intensity Correction (optional)
+        6. Interpolate missing sections
+        7. Quality control
 
-    :param hemi_info_csv: str, path to csv file that contains information about hemispheres to reconstruct
-    :param sect_info_csv : pandas dataframe, contains information about sections
-    :param chunk_info_csv : str, path to json file that contains information about chunks
-    :param resolution_list : list, resolutions to use for reconstruction
-    :param output_dir : str, output directory where results will be put
-    :param output_csv : str, output csv file that will contain updated section information
-    :param n_depths : int, number of mid-surface depths between gm and wm surface
-    :param seg_method : str, segmentation method to use, options: 'nnunetv1', 'nnunetv2', 'otsu', 'triangle'
-    :param num_cores : int, optional, number of cores to use for reconstruction, default=0 (use all cores)
-    :param interp_method : str, interpolation method to use, options: 'surface', 'volumetric'
-    :param max_resolution_3d : float, maximum resolution to use for 3D reference volume
-    :param final_resolution : float, final resolution for the output volume, default=None (use max resolution in resolution_list)
-    :param use_3d_syn_cc : bool, optional, use 3D nonlinear SyN with cross-correlation, default=True
-    :param use_syn : bool, optional, use 2D nonlinear SyN, default=True
-    :param linear_steps : list, optional, linear steps to use for 3D-2D alignment, default=['rigid', 'similarity', 'affine']
-    :param skip_interp : bool, optional, skip interpolation step, default=False
-    :param use_intensity_correction : bool, optional, use intensity correction, default=False
-    :param verbose : bool, optional, verbose output for debugging, default=False
-    :param clobber : bool, optional, overwrite existing results, default=False
-    :return sect_info : pandas dataframe, contains updated information about sections with new fields for files produced
+    :param hemi_info_csv: str, path to csv file containing hemisphere information
+    :param chunk_info_csv: str, path to csv file containing chunk information
+    :param sect_info_csv: str, path to csv file containing section information
+    :param resolution_list: list, resolutions to use for multiresolution alignment
+    :param output_dir: str, output directory where results will be saved
+    :param output_csv: str, output csv file with updated section information (default="")
+    :param n_depths: int, number of mid-surface depths between GM and WM surface (default=0)
+    :param use_3d_syn_cc: bool, use 3D nonlinear SyN with cross-correlation (default=True)
+    :param use_syn: bool, use 2D nonlinear SyN (default=True)
+    :param linear_steps: list, linear transformation steps for alignment (default=['rigid', 'similarity', 'affine'])
+    :param seg_method: str, segmentation method ('nnunetv1', 'nnunetv2', 'otsu', 'triangle') (default='nnunetv1')
+    :param nnunet_model_dir: str, path to nnUNet model directory for segmentation
+    :param nnunet_config_json: str, path to nnUNet configuration JSON file
+    :param num_cores: int, number of cores for multiprocessing (default=None, uses all available)
+    :param max_resolution_3d: float, maximum resolution for 3D alignment (default=0.3)
+    :param final_resolution: float, final resolution for output volume (default=None)
+    :param interp_method: str, interpolation method ('volumetric', 'surface') (default='volumetric')
+    :param interpolation_2d: str, 2D interpolation method (default='Linear')
+    :param landmark_dir: Path, directory containing landmark files (default=None)
+    :param use_intensity_correction: bool, perform intensity correction (default=False)
+    :param use_3d_align_stage: bool, run multiresolution alignment stage (default=True)
+    :param use_interp_stage: bool, run interpolation stage (default=True)
+    :param verbose: bool, verbose output for debugging (default=False)
+    :param clobber: bool, overwrite existing results (default=False)
+    :return: str, output_csv filename
     """
     # Set the logger level that will be used for the whole reconstruction
 
@@ -180,11 +188,12 @@ def reconstruct(
 
     # Stage: Segment
     sect_info_csv = segment(
-        chunk_info_csv,
         sect_info_csv,
         seg_dir,
         max_resolution_2d,
         seg_method=seg_method,
+        model_dir = nnunet_model_dir,
+        nnunet_config_json=nnunet_config_json,
         clobber=clobber,
     )
     # qc.data_set_quality_control(seg_df_csv, qc_dir, column="seg")
@@ -331,6 +340,12 @@ def setup_argparse() -> argparse.ArgumentParser:
         dest="pytorch_model_dir",
         default=f"{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/",
         help="Numer of cores to use for segmentation (Default=0; This is will set the number of cores to use to the maximum number of cores availale)",
+    )
+    parser.add_argument(
+        "--nnunet-config-json",
+        dest="nnunet_config_json",
+        default=f"{repo_dir}/nnUNet/nnunet_config/primate_v1.json",
+        help="Path to nnUNet configuration JSON file",
     )
     # Add verbosity flag
 

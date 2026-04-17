@@ -1,5 +1,3 @@
-"""Not yet impemented. Temporarily commented out."""
-
 import os
 from subprocess import run
 
@@ -457,17 +455,13 @@ def create_final_transform(
         chunk_info, output_dir, output_dir + "/atlas.nii.gz", clobber=clobber
     )
 
+    chunk_output_dir = f"{output_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/"
+
     # drop rows with Nan
     chunk_info = chunk_info.dropna()
 
-    mask_out_dir = f"{output_dir}/mask/"
-    atlas_out_dir = f"{output_dir}/atlas/"
-
-    os.makedirs(mask_out_dir, exist_ok=True)
-    os.makedirs(atlas_out_dir, exist_ok=True)
-
     ref_rsl_2d_fin = utils.resample_struct_reference_volume(
-        in_ref_rsl_fin, resolution, output_dir, clobber=clobber
+        in_ref_rsl_fin, resolution, chunk_output_dir, clobber=clobber
     )
 
     nl_3d_tfm_fn = chunk_info["nl_3d_tfm_fn"].values[0]
@@ -485,6 +479,53 @@ def create_final_transform(
 
     return chunk_info
 
+def prepare_chunk_info_for_stx(chunk_info, curr_chunk_info):
+    """Prepare and modify curr_chunk_info for final alignment to stx space."""
+    merged = pd.merge(
+        chunk_info, curr_chunk_info, how="left", on=["sub", "hemisphere", "chunk"]
+    ).dropna()
+
+    if "acquisition_y" in merged.columns:
+        merged["acquisition"] = merged["acquisition_y"]
+    if 'acquisition_y' in merged.columns:
+        del merged["acquisition_y"]
+
+    merged["interp_stx"] = merged["interp_nat"].apply(
+    lambda x: x.replace("_iso", "_stx")
+    )
+    return merged
+
+def apply_interpolated_volumes_to_stx(curr_chunk_info, curr_hemi_info, resolution, output_dir, interpolation, clobber):
+    ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
+
+    ref_vol_rsl_fn = utils.resample_struct_reference_volume(
+        ref_vol_fn, resolution, output_dir, clobber=clobber
+    )
+
+    curr_chunk_info["ref_vol_rsl_fn"] = ref_vol_rsl_fn
+
+    for _, row in curr_chunk_info.iterrows():
+        interp_nat_fin = row["interp_nat"]
+        interp_stx_fin = row["interp_stx"]
+
+        nl_3d_tfm_fn = (
+            curr_chunk_info["nl_3d_tfm_fn"]
+            .loc[curr_chunk_info["chunk"] == row["chunk"]]
+            .values[0]
+        )
+
+        if not os.path.exists(interp_stx_fin) or clobber:
+            cmd = f"antsApplyTransforms -d 3 -n {interpolation} -i {interp_nat_fin} -o {interp_stx_fin} -r {ref_vol_rsl_fn} -t {nl_3d_tfm_fn} --float 1"
+
+            print(cmd)
+
+            run(cmd, shell=True)
+
+            assert (
+            nib.load(interp_stx_fin).get_fdata().sum() > 0
+            ), "Error: Empty Output"
+
+    return curr_chunk_info
 
 def prepare_chunk_info_for_stx(chunk_info, acq_interp_chunk_info):
     """Prepare and modify curr_chunk_info for final alignment to stx space.
@@ -572,6 +613,8 @@ def volumetric_pipeline(
         ["sub", "hemisphere"]
     ):
         idx = (chunk_info["sub"] == sub) & (chunk_info["hemisphere"] == hemisphere)
+
+
         if "resolution" in chunk_info.columns:
             idx = idx & (chunk_info["resolution"] == resolution)
 
@@ -603,8 +646,6 @@ def volumetric_pipeline(
         curr_chunk_info = prepare_chunk_info_for_stx(chunk_info, acq_interp_chunk_info)
 
         chunk_info_list.append(curr_chunk_info)
-
-        print("Are we getting here???")
 
         if use_final_transform:
             curr_chunk_info = apply_interpolated_volumes_to_stx(

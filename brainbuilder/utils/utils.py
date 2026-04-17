@@ -551,6 +551,9 @@ def resample_struct_reference_volume(
     struct_vol_rsl_fn = f"{output_dir}/{base_name}"
 
     if not os.path.exists(struct_vol_rsl_fn) or clobber:
+
+        os.makedirs(output_dir, exist_ok=True)
+        
         resample_to_resolution(orig_struct_vol_fn, [resolution] * 3, struct_vol_rsl_fn)
 
     return struct_vol_rsl_fn
@@ -1006,11 +1009,10 @@ def get_params_from_affine(aff: np.array, ndim: int) -> tuple:
     """
     spacing = aff[range(ndim), range(ndim)]
     origin = aff[range(ndim), 3]
-    direction = [
-        [-1.0, 0.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [0.0, 0.0, 1.0],
-    ]  # FIXME: not sure if it's good idea to hardcord LPI direction
+    # deduce direction order from affine, aff
+    # get the sign of the diagonal elements of the affine to determine the direction
+    direction = [1 if aff[i, i] > 0 else -1 for i in range(ndim)]
+
     return origin, spacing, direction
 
 
@@ -1332,6 +1334,64 @@ def calculate_sigma_for_downsampling(new_pixel_spacing: float) -> float:
     return sigma
 
 
+def preprocess_direction_argument(dirs: Union[str, list], str_to_dir: dict) -> list:
+    """Preprocess the direction argument for coordinate system conversion."""
+    
+    if isinstance(dirs, str):
+        dirs = [str_to_dir[c] for c in dirs]
+        # turn vector of length 3 into a diagonal matrix
+        dirs = np.diag(dirs)
+
+    # get total number of elements in dirs, could be a list of lists
+    n_elements = sum(len(d) if isinstance(d, list) else 1 for d in dirs)
+
+    if isinstance(dirs, list) and n_elements > 3:
+        dirs = [1 if dirs[i][i] > 0 else -1 for i in range(len(dirs))]
+
+    return dirs
+
+def  convert_coordinate_system(vol:np.ndarray, origin, step:np.array, in_dir:Union[str,list], out_dir:Union[str,list]) -> np.ndarray:
+    """Convert the coordinate system of a volume from in_dir to out_dir.
+    in_dir and out_dir can be either a string of length 3 (e.g. "lpi") or a list of 3 integers (e.g. [1, -1, 1]) where 1 indicates positive direction and -1 indicates negative direction for each axis.
+    """
+    # L = -1, P = -1, S = -1, R = 1, A = 1, I = 1
+    str_to_dir = {
+        "l": -1.,
+        "L": -1.,
+        "r": 1.,
+        "R": 1.,
+        "p": -1.,
+        "P": -1.,
+        "a": 1.,
+        "A": 1.,
+        "i": 1.,
+        "I": 1.,
+        "s": -1.,
+        "S": -1.,
+    }
+
+    in_dir = preprocess_direction_argument(in_dir, str_to_dir)
+    out_dir = preprocess_direction_argument(out_dir, str_to_dir)
+
+    # out_dir needs to be the same length as the in_dir, 
+    # e.g., if "LPI" is passed for out_dir but the input volume is 2D, 
+    # then out_dir should be "LP" or [1, -1]
+    out_dir = out_dir[:vol.ndim][:vol.ndim]
+
+    assert len(in_dir) == len(out_dir) == vol.ndim, "Dimension mismatch between volume and direction vectors."
+    for i in range(vol.ndim):
+        if in_dir[i][i] != out_dir[i][i]:
+            vol = np.flip(vol, axis=i)
+            # update the direction in the affine
+            #step[i, i] = step[i] * out_dir[i] / in_dir[i] 
+
+            # need to flip the origin in the affine as well
+            # the origin is in the last column of the affine, and the spacing is in the diagonal
+            origin[i] = origin[i] - (vol.shape[i] - 1) * step[i] * in_dir[i][i]/out_dir[i][i]
+
+    return vol, origin, out_dir
+
+
 def resample_to_resolution(
     input_arg: Union[str, np.ndarray],
     new_resolution: Tuple[float, float, float],
@@ -1399,13 +1459,27 @@ def resample_to_resolution(
         vol *= factor
 
     vol = vol.astype(dtype)
+
     assert np.sum(np.abs(vol)) > 0, (
         "Error: empty output array for prefilter_and_downsample\n" + output_filename
     )
 
-    img_out = nib.Nifti1Image(vol, affine, dtype=dtype, direction_order=direction_order)
+    step = np.diag(affine)[0:ndim]
 
-    if isinstance(output_filename, str):
-        img_out.to_filename(output_filename)
+    vol, origin, direction = convert_coordinate_system(vol, np.array(origin), step, direction, direction_order)
+    
+    if not isinstance(output_filename, type(None)):
+        ants.image_write(ants.from_numpy(vol, origin=list(origin), spacing=list(step), direction=direction), output_filename)
+    
+        img_out = nib.load(output_filename)
+    else :
+        for i in range(ndim):
+            affine[i,i] = step[i] * direction[i,i]
+        affine[range(ndim), 3] = origin
+        img_out = nib.Nifti1Image(vol, affine, dtype=dtype, direction_order=direction_order)
+    #img_out = nib.Nifti1Image(vol, affine, dtype=dtype, direction_order=direction_order)
+
+    #if isinstance(output_filename, str):
+    #    img_out.to_filename(output_filename)
 
     return img_out

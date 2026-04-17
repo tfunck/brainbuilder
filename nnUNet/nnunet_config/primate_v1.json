@@ -1,0 +1,7 @@
+{
+    "x_scale": 414,
+    "foreground_labels": [1],
+    "datasetname": "Task502_cortex",
+    "checkpoint": "checkpoint_best.pth",
+    "fold": 0
+}
