@@ -225,7 +225,7 @@ def crop_volume_with_indicator(
         nib.Nifti1Image(
             ref_chunk_vol,
             ref_img.affine,
-            direction="lpi",
+            direction_order="lpi",
             dtype=np.uint8,
         ).to_filename(ref_chunk_fn)
     return ref_chunk_fn
@@ -283,9 +283,9 @@ def create_indicator_volume(
 
         vol = np.ones(img.shape, dtype=np.uint8)
 
-        nib.Nifti1Image(vol, img.affine, direction="lpi", dtype=np.uint8).to_filename(
-            acq_indicator_volume
-        )
+        nib.Nifti1Image(
+            vol, img.affine, direction_order="lpi", dtype=np.uint8
+        ).to_filename(acq_indicator_volume)
 
     return acq_indicator_volume
 
@@ -297,7 +297,6 @@ def write_ref_chunk_with_landmark_transform(
     hemi: str,
     chunk: int,
     ref_vol_fn: str,
-    out_dir: str,
     max_resolution_3d: int,
     landmark_dir: str,
     output_dir: str,
@@ -309,27 +308,29 @@ def write_ref_chunk_with_landmark_transform(
     # 1 Calculate the landmark transform from acquisition to reference space
     ymax = nib.load(chunk_info["init_volume"].values[0]).shape[1]
 
-    landmarks_out_dir = output_dir + "/ref_chunk_landmarks/"
+    landmarks_out_dir = output_dir + f"/ref_chunk_landmarks/{max_resolution_3d}mm"
+
     os.makedirs(landmarks_out_dir, exist_ok=True)
 
     acq_landmark_volume = f"{landmarks_out_dir}/sub-{sub}_hemi-{hemi}_chunk-{chunk}_acq_landmark_volume.nii.gz"
 
-    _, _, landmark_composite_tfm_path = create_landmark_transform(
+    landmark_composite_tfm_path = create_landmark_transform(
         sub,
         hemi,
         chunk,
         max_resolution_3d,
         max_resolution_3d,
         sect_info,
+        chunk_info["init_volume"].values[0],  # reference volume for image dimensions
         acq_landmark_volume,  # acq landmark volume
         acq_landmark_volume,  # moving landmark volume
         ref_landmark_volume,  # fixed landmark volume
         landmark_dir,
         landmarks_out_dir,
-        acq_rsl_fn,
+        chunk_info["init_volume"].values[0],
         ref_vol_fn,
         ymax,
-        chunk_info["section_thickness"],
+        chunk_info["section_thickness"].values[0],
         padding_offset=padding_offset,
         clobber=clobber,
     )
@@ -338,11 +339,15 @@ def write_ref_chunk_with_landmark_transform(
     acq_indicator_volume = create_indicator_volume(
         acq_landmark_volume, output_dir, clobber=clobber
     )
+    print(acq_indicator_volume)
+    print(chunk_info["init_volume"].values[0])
 
     # 3 Apply the landmark transform to the indicator volume to get a warped indicator volume in the space of the reference volume, with nearest neighbours
     ref_indicator_volume = acq_indicator_volume.replace(".nii.gz", "_space-stx.nii.gz")
+    clobber = True
     utils.simple_ants_apply_tfm(
-        acq_indicator_volume,
+        # acq_indicator_volume,
+        chunk_info["init_volume"].values[0],  # reference volume for image dimensions
         ref_vol_fn,
         landmark_composite_tfm_path,
         ref_indicator_volume,
@@ -352,7 +357,7 @@ def write_ref_chunk_with_landmark_transform(
 
     # 4 Use the reference space warped indicator volume to mask the reference volume to get the reference chunk
     ref_chunk_fn = crop_volume_with_indicator(
-        ref_vol_fn, ref_indicator_volume, out_dir, sub, hemi, chunk, clobber
+        ref_vol_fn, ref_indicator_volume, output_dir, sub, hemi, chunk, clobber
     )
 
     return ref_chunk_fn
@@ -371,7 +376,7 @@ def write_ref_chunk(
     ref_landmark_volume: str,
     acq_rsl_fn: str,
     padding_offset: float = 0.15,
-    use_landmark_transfrom: bool = False,
+    use_landmark_transform: bool = False,
     clobber: bool = False,
 ) -> None:
     """Write a chunk from the reference volume that corresponds to the tissue chunk from the section volume.
@@ -384,7 +389,7 @@ def write_ref_chunk(
     :param clobber: overwrite existing files
     :return: None
     """
-    if not use_landmark_transfrom:
+    if not use_landmark_transform:
         if (
             "caudal_limit" not in chunk_info.columns
             or "rostral_limit" not in chunk_info.columns
@@ -411,10 +416,9 @@ def write_ref_chunk(
             hemi,
             chunk,
             ref_vol_fn,
-            out_dir,
             max_resolution_3d,
             landmark_dir,
-            output_dir,
+            out_dir,
             ref_landmark_volume,
             acq_rsl_fn,
             padding_offset=padding_offset,

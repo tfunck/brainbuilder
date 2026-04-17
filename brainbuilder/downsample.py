@@ -143,7 +143,6 @@ def downsample_within_chunk(
                 (raw_file, downsample_file, affine, resolution, conversion_factor)
             )
 
-    print("downsampling")
     Parallel(n_jobs=num_cores, backend="multiprocessing")(
         delayed(utils.resample_to_resolution)(
             raw_file,

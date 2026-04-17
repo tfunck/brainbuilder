@@ -548,25 +548,26 @@ def align_chunk(
                 else ""
             )
 
-            use_landmark_trasform = _set_use_landmark_transform(
+            use_landmark_transform = _set_use_landmark_transform(
                 ref_landmark_volume, landmark_dir
             )
 
-            if not use_landmark_trasform:
-                write_ref_chunk(
-                    sect_info,
-                    chunk_info_row,
-                    sub,
-                    hemisphere,
-                    chunk,
-                    ref_vol_fn,
-                    landmark_dir,
-                    output_dir,
-                    max_resolution_3d,
-                    ref_landmark_volume,
-                    chunk_info_row["init_volume"].values[0],
-                    clobber=clobber,
-                )
+            write_ref_chunk(
+                sect_info,
+                chunk_info_row,
+                sub,
+                hemisphere,
+                chunk,
+                ref_vol_fn,
+                landmark_dir,
+                output_dir,
+                max_resolution_3d,
+                ref_landmark_volume,
+                chunk_info_row["init_volume"].values[0],
+                use_landmark_transform=use_landmark_transform,
+                clobber=clobber,
+            )
+            return None, None  # FIXME DEBUG DELETEME
 
             section_thickness = chunk_info_row["section_thickness"].values[0]
 

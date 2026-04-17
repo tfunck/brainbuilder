@@ -56,11 +56,11 @@ def dilate_labels(
             np.ceil(min_size * scaling - idx_range).astype(int) // 2
         )  # divide by 2 because we dilate on both sides
 
-        print(
-            "\tDilating label with factor",
-            x_dilation_factor,
-            "to prevent loss during resizing.",
-        )
+        # print(
+        #    "\tDilating label with factor",
+        #    x_dilation_factor,
+        #    "to prevent loss during resizing.",
+        # )
         label_binary = binary_dilation(
             label_binary, structure=structure, iterations=x_dilation_factor
         )
@@ -142,7 +142,6 @@ def _init_parameters(
 
     # dims for sparse landmark volume
     dims = [example_raw_img.shape[0], ymax, example_raw_img.shape[1]]
-
     scaling = resolution / np.array(steps)
 
     target_dims = np.rint(dims / scaling).astype(int)
@@ -200,8 +199,6 @@ def _process_and_save_sparse_landmark_volume(
     unique_labels_list = []
     for _, row in sect_info.iterrows():
         y = int(row["sample"])
-
-        xmax, zmax = np.array(nib.load(row["raw"]).shape)
 
         warped_slice_path = row["landmark_2d_rsl"]
 
@@ -290,9 +287,9 @@ def apply_tfm_and_check(
         if len(missing_labels) == 0:
             return
 
-        print(
-            f"Missing labels {missing_labels} in warped landmark {output_file}. Dilating and retrying..."
-        )
+        # print(
+        #    f"Missing labels {missing_labels} in warped landmark {output_file}. Dilating and retrying..."
+        # )
 
         # dilate all labels in input_file by 1
         input_data = np.squeeze(np.array(input_img.dataobj))
@@ -300,7 +297,7 @@ def apply_tfm_and_check(
 
         for label in input_labels:
             label_binary = input_data == label
-            print(f"\tDilating label {label}...{np.sum(label_binary)} voxels")
+            # print(f"\tDilating label {label}...{np.sum(label_binary)} voxels")
             label_binary_dilated = binary_dilation(label_binary, iterations=2)
             dilated_data[label_binary_dilated] = label
 
@@ -312,9 +309,6 @@ def apply_tfm_and_check(
         dilate_count += 2
 
         current_input_file = dilated_input_file
-
-    print("out_labels", out_labels)
-    print("max_dilations = ", max_dilation)
 
     raise RuntimeError(
         f"Failed to warp landmark {input_file} after {max_dilation} dilations."
@@ -348,6 +342,8 @@ def process_row(row: pd.Series, clobber: bool = False) -> None:
         )
 
         apply_tfm_and_check(lm_path, raw_path, tfm_path, landmark_2d_rsl)
+
+    exit()
 
 
 def build_sparse_landmark_volume(
@@ -422,13 +418,9 @@ def convert_transform(
 
     nl_tfm_h5 = os.path.splitext(nl_tfm)[0] + ".h5"
 
-    print(nl_tfm)
-
     def_field = ants.image_read(nl_tfm)
-    print("Def field shape:", def_field.shape)
 
     ants_nl_tfm = ants.transform_from_displacement_field(def_field)
-    print("Writing non-linear landmark transform to", nl_tfm_h5)
 
     ants.write_transform(ants_nl_tfm, nl_tfm_h5)
 
@@ -436,13 +428,129 @@ def convert_transform(
         nl_tfm_h5
     ), f"Converted landmark transform not created: {nl_tfm_h5}"
 
-    cmd = f"antsApplyTransforms -d 3 -t {nl_tfm_h5} -t {affine_tfm} -o [{out_tfm_h5},1] -r {nl_tfm} --float 1"
-    logger.info(f"[ANTs] {cmd}")
-    subprocess.run(cmd, shell=True, executable="/bin/bash")
+    cmd = [
+        "antsApplyTransforms",
+        "-d",
+        "3",
+        "-t",
+        nl_tfm_h5,
+        "-t",
+        affine_tfm,
+        "-o",
+        f"[{out_tfm_h5},1]",
+        "-r",
+        nl_tfm,
+        "--float",
+        "1",
+    ]
+    logger.info(f"[ANTs] {' '.join(cmd)}")
+    subprocess.run(cmd, check=True)
 
     assert os.path.exists(out_tfm_h5) and ants.read_transform(
         out_tfm_h5
     ), f"Converted landmark transform not created: {out_tfm_h5}"
+
+
+def calculate_dist_between_labels(
+    filepath1: str, filepath2: str, output_csv: str | None = None
+) -> float:
+    """For two label volumes, calculate distances between matching label COMs (mm).
+
+    Prints per-label distances plus mean/std; returns the mean distance (mm).
+    """
+    img1 = nib.load(filepath1)
+    img2 = nib.load(filepath2)
+
+    vol1 = np.asarray(img1.dataobj)
+    vol2 = np.asarray(img2.dataobj)
+
+    def _to_int_labels(vol: np.ndarray, path: str) -> np.ndarray:
+        # This function is intended for discrete label images.
+        if np.issubdtype(vol.dtype, np.integer):
+            return vol.astype(np.int64, copy=False)
+
+        flat = vol.reshape(-1)
+        if flat.size == 0:
+            return vol.astype(np.int64)
+
+        # Avoid a full-volume pass for huge arrays.
+        if flat.size > 1_000_000:
+            stride = max(1, flat.size // 1_000_000)
+            flat = flat[::stride]
+
+        frac = np.abs(flat - np.rint(flat))
+        max_frac = float(np.nanmax(frac))
+        if not np.isfinite(max_frac) or max_frac > 1e-3:
+            raise ValueError(
+                f"{path} does not look like a discrete label image (non-integer values detected). "
+                "Did you accidentally pass a transform/displacement field instead of a label volume?"
+            )
+
+        return np.rint(vol).astype(np.int64)
+
+    vol1 = _to_int_labels(vol1, filepath1)
+    vol2 = _to_int_labels(vol2, filepath2)
+
+    steps = np.abs(img1.affine[[0, 1, 2], [0, 1, 2]])  # voxel size in x, y, z (mm)
+
+    labels1 = _label_ids(vol1)
+    labels2 = _label_ids(vol2)
+
+    shared_labels = sorted(set(labels1.tolist()).intersection(set(labels2.tolist())))
+
+    assert shared_labels, f"No shared labels between volumes. Vol1 labels: {labels1}, Vol2 labels: {labels2}"
+
+    dists = []
+
+    df = pd.DataFrame(
+        columns=[
+            "label",
+            "distance_mm",
+            "com1_x",
+            "com1_y",
+            "com1_z",
+            "com2_x",
+            "com2_y",
+            "com2_z",
+        ]
+    )
+    for label in shared_labels:
+        com1 = get_com(vol1, label)
+        com2 = get_com(vol2, label)
+
+        dist = float(np.sqrt(np.sum(((com1 - com2) * steps) ** 2)))
+
+        dists.append(dist)
+
+        print(
+            f"Label {label}: distance = {dist:.2f} mm\t(com1: {np.round(com1,1)}, com2: {np.round(com2,1)})"
+        )
+
+        tdf = pd.DataFrame(
+            {
+                "label": [label],
+                "distance_mm": [dist],
+                "com1_x": [com1[0]],
+                "com1_y": [com1[1]],
+                "com1_z": [com1[2]],
+                "com2_x": [com2[0]],
+                "com2_y": [com2[1]],
+                "com2_z": [com2[2]],
+            }
+        )
+
+        df = pd.concat([df, tdf])
+
+    if output_csv:
+        df.to_csv(output_csv, index=False)
+
+    mean_dist = float(np.mean(dists))
+    std_dist = float(np.std(dists))
+
+    print(f"Mean distance: {mean_dist:.2f} mm")
+    print(f"Standard deviation: {std_dist:.2f} mm")
+
+    return mean_dist
 
 
 def init_landmark_transform(
@@ -481,16 +589,22 @@ def init_landmark_transform(
     ### 1) Run affine alignment
     if not os.path.exists(affine_tfm) or clobber:
         print("Running affine landmark-based alignment...")
-        cmd = f"antsLandmarkBasedTransformInitializer 3 {fixed_landmarks} {moving_landmarks}  'affine' {affine_tfm} "
+        cmd = [
+            "antsLandmarkBasedTransformInitializer",
+            "3",
+            fixed_landmarks,
+            moving_landmarks,
+            "affine",
+            affine_tfm,
+        ]
 
-        logger.info(f"[ANTs] {cmd}")
+        logger.info(f"[ANTs] {' '.join(cmd)}")
 
-        subprocess.run(cmd, shell=True, executable="/bin/bash")
+        subprocess.run(cmd, check=True)
 
         assert os.path.exists(
             affine_tfm
         ), f"Affine landmark transform not created: {affine_tfm}"
-
     ### 2) Apply affine to moving landmarks to get intermediate volume
     print("Applying affine transform to moving landmarks...")
 
@@ -504,10 +618,17 @@ def init_landmark_transform(
         clobber=clobber,
     )
 
+    print("\tQC 2")
+    point_qc2_csv = (
+        f"{output_dir}/{os.path.basename(affine_vol_fn).replace('.nii.gz', '_qc.csv')}"
+    )
+    calculate_dist_between_labels(fixed_landmarks, affine_vol_fn, point_qc2_csv)
+
+    moving_qc_affine_path = None
     if fixed_qc_vol_path and moving_qc_vol_path:
-        moving_qc_affine_path = moving_qc_vol_path.replace(
-            ".nii.gz", "_affine_landmark_qc.nii.gz"
-        )
+        moving_qc_affine_path = output_dir + os.path.basename(
+            moving_qc_vol_path
+        ).replace(".nii.gz", "_affine_landmark_qc.nii.gz")
 
     assert transform_type in [
         "rigid",
@@ -515,17 +636,18 @@ def init_landmark_transform(
         "bspline",
     ], f"Invalid transform type: {transform_type}"
 
-    print("\nApplying transforms to moving QC volume for visual inspection...")
-    simple_ants_apply_tfm(
-        moving_qc_vol_path,
-        fixed_qc_vol_path,
-        affine_tfm,
-        moving_qc_affine_path,
-        ndim=3,
-        n="Linear",
-        clobber=clobber,
-    )
-    print(f"wrote: {moving_qc_affine_path}\n")
+    if fixed_qc_vol_path and moving_qc_vol_path:
+        print("\nApplying transforms to moving QC volume for visual inspection...")
+        simple_ants_apply_tfm(
+            moving_qc_vol_path,
+            fixed_qc_vol_path,
+            affine_tfm,
+            moving_qc_affine_path,
+            ndim=3,
+            n="Linear",
+            clobber=clobber,
+        )
+        print(f"wrote: {moving_qc_affine_path}\n")
 
     # assert check that the affin_vol_fn has same values as moving_landmarks after transform
     affine_labels = set(np.unique(nib.load(affine_vol_fn).get_fdata())[1:])
@@ -535,19 +657,51 @@ def init_landmark_transform(
     ), f"Affine transformed landmarks do not match moving landmarks.\n\tAffine: {affine_labels}\n\tMoving: {moving_labels}"
 
     ### 3) Run non-linear alignment
+    nl_vol_fn = output_dir + os.path.basename(out_tfm).replace(
+        ".h5", f"_{mesh_size}_nl_landmark_init.nii.gz"
+    )
+
     if not os.path.exists(nl_tfm) or clobber:
         print("Running non-linear landmark-based alignment...")
-        cmd = f"antsLandmarkBasedTransformInitializer 3 {fixed_landmarks} {affine_vol_fn}   'bspline' {nl_tfm} {mesh_size}"
+        cmd = [
+            "antsLandmarkBasedTransformInitializer",
+            "3",
+            fixed_landmarks,
+            affine_vol_fn,
+            "bspline",
+            nl_tfm,
+            mesh_size,
+        ]
 
-        stdio = subprocess.run(cmd, shell=True, executable="/bin/bash")
-        logger.info(f"[ANTs] {cmd}")
-        logger.info(f"[ANTs] stdout: {stdio.stdout}")
-
-        subprocess.run(cmd, shell=True, executable="/bin/bash")
+        logger.info(f"[ANTs] {' '.join(cmd)}")
+        stdio = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        if stdio.stdout:
+            logger.info(f"[ANTs] stdout: {stdio.stdout}")
+        if stdio.stderr:
+            logger.info(f"[ANTs] stderr: {stdio.stderr}")
 
         assert os.path.exists(
             nl_tfm
         ), f"Non-linear landmark transform not created: {nl_tfm}"
+
+    if not os.path.exists(nl_vol_fn) or clobber:
+        print("Applying non-linear transform to affine-warped landmarks...")
+        simple_ants_apply_tfm(
+            affine_vol_fn,
+            fixed_landmarks,
+            nl_tfm,
+            nl_vol_fn,
+            ndim=3,
+            n="NearestNeighbor",
+            clobber=clobber,
+        )
+
+    print("\tQC 3")
+    point_qc3_csv = (
+        f"{output_dir}/{os.path.basename(nl_vol_fn).replace('.nii.gz', '_qc.csv')}"
+    )
+
+    calculate_dist_between_labels(fixed_landmarks, nl_vol_fn, point_qc3_csv)
 
     ### 4)  Concatenate transforms and convert to h5
     if not os.path.exists(out_tfm) or clobber:
@@ -593,7 +747,7 @@ def find_landmark_files(sect_info: pd.DataFrame, landmark_dir: str) -> pd.Series
     """
     output_landmark_files = []
 
-    for i, row in sect_info.iterrows():
+    for _, row in sect_info.iterrows():
         # strip path and extension from raw filename
         raw_basename = os.path.basename(row["raw"])
         raw_root = _strip_ext(raw_basename)
@@ -613,7 +767,11 @@ def find_landmark_files(sect_info: pd.DataFrame, landmark_dir: str) -> pd.Series
             )
 
     assert len(output_landmark_files) > 0, f"No landmark files found in {landmark_dir}."
-    return pd.Series(output_landmark_files)
+    landmark_series = np.array(
+        output_landmark_files
+    )  # pd.Series(output_landmark_files)
+    # print("sum", landmark_series.notnull().sum())
+    return landmark_series
 
 
 def load(path: str, dtype: int = np.uint32) -> Tuple:
@@ -822,6 +980,7 @@ def create_landmark_transform(
     # check_for_identical_landmark_values(sect_info["landmark"], moving_landmark_path)
 
     sect_info["landmark"] = find_landmark_files(sect_info, source_landmark_dir)
+    print(sect_info["landmark"])
 
     # check that at least some landmarks are found
     assert (
@@ -858,7 +1017,7 @@ def create_landmark_transform(
         clobber=clobber,
     )
     print("Done")
-
+    return affine_tfm  # FIXME: DELETE ME
     return composite_tfm
     landmark_volume_rsl_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_acq_landmarks_{resolution}mm_{transform_type}_rsl.nii.gz"
 
