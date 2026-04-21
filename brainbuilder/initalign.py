@@ -36,7 +36,7 @@ def align_neighbours_to_fixed(
     shrink_factor: float,
     smooth_sigma: float,
     output_dir: str,
-    tfm_type: str,
+    tfm_type_list: List[str],
     desc: Tuple[str, str, str, str, str, str],
     target_acquisition: Optional[str] = None,
     clobber: bool = False,
@@ -60,18 +60,24 @@ def align_neighbours_to_fixed(
     # then the subsequent sections are considred moving sections (jth section)
     # and are registered to the fixed section.
     i_idx = df["sample"] == i
+    
     fixed_fn = df["img"].loc[i_idx].values[0]
+    
+    level = len(tfm_type_list) - 1
+    
     for j in j_list:
         j_idx = df["sample"] == j
-        outprefix = "{}/init_transforms/{}_{}-0/".format(output_dir, j, tfm_type)
+        tfm_type_final = tfm_type_list[-1]        
+        
+        outprefix = "{}/init_transforms/{}_{}-0/".format(output_dir, j, tfm_type_final)
 
-        moving_rsl_fn = outprefix + "_level-0_Mattes_{}.nii.gz".format(tfm_type)
-        tfm_fn = outprefix + "_level-0_Mattes_{}_Composite.h5".format(tfm_type)
+        moving_rsl_fn = outprefix + "_level-{}_Mattes_{}.nii.gz".format(level, tfm_type_final)
+        tfm_fn = outprefix + "_level-{}_Mattes_{}_Composite.h5".format(level, tfm_type_final)
         concat_tfm_fn = (
-            outprefix + "level-0_Mattes_{}_Composite_Concatenated.h5".format(tfm_type)
+            outprefix + "level-{}_Mattes_{}_Composite_Concatenated.h5".format(level, tfm_type_final)
         )
         qc_fn = "{}/qc/{}_{}_{}_{}_{}_{}-0.png".format(
-            output_dir, *desc, j, i, tfm_type
+            output_dir, *desc, j, i, tfm_type_final
         )
         moving_fn = df["img"].loc[j_idx].values[0]
 
@@ -95,11 +101,11 @@ def align_neighbours_to_fixed(
                 fixed_fn=fixed_fn,
                 moving_fn=moving_fn,
                 moving_rsl_prefix=outprefix + "tmp",
-                iterations=[iteration],
-                metrics=["Mattes"],
-                tfm_type=[tfm_type],
-                shrink_factors=[shrink_factor],
-                smoothing_sigmas=[smooth_sigma],
+                iterations=iteration,
+                metrics=["Mattes"]*len(tfm_type_list),
+                tfm_type=tfm_type_list,
+                shrink_factors=shrink_factor,
+                smoothing_sigmas=smooth_sigma,
                 init_tfm=None,
                 no_init_tfm=False,
                 dim=2,
@@ -203,7 +209,7 @@ def adjust_alignment(
     shrink_factor: float,
     smooth_sigma: float,
     iteration: int,
-    tfm_type: str,
+    tfm_type_list: List[str],
     target_acquisition: Optional[str] = None,
     target_tier: int = 1,
     clobber: bool = False,
@@ -257,7 +263,7 @@ def adjust_alignment(
             shrink_factor,
             smooth_sigma,
             output_dir,
-            tfm_type,
+            tfm_type_list,
             desc,
             target_acquisition=target_acquisition,
             clobber=clobber,
@@ -337,6 +343,7 @@ def alignment_stage(
     target_acquisition: Optional[str] = None,
     target_tier: int = 1,
     acquisition_n: int = 0,
+    tfm_type: List[str] = ["Rigid"],
     clobber: bool = False,
 ) -> Tuple[pd.DataFrame, Dict[int, List[str]]]:
     """Perform alignment of autoradiographs within a chunk.
@@ -355,23 +362,28 @@ def alignment_stage(
     :param clobber: The clobber flag.
     :return: A tuple containing the DataFrame and a dictionary.
     """
-    tfm_type = "Rigid"
 
     # Set parameters for rigid transform
     shrink_factor = linParams.f_str
     smooth_sigma = re.sub("vox", "", linParams.s_str)
     iterations = linParams.itr_str.split(",")[0][1:]
 
-    shrink_factor = "4x3x2x1"
-    smooth_sigma = ".8x0.66x.3x0"
-    iterations = "2000x1000x500x250"
+    
+    tfm_type_list  = tfm_type if isinstance(tfm_type, list) else [tfm_type]
+    tfm_type_final = tfm_type_list[-1] 
+    n_levels = len(tfm_type_list)
+
+    shrink_factor = [ "4x3x2x1" ] * n_levels
+    smooth_sigma = [".8x0.66x.3x0"] * n_levels
+    iterations = ["2000x1000x500x250"] * n_levels
+
 
     csv_fn = vol_fn_str.format(
         output_dir,
         *desc,
         target_acquisition,
         acquisition_n,
-        tfm_type + "-" + str(0),
+        tfm_type_final + "-" + str(0),
         ".csv",
     )
 
@@ -380,7 +392,7 @@ def alignment_stage(
         *desc,
         target_acquisition,
         acquisition_n,
-        tfm_type + "-" + str(0),
+        tfm_type_final + "-" + str(0),
         "nii.gz",
     )
 
@@ -411,7 +423,7 @@ def alignment_stage(
             shrink_factor,
             smooth_sigma,
             iterations,
-            tfm_type,
+            tfm_type_list,
             target_acquisition=target_acquisition,
             target_tier=target_tier,
             clobber=clobber,
@@ -507,6 +519,7 @@ def initalign(
     chunk_info_csv: str,
     output_dir: str,
     resolution_list: list,
+    tfm_type: list = ["Rigid"],
     clobber: bool = True,
 ) -> str:
     """Calulate initial rigid aligment between sections.
@@ -576,6 +589,7 @@ def initalign(
                 curr_sect_info,
                 linParams,
                 curr_chunk_info,
+                tfm_type=tfm_type,
                 clobber=clobber,
             )
 
@@ -632,6 +646,7 @@ def align_chunk(
     sect_info: pd.DataFrame,
     linParams: utils.AntsParams,
     chunk_info: pd.DataFrame,
+    tfm_type : List[str] = ["Rigid"],
     clobber: bool = False,
 ) -> pd.DataFrame:
     """Calulate initial rigid aligment between sections for a given chunk.
@@ -686,6 +701,7 @@ def align_chunk(
         acquisition_n=0,
         target_tier=1,
         desc=(sub, hemisphere, chunk),
+        tfm_type=tfm_type,
         clobber=clobber,
     )
 
@@ -733,6 +749,7 @@ def align_chunk(
             acquisition_n=i,
             target_tier=2,
             desc=(sub, hemisphere, chunk),
+            tfm_type=tfm_type,
             clobber=clobber,
         )
 

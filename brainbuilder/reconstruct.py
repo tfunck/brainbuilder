@@ -64,7 +64,8 @@ def reconstruct(
     n_depths: int = 0,
     use_3d_syn_cc: bool = True,
     use_syn: bool = True,
-    linear_steps: list = ["rigid", "similarity", "affine"],
+    init_tfm_type: str = ["rigid"],
+    vol_lin_tfm_type: list = ["rigid", "similarity", "affine"],
     seg_method: str = "nnunetv1",
     num_cores: int = None,
     max_resolution_3d: float = 0.3,
@@ -138,7 +139,7 @@ def reconstruct(
     logger.info(f"\t\tMax 3D resolution: {max_resolution_3d}")
     logger.info(f"\t\tFinal resolution: {final_resolution}")
     logger.info(f"\t\tResolution list: {resolution_list}")
-    logger.info(f"\t\tLinear steps: {linear_steps}")
+    logger.info(f"\t\tLinear steps: {vol_lin_tfm_type}")
     logger.info(f"\t\tNumber of cores: {num_cores}")
     logger.info(f"\t\tSegmentation method: {seg_method}")
     logger.info(f"\t\tUse 3D nonlinear CC: {use_3d_syn_cc}")
@@ -192,7 +193,7 @@ def reconstruct(
     logger.info("Stage: Initial rigid alignment of sections")
     # Stage: Initial rigid aligment of sections
     sect_info_csv, chunk_info_csv = initalign(
-        sect_info_csv, chunk_info_csv, output_dir, resolution_list, clobber=clobber
+        sect_info_csv, chunk_info_csv, output_dir, resolution_list, tfm_type=init_tfm_type, clobber=clobber
     )
 
     if use_intensity_correction:
@@ -214,7 +215,7 @@ def reconstruct(
             use_3d_syn_cc=use_3d_syn_cc,
             use_syn=use_syn,
             num_cores=num_cores,
-            linear_steps=linear_steps,
+            linear_steps=vol_lin_tfm_type,
             interpolation=interpolation_2d,
             landmark_dir=landmark_dir,
             clobber=clobber,

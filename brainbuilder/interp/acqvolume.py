@@ -86,7 +86,7 @@ def thicken_sections_within_chunk(
     section_thickness: float,
     chunk_sect_info: pd.DataFrame,
     resolution: float,
-    target_section: str = "2d_align",
+    target_section: str = "2d_align_out",
     gaussian_sd: float = 0,
     width: int = None,
 ) -> None:
@@ -123,8 +123,6 @@ def thicken_sections_within_chunk(
         y = int(row["sample"])
 
         nl_2d_rsl = row[target_section]
-
-        print(nl_2d_rsl)
 
         assert os.path.exists(
             nl_2d_rsl
@@ -325,7 +323,7 @@ def create_thickened_volumes(
     sect_info: pd.DataFrame,
     resolution: float,
     tissue_type: str = None,
-    target_section: str = "2d_align",
+    target_section: str = "2d_align_out",
     gaussian_sd: float = 0,
     width: int = None,
     clobber: bool = False,
