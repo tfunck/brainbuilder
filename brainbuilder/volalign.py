@@ -617,6 +617,7 @@ def align_chunk(
             )
 
     # un a final alignment
+    chunk_info_out_prev = chunk_info_out.copy()
 
     paths = MultiResPaths(
         sub=sub,
@@ -662,6 +663,11 @@ def align_chunk(
         landmark_dir=landmark_dir,
         clobber=clobber,
     )
+
+    COLS_2D = ["nl_2d_dir", "nl_2d_vol_fn", "nl_2d_vol_cls_fn"]
+    for col in COLS_2D:
+        if col in chunk_info_out_prev.columns:
+            chunk_info_out[col] = chunk_info_out_prev[col].values
     chunk_info_out["pass"] = pass_step
     logger.info("Finished final alignment iteration at highest resolution")
 

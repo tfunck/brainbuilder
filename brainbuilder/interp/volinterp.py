@@ -560,12 +560,22 @@ def prepare_chunk_info_for_stx(chunk_info, acq_interp_chunk_info):
 
 
 def apply_interpolated_volumes_to_stx(
-    curr_chunk_info, curr_hemi_info, resolution, output_dir, interpolation, clobber
+    curr_chunk_info,
+    curr_hemi_info,
+    resolution,
+    output_dir,
+    interpolation,
+    clobber,
+    sub=None,
+    hemisphere=None,
 ):
     ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
 
+    ref_rsl_dir = os.path.join(output_dir, f"sub-{sub}", f"hemi-{hemisphere}")
+    os.makedirs(ref_rsl_dir, exist_ok=True)
+
     ref_vol_rsl_fn = utils.resample_struct_reference_volume(
-        ref_vol_fn, resolution, output_dir, clobber=clobber
+        ref_vol_fn, resolution, ref_rsl_dir, clobber=clobber
     )
 
     curr_chunk_info["ref_vol_rsl_list"] = ref_vol_rsl_fn
@@ -675,6 +685,8 @@ def volumetric_pipeline(
                 output_dir,
                 interpolation,
                 clobber,
+                sub=sub,
+                hemisphere=hemisphere,
             )
 
     chunk_info_out = pd.concat(chunk_info_list, ignore_index=True)
