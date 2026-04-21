@@ -54,7 +54,7 @@ def apply_final_2d_transforms(
     """
     os.makedirs(final_tfm_dir, exist_ok=True)
 
-    curr_sect_info["2d_align"] = curr_sect_info["img"].apply(
+    curr_sect_info["2d_align_out"] = curr_sect_info["img"].apply(
         lambda x: f"{final_tfm_dir}/{os.path.basename(x)}"
     )
     curr_sect_info["2d_align_cls"] = curr_sect_info["seg"].apply(
@@ -189,16 +189,19 @@ def volumetric_interpolation_over_dataframe(
         ):
             final_resolution = float(resolution_list[-1])
 
-        if final_resolution is not None and isinstance(final_resolution, float):
-            final_tfm_dir = curr_output_dir + "/final_tfm_2d"
-
-            curr_sect_info = apply_final_2d_transforms(
-                curr_sect_info,
-                final_tfm_dir,
-                final_resolution,
-                interpolation,
-                num_cores,
-            )
+        # FIXME: Not yet implemented because 'raw' images need to be padded in the same way as in downsample images, 'img'
+        # one possible solution is to keep the origin fixed and only pad around the exterior of the image,
+        # but this needs to be implemented and tested in downsample.py first
+        # if final_resolution is not None and isinstance(final_resolution, float):
+        #    final_tfm_dir = curr_output_dir + "/final_tfm_2d"
+        #
+        #    curr_sect_info = apply_final_2d_transforms(
+        #        curr_sect_info,
+        #        final_tfm_dir,
+        #        final_resolution,
+        #        interpolation,
+        #        num_cores,
+        #    )
 
         curr_chunk_info = chunk_info[(chunk_info["chunk"] == chunk)]
 
@@ -210,6 +213,7 @@ def volumetric_interpolation_over_dataframe(
             resolution,
             resolution_list,
             interpolation=interpolation,
+            target_section=target_section,
             num_cores=num_cores,
             clobber=clobber,
         )
@@ -633,6 +637,17 @@ def volumetric_pipeline(
         ]
         assert len(curr_hemi_info) > 0, "Error: no hemisphere info found"
 
+        # If the 2D aligned sections at the original resolution have already been calculated, use those for interpolation.
+        # '2d_align' is the column name for the 2D aligned images at 2D resolution (not 3D) before 3D - 2D created in align/intervolume.py
+        # This is used if no 3D - 2D alignment has been done.
+        # '2d_align_out' is the column name for 2D aligned images after 3D - 2D alignment at a given resolution, created in align/align_2d.py
+        # This is used if 3D - 2D alignment has already been done and we want to use those aligned images for interpolation instead of the original 2D aligned images.
+        target_section = (
+            "2d_align_out"
+            if "2d_align_out" in sect_info_sub_hemi.columns
+            else "2d_align"
+        )
+
         # Volumetric interpolation
         print("Volumetric Interpolation for sub:", sub, "hemi:", hemisphere)
         acq_interp_chunk_info = volumetric_interpolation_over_dataframe(
@@ -643,6 +658,7 @@ def volumetric_pipeline(
             resolution_list,
             final_resolution=final_resolution,
             interpolation=interpolation,
+            target_section=target_section,
             num_cores=num_cores,
             clobber=clobber,
         )
