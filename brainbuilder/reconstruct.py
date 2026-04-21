@@ -101,7 +101,8 @@ def reconstruct(
     :param n_depths: int, number of mid-surface depths between GM and WM surface (default=0)
     :param use_3d_syn_cc: bool, use 3D nonlinear SyN with cross-correlation (default=True)
     :param use_syn: bool, use 2D nonlinear SyN (default=True)
-    :param linear_steps: list, linear transformation steps for alignment (default=['rigid', 'similarity', 'affine'])
+    :param init_tfm_type: list, initial transformation types to use for alignment (default=['rigid'])
+    :param vol_lin_tfm_type: list, linear transformation types to use for volume alignment (default=['rigid', 'similarity', 'affine'])
     :param seg_method: str, segmentation method ('nnunetv1', 'nnunetv2', 'otsu', 'triangle') (default='nnunetv1')
     :param nnunet_model_dir: str, path to nnUNet model directory for segmentation
     :param nnunet_config_json: str, path to nnUNet configuration JSON file
