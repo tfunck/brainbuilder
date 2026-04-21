@@ -495,37 +495,7 @@ def prepare_chunk_info_for_stx(chunk_info, curr_chunk_info):
     )
     return merged
 
-def apply_interpolated_volumes_to_stx(curr_chunk_info, curr_hemi_info, resolution, output_dir, interpolation, clobber):
-    ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
 
-    ref_vol_rsl_fn = utils.resample_struct_reference_volume(
-        ref_vol_fn, resolution, output_dir, clobber=clobber
-    )
-
-    curr_chunk_info["ref_vol_rsl_fn"] = ref_vol_rsl_fn
-
-    for _, row in curr_chunk_info.iterrows():
-        interp_nat_fin = row["interp_nat"]
-        interp_stx_fin = row["interp_stx"]
-
-        nl_3d_tfm_fn = (
-            curr_chunk_info["nl_3d_tfm_fn"]
-            .loc[curr_chunk_info["chunk"] == row["chunk"]]
-            .values[0]
-        )
-
-        if not os.path.exists(interp_stx_fin) or clobber:
-            cmd = f"antsApplyTransforms -d 3 -n {interpolation} -i {interp_nat_fin} -o {interp_stx_fin} -r {ref_vol_rsl_fn} -t {nl_3d_tfm_fn} --float 1"
-
-            print(cmd)
-
-            run(cmd, shell=True)
-
-            assert (
-            nib.load(interp_stx_fin).get_fdata().sum() > 0
-            ), "Error: Empty Output"
-
-    return curr_chunk_info
 
 def prepare_chunk_info_for_stx(chunk_info, acq_interp_chunk_info):
     """Prepare and modify curr_chunk_info for final alignment to stx space.
@@ -554,9 +524,14 @@ def apply_interpolated_volumes_to_stx(
     curr_chunk_info, curr_hemi_info, resolution, output_dir, interpolation, clobber
 ):
     ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
+    sub = curr_chunk_info["sub"].values[0]
+    hemisphere = curr_chunk_info["hemisphere"].values[0]
+    chunk=curr_chunk_info["chunk"].values[0]
+    ref_rsl_dir = os.path.join(output_dir, f"sub-{sub}", f"hemi-{hemisphere}", f"chunk-{chunk}")
+    os.makedirs(ref_rsl_dir, exist_ok=True)
 
     ref_vol_rsl_fn = utils.resample_struct_reference_volume(
-        ref_vol_fn, resolution, output_dir, clobber=clobber
+        ref_vol_fn, resolution, ref_rsl_dir, clobber=clobber
     )
 
     curr_chunk_info["ref_vol_rsl_list"] = ref_vol_rsl_fn
