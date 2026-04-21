@@ -192,7 +192,7 @@ def reconstruct(
         seg_dir,
         max_resolution_2d,
         seg_method=seg_method,
-        model_dir = nnunet_model_dir,
+        model_dir=nnunet_model_dir,
         nnunet_config_json=nnunet_config_json,
         clobber=clobber,
     )
@@ -228,7 +228,6 @@ def reconstruct(
             landmark_dir=landmark_dir,
             clobber=clobber,
         )
-    exit()  # FIXME DELETE ME
     # qc.data_set_quality_control(align_sect_info_csv, qc_dir, column="init_img")
 
     # Stage: Interpolate missing sections

@@ -14,7 +14,11 @@ from skimage.transform import resize
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
 from brainbuilder.utils.ANTs import ANTs
-from brainbuilder.utils.paths import _init_align_dir, _init_align_filename
+from brainbuilder.utils.paths import (
+    _init_align_chunk_dir,
+    _init_align_dir,
+    _init_align_filename,
+)
 from brainbuilder.utils.utils import AntsParams, get_logger
 
 logger = get_logger(__name__)
@@ -567,12 +571,16 @@ def initalign(
 
             init_volume = _init_align_filename(output_dir, sub, hemisphere, chunk)
 
+            init_align_chunk_dir = _init_align_chunk_dir(
+                output_dir, sub, hemisphere, chunk
+            )
+
             curr_sect_info, curr_chunk_info = align_chunk(
                 sub,
                 hemisphere,
                 chunk,
                 init_volume,
-                init_align_dir,
+                init_align_chunk_dir,
                 curr_sect_info,
                 linParams,
                 curr_chunk_info,

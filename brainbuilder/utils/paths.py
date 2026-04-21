@@ -10,9 +10,10 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 
-def define_new_path_column(df: pd.DataFrame, output_dir: str, tag: str, col:str='img', ext:str='.nii.gz') -> pd.DataFrame:
-    """
-    Define a new column in the dataframe for the downsampled image paths based on the raw file paths.
+def define_new_path_column(
+    df: pd.DataFrame, output_dir: str, tag: str, col: str = "img", ext: str = ".nii.gz"
+) -> pd.DataFrame:
+    """Define a new column in the dataframe for the downsampled image paths based on the raw file paths.
 
     :param df: input dataframe containing a 'raw' column with the paths to the raw files
     :param output_dir: base output directory where the downsampled files will be saved
@@ -20,12 +21,13 @@ def define_new_path_column(df: pd.DataFrame, output_dir: str, tag: str, col:str=
     :param col: name of the new column to be added to the dataframe (default='img')
     :return: updated dataframe with the new column containing the paths to the new file names
     """
-
     # check that the dataframe has the required columns
-    required_cols = ['sub', 'hemisphere', 'chunk', 'raw']
+    required_cols = ["sub", "hemisphere", "chunk", "raw"]
     for c in required_cols:
         if c not in df.columns:
-            raise ValueError(f"DataFrame must contain the following columns: {required_cols}. Missing column: {c}")
+            raise ValueError(
+                f"DataFrame must contain the following columns: {required_cols}. Missing column: {c}"
+            )
 
     df[col] = [""] * len(df)
 
@@ -55,14 +57,12 @@ def define_new_path_column(df: pd.DataFrame, output_dir: str, tag: str, col:str=
     return df
 
 
-
 def _multires_root_dir(output_dir):
     return f"{output_dir}/3_multires_align/"
 
 
 def _init_align_filename(output_dir, sub, hemi, chunk) -> Path:
-    init_align_dir = _init_align_dir(output_dir)
-    init_align_chunk_dir = _init_align_chunk_dir(init_align_dir, sub, hemi, chunk)
+    init_align_chunk_dir = _init_align_chunk_dir(output_dir, sub, hemi, chunk)
 
     os.makedirs(init_align_chunk_dir, exist_ok=True)
 
@@ -72,7 +72,8 @@ def _init_align_filename(output_dir, sub, hemi, chunk) -> Path:
 
 
 def _init_align_chunk_dir(output_dir, sub, hemi, chunk) -> Path:
-    return f"{output_dir}/sub-{sub}/hemi-{hemi}/chunk-{chunk}/"
+    init_align_dir = _init_align_dir(output_dir)
+    return f"{init_align_dir}/sub-{sub}/hemi-{hemi}/chunk-{chunk}/"
 
 
 def _init_align_dir(output_dir) -> Path:
@@ -182,7 +183,7 @@ class MultiResPaths:
 
     @property
     def rec_3d_rsl_fn(self) -> Path:
-        return f"{self.align_3d_dir}/{self.prefix}_rec_space-mri.nii.gz"
+        return f"{self.align_3d_dir}/{self.prefix}_moving_rsl.nii.gz"
 
     @property
     def ref_3d_rsl_fn(self) -> Path:
@@ -190,11 +191,11 @@ class MultiResPaths:
 
     @property
     def nl_3d_tfm_fn(self) -> Path:
-        return f"{self.align_3d_dir}/{self.prefix}_rec_to_mri_SyN_{self.nl_method}_Composite.h5"
+        return f"{self.align_3d_dir}/{self.prefix}_SyN_{self.nl_method}_Composite.h5"
 
     @property
     def nl_3d_tfm_inv_fn(self) -> Path:
-        return f"{self.align_3d_dir}/{self.prefix}_rec_to_mri_SyN_{self.nl_method}_InverseComposite.h5"
+        return f"{self.align_3d_dir}/{self.prefix}_SyN_{self.nl_method}_InverseComposite.h5"
 
     @property
     def nl_2d_vol_fn(self) -> Path:

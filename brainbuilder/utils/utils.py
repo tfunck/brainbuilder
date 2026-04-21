@@ -2,6 +2,7 @@
 
 import ast
 import contextlib
+import json
 import logging
 import multiprocessing
 import os
@@ -551,9 +552,8 @@ def resample_struct_reference_volume(
     struct_vol_rsl_fn = f"{output_dir}/{base_name}"
 
     if not os.path.exists(struct_vol_rsl_fn) or clobber:
-
         os.makedirs(output_dir, exist_ok=True)
-        
+
         resample_to_resolution(orig_struct_vol_fn, [resolution] * 3, struct_vol_rsl_fn)
 
     return struct_vol_rsl_fn
@@ -1334,9 +1334,142 @@ def calculate_sigma_for_downsampling(new_pixel_spacing: float) -> float:
     return sigma
 
 
+# L = -1, P = -1, S = -1, R = 1, A = 1, I = 1
+str_to_dir = {
+    "l": -1.0,
+    "L": -1.0,
+    "r": 1.0,
+    "R": 1.0,
+    "p": -1.0,
+    "P": -1.0,
+    "a": 1.0,
+    "A": 1.0,
+    "i": 1.0,
+    "I": 1.0,
+    "s": -1.0,
+    "S": -1.0,
+}
+
+
+def check_volume_orientation(
+    input_file_path: str, expected_direction_str: str, output_dir: str
+) -> str:
+    """Check if the coordinate system of the input volume matches the expected direction. If not, convert the volume to the expected direction and save it in the output directory.
+
+    :param input_file_path: str, path to the input volume file
+    :param expected_direction_str: str, expected direction as a string of length 2 or
+    3 (e.g. "lpi" or "li")
+    :param output_dir: str, directory to save the converted volume if needed
+    :return: str, path to the volume with the expected direction (either the original file or the converted file)
+    """
+    """Memoized orientation check/conversion.
+
+    This can be called many times in a pipeline. We avoid re-reading the full NIfTI
+    unless the input file changed (mtime/size) or the expected direction changed.
+    """
+
+    assert isinstance(expected_direction_str, str) and len(expected_direction_str) in [
+        2,
+        3,
+    ], (
+        f"Error: expected_direction_str must be a string of length 2 or 3, got {expected_direction_str} "
+        f"with length {len(expected_direction_str)}"
+    )
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    def _converted_path(in_path: str, suffix: str) -> str:
+        base = os.path.basename(in_path)
+        if base.endswith(".nii.gz"):
+            root = base[:-7]
+            ext = ".nii.gz"
+        else:
+            root, ext = os.path.splitext(base)
+        return os.path.join(output_dir, f"{root}_{suffix}{ext}")
+
+    converted_file_path = _converted_path(input_file_path, expected_direction_str)
+
+    # --- tiny persistent cache (stat() only, no image IO on cache hits)
+    cache_path = os.path.join(output_dir, ".brainbuilder_orientation_cache.json")
+    cache_key = f"{os.path.abspath(input_file_path)}|{expected_direction_str}"
+
+    try:
+        st = os.stat(input_file_path)
+        mtime_ns = int(getattr(st, "st_mtime_ns", int(st.st_mtime * 1e9)))
+        size = int(st.st_size)
+    except FileNotFoundError:
+        raise
+
+    cache = {}
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, "r") as f:
+                cache = json.load(f) or {}
+        except Exception:
+            cache = {}
+
+    entry = cache.get(cache_key)
+    if (
+        isinstance(entry, dict)
+        and entry.get("mtime_ns") == mtime_ns
+        and entry.get("size") == size
+        and isinstance(entry.get("output"), str)
+        and os.path.exists(entry["output"])
+    ):
+        return entry["output"]
+
+    # Cache miss: do the real check
+    img = ants.image_read(input_file_path)
+    actual_direction = preprocess_direction_argument(img.direction, str_to_dir)
+    expected_direction = preprocess_direction_argument(
+        expected_direction_str, str_to_dir
+    )
+
+    # check if expected and actual direction are the same, if not convert to expected direction
+    if np.array_equal(np.asarray(actual_direction), np.asarray(expected_direction)):
+        output_file_path = input_file_path
+    else:
+        output_file_path = converted_file_path
+        if not os.path.exists(converted_file_path):
+            vol = img.numpy()
+            vol, origin, direction = convert_coordinate_system(
+                vol,
+                np.array(img.origin, dtype=float),
+                np.array(img.spacing, dtype=float),
+                actual_direction,
+                expected_direction,
+            )
+
+            # write output volume with ants
+            ants.image_write(
+                ants.from_numpy(
+                    vol,
+                    origin=list(origin),
+                    spacing=list(img.spacing),
+                    direction=direction,
+                ),
+                converted_file_path,
+            )
+
+    # update cache (best-effort)
+    cache[cache_key] = {
+        "mtime_ns": mtime_ns,
+        "size": size,
+        "output": output_file_path,
+    }
+    try:
+        tmp = f"{cache_path}.tmp"
+        with open(tmp, "w") as f:
+            json.dump(cache, f)
+        os.replace(tmp, cache_path)
+    except Exception:
+        pass
+
+    return output_file_path
+
+
 def preprocess_direction_argument(dirs: Union[str, list], str_to_dir: dict) -> list:
     """Preprocess the direction argument for coordinate system conversion."""
-    
     if isinstance(dirs, str):
         dirs = [str_to_dir[c] for c in dirs]
         # turn vector of length 3 into a diagonal matrix
@@ -1350,44 +1483,39 @@ def preprocess_direction_argument(dirs: Union[str, list], str_to_dir: dict) -> l
 
     return dirs
 
-def  convert_coordinate_system(vol:np.ndarray, origin, step:np.array, in_dir:Union[str,list], out_dir:Union[str,list]) -> np.ndarray:
+
+def convert_coordinate_system(
+    vol: np.ndarray,
+    origin,
+    step: np.array,
+    in_dir: Union[str, list],
+    out_dir: Union[str, list],
+) -> np.ndarray:
     """Convert the coordinate system of a volume from in_dir to out_dir.
     in_dir and out_dir can be either a string of length 3 (e.g. "lpi") or a list of 3 integers (e.g. [1, -1, 1]) where 1 indicates positive direction and -1 indicates negative direction for each axis.
     """
-    # L = -1, P = -1, S = -1, R = 1, A = 1, I = 1
-    str_to_dir = {
-        "l": -1.,
-        "L": -1.,
-        "r": 1.,
-        "R": 1.,
-        "p": -1.,
-        "P": -1.,
-        "a": 1.,
-        "A": 1.,
-        "i": 1.,
-        "I": 1.,
-        "s": -1.,
-        "S": -1.,
-    }
-
     in_dir = preprocess_direction_argument(in_dir, str_to_dir)
     out_dir = preprocess_direction_argument(out_dir, str_to_dir)
 
-    # out_dir needs to be the same length as the in_dir, 
-    # e.g., if "LPI" is passed for out_dir but the input volume is 2D, 
+    # out_dir needs to be the same length as the in_dir,
+    # e.g., if "LPI" is passed for out_dir but the input volume is 2D,
     # then out_dir should be "LP" or [1, -1]
-    out_dir = out_dir[:vol.ndim][:vol.ndim]
+    out_dir = out_dir[: vol.ndim][: vol.ndim]
 
-    assert len(in_dir) == len(out_dir) == vol.ndim, "Dimension mismatch between volume and direction vectors."
+    assert (
+        len(in_dir) == len(out_dir) == vol.ndim
+    ), "Dimension mismatch between volume and direction vectors."
     for i in range(vol.ndim):
         if in_dir[i][i] != out_dir[i][i]:
             vol = np.flip(vol, axis=i)
             # update the direction in the affine
-            #step[i, i] = step[i] * out_dir[i] / in_dir[i] 
+            # step[i, i] = step[i] * out_dir[i] / in_dir[i]
 
             # need to flip the origin in the affine as well
             # the origin is in the last column of the affine, and the spacing is in the diagonal
-            origin[i] = origin[i] - (vol.shape[i] - 1) * step[i] * in_dir[i][i]/out_dir[i][i]
+            origin[i] = (
+                origin[i] - (vol.shape[i] - 1) * step[i] * in_dir[i][i] / out_dir[i][i]
+            )
 
     return vol, origin, out_dir
 
@@ -1466,20 +1594,29 @@ def resample_to_resolution(
 
     step = np.diag(affine)[0:ndim]
 
-    vol, origin, direction = convert_coordinate_system(vol, np.array(origin), step, direction, direction_order)
-    
-    if not isinstance(output_filename, type(None)):
-        ants.image_write(ants.from_numpy(vol, origin=list(origin), spacing=list(step), direction=direction), output_filename)
-    
-        img_out = nib.load(output_filename)
-    else :
-        for i in range(ndim):
-            affine[i,i] = step[i] * direction[i,i]
-        affine[range(ndim), 3] = origin
-        img_out = nib.Nifti1Image(vol, affine, dtype=dtype, direction_order=direction_order)
-    #img_out = nib.Nifti1Image(vol, affine, dtype=dtype, direction_order=direction_order)
+    vol, origin, direction = convert_coordinate_system(
+        vol, np.array(origin), step, direction, direction_order
+    )
 
-    #if isinstance(output_filename, str):
+    if not isinstance(output_filename, type(None)):
+        ants.image_write(
+            ants.from_numpy(
+                vol, origin=list(origin), spacing=list(step), direction=direction
+            ),
+            output_filename,
+        )
+
+        img_out = nib.load(output_filename)
+    else:
+        for i in range(ndim):
+            affine[i, i] = step[i] * direction[i, i]
+        affine[range(ndim), 3] = origin
+        img_out = nib.Nifti1Image(
+            vol, affine, dtype=dtype, direction_order=direction_order
+        )
+    # img_out = nib.Nifti1Image(vol, affine, dtype=dtype, direction_order=direction_order)
+
+    # if isinstance(output_filename, str):
     #    img_out.to_filename(output_filename)
 
     return img_out

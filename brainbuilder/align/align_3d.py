@@ -301,14 +301,13 @@ def write_ref_chunk_with_landmark_transform(
     landmark_dir: str,
     output_dir: str,
     ref_landmark_volume: str,
-    acq_rsl_fn: str,
     padding_offset: float = 0.15,
     clobber: bool = False,
 ):
     # 1 Calculate the landmark transform from acquisition to reference space
     ymax = nib.load(chunk_info["init_volume"].values[0]).shape[1]
 
-    landmarks_out_dir = output_dir + f"/ref_chunk_landmarks/{max_resolution_3d}mm"
+    landmarks_out_dir = output_dir + f"/ref_chunk_landmarks/{max_resolution_3d}mm/"
 
     os.makedirs(landmarks_out_dir, exist_ok=True)
 
@@ -322,13 +321,13 @@ def write_ref_chunk_with_landmark_transform(
         max_resolution_3d,
         sect_info,
         chunk_info["init_volume"].values[0],  # reference volume for image dimensions
-        acq_landmark_volume,  # acq landmark volume
+        acq_landmark_volume,  # acq landmark volume for reference
         acq_landmark_volume,  # moving landmark volume
         ref_landmark_volume,  # fixed landmark volume
         landmark_dir,
         landmarks_out_dir,
-        chunk_info["init_volume"].values[0],
-        ref_vol_fn,
+        chunk_info["init_volume"].values[0],  # qc moving volume for visualisation
+        ref_vol_fn,  # qc fixed volume for visualisation
         ymax,
         chunk_info["section_thickness"].values[0],
         padding_offset=padding_offset,
@@ -337,17 +336,14 @@ def write_ref_chunk_with_landmark_transform(
 
     # 2 Create a indicator .nii.gz volume of all 1s and save in space of acquisition volume
     acq_indicator_volume = create_indicator_volume(
-        acq_landmark_volume, output_dir, clobber=clobber
+        acq_landmark_volume, landmarks_out_dir, clobber=clobber
     )
-    print(acq_indicator_volume)
-    print(chunk_info["init_volume"].values[0])
 
     # 3 Apply the landmark transform to the indicator volume to get a warped indicator volume in the space of the reference volume, with nearest neighbours
     ref_indicator_volume = acq_indicator_volume.replace(".nii.gz", "_space-stx.nii.gz")
-    clobber = True
+
     utils.simple_ants_apply_tfm(
-        # acq_indicator_volume,
-        chunk_info["init_volume"].values[0],  # reference volume for image dimensions
+        acq_indicator_volume,
         ref_vol_fn,
         landmark_composite_tfm_path,
         ref_indicator_volume,
@@ -357,7 +353,7 @@ def write_ref_chunk_with_landmark_transform(
 
     # 4 Use the reference space warped indicator volume to mask the reference volume to get the reference chunk
     ref_chunk_fn = crop_volume_with_indicator(
-        ref_vol_fn, ref_indicator_volume, output_dir, sub, hemi, chunk, clobber
+        ref_vol_fn, ref_indicator_volume, landmarks_out_dir, sub, hemi, chunk, clobber
     )
 
     return ref_chunk_fn
@@ -420,7 +416,6 @@ def write_ref_chunk(
             landmark_dir,
             out_dir,
             ref_landmark_volume,
-            acq_rsl_fn,
             padding_offset=padding_offset,
             clobber=clobber,
         )

@@ -155,6 +155,10 @@ def multiresolution_alignment(
                 .values[0]
             )
 
+            ref_vol_fn = utils.check_volume_orientation(
+                ref_vol_fn, expected_direction_str="LPI", output_dir=align_output_dir
+            )
+
             chunk_info_row, curr_sect_info = align_chunk(
                 chunk_info_row,
                 curr_sect_info,
@@ -527,6 +531,32 @@ def align_chunk(
     sect_info_out = sect_info
     chunk_info_out = chunk_info_row
 
+    ref_landmark_volume = (
+        chunk_info_row["ref_landmark"].values[0]
+        if "ref_landmark" in chunk_info_row.columns
+        else ""
+    )
+
+    use_landmark_transform = _set_use_landmark_transform(
+        ref_landmark_volume, landmark_dir
+    )
+
+    ref_vol_fn = write_ref_chunk(
+        sect_info,
+        chunk_info_row,
+        sub,
+        hemisphere,
+        chunk,
+        ref_vol_fn,
+        landmark_dir,
+        output_dir,
+        max_resolution_3d,
+        ref_landmark_volume,
+        chunk_info_row["init_volume"].values[0],
+        use_landmark_transform=use_landmark_transform,
+        clobber=clobber,
+    )
+
     ### Iterate over progressively finer resolution
     for resolution_itr, resolution in enumerate(resolution_list):
         resolution_3d = resolution_list_3d[resolution_itr]
@@ -541,33 +571,6 @@ def align_chunk(
             # 1) Create intermediate GM volume using best availble 2D transforms
             # 2) Align GM volume to MRI in 3D
             # 3) Align sections to GM volume in 2D
-
-            ref_landmark_volume = (
-                chunk_info_row["ref_landmark"].values[0]
-                if "ref_landmark" in chunk_info_row.columns
-                else ""
-            )
-
-            use_landmark_transform = _set_use_landmark_transform(
-                ref_landmark_volume, landmark_dir
-            )
-
-            write_ref_chunk(
-                sect_info,
-                chunk_info_row,
-                sub,
-                hemisphere,
-                chunk,
-                ref_vol_fn,
-                landmark_dir,
-                output_dir,
-                max_resolution_3d,
-                ref_landmark_volume,
-                chunk_info_row["init_volume"].values[0],
-                use_landmark_transform=use_landmark_transform,
-                clobber=clobber,
-            )
-            return None, None  # FIXME DEBUG DELETEME
 
             section_thickness = chunk_info_row["section_thickness"].values[0]
 

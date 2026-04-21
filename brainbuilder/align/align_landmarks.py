@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from brainbuilder.utils import ants_nibabel as nib
 from brainbuilder.utils import utils
-from brainbuilder.utils.utils import pad_volume, simple_ants_apply_tfm
+from brainbuilder.utils.utils import simple_ants_apply_tfm
 from joblib import Parallel, delayed
 from scipy.ndimage import binary_dilation, center_of_mass
 from skimage.transform import resize
@@ -231,7 +231,7 @@ def _process_and_save_sparse_landmark_volume(
 
     out_data = resize(out_data, target_dims, anti_aliasing=False, order=0)
 
-    out_data, _ = pad_volume(out_data, np.ones([4, 4]), padding_offset=padding_offset)
+    # out_data, _ = pad_volume(out_data, np.ones([4, 4]), padding_offset=padding_offset)
 
     unique_labels_rsl = np.unique(out_data)[1:]
 
@@ -342,8 +342,6 @@ def process_row(row: pd.Series, clobber: bool = False) -> None:
         )
 
         apply_tfm_and_check(lm_path, raw_path, tfm_path, landmark_2d_rsl)
-
-    exit()
 
 
 def build_sparse_landmark_volume(
@@ -663,6 +661,7 @@ def init_landmark_transform(
 
     if not os.path.exists(nl_tfm) or clobber:
         print("Running non-linear landmark-based alignment...")
+
         cmd = [
             "antsLandmarkBasedTransformInitializer",
             "3",
@@ -980,7 +979,6 @@ def create_landmark_transform(
     # check_for_identical_landmark_values(sect_info["landmark"], moving_landmark_path)
 
     sect_info["landmark"] = find_landmark_files(sect_info, source_landmark_dir)
-    print(sect_info["landmark"])
 
     # check that at least some landmarks are found
     assert (
@@ -1017,7 +1015,6 @@ def create_landmark_transform(
         clobber=clobber,
     )
     print("Done")
-    return affine_tfm  # FIXME: DELETE ME
     return composite_tfm
     landmark_volume_rsl_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_acq_landmarks_{resolution}mm_{transform_type}_rsl.nii.gz"
 

@@ -269,7 +269,9 @@ def chunked_percentile(
     background=None,
     chunk=(48, 48, 48),
 ):
-    """Compute the voxel-wise p-th percentile across a set of volumes in chunks to save memory."""
+    """Average over a set of volumes by taking the p-th percentile (median by default) for each voxel over the volume stack.
+    Compute the voxel-wise p-th percentile across a set of volumes in chunks to save memory.
+    """
     ref = nib.load(fins[0])
 
     shape, affine = ref.shape, ref.affine
@@ -479,6 +481,7 @@ def create_final_transform(
 
     return chunk_info
 
+
 def prepare_chunk_info_for_stx(chunk_info, curr_chunk_info):
     """Prepare and modify curr_chunk_info for final alignment to stx space."""
     merged = pd.merge(
@@ -487,15 +490,18 @@ def prepare_chunk_info_for_stx(chunk_info, curr_chunk_info):
 
     if "acquisition_y" in merged.columns:
         merged["acquisition"] = merged["acquisition_y"]
-    if 'acquisition_y' in merged.columns:
+    if "acquisition_y" in merged.columns:
         del merged["acquisition_y"]
 
     merged["interp_stx"] = merged["interp_nat"].apply(
-    lambda x: x.replace("_iso", "_stx")
+        lambda x: x.replace("_iso", "_stx")
     )
     return merged
 
-def apply_interpolated_volumes_to_stx(curr_chunk_info, curr_hemi_info, resolution, output_dir, interpolation, clobber):
+
+def apply_interpolated_volumes_to_stx(
+    curr_chunk_info, curr_hemi_info, resolution, output_dir, interpolation, clobber
+):
     ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
 
     ref_vol_rsl_fn = utils.resample_struct_reference_volume(
@@ -521,11 +527,10 @@ def apply_interpolated_volumes_to_stx(curr_chunk_info, curr_hemi_info, resolutio
 
             run(cmd, shell=True)
 
-            assert (
-            nib.load(interp_stx_fin).get_fdata().sum() > 0
-            ), "Error: Empty Output"
+            assert nib.load(interp_stx_fin).get_fdata().sum() > 0, "Error: Empty Output"
 
     return curr_chunk_info
+
 
 def prepare_chunk_info_for_stx(chunk_info, acq_interp_chunk_info):
     """Prepare and modify curr_chunk_info for final alignment to stx space.
@@ -613,7 +618,6 @@ def volumetric_pipeline(
         ["sub", "hemisphere"]
     ):
         idx = (chunk_info["sub"] == sub) & (chunk_info["hemisphere"] == hemisphere)
-
 
         if "resolution" in chunk_info.columns:
             idx = idx & (chunk_info["resolution"] == resolution)
