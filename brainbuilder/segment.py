@@ -685,6 +685,17 @@ def get_nnunet_parameters(nnunet_config_json: str, model_dir: str):
 
     return x_scale, foreground_labels, datasetname, fold, checkpoint, nnunet_ext
 
+def _check_missing_segmentations(sect_info: pd.DataFrame, output_dir: str, nnunet_input_str: str) -> bool:
+    missing_segmentations = False
+    for (sub, hemi, chunk), sub_df in sect_info.groupby(
+        ["sub", "hemisphere", "chunk"]
+    ):
+        
+        if not check_seg_files(
+            sub_df, output_dir, False, nnunet_input_str=nnunet_input_str
+        ):
+            missing_segmentations = True
+    return missing_segmentations
 
 def segment(
     sect_info_csv: str,
@@ -720,20 +731,16 @@ def segment(
 
     sect_info = pd.read_csv(sect_info_csv, index_col=False)
 
-    (
-        x_scale,
-        foreground_labels,
-        datasetname,
-        fold,
-        checkpoint,
-        nnunet_ext,
-    ) = get_nnunet_parameters(nnunet_config_json, model_dir)
+   
 
     sect_info = define_new_path_column(
-        sect_info, output_dir, tag=f"{resolution}mm_seg", col="seg", ext=nnunet_ext
+        sect_info, output_dir, tag=f"{resolution}mm_seg", col="seg", ext='.nii.gz'
     )
 
+    run_nnunet = isinstance(seg_method, str) and "nnunet" in seg_method
+
     for _, df in sect_info.groupby(["hemisphere", "chunk"]):
+
         run_stage = utils.check_run_stage(
             df["seg"], df["img"], output_csv, clobber=clobber
         )
@@ -745,28 +752,29 @@ def segment(
 
             num_cores = utils.set_cores(num_cores)
 
-            convert_nifti_to_nnunet(
-                sect_info,
-                output_dir,
-                nnunet_input_str=nnunet_input_str,
-                x_scale=x_scale,
-                nnunet_ext=nnunet_ext,
-                clobber=clobber,
-                num_cores=num_cores,
-            )
+            if run_nnunet:
+                (
+                        x_scale,
+                        foreground_labels,
+                        datasetname,
+                        fold,
+                        checkpoint,
+                        nnunet_ext,
+                ) = get_nnunet_parameters(nnunet_config_json, model_dir)
+                
+                convert_nifti_to_nnunet(
+                    sect_info,
+                    output_dir,
+                    nnunet_input_str=nnunet_input_str,
+                    x_scale=x_scale,
+                    nnunet_ext=nnunet_ext,
+                    clobber=clobber,
+                    num_cores=num_cores,
+                )
 
             # *** CHANGED: check segmentation files per subject using per-subject nnunet_out dirs ***
-            missing_segmentations = False
-            for (sub, hemi, chunk), sub_df in sect_info.groupby(
-                ["sub", "hemisphere", "chunk"]
-            ):
-                sub_nnunet_out = _gen_nnunet_out(output_dir, sub, hemi, chunk)
-
-                if not check_seg_files(
-                    sub_df, output_dir, False, nnunet_input_str=nnunet_input_str
-                ):
-                    missing_segmentations = True
-
+            missing_segmentations = _check_missing_segmentations(sect_info, output_dir, nnunet_input_str)   
+            
             nnunet_failed = False
 
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -778,43 +786,45 @@ def segment(
                 for (sub, hemi, chunk), sub_df in sect_info.groupby(
                     ["sub", "hemisphere", "chunk"]
                 ):
-                    sub_nnunet_in = _gen_nnunet_in(output_dir, sub, hemi, chunk)
-                    sub_nnunet_out = _gen_nnunet_out(output_dir, sub, hemi, chunk)
+                    nnunet_in_dir = _gen_nnunet_in(output_dir, sub, hemi, chunk)
+                    nnunet_out_dir = _gen_nnunet_out(output_dir, sub, hemi, chunk)
 
-                    os.makedirs(sub_nnunet_in, exist_ok=True)
-                    os.makedirs(sub_nnunet_out, exist_ok=True)
+                    os.makedirs(nnunet_in_dir, exist_ok=True)
+                    os.makedirs(nnunet_out_dir, exist_ok=True)
 
-                    nnunet_failed = run_nnunet_segmentation(
-                        seg_method,
-                        sub_nnunet_in,
-                        sub_nnunet_out,
-                        model_dir,
-                        nnUNet_dir,
-                        datasetname,
-                        fold=fold,
-                        checkpoint=checkpoint,
-                        device=device,
+                    if run_nnunet : 
+                        nnunet_failed = run_nnunet_segmentation(
+                            seg_method,
+                            nnunet_in_dir,
+                            nnunet_out_dir,
+                            model_dir,
+                            nnUNet_dir,
+                            datasetname,
+                            fold=fold,
+                            checkpoint=checkpoint,
+                            device=device,
+                        )
+
+                if nnunet_failed or seg_method in HISTOGRAM_METHODS:
+                    # histogram thresholding fallback if nnUNet fails or if user specified histogram thresholding
+                    apply_histogram_threshold(
+                        sect_info, num_cores=num_cores, method=seg_method
                     )
+                elif (
+                    seg_method not in HISTOGRAM_METHODS and "nnunet" not in seg_method
+                ):  # No segmentation method specified, use unsegmented images instead
+                    sect_info = copy_unsegmented_images(sect_info, output_dir, clobber)
 
-            if nnunet_failed or seg_method in HISTOGRAM_METHODS:
-                apply_histogram_threshold(
-                    sect_info, num_cores=num_cores, method=seg_method
-                )
-            elif (
-                seg_method not in HISTOGRAM_METHODS and "nnunet" not in seg_method
-            ):  # No segmentation method specified, use unsegmented images instead
-                sect_info = copy_unsegmented_images(sect_info, output_dir, clobber)
-
-            if not nnunet_failed:
-                process_nnunet_to_nifti(
-                    sect_info,
-                    output_dir,
-                    nnunet_input_str,
-                    num_cores,
-                    seg_method,
-                    foreground_labels=foreground_labels,
-                    clobber=clobber,
-                )
+                if run_nnunet and not nnunet_failed:
+                    process_nnunet_to_nifti(
+                        sect_info,
+                        output_dir,
+                        nnunet_input_str,
+                        num_cores,
+                        seg_method,
+                        foreground_labels=foreground_labels,
+                        clobber=clobber,
+                    )
 
             for _, temp_sect_info in sect_info.groupby(["sub", "hemisphere", "chunk"]):
                 assert check_seg_files(
