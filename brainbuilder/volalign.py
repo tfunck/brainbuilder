@@ -20,15 +20,6 @@ from brainbuilder.utils.paths import MultiResPaths, _multires_root_dir
 
 logger = utils.get_logger(__name__)
 
-
-def _set_use_landmark_transform(ref_landmark_volume, landmark_dir):
-    return (
-        True
-        if os.path.exists(ref_landmark_volume) and os.path.exists(landmark_dir)
-        else False
-    )
-
-
 def check_chunk_outputs(chunk_csv: str) -> None:
     """Check if chunk outputs exist, if not remove the chunk output csv and the chunk output directory.
 
@@ -347,19 +338,6 @@ def alignment_iteration(
 
     chunk_info_out = pd.DataFrame()
 
-    # downsample the original ref gm mask to current 3d resolution
-    if not os.path.exists(paths.ref_rsl_fn):
-        order = 1
-
-        utils.resample_to_resolution(
-            ref_vol_fn,
-            [resolution_3d] * 3,
-            paths.ref_rsl_fn,
-            order=order,
-            dtype=np.uint8,
-            factor=255,
-        )
-
     # insert 2d intersection alignment
     use_2d_intersection = False
 
@@ -386,7 +364,7 @@ def alignment_iteration(
         paths.intermediate_volume_dir,
         paths.acq_rsl_fn,
         paths.init_volume,
-        num_cores=num_cores,
+        num_cores = num_cores,
         clobber=clobber,
     )
 
@@ -396,37 +374,29 @@ def alignment_iteration(
         paths.acq_rsl_fn, paths.acq_pad_fn, resolution, padding_offset=padding_offset
     )
 
-    use_landmark_transform = _set_use_landmark_transform(
-        paths.ref_landmark_volume, landmark_dir
+    _, landmark_composite_tfm_path = write_ref_chunk(
+        sect_info,
+        chunk_info,
+        sub,
+        hemisphere,
+        chunk,
+        ref_vol_fn,
+        paths.ref_rsl_fn,
+        landmark_dir,
+        paths.align_3d_dir,
+        paths.landmark_dir,
+        resolution_3d,
+        max_resolution_3d,
+        paths.moving_landmark_volume,
+        paths.fixed_landmark_volume,
+        paths.moving_volume,
+        paths.fixed_volume,
+        paths.acq_landmark_volume,
+        paths.ref_landmark_volume,
+        paths.acq_rsl_fn,
+        padding_offset=padding_offset,
+        clobber=clobber,
     )
-
-    if use_landmark_transform:
-        logger.info("\t\tCreate landmark transform")
-        ymax = nib.load(paths.init_volume).shape[1]
-
-        landmark_composite_tfm_path = create_landmark_transform(
-            sub,
-            hemisphere,
-            chunk,
-            resolution,
-            max_resolution_3d,
-            sect_info,
-            paths.acq_pad_fn,
-            paths.acq_landmark_volume,
-            paths.moving_landmark_volume,
-            paths.fixed_landmark_volume,
-            landmark_dir,
-            paths.landmark_dir,
-            paths.moving_volume,
-            paths.fixed_volume,
-            ymax,
-            section_thickness,
-            padding_offset=padding_offset,
-            clobber=clobber,
-        )
-    else:
-        landmark_composite_tfm_path = None
-        logger.info("\t\tNo landmark transform provided")
 
     ###
     ### Stage 3.2 : Align chunks to MRI
@@ -476,11 +446,13 @@ def alignment_iteration(
     # [composite, init]) separately.
     chunk_info_out["nl_3d_tfm_list"] = [vol_tfm_list]
 
-    sect_info_curr_resolution_csv = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_sect_info.csv"
+    align_dir = _multires_root_dir(output_dir)
+
+    sect_info_curr_resolution_csv = f"{align_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_sect_info.csv"
 
     sect_info.to_csv(sect_info_curr_resolution_csv, index=False)
 
-    chunk_info_curr_resolution_csv = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_chunk_info.csv"
+    chunk_info_curr_resolution_csv = f"{align_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm_chunk_info.csv"
 
     chunk_info_out.to_csv(chunk_info_curr_resolution_csv, index=False)
 
@@ -535,26 +507,6 @@ def align_chunk(
         chunk_info_row["ref_landmark"].values[0]
         if "ref_landmark" in chunk_info_row.columns
         else ""
-    )
-
-    use_landmark_transform = _set_use_landmark_transform(
-        ref_landmark_volume, landmark_dir
-    )
-
-    ref_vol_fn = write_ref_chunk(
-        sect_info,
-        chunk_info_row,
-        sub,
-        hemisphere,
-        chunk,
-        ref_vol_fn,
-        landmark_dir,
-        output_dir,
-        max_resolution_3d,
-        ref_landmark_volume,
-        chunk_info_row["init_volume"].values[0],
-        use_landmark_transform=use_landmark_transform,
-        clobber=clobber,
     )
 
     ### Iterate over progressively finer resolution

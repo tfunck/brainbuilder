@@ -94,7 +94,7 @@ def align_neighbours_to_fixed(
 
         # calculate rigid transform from moving to fixed images
         if not os.path.exists(tfm_fn) or not os.path.exists(qc_fn):
-            logger.info(f"\n\tFixed: {i} {fixed_fn}")
+            logger.info(f"\tFixed: {i} {fixed_fn}")
             logger.info(f"\tMoving: {j} {moving_fn}")
             logger.info(f"\tTfm: {tfm_fn} {os.path.exists(tfm_fn)}")
             logger.info(f"\tQC: {qc_fn} {os.path.exists(qc_fn)}")
