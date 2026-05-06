@@ -658,6 +658,8 @@ def volumetric_pipeline(
             else "2d_align"
         )
 
+        print("Target section for interpolation:", target_section)
+        
         # Volumetric interpolation
         print("Volumetric Interpolation for sub:", sub, "hemi:", hemisphere)
         acq_interp_chunk_info = volumetric_interpolation_over_dataframe(
