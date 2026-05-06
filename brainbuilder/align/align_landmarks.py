@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from brainbuilder.utils import ants_nibabel as nib
 from brainbuilder.utils import utils
-from brainbuilder.utils.utils import simple_ants_apply_tfm
+from brainbuilder.utils.utils import pad_volume, simple_ants_apply_tfm
 from joblib import Parallel, delayed
 from scipy.ndimage import binary_dilation, center_of_mass
 from skimage.transform import resize
@@ -146,8 +146,8 @@ def _init_parameters(
 
     target_dims = np.rint(dims / scaling).astype(int)
 
-    r = np.max([1, scaling[1] * 10]).astype(int)
-    print("Building sparse landmark volume with section thickness ratio", r)
+    r = np.max([1, scaling[1] * 20]).astype(int)
+    logger.info(f"Building sparse landmark volume with section thickness ratio {r}")
 
     return affine, dims, target_dims, scaling, r, steps
 
@@ -156,8 +156,8 @@ def get_transform_type(labels: np.ndarray) -> str:
     n_landmarks = len(np.unique(labels))
 
     if n_landmarks < 2:
-        print(
-            f"Not enough landmarks ({n_landmarks}) found for chunk {chunk}, skipping."
+        logger.warning(
+            f"Not enough landmarks ({n_landmarks}) found, skipping."
         )
         return None
     elif n_landmarks < 12:
@@ -167,25 +167,30 @@ def get_transform_type(labels: np.ndarray) -> str:
     else:
         transform_type = "bspline"
 
-    print(f"Using transform type '{transform_type}' with {n_landmarks} landmarks.")
+    logger.info(f"Using transform type '{transform_type}' with {n_landmarks} landmarks.")
 
     return transform_type
 
 
-# ---------- main API
 def _process_and_save_sparse_landmark_volume(
     sect_info: pd.DataFrame,
     out_vol_path: str,
-    fixed_origin: np.ndarray,
+    reference_vol_path: str,
     section_thickness: float,
     ymax: int,
     resolution_3d: float,
     padding_offset: float = 0.15,
 ):
+
+
+    reference_origin = nib.load(reference_vol_path).affine[0:3, 3]
+    reference_direction = ants.image_read(reference_vol_path).direction[[0,1,2],[0,1,2]]
+    print(f"Reference origin: {reference_origin}, direction: {reference_direction}")
+
     """Create and save sparse 3D landmark volume by pasting warped 2D landmark slices."""
     # Initialize affine and dimensions
     affine, dims, target_dims, scaling, r, steps = _init_parameters(
-        sect_info, fixed_origin, section_thickness, resolution_3d, ymax
+        sect_info, reference_origin, section_thickness, resolution_3d, ymax
     )
 
     out_data = np.zeros(dims, dtype=np.uint32)
@@ -217,7 +222,7 @@ def _process_and_save_sparse_landmark_volume(
         )
 
         y0 = int(max(0, y - r))
-        y1 = int(min(dims[1], y0 + r))
+        y1 = int(min(dims[1], y + r))
 
         # repeat warped to match y1-y0
         warped_rep = np.repeat(warped[:, np.newaxis, :], y1 - y0, axis=1)
@@ -231,7 +236,10 @@ def _process_and_save_sparse_landmark_volume(
 
     out_data = resize(out_data, target_dims, anti_aliasing=False, order=0)
 
-    # out_data, _ = pad_volume(out_data, np.ones([4, 4]), padding_offset=padding_offset)
+    #nib.Nifti1Image(out_data, affine, direction_order="lpi").to_filename(out_vol_path.replace('.nii.gz', '_no-padding.nii.gz'))
+    #print("Saved sparse landmark volume before padding to", out_vol_path.replace('.nii.gz', '_no-padding.nii.gz'))
+    # we need to pad because if we transform into the acquisition space, then landmarks at the edge might be cut off
+    out_data, affine = pad_volume(out_data, affine, reference_direction, padding_offset=padding_offset)
 
     unique_labels_rsl = np.unique(out_data)[1:]
 
@@ -346,14 +354,13 @@ def process_row(row: pd.Series, clobber: bool = False) -> None:
 
 def build_sparse_landmark_volume(
     out_vol_path: str,
-    fixed_qc_vol_path: str,
+    reference_vol_path: str,
     resolution: float,
     resolution_3d: float,
     sect_info: pd.DataFrame,
     output_dir: str,
     section_thickness: float,
     ymax: int,
-    fixed_origin: np.ndarray = None,
     padding_offset: float = 0.15,
     clobber: bool = False,
 ) -> pd.DataFrame:
@@ -367,7 +374,6 @@ def build_sparse_landmark_volume(
     """
     output_2d_dir = output_dir + "/landmark_2d_warped/"
 
-    fixed_origin = nib.load(fixed_qc_vol_path).affine[0:3, 3]
 
     os.makedirs(output_2d_dir, exist_ok=True)
 
@@ -393,7 +399,7 @@ def build_sparse_landmark_volume(
         _process_and_save_sparse_landmark_volume(
             sect_info,
             out_vol_path,
-            fixed_origin,
+            reference_vol_path,
             section_thickness,
             ymax,
             resolution_3d,
@@ -561,12 +567,15 @@ def init_landmark_transform(
     min_labels_required: int = 12,  # rigid/similarity: 3, affine: 12, bspline: 12 (for now)
     fixed_qc_vol_path: str | None = None,
     moving_qc_vol_path: str | None = None,
+    use_com_qc: bool = False,
     qc_dir: str | None = None,
     clobber: bool = False,
 ) -> str:
     """Run antsLandmarkBasedTransformInitializer in two stages: affine and the bspline."""
     # if os.path.exists(out_tfm_h5) and not clobber:
     #    return out_tfm_h5
+
+    os.makedirs(output_dir, exist_ok=True)
 
     affine_vol_fn = output_dir + os.path.basename(out_tfm).replace(
         ".h5", "_affine_landmark_init.nii.gz"
@@ -575,7 +584,7 @@ def init_landmark_transform(
     affine_tfm = output_dir + os.path.basename(out_tfm).replace(".h5", "_affine.h5")
 
     nl_tfm = output_dir + os.path.basename(out_tfm).replace(
-        ".h5", f"_{mesh_size}_nl.nii.gz"
+        ".h5", f"_nl.nii.gz"
     )
 
     if not os.path.exists(fixed_landmarks):
@@ -616,11 +625,11 @@ def init_landmark_transform(
         clobber=clobber,
     )
 
-    print("\tQC 2")
-    point_qc2_csv = (
-        f"{output_dir}/{os.path.basename(affine_vol_fn).replace('.nii.gz', '_qc.csv')}"
-    )
-    calculate_dist_between_labels(fixed_landmarks, affine_vol_fn, point_qc2_csv)
+    if use_com_qc :
+        point_qc2_csv = (
+            f"{output_dir}/{os.path.basename(affine_vol_fn).replace('.nii.gz', '_qc.csv')}"
+        )
+        calculate_dist_between_labels(fixed_landmarks, affine_vol_fn, point_qc2_csv)
 
     moving_qc_affine_path = None
     if fixed_qc_vol_path and moving_qc_vol_path:
@@ -695,12 +704,12 @@ def init_landmark_transform(
             clobber=clobber,
         )
 
-    print("\tQC 3")
-    point_qc3_csv = (
-        f"{output_dir}/{os.path.basename(nl_vol_fn).replace('.nii.gz', '_qc.csv')}"
-    )
 
-    calculate_dist_between_labels(fixed_landmarks, nl_vol_fn, point_qc3_csv)
+    if use_com_qc :
+        point_qc3_csv = (
+            f"{output_dir}/{os.path.basename(nl_vol_fn).replace('.nii.gz', '_qc.csv')}"
+        )
+        calculate_dist_between_labels(fixed_landmarks, nl_vol_fn, point_qc3_csv)
 
     ### 4)  Concatenate transforms and convert to h5
     if not os.path.exists(out_tfm) or clobber:
@@ -932,8 +941,8 @@ def create_landmark_transform(
     resolution: float,
     resolution_3d: float,
     sect_info: pd.DataFrame,
-    acq_rsl_fn: str,
-    acq_landmark_path: str,
+    acq_rsl_fn: str, # reference volume for the sparse landmark volume (e.g., the output of create_intermediate_volume())
+    acq_landmark_path: str, # path to the sparse landmark volume created by build_sparse_landmark_volume()
     moving_landmark_path: str,
     fixed_landmark_path: str,
     source_landmark_dir: str,
@@ -944,7 +953,6 @@ def create_landmark_transform(
     section_thickness: float,
     num_cores: int = -1,
     transform_type="bspline",
-    fixed_origin: np.ndarray = None,
     padding_offset: float = 0.15,
     mesh_size: str = "3x3x3",
     clobber: bool = False,
@@ -964,13 +972,20 @@ def create_landmark_transform(
     """
     transform_type = "bspline"
 
-    landmark_tfm_path = f"{output_landmark_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_landmark_init_itr-{resolution}mm_{transform_type}_{mesh_size}_Composite.h5"
+    landmark_fwd_tfm_path = f"{output_landmark_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_landmark_init_itr-{resolution}mm_{transform_type}_{mesh_size}_Composite.h5"
+    landmark_inv_tfm_path = f"{output_landmark_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_landmark_init_itr-{resolution}mm_{transform_type}_{mesh_size}_InverseComposite.h5"
 
     os.makedirs(output_landmark_dir, exist_ok=True)
 
-    if os.path.exists(landmark_tfm_path) and not clobber:
-        print(f"Landmark transform already exists: {landmark_tfm_path}")
-        return landmark_tfm_path
+    if os.path.exists(landmark_fwd_tfm_path) and os.path.exists(landmark_inv_tfm_path) and not clobber:
+        logger.info(f"Landmark transform already exists: {landmark_fwd_tfm_path}")
+        return landmark_fwd_tfm_path, landmark_inv_tfm_path
+
+    logger.info(f"Creating landmark transform for sub-{sub} hemi-{hemisphere} chunk-{chunk} with {transform_type} transform...")
+    logger.info(f"Acquisition landmark path: {acq_landmark_path}")
+    logger.info(f"Fixed landmark path: {fixed_landmark_path}")
+    logger.info(f"Moving landmark path: {moving_landmark_path}")
+
 
     # TODO move this to a separate pre-processing step
     # moving_landmark_path = adjust_reference_landmark_labels(
@@ -995,17 +1010,16 @@ def create_landmark_transform(
         section_thickness,
         ymax,
         padding_offset=padding_offset,
-        fixed_origin=fixed_origin,
         clobber=clobber,
     )
 
     validate_landmark_labels(fixed_landmark_path, moving_landmark_path)
 
-    print("Creating landmark transform...")
-    affine_tfm, nl_tfm, composite_tfm = init_landmark_transform(
-        landmark_tfm_path,
-        fixed_landmark_path,
-        moving_landmark_path,
+    logger.info("Creating forward landmark transform...")
+    _, _, fwd_composite_tfm = init_landmark_transform(
+        landmark_fwd_tfm_path,
+        fixed_landmark_path, #fixed
+        moving_landmark_path, #moving
         output_landmark_dir,
         transform_type=transform_type,
         qc_dir=output_landmark_dir + "/qc",
@@ -1014,59 +1028,20 @@ def create_landmark_transform(
         mesh_size=mesh_size,
         clobber=clobber,
     )
-    print("Done")
-    return composite_tfm
-    landmark_volume_rsl_path = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_acq_landmarks_{resolution}mm_{transform_type}_rsl.nii.gz"
 
-    simple_ants_apply_tfm(
-        acq_landmark_path,
-        ref_landmark_path,
-        init_tfms,
-        landmark_volume_rsl_path,
-        ndim=3,
-        n="NearestNeighbor",
+    logger.info("Creating inverse landmark transform...")
+    _, _, inv_composite_tfm = init_landmark_transform(
+        landmark_inv_tfm_path,
+        moving_landmark_path, #fixed
+        fixed_landmark_path, #moving
+        output_landmark_dir,
+        transform_type=transform_type,
+        qc_dir=output_landmark_dir + "/qc",
+        fixed_qc_vol_path=moving_qc_vol_path,
+        moving_qc_vol_path=fixed_qc_vol_path,
+        mesh_size=mesh_size,
         clobber=clobber,
     )
 
-    ar2_labels = get_unique_values(landmark_volume_rsl_path)
+    return fwd_composite_tfm, inv_composite_tfm
 
-    assert (
-        set(ar1_labels) == set(ar2_labels)
-    ), f"Acq rsl and ref landmark volumes have different labels.\n\tRef values: {ref_landmark_path}\n\t{ar1_labels}\n\tLandmark rsl values:\n\t{landmark_volume_rsl_path}\n\t{ar2_labels}"
-
-    moving_qc_vol_rsl_path = f"{qc_dir}/" + os.path.basename(
-        moving_qc_vol_path
-    ).replace(".nii", "_landmark-rsl.nii")
-
-    if (
-        moving_qc_vol_path
-        and fixed_qc_vol_path
-        and os.path.exists(moving_qc_vol_path)
-        and os.path.exists(fixed_qc_vol_path)
-    ):
-        if not os.path.exists(moving_qc_vol_rsl_path) or clobber:
-            simple_ants_apply_tfm(
-                moving_qc_vol_path,
-                fixed_qc_vol_path,
-                init_tfms,
-                str(moving_qc_vol_rsl_path),
-                ndim=3,
-                n="Linear",
-                clobber=clobber,
-            )
-            print("Saved moving landmark rsl to:\n\t", moving_qc_vol_rsl_path)
-            print("Compare to fixed qc vol:\n\t", fixed_qc_vol_path)
-
-    create_qc_images(
-        sect_info,
-        landmark_volume_rsl_path,
-        ref_landmark_path,
-        moving_qc_vol_rsl_path,
-        fixed_qc_vol_path,
-        qc_dir,
-        clobber=clobber,
-    )
-    return init_tfms
-
-
-# === END: align/align_landmarks.py ===========================================

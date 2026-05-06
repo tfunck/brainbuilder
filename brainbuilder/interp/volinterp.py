@@ -503,39 +503,6 @@ def prepare_chunk_info_for_stx(chunk_info, curr_chunk_info):
     return merged
 
 
-def apply_interpolated_volumes_to_stx(
-    curr_chunk_info, curr_hemi_info, resolution, output_dir, interpolation, clobber
-):
-    ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
-
-    ref_vol_rsl_fn = utils.resample_struct_reference_volume(
-        ref_vol_fn, resolution, output_dir, clobber=clobber
-    )
-
-    curr_chunk_info["ref_vol_rsl_fn"] = ref_vol_rsl_fn
-
-    for _, row in curr_chunk_info.iterrows():
-        interp_nat_fin = row["interp_nat"]
-        interp_stx_fin = row["interp_stx"]
-
-        nl_3d_tfm_fn = (
-            curr_chunk_info["nl_3d_tfm_fn"]
-            .loc[curr_chunk_info["chunk"] == row["chunk"]]
-            .values[0]
-        )
-
-        if not os.path.exists(interp_stx_fin) or clobber:
-            cmd = f"antsApplyTransforms -d 3 -n {interpolation} -i {interp_nat_fin} -o {interp_stx_fin} -r {ref_vol_rsl_fn} -t {nl_3d_tfm_fn} --float 1"
-
-            print(cmd)
-
-            run(cmd, shell=True)
-
-            assert nib.load(interp_stx_fin).get_fdata().sum() > 0, "Error: Empty Output"
-
-    return curr_chunk_info
-
-
 def prepare_chunk_info_for_stx(chunk_info, acq_interp_chunk_info):
     """Prepare and modify curr_chunk_info for final alignment to stx space.
     This is necessary because chunk_info adds the 'acquisition' column and is used
