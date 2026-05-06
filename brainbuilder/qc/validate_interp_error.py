@@ -488,7 +488,6 @@ def get_interp_error_df(
             if idx2d.sum() == 0:
                 print("No 2D found")
                 print(sub, hemisphere, chunk, label)
-                exit(0)
                 continue
 
             average_2d = sect_info_2d.loc[idx2d, "average"].values[0]
@@ -504,7 +503,6 @@ def get_interp_error_df(
             )
             if idxorig.sum() == 0:
                 print(sub, hemisphere, chunk, label)
-                exit(0)
                 continue
 
             average_orig = sect_info_orig.loc[idxorig, "average"].values[0]
@@ -523,7 +521,6 @@ def get_interp_error_df(
                     x = np.sum(nib.load(cluster).get_fdata() == label)
                     print(cluster_2d)
                     print("Cluster sum", x, x * 0.25**2)
-                    exit(0)
 
                 if average_3d < min_average:
                     print(f"Average: {average_3d}, min average: {min_average}")

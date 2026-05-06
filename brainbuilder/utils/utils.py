@@ -1200,7 +1200,7 @@ def check_run_stage(
             file_list = col
         else:
             print("Error: col2 must be a string or list")
-            exit(0)
+            exit(1)
 
         return file_list
 

@@ -129,6 +129,7 @@ def volumetric_interpolation(
         interpolation=interpolation,
         tfm_dict=nlflow_tfm_dict,
         num_jobs=num_cores,
+        refine_alignment_flag = True,
         clobber=clobber,
     )
 

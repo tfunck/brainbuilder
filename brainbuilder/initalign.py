@@ -386,79 +386,59 @@ def alignment_stage(
     smooth_sigma = [".8x0.66x.3x0"] * n_levels
     iterations = ["2000x1000x500x250"] * n_levels
 
-    csv_fn = vol_fn_str.format(
+    df.sort_values(["sample"], inplace=True, ascending=False)
+
+    y_idx = df["sample"].values
+
+    y_idx_tier1 = (
+        df["sample"].loc[df["tier"].astype(int) == np.min(df["tier"])].values
+    )
+    mid = int(len(y_idx_tier1) / 2)
+
+    df["img_new"] = df["img"]
+    df["init_tfm"] = [None] * df.shape[0]
+    df["init_img"] = df["img_new"]
+    df["init_fixed"] = [None] * df.shape[0]
+
+    # perform alignment in forward direction from middle section
+    transforms, df = adjust_alignment(
+        df,
+        y_idx,
+        mid,
+        transforms,
+        -1,
         output_dir,
-        *desc,
-        target_acquisition,
-        acquisition_n,
-        tfm_type_final + "-" + str(0),
-        ".csv",
+        desc,
+        shrink_factor,
+        smooth_sigma,
+        iterations,
+        tfm_type_list,
+        target_acquisition=target_acquisition,
+        target_tier=target_tier,
+        clobber=clobber,
     )
 
-    out_fn = vol_fn_str.format(
+    # perform alignment in reverse direction from middle section
+    transforms, df = adjust_alignment(
+        df,
+        y_idx,
+        mid,
+        transforms,
+        1,
         output_dir,
-        *desc,
-        target_acquisition,
-        acquisition_n,
-        tfm_type_final + "-" + str(0),
-        "nii.gz",
+        desc,
+        shrink_factor,
+        smooth_sigma,
+        iterations,
+        tfm_type,
+        target_acquisition=target_acquisition,
+        target_tier=target_tier,
+        clobber=clobber,
     )
 
-    if not os.path.exists(csv_fn) or not os.path.exists(out_fn):
-        df.sort_values(["sample"], inplace=True, ascending=False)
+    # update the img so it has the new, resampled file names
+    df["img"] = df["img_new"]
 
-        y_idx = df["sample"].values
-
-        y_idx_tier1 = (
-            df["sample"].loc[df["tier"].astype(int) == np.min(df["tier"])].values
-        )
-        mid = int(len(y_idx_tier1) / 2)
-
-        df["img_new"] = df["img"]
-        df["init_tfm"] = [None] * df.shape[0]
-        df["init_img"] = df["img_new"]
-        df["init_fixed"] = [None] * df.shape[0]
-
-        # perform alignment in forward direction from middle section
-        transforms, df = adjust_alignment(
-            df,
-            y_idx,
-            mid,
-            transforms,
-            -1,
-            output_dir,
-            desc,
-            shrink_factor,
-            smooth_sigma,
-            iterations,
-            tfm_type_list,
-            target_acquisition=target_acquisition,
-            target_tier=target_tier,
-            clobber=clobber,
-        )
-
-        # perform alignment in reverse direction from middle section
-        transforms, df = adjust_alignment(
-            df,
-            y_idx,
-            mid,
-            transforms,
-            1,
-            output_dir,
-            desc,
-            shrink_factor,
-            smooth_sigma,
-            iterations,
-            tfm_type,
-            target_acquisition=target_acquisition,
-            target_tier=target_tier,
-            clobber=clobber,
-        )
-
-        # update the img so it has the new, resampled file names
-        df["img"] = df["img_new"]
-    else:
-        df = pd.read_csv(csv_fn)
 
     return df, transforms
 
@@ -556,8 +536,7 @@ def initalign(
     initalign_sect_info = pd.DataFrame({})
     initalign_chunk_info = pd.DataFrame({})
 
-    # run_stage = utils.check_run_stage(initalign_sect_info_csv, "init_tfm", "seg")
-    run_stage = False  # FIXME UNCOMMENT
+    run_stage = utils.check_run_stage(initalign_sect_info_csv, "init_tfm", "seg")
 
     linParams = AntsParams(resolution_list, resolution_list[-1], 100)
 
@@ -565,7 +544,7 @@ def initalign(
         not os.path.exists(initalign_sect_info_csv)
         or not os.path.exists(initalign_chunk_info_csv)
         or clobber
-        or run_stage  # FIXME need to change initalign so that it overwrites outdated files
+        or run_stage  
     ):
         sect_info = pd.read_csv(sect_info_csv)
         chunk_info = pd.read_csv(chunk_info_csv)

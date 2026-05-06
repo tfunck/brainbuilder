@@ -50,7 +50,7 @@ class Nifti1Image:
             print(
                 "Error: <direction_order> not supported, specify <direction> directly"
             )
-            exit(0)
+            exit(1)
         self.direction = list(np.array(direction)[0:ndim, 0:ndim])
 
     def to_filename(self, filename: str) -> None:

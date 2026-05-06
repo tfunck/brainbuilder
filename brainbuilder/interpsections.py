@@ -138,7 +138,6 @@ def interpolate_missing_sections(
     """
     logger.info("\n\tInterpolate Missing Sections\n")
 
-    print(sect_info_csv) ; exit()
     sect_info = pd.read_csv(sect_info_csv, index_col=False)
     chunk_info = pd.read_csv(chunk_info_csv, index_col=False)
     hemi_info = pd.read_csv(hemi_info_csv, index_col=False)
