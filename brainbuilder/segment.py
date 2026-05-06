@@ -240,7 +240,7 @@ def convert_2d_array_to_nnunet(
         assert np.sum(np.abs(img)) > 0
 
         if '.nii.gz' in output_filename:
-            img = img[None, None]  # add dimensions
+            img = img[None, None]  # add dimensions #FIXME this was needed for nnunet v1 for some reason, but probably not needed for v2. remove if possible
             # image is now (c, y, x, z) where x=1 since it's 2d
             img = img.astype(np.float32)
 

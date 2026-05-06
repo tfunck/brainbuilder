@@ -18,6 +18,7 @@ def define_new_path_column(df: pd.DataFrame, output_dir: str, tag: str, col:str=
     :param output_dir: base output directory where the downsampled files will be saved
     :param tag: tag to add to the filename to indicate the type of downsampled file (e.g., 'downsampled')
     :param col: name of the new column to be added to the dataframe (default='img')
+    :param ext: file extension for the new files (default='.nii.gz')
     :return: updated dataframe with the new column containing the paths to the new file names
     """
 
