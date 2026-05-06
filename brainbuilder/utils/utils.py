@@ -394,7 +394,7 @@ class AntsParams:
         self.resolution_list = resolution_list
         self.max_n = len(resolution_list)
         self.cur_n = resolution_list.index(resolution)
-        self.max_itr = int((self.max_n + 1) * base_itr)
+        self.max_itr = int((self.max_n ) * base_itr)
 
         self.f_list = self.gen_downsample_factor_list(resolution_list)
         self.max_downsample_factor = int(self.f_list[0])
