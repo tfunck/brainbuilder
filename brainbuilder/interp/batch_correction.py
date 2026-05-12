@@ -195,8 +195,8 @@ def create_surface_section_labels(
             # |-------------------------|
             # ymin                     ymax
 
-            sect_chunk_df["label"].iloc[idx0] = label_0
-            sect_chunk_df["label"].iloc[idx1] = label_1
+            sect_chunk_df.loc[idx0, "label"] = label_0
+            sect_chunk_df.loc[idx1, "label"] = label_1
 
             label_to_chunk_dict[label_0] = chunk
             label_to_chunk_dict[label_1] = chunk
@@ -268,8 +268,8 @@ def update_df_with_correction_params(
             df["chunk"] == row["label"]
         )  # label_to_chunk_dict[row['label'].astype(int)]
 
-        df["batch_offset"].loc[idx] = row["offset"]
-        df["batch_multiplier"].loc[idx] = row["multiplier"]
+        df.loc[idx, "batch_offset"] = row["offset"]
+        df.loc[idx, "batch_multiplier"] = row["multiplier"]
         print(row["label"], row["offset"])
 
     return df

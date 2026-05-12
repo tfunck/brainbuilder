@@ -296,9 +296,10 @@ def section_to_ref_dice(
     )
 
     sect_info["dice"] = [0] * len(sect_info)
+    dice_col_idx = sect_info.columns.get_loc("dice")
 
     for dice, idx in parrallel_results:
-        sect_info["dice"].iloc[idx] = dice
+        sect_info.iloc[idx, dice_col_idx] = dice
 
     return sect_info
 

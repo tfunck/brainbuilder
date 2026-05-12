@@ -76,6 +76,7 @@ def reconstruct(
     interpolation_2d: str = "Linear",
     landmark_dir: Path = None,
     use_intensity_correction: bool = False,
+    refine_2d_alignment_flag: bool = False,
     use_3d_align_stage: bool = True,
     use_interp_stage: bool = True,
     verbose: bool = False,
@@ -250,6 +251,7 @@ def reconstruct(
             interp_method=interp_method,
             final_resolution=final_resolution,
             interpolation=interpolation_2d,
+            refine_2d_alignment_flag=refine_2d_alignment_flag,
             num_cores=num_cores,
             use_final_transform=use_3d_align_stage,  # only apply the final transform if we did the 3D alignment stage
             clobber=clobber,

@@ -308,7 +308,7 @@ def transform_chunk_volumes(
                 & (df["acquisition"] == acquisition)
             )
 
-            df[vol_stx_str].loc[idx] = thickened_stx_fn
+            df.loc[idx, vol_stx_str] = thickened_stx_fn
 
         df.to_csv(output_csv, index=False)
     else:

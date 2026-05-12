@@ -156,9 +156,9 @@ def align_neighbours_to_fixed(
                 qc_fn,
             )
 
-        df["img_new"].loc[df["sample"] == j] = moving_rsl_fn
-        df["init_tfm"].loc[df["sample"] == j] = concat_tfm_fn
-        df["init_fixed"].loc[df["sample"] == j] = fixed_fn
+        df.loc[df["sample"] == j, "img_new"] = moving_rsl_fn
+        df.loc[df["sample"] == j, "init_tfm"] = concat_tfm_fn
+        df.loc[df["sample"] == j, "init_fixed"] = fixed_fn
         transforms[j] = [concat_tfm_fn]
     return df, transforms
 
@@ -497,8 +497,8 @@ def create_final_outputs(
                     os.symlink(row["img"].values[0], final_section_fn)
                 final_tfm_fn = None
 
-        df["init_tfm"].loc[idx] = final_tfm_fn
-        df["init_img"].loc[idx] = row["img"].values[0]
+        df.loc[idx, "init_tfm"] = final_tfm_fn
+        df.loc[idx, "init_img"] = row["img"].values[0]
     return df
 
 
@@ -719,12 +719,8 @@ def align_chunk(
         target_acquisition = current_acquisitions[-1]
         idx = df["acquisition"].apply(lambda x: x in current_acquisitions)
         df_acquisition = df.loc[idx]
-        df_acquisition["tier"].loc[
-            df_acquisition["acquisition"] == target_acquisition
-        ] = 2
-        df_acquisition["tier"].loc[
-            df_acquisition["acquisition"] == acquisition_contrast_order[0]
-        ] = 1
+        df_acquisition.loc[df_acquisition["acquisition"] == target_acquisition, "tier"] = 2
+        df_acquisition.loc[df_acquisition["acquisition"] == acquisition_contrast_order[0], "tier"] = 1
         # Init dict with initial transforms
         transforms = {}
         for i in df_acquisition["sample"]:

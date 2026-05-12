@@ -95,6 +95,7 @@ def volumetric_interpolation(
     interpolation: str = "Linear",
     tissue_type: str = "acq",
     target_section: str = "2d_align_3d_res",
+    refine_2d_alignment_flag: bool = False,
     nlflow_tfm_dict: dict = None,
     num_cores: int = -1,
     clobber: bool = False,
@@ -129,7 +130,9 @@ def volumetric_interpolation(
         interpolation=interpolation,
         tfm_dict=nlflow_tfm_dict,
         num_jobs=num_cores,
-        refine_alignment_flag = True,
+        refine_2d_alignment_flag = refine_2d_alignment_flag,
+        base_ants_itr = 40,
+        n_resolutions = 4,
         clobber=clobber,
     )
 
@@ -144,6 +147,7 @@ def volumetric_interpolation_over_dataframe(
     resolution_list: list,
     clobber: bool = False,
     final_resolution: float = None,
+    refine_2d_alignment_flag: bool = False,
     interpolation: str = "Linear",
     tissue_type: str = "cls",
     target_section: str = "2d_align_3d_res",
@@ -217,6 +221,7 @@ def volumetric_interpolation_over_dataframe(
             target_section=target_section,
             num_cores=num_cores,
             clobber=clobber,
+            refine_2d_alignment_flag=refine_2d_alignment_flag,
         )
 
         # Then apply the same transformations (stored in nlflow_tfm_dict) to the segmentation volume
@@ -382,7 +387,6 @@ def create_acq_atlas(chunk_info, output_dir, atlas_fin, clobber: bool = False):
 
         for i, row in chunk_info.iterrows():
             interp_vol_fin = row["interp_cls_nat"]
-            print("\n\n\n\hello file:", interp_vol_fin)
 
             img = nib.load(interp_vol_fin)
             print(i / n, interp_vol_fin)
@@ -590,6 +594,7 @@ def volumetric_pipeline(
     output_dir: str,
     final_resolution: float = None,
     interpolation: str = "Linear",
+    refine_2d_alignment_flag: bool = False,
     num_cores: int = -1,
     use_final_transform: bool = True,
     clobber: bool = False,
@@ -641,6 +646,7 @@ def volumetric_pipeline(
             target_section=target_section,
             num_cores=num_cores,
             clobber=clobber,
+            refine_2d_alignment_flag=refine_2d_alignment_flag,
         )
 
         curr_chunk_info = prepare_chunk_info_for_stx(chunk_info, acq_interp_chunk_info)
