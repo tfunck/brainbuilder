@@ -414,6 +414,7 @@ def write_ref_chunk(
     )
 
     landmark_composite_tfm_path = None
+    ref_chunk_fn = ref_vol_fn
     
     if not use_landmark_transform:
         if (
@@ -423,15 +424,13 @@ def write_ref_chunk(
             logger.warning(
                 "caudal_limit and rostral_limit not found in chunk_info, using full volume"
             )
-            return ref_vol_fn, landmark_composite_tfm_path
-
-        # if landmark transform is not provided, use the fixed limits from the chunk_info.csv to get the reference chunk.
-        # This is because the fixed limits may not be accurate and may not correspond to the actual tissue chunk in the reference space,
-        # but it is better than nothing and will allow us to get a reference chunk that is at least in the right area of the brain.
-
-        ref_chunk_fn = write_ref_chunk_with_fixed_limits(
-            chunk_info, sub, hemi, chunk, ref_vol_fn, align_3d_dir, clobber
-        )
+        else:
+            # if landmark transform is not provided, use the fixed limits from the chunk_info.csv to get the reference chunk.
+            # This is because the fixed limits may not be accurate and may not correspond to the actual tissue chunk in the reference space,
+            # but it is better than nothing and will allow us to get a reference chunk that is at least in the right area of the brain.
+            ref_chunk_fn = write_ref_chunk_with_fixed_limits(
+                chunk_info, sub, hemi, chunk, ref_vol_fn, align_3d_dir, clobber
+            )
     else:
         if moving_landmark_volume == ref_landmark_volume: #
             # if the reference landmark volume is the moving volume, then we can use the original reference volume because
@@ -440,7 +439,7 @@ def write_ref_chunk(
 
         # if landmark transform is provided, use the landmark transform to get the reference chunk that corresponds to the tissue chunk, instead of using the fixed limits from the chunk_info.csv. This is because the fixed limits may not be accurate and may not correspond to the actual tissue chunk in the reference space.
         # The landmark transform will allow us to get a more accurate reference chunk that corresponds to the tissue chunk in the reference space.
-        ref_chunk_fn, landmark_composite_fwd_tfm_path = write_ref_chunk_with_landmark_transform(
+        ref_chunk_fn, landmark_composite_tfm_path = write_ref_chunk_with_landmark_transform(
             sect_info,
             chunk_info,
             sub,
@@ -474,7 +473,7 @@ def write_ref_chunk(
             factor=255,
         )
         
-    return ref_chunk_rsl_fn, landmark_composite_fwd_tfm_path
+    return ref_chunk_rsl_fn, landmark_composite_tfm_path
 
 
 def set_init_tfm(init_tfm, fx_fn, mv_fn, out_dir) -> str:
