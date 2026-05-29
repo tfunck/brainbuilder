@@ -135,7 +135,7 @@ def multiresolution_alignment(
             # Check that curr_chunk_info has only one row
             assert (
                 len(chunk_info_row) == 1
-            ), f"Error: chunk_info has multiple rows for sub-{sub}_hemi-{hemisphere}_chunk-{chunk}"
+            ), f"Error: chunk_info has {len(chunk_info_row)} rows for sub-{sub}_hemi-{hemisphere}_chunk-{chunk}:\n{chunk_info_row}"
 
             # get structural reference volume
             ref_vol_fn = (
