@@ -7,6 +7,9 @@ import os
 import shutil
 
 import brainbuilder.utils.ants_nibabel as nib
+import matplotlib
+
+matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -503,10 +506,11 @@ def apply_transforms_parallel(
 
     shell(cmd, True)
 
-    plt.imshow(nib.load(fx_fn).get_fdata())
-    plt.imshow(nib.load(out_fn).get_fdata(), cmap="nipy_spectral", alpha=0.3)
-    plt.savefig(f"{prefix}_qc.png")
-    plt.close()
+    fig, ax = plt.subplots()
+    ax.imshow(nib.load(fx_fn).get_fdata())
+    ax.imshow(nib.load(out_fn).get_fdata(), cmap="nipy_spectral", alpha=0.3)
+    fig.savefig(f"{prefix}_qc.png")
+    plt.close(fig)
 
     assert os.path.exists(f"{out_fn}"), "Error apply nl 2d tfm to img autoradiograph"
 
