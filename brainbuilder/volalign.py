@@ -2,6 +2,8 @@
 import os
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
 import nibabel
 import numpy as np

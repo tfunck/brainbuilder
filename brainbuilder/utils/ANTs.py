@@ -11,7 +11,7 @@ from scipy.ndimage import gaussian_filter
 from skimage.filters import threshold_otsu
 
 import brainbuilder.utils.ants_nibabel as nib
-from brainbuilder.utils.utils import shell, splitext
+from brainbuilder.utils.utils import shell, simple_ants_apply_tfm, splitext
 
 
 def generate_mask(fn:str, out_fn:str, sigma:float=8)->None:
@@ -74,6 +74,44 @@ def use_identity_backup(
     print("Copied moving image to", final_moving_rsl_fn)
 
     return final_tfm_fn, final_tfm_inv_fn, final_moving_rsl_fn
+
+
+def apply_transform_fallback(
+    moving_fn: str,
+    fixed_fn: str,
+    moving_rsl_fn: str,
+    previous_tfm: Optional[str] = None,
+    init_tfm: Optional[str] = None,
+    identity_tfm_fn: Optional[str] = None,
+    dim: int = 2,
+) -> Tuple[str, str]:
+    """Apply the best available transform when an ANTs registration stage fails."""
+    fallback_tfm = previous_tfm
+    if not (isinstance(fallback_tfm, str) and os.path.exists(fallback_tfm)):
+        fallback_tfm = init_tfm
+
+    if not (isinstance(fallback_tfm, str) and os.path.exists(fallback_tfm)):
+        if identity_tfm_fn is None:
+            identity_tfm_fn = os.path.join(
+                os.path.dirname(moving_rsl_fn), "identity_Composite.h5"
+            )
+        identity_tfm_dir = os.path.dirname(identity_tfm_fn)
+        if identity_tfm_dir:
+            os.makedirs(identity_tfm_dir, exist_ok=True)
+        sitk.WriteTransform(sitk.AffineTransform(dim), identity_tfm_fn)
+        fallback_tfm = identity_tfm_fn
+
+    simple_ants_apply_tfm(
+        moving_fn,
+        fixed_fn,
+        fallback_tfm,
+        moving_rsl_fn,
+        ndim=dim,
+        clobber=True,
+    )
+
+    return fallback_tfm, moving_rsl_fn
+
 
 def ANTs(
     tfm_prefix: str,

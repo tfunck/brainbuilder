@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 from brainbuilder.qc.validate_section_alignment_to_ref import get_section_metric
 from brainbuilder.utils import utils
+from brainbuilder.utils.ANTs import apply_transform_fallback
 from brainbuilder.utils.utils import (
     AntsParams,
     check_volume,
@@ -137,27 +138,6 @@ def check_alignment_files(
     return True
 
 
-def create_identity_transform_2d(
-    section_fn: str, tfm_prefix: str, output_log_fname: str
-) -> str:
-    """Create identity transform for 2D images.
-
-    Description: Create identity transform for 2D images using ANTs.
-
-    :param tfm_fn: transform filename
-    :return: tfm_fn
-    """
-    tfm_fn = tfm_prefix + "Composite.h5"
-
-    command_str = f"antsRegistration -v 1 -d 2 --write-composite-transform 1 -m GC[{section_fn},{section_fn},1,0,Regular,1] -t Rigid[1] -c 1 -f 1 -s 0  -o {tfm_prefix} &> {output_log_fname}"
-
-    shell(command_str)
-
-    assert os.path.exists(tfm_fn), f"Error: output does not exist {tfm_fn}"
-
-    return tfm_fn
-
-
 def ants_registration_2d_section(
     fx_fn: str,
     mv_fn: str,
@@ -196,8 +176,7 @@ def ants_registration_2d_section(
     :param init_tfm: initial transform
     :return: final_tfm, mv_rsl_fn
     """
-    last_transform = None
-    last_metric = None
+    last_transform_path = None
 
     if write_composite_transform:
         final_tfm = f"{prefix}_{transforms[-1]}_{metrics[-1]}_Composite.h5"
@@ -228,14 +207,22 @@ def ants_registration_2d_section(
                 fx_fn, mv_fn, minimum_foreground_ratio=minimum_foreground_ratio
             ):
                 print("\tSkipping registration step.")
-                if not (isinstance(init_tfm, str) and os.path.exists(init_tfm)):
-                    init_tfm = create_identity_transform_2d(
-                        mv_fn, prefix + "_identity_tfm_", command_log_fname
-                    )
-                return init_tfm, mv_fn
+                fallback_tfm, mv_rsl_fn = apply_transform_fallback(
+                    mv_fn,
+                    fx_fn,
+                    mv_rsl_fn,
+                    previous_tfm=last_transform_path,
+                    init_tfm=init_tfm,
+                    identity_tfm_fn=prefix + "_identity_tfm_Composite.h5",
+                    dim=2,
+                )
+                return fallback_tfm, mv_rsl_fn
 
-            if not isinstance(last_transform, type(None)):
-                init_str = f"--initial-moving-transform {prefix}_{last_transform}_{last_metric}_Composite.h5"
+            if (
+                not isinstance(last_transform_path, type(None))
+                and os.path.exists(last_transform_path)
+            ):
+                init_str = f"--initial-moving-transform {last_transform_path}"
             elif isinstance(init_tfm, str) and os.path.exists(init_tfm):
                 init_str = f"--initial-moving-transform {init_tfm}"
             elif init_tfm == "identity":
@@ -243,8 +230,13 @@ def ants_registration_2d_section(
             else:
                 init_str = f"--initial-moving-transform [{fx_fn},{mv_fn},1]"
 
-            inv_out = f"{prefix}_{transform}_{metric}_inv.nii.gz"
-            command_str = f"antsRegistration -v 1 -d 2 --write-composite-transform {write_composite_transform} {init_str} -o [{prefix}_{transform}_{metric}_,{mv_rsl_fn},{inv_out}] -t {transform}[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} "
+            curr_prefix = f"{prefix}_{transform}_{metric}_"
+            curr_tfm = f"{curr_prefix}Composite.h5"
+
+            inv_out = f"{curr_prefix}inv.nii.gz"
+            command_str = f"antsRegistration -v 1 -d 2 --write-composite-transform {write_composite_transform} {init_str} "
+            command_str += f"-o [{curr_prefix},{mv_rsl_fn},{inv_out}] -t {transform}[{step}] "
+            command_str += f"-m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} "
 
             if int(verbose) <= 0:
                 command_str += f" &> {output_log_fname}"
@@ -254,15 +246,34 @@ def ants_registration_2d_section(
                 mask_mv = threshold(mv_fn)
                 command_str += f" -x [{mask_fx},{mask_mv}] "
 
-            last_transform = transform
-            last_metric = metric
-
             logger.debug(command_str)
 
             with open(command_log_fname, "w") as f:
                 f.write(command_str)
 
-            shell(command_str)
+            shell(command_str, exit_on_failure=False)
+           
+            # check that output files exist and are not empty, otherwise 
+            # return just the initial transform and apply it to the moving image
+            # if there is not initial transform, default to identity transform
+            if not os.path.exists(curr_tfm) or not os.path.exists(mv_rsl_fn):
+                logger.warning(
+                    f"Warning: registration failed for {transform} with metric {metric}, returning previous transform"
+                )
+                last_transform_path, mv_rsl_fn = apply_transform_fallback(
+                    mv_fn,
+                    fx_fn,
+                    mv_rsl_fn,
+                    previous_tfm=last_transform_path,
+                    init_tfm=init_tfm,
+                    identity_tfm_fn=prefix + "_identity_tfm_Composite.h5",
+                    dim=2,
+                )
+                final_tfm = last_transform_path
+            else:
+                last_transform_path = curr_tfm
+                final_tfm = curr_tfm
+
             assert (
                 not exit_on_failure or np.sum(np.abs(nib.load(mv_rsl_fn).dataobj)) > 0
             ), f"Error: empty volume {mv_rsl_fn}"
