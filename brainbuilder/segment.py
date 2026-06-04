@@ -738,7 +738,6 @@ def segment(
     )
 
     run_nnunet = isinstance(seg_method, str) and "nnunet" in seg_method
-
     for _, df in sect_info.groupby(["hemisphere", "chunk"]):
 
         run_stage = utils.check_run_stage(

@@ -255,17 +255,17 @@ def get_chunk_pixel_size(sub: str, hemi: str, chunk: str, chunk_info: str) -> tu
 
     try:
         pixel_size_0 = chunk_info["pixel_size_0"][idx].values[0]
-    except IndexError:
+    except KeyError:
         pass
 
     try:
         pixel_size_1 = chunk_info["pixel_size_1"][idx].values[0]
-    except IndexError:
+    except KeyError:
         pass
 
     try:
         section_thickeness = chunk_info["section_thickness"][idx].values[0]
-    except IndexError:
+    except KeyError:
         pass
 
     return pixel_size_0, pixel_size_1, section_thickeness

@@ -8,6 +8,10 @@ RUN cd /opt && \
 	/opt/bbenv/bin/pip3 install -r requirements.txt &&\
 	/opt/bbenv/bin/pip3 install . 
 
+
+RUN pip install --no-cache-dir awscli
+
+
 # Create the entrypoint.sh script
 RUN echo '#!/bin/bash' > /opt/entrypoint.sh && \
 	echo 'source /opt/bbenv/bin/activate' >> /opt/entrypoint.sh && \

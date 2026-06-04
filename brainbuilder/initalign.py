@@ -107,11 +107,11 @@ def align_neighbours_to_fixed(
 
             os.makedirs(outprefix, exist_ok=True)
 
-            ANTs(
+            _, _, moving_rsl_fn = ANTs(
                 tfm_prefix=outprefix,
                 fixed_fn=fixed_fn,
                 moving_fn=moving_fn,
-                moving_rsl_prefix=outprefix + "tmp",
+                moving_rsl_prefix=outprefix,
                 iterations=iteration,
                 metrics=["Mattes"] * len(tfm_type_list),
                 tfm_type=tfm_type_list,
@@ -126,6 +126,9 @@ def align_neighbours_to_fixed(
                 generate_masks=False,
                 clobber=True,
             )
+           
+            assert np.sum(np.abs(nib.load(moving_rsl_fn).dataobj)) > 0, f"Error: Registered image is empty: {moving_rsl_fn}" 
+            
 
         # concatenate the transformation files that have been applied to the fixed image and the new transform
         # that is being applied to the moving image
