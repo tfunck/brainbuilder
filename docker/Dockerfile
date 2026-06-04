@@ -3,7 +3,7 @@ FROM tffunck/brainbuilder:base
 SHELL ["/bin/bash", "-c"]
 RUN cd /opt && \
 	rm -fr brainbuilder && \
-    git clone https://www.github.com/tfunck/brainbuilder &&\
+    git clone -b dev https://www.github.com/tfunck/brainbuilder &&\
 	cd brainbuilder &&\
 	/opt/bbenv/bin/pip3 install -r requirements.txt &&\
 	/opt/bbenv/bin/pip3 install . 

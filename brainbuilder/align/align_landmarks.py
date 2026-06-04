@@ -193,7 +193,11 @@ def _process_and_save_sparse_landmark_volume(
         sect_info, reference_origin, section_thickness, resolution_3d, ymax
     )
 
-    out_data = np.zeros(dims, dtype=np.uint32)
+    target_dims = np.asarray(target_dims, dtype=int)
+    intermediate_dims = np.asarray([target_dims[0], dims[1], target_dims[2]], dtype=int)
+    target_slice_shape = tuple(intermediate_dims[[0, 2]])
+
+    out_data = np.zeros(intermediate_dims, dtype=np.uint32)
 
     x_structure = np.zeros([3, 3])
     x_structure[1, :] = 1
@@ -212,7 +216,14 @@ def _process_and_save_sparse_landmark_volume(
 
         print("\tProcessing warped slice:", warped_slice_path)
 
-        warped = nib.load(str(warped_slice_path)).get_fdata().astype(np.uint32)
+        warped = np.squeeze(nib.load(str(warped_slice_path)).get_fdata()).astype(
+            np.uint32
+        )
+
+        if warped.ndim != 2:
+            raise ValueError(
+                f"Expected 2D warped landmark slice, got shape {warped.shape}: {warped_slice_path}"
+            )
 
         unique_labels = np.unique(warped[warped > 0])
         unique_labels = unique_labels[unique_labels != 0]
@@ -221,8 +232,17 @@ def _process_and_save_sparse_landmark_volume(
             warped, unique_labels, x_structure, z_structure, scaling, steps[0], steps[2]
         )
 
+        if warped.shape != target_slice_shape:
+            warped = resize(
+                warped,
+                target_slice_shape,
+                anti_aliasing=False,
+                order=0,
+                preserve_range=True,
+            ).astype(np.uint32)
+
         y0 = int(max(0, y - r))
-        y1 = int(min(dims[1], y + r))
+        y1 = int(min(intermediate_dims[1], y + r))
 
         # repeat warped to match y1-y0
         warped_rep = np.repeat(warped[:, np.newaxis, :], y1 - y0, axis=1)
@@ -234,7 +254,14 @@ def _process_and_save_sparse_landmark_volume(
 
         unique_labels_list += unique_labels.tolist()
 
-    out_data = resize(out_data, target_dims, anti_aliasing=False, order=0)
+    if tuple(out_data.shape) != tuple(target_dims):
+        out_data = resize(
+            out_data,
+            target_dims,
+            anti_aliasing=False,
+            order=0,
+            preserve_range=True,
+        ).astype(np.uint32)
 
     #nib.Nifti1Image(out_data, affine, direction_order="lpi").to_filename(out_vol_path.replace('.nii.gz', '_no-padding.nii.gz'))
     #print("Saved sparse landmark volume before padding to", out_vol_path.replace('.nii.gz', '_no-padding.nii.gz'))
