@@ -62,6 +62,10 @@ def multiresolution_alignment(
     use_3d_syn_cc: bool = True,
     use_syn: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
+    base_lin_itr_2d: int = 100,
+    base_nl_itr_2d: int = 30,
+    base_lin_itr_3d: int = 500,
+    base_nl_itr_3d: int = 200,
     num_cores: int = 0,
     landmark_dir: Path = None,
     interpolation: str = "Linear",
@@ -74,6 +78,10 @@ def multiresolution_alignment(
     params: hemisphere: hemisphere name
     params: resolution_list: list of resolutions to align
     params: max_resolution_3d: maximum resolution to align in 3d
+    params: base_lin_itr_2d: base number of linear iterations for 2D alignment
+    params: base_nl_itr_2d: base number of nonlinear iterations for 2D alignment
+    params: base_lin_itr_3d: base number of linear iterations for 3D alignment
+    params: base_nl_itr_3d: base number of nonlinear iterations for 3D alignment
     returns: csv file containing chunk information
     """
     num_cores = utils.set_cores(num_cores)
@@ -165,6 +173,10 @@ def multiresolution_alignment(
                 use_3d_syn_cc=use_3d_syn_cc,
                 use_syn=use_syn,
                 linear_steps=linear_steps,
+                base_lin_itr_2d=base_lin_itr_2d,
+                base_nl_itr_2d=base_nl_itr_2d,
+                base_lin_itr_3d=base_lin_itr_3d,
+                base_nl_itr_3d=base_nl_itr_3d,
                 interpolation=interpolation,
                 landmark_dir=landmark_dir,
                 clobber=clobber,
@@ -324,6 +336,10 @@ def alignment_iteration(
     num_cores: int = 1,
     use_3d_syn_cc: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
+    base_lin_itr_2d: int = 100,
+    base_nl_itr_2d: int = 30,
+    base_lin_itr_3d: int = 500,
+    base_nl_itr_3d: int = 200,
     interpolation: str = "Linear",
     padding_offset: float = 0.15,  # offset for % by which we pad the segmentation volume at the start and end of each direction
     landmark_dir: str = None,
@@ -418,6 +434,8 @@ def alignment_iteration(
         paths.ref_3d_rsl_fn,
         resolution_3d,
         resolution_list_3d,
+        base_nl_itr=base_nl_itr_3d,
+        base_lin_itr=base_lin_itr_3d,
         use_3d_syn_cc=use_3d_syn_cc,
         linear_steps=linear_steps,
         init_tfm=landmark_composite_tfm_path,
@@ -441,6 +459,8 @@ def alignment_iteration(
             paths.nl_2d_vol_cls_fn,
             section_thickness,
             axis=axis,
+            base_lin_itr=base_lin_itr_2d,
+            base_nl_itr=base_nl_itr_2d,
             file_to_align="seg_rsl",
             use_syn=use_syn,
             num_cores=num_cores,
@@ -488,6 +508,10 @@ def align_chunk(
     num_cores: int = 1,
     use_3d_syn_cc: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
+    base_lin_itr_2d: int = 100,
+    base_nl_itr_2d: int = 30,
+    base_lin_itr_3d: int = 500,
+    base_nl_itr_3d: int = 200,
     use_syn: bool = True,
     interpolation: str = "Linear",
     landmark_dir: str = None,
@@ -584,6 +608,10 @@ def align_chunk(
                 use_3d_syn_cc=use_3d_syn_cc,
                 use_syn=use_syn,
                 linear_steps=linear_steps,
+                base_lin_itr_2d=base_lin_itr_2d,
+                base_nl_itr_2d=base_nl_itr_2d,
+                base_lin_itr_3d=base_lin_itr_3d,
+                base_nl_itr_3d=base_nl_itr_3d,
                 section_thickness=section_thickness,
                 num_cores=num_cores,
                 interpolation=interpolation,
@@ -633,6 +661,10 @@ def align_chunk(
         use_syn=use_syn,
         skip_2d_alignment=True,
         linear_steps=linear_steps,
+        base_lin_itr_2d=base_lin_itr_2d,
+        base_nl_itr_2d=base_nl_itr_2d,
+        base_lin_itr_3d=base_lin_itr_3d,
+        base_nl_itr_3d=base_nl_itr_3d,
         num_cores=num_cores,
         interpolation=interpolation,
         landmark_dir=landmark_dir,

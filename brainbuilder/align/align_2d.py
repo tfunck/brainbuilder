@@ -19,6 +19,7 @@ from brainbuilder.utils.ANTs import apply_transform_fallback
 from brainbuilder.utils.axis_utils import (
     DEFAULT_SECTION_AXIS,
     inplane_axes,
+    section_axis_from_row,
     set_affine_spacing,
     volume_shape,
 )
@@ -393,9 +394,6 @@ def align_2d_parallel(
     :param verbose: verbose
     :return: 0
     """
-    # Set strings for alignment parameters
-    base_nl_itr = 30
-
     linParams = AntsParams(resolution_list, resolution, base_lin_itr)
 
     nlParams = AntsParams(resolution_list, resolution, base_nl_itr)
@@ -483,6 +481,7 @@ def apply_transforms_parallel(
         exit(1)
 
     img_res = np.array([img.affine[0, 0], img.affine[1, 1]])
+    section_axis = section_axis_from_row(row)
 
     # if we're not at the final resolution, we need to downsample the image
     if resolution != img_res[0] or resolution != img_res[1]:
@@ -491,6 +490,7 @@ def apply_transforms_parallel(
             [float(resolution), float(resolution)],
             order=2,
             output_filename=img_rsl_fn,
+            section_axis=section_axis,
         )
 
     else:
@@ -731,7 +731,7 @@ def align_2d(
     section_thickness: float,
     axis: int = DEFAULT_SECTION_AXIS,
     base_lin_itr: int = 100,
-    base_nl_itr: int = 20,
+    base_nl_itr: int = 30,
     use_syn: bool = True,
     file_to_align: str = "acq_rsl",
     num_cores: int = 1,

@@ -1549,6 +1549,23 @@ def preprocess_direction_argument(dirs: Union[str, list], str_to_dir: dict) -> l
     return dirs
 
 
+def normalize_direction_order(
+    direction_order: Union[str, list], ndim: int, section_axis: Optional[int] = None
+) -> Union[str, list]:
+    """Normalize direction metadata for 2D sections.
+
+    A 2D section inherits the two in-plane axes of the parent 3D volume. For an
+    ``lpi`` volume this yields ``pi`` for sagittal sections (axis 0), ``li`` for
+    coronal sections (axis 1), and ``lp`` for axial sections (axis 2).
+    """
+    if not isinstance(direction_order, str) or ndim != 2 or len(direction_order) != 3:
+        return direction_order
+
+    axis = DEFAULT_SECTION_AXIS if section_axis is None else int(section_axis)
+    section_axes = inplane_axes(axis, ndim=3)
+    return "".join(direction_order[i] for i in section_axes)
+
+
 def convert_coordinate_system(
     vol: np.ndarray,
     origin,
@@ -1595,6 +1612,7 @@ def resample_to_resolution(
     order: int = 1,
     factor: float = 1,
     max_dims: Optional[np.ndarray] = None,
+    section_axis: Optional[int] = None,
 ) -> nib.Nifti1Image:
     """Resample a volume to a new resolution.
 
@@ -1660,10 +1678,11 @@ def resample_to_resolution(
     )
 
     step = np.diag(affine)[0:ndim]
+    direction_order = normalize_direction_order(direction_order, ndim, section_axis)
 
-    #vol, origin, direction = convert_coordinate_system(
-    #    vol, np.array(origin), step, direction, direction_order
-    #)
+    vol, origin, direction = convert_coordinate_system(
+        vol, np.array(origin), step, direction, direction_order
+    )
 
     if not isinstance(output_filename, type(None)):
         ants.image_write(

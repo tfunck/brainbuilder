@@ -16,6 +16,7 @@ from brainbuilder.utils.axis_utils import (
     get_section,
     inplane_axes,
     repeat_section,
+    section_axis_from_row,
     set_section,
     volume_shape,
 )
@@ -53,6 +54,7 @@ def get_input_file(
     :return: the input file for resampling and transformation
     """
     tfm_input_fn = seg_rsl_fn
+    section_axis = section_axis_from_row(row)
 
     if not os.path.exists(seg_rsl_fn):
         resample_to_resolution(
@@ -61,6 +63,7 @@ def get_input_file(
             seg_rsl_fn,
             dtype=np.uint8,
             factor=255,
+            section_axis=section_axis,
         )
 
     if resolution_2d != resolution_3d:
@@ -75,6 +78,7 @@ def get_input_file(
                 tfm_input_fn,
                 dtype=np.uint8,
                 factor=255,
+                section_axis=section_axis,
             )
     return tfm_input_fn
 
@@ -109,6 +113,7 @@ def resample_and_transform(
     seg_rsl_tfm_fn = get_seg_fn(
         output_dir, int(row["sample"]), resolution_3d, seg_fn, "_rsl_tfm"
     )
+    section_axis = section_axis_from_row(row)
 
     if resolution_itr == 0:
         tfm_fn = row["init_tfm"]
@@ -163,7 +168,11 @@ def resample_and_transform(
         shutil.copy(row["img"], img_rsl_tfm_fn)
 
         resample_to_resolution(
-            row["img"], [resolution_3d] * 2, output_filename=img_rsl_tfm_fn, order=1
+            row["img"],
+            [resolution_3d] * 2,
+            output_filename=img_rsl_tfm_fn,
+            order=1,
+            section_axis=section_axis,
         )
 
     row["2d_align"] = img_rsl_tfm_fn  # Final transformed 2D image at 2D resolution
@@ -177,6 +186,7 @@ def resample_and_transform(
             [resolution_3d] * 2,
             output_filename=img_rsl_tfm_3d_fn,
             order=1,
+            section_axis=section_axis,
         )
         row["2d_align_3d_res"] = img_rsl_tfm_3d_fn
 
@@ -213,6 +223,7 @@ def resample_transform_segmented_images(
     os.uname()
 
     tfm_ref_fn = output_dir + "/2d_reference_image.nii.gz"
+    section_axis = section_axis_from_row(sect_info.iloc[0])
 
     if not os.path.exists(tfm_ref_fn) and resolution_itr != 0:
         resample_to_resolution(
@@ -220,6 +231,7 @@ def resample_transform_segmented_images(
             [resolution_3d] * 2,
             tfm_ref_fn,
             order=0,
+            section_axis=section_axis,
         )
 
     results = Parallel(n_jobs=num_cores, backend="multiprocessing")(
