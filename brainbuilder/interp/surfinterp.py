@@ -22,6 +22,7 @@ from brainbuilder.utils.mesh_utils import (
     write_mesh_to_volume,
 )
 from brainbuilder.utils.utils import get_section_intervals
+from brainbuilder.utils.axis_utils import DEFAULT_SECTION_AXIS
 
 
 def volumes_to_surface_profiles(
@@ -294,17 +295,20 @@ def surface_pipeline(
     return curr_chunk_info
 
 
-def get_valid_coords(coords: np.ndarray, iw: list) -> tuple:
+def get_valid_coords(
+    coords: np.ndarray, iw: list, axis: int = DEFAULT_SECTION_AXIS
+) -> tuple:
     """Get valid surface coordinates within a given interval.
 
     :param coords: surface coordinates
     :param iw: interval
+    :param axis: sectioning axis whose world coordinate defines the interval (default 1)
     :return: valid surface coordinates
     """
     lower = min(iw)
     upper = max(iw)
 
-    idx_bool = (coords[:, 1] >= lower) & (coords[:, 1] < upper)
+    idx_bool = (coords[:, axis] >= lower) & (coords[:, axis] < upper)
 
     # valid_coords_idx_0  = idx_range[idx_bool]
 
@@ -409,6 +413,7 @@ def project_values_over_section_intervals(
     steps: np.ndarray,
     dimensions: np.ndarray,
     clobber: bool = False,
+    axis: int = DEFAULT_SECTION_AXIS,
 ) -> tuple:
     """Project values over section intervals.
 
@@ -418,26 +423,29 @@ def project_values_over_section_intervals(
     :param steps: step size of volume
     :param dimensions: dimensions of volume
     :param clobber: boolean indicating whether to overwrite existing files
+    :param axis: sectioning axis along which sections are stacked (default 1, coronal)
     :return: tuple of values and number of vertices
     """
     all_values = np.zeros(coords.shape[0])
     n = np.zeros(coords.shape[0])
 
-    # get the voxel intervals along the y-axis the volume
-    intervals_voxel = get_section_intervals(vol)
+    # get the voxel intervals along the sectioning axis of the volume
+    intervals_voxel = get_section_intervals(vol, axis=axis)
 
     assert len(intervals_voxel) > 0, "Error: the length of intervals_voxels == 0 "
 
     idx_range = np.arange(coords.shape[0])
 
-    # iterate over intervals along the y-axis of the volume
+    # iterate over intervals along the sectioning axis of the volume
     for y0, y1 in intervals_voxel:
         # convert from voxel values to real world coordinates
-        y0w = y0 * steps[1] + starts[1]
-        y1w = y1 * steps[1] + starts[1]
+        y0w = y0 * steps[axis] + starts[axis]
+        y1w = y1 * steps[axis] + starts[axis]
 
-        # the voxel values should be the same along the y-axis within an interval
-        valid_coords_world, valid_coords_idx = get_valid_coords(coords, [y0w, y1w])
+        # the voxel values should be the same along the sectioning axis within an interval
+        valid_coords_world, valid_coords_idx = get_valid_coords(
+            coords, [y0w, y1w], axis=axis
+        )
 
         if valid_coords_world.shape[0] != 0:
             values, valid_idx = volume_to_mesh(

@@ -18,6 +18,7 @@ from brainbuilder.align.align_landmarks import create_landmark_transform
 from brainbuilder.align.intervolume import create_acquisition_volume
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
+from brainbuilder.utils.axis_utils import get_section_axis
 from brainbuilder.utils.paths import MultiResPaths, _multires_root_dir
 
 logger = utils.get_logger(__name__)
@@ -340,6 +341,8 @@ def alignment_iteration(
 
     chunk_info_out = pd.DataFrame()
 
+    axis = get_section_axis(chunk_info, sub, hemisphere, chunk)
+
     # insert 2d intersection alignment
     use_2d_intersection = False
 
@@ -366,6 +369,7 @@ def alignment_iteration(
         paths.intermediate_volume_dir,
         paths.acq_rsl_fn,
         paths.init_volume,
+        axis=axis,
         num_cores = num_cores,
         clobber=clobber,
     )
@@ -376,6 +380,7 @@ def alignment_iteration(
         paths.acq_rsl_fn, paths.acq_pad_fn, resolution, padding_offset=padding_offset
     )
 
+    
     _, landmark_composite_tfm_path = write_ref_chunk(
         sect_info,
         chunk_info,
@@ -435,6 +440,7 @@ def alignment_iteration(
             paths.nl_2d_vol_fn,
             paths.nl_2d_vol_cls_fn,
             section_thickness,
+            axis=axis,
             file_to_align="seg_rsl",
             use_syn=use_syn,
             num_cores=num_cores,
@@ -442,6 +448,15 @@ def alignment_iteration(
         )
 
     chunk_info_out = paths.to_dataframe()
+
+    # Preserve sectioning axis metadata across resolution iterations. Without
+    # this, subsequent iterations default to coronal (axis=1).
+    chunk_info_out["section_axis"] = axis
+
+    # Carry forward optional chunk metadata that may be required downstream.
+    for col in ["acquisition", "ref_landmark"]:
+        if col in chunk_info.columns and col not in chunk_info_out.columns:
+            chunk_info_out[col] = chunk_info[col].values[0]
 
     # Keep `nl_3d_tfm_fn` as the composite transform filename (string) for
     # downstream pipeline steps, but store the full transform chain (e.g.
@@ -505,9 +520,15 @@ def align_chunk(
     sect_info_out = sect_info
     chunk_info_out = chunk_info_row
 
-    ref_landmark_volume = (
+    _raw_landmark = (
         chunk_info_row["ref_landmark"].values[0]
         if "ref_landmark" in chunk_info_row.columns
+        else ""
+    )
+    # Treat missing, null, or non-existent paths as "no landmarks"
+    ref_landmark_volume = (
+        str(_raw_landmark)
+        if _raw_landmark and not pd.isna(_raw_landmark) and os.path.exists(str(_raw_landmark))
         else ""
     )
 

@@ -9,6 +9,17 @@ from scipy.interpolate import interp1d
 from scipy.ndimage import label
 
 import brainbuilder.utils.ants_nibabel as nib
+from brainbuilder.utils.axis_utils import (
+    DEFAULT_SECTION_AXIS,
+    add_section,
+    alloc_volume,
+    get_section,
+    get_section_axis,
+    inplane_axes,
+    repeat_section,
+    section_profile,
+    set_section,
+)
 from brainbuilder.utils.utils import (
     get_thicken_width,
     simple_ants_apply_tfm,
@@ -16,13 +27,17 @@ from brainbuilder.utils.utils import (
 
 
 def setup_section_normalization(
-    acquisition: str, sect_info: pd.DataFrame, array_src: np.ndarray
+    acquisition: str,
+    sect_info: pd.DataFrame,
+    array_src: np.ndarray,
+    axis: int = DEFAULT_SECTION_AXIS,
 ) -> Tuple[np.ndarray, bool]:
     """This function is not for chunk normalization but for section normalization based on surrounding sections.
 
     :param acquisition: acquisition type
     :param sect_info: dataframe with section information
     :param array_src: source array
+    :param axis: sectioning axis along which sections are stacked (default 1, coronal)
     :return: array_src, normalize_sections
     """
     normalize_sections = False
@@ -38,7 +53,7 @@ def setup_section_normalization(
             y = int(row["sample"])
 
             # Conversion of radioactivity values to receptor density values
-            section = array_src[:, y, :]
+            section = get_section(array_src, y, axis)
 
             idx = section >= 0
 
@@ -70,11 +85,11 @@ def setup_section_normalization(
         new_mean_list.append(mean_list[-1])
 
         for y, new_mean in zip(y_list, new_mean_list):
-            section = array_src[:, y, :]
+            section = get_section(array_src, y, axis)
             section[section > 0] = (
                 new_mean + section[section > 0] - np.mean(section[section > 0])
             )
-            array_src[:, y, :] = section
+            set_section(array_src, section, y, axis)
 
     return array_src, normalize_sections
 
@@ -89,8 +104,9 @@ def thicken_sections_within_chunk(
     target_section: str = "2d_align_out",
     gaussian_sd: float = 0,
     width: int = None,
+    axis: int = DEFAULT_SECTION_AXIS,
 ) -> None:
-    """Thicken sections within a chunk. A thickened section is simply a section that is expanded along the y axis to the resolution of the reconstruction.
+    """Thicken sections within a chunk. A thickened section is simply a section that is expanded along the sectioning axis to the resolution of the reconstruction.
 
     :param thickened_fn: path to thickened volume
     :param source_image_fn: path to source image
@@ -100,6 +116,8 @@ def thicken_sections_within_chunk(
     :param resolution: resolution of the interpolated volumes
     :param tissue_type: tissue type of the interpolated volumes
     :param gaussian_sd: standard deviation of gaussian filter
+    :param width: number of voxels to thicken each section by along the sectioning axis
+    :param axis: sectioning axis along which sections are stacked (default 1, coronal)
     :return: None
     """
     if width is None:
@@ -114,9 +132,7 @@ def thicken_sections_within_chunk(
     xdim = example_2d_hd.shape[0]
     zdim = example_2d_hd.shape[1]
 
-    dim = [xdim, 1, zdim]
-
-    rec_vol = np.zeros([xdim, ydim, zdim])
+    rec_vol = alloc_volume((xdim, zdim), ydim, axis, dtype=np.float64)
     n = np.zeros_like(rec_vol)
 
     for row_i, row in chunk_sect_info.iterrows():
@@ -143,12 +159,13 @@ def thicken_sections_within_chunk(
         y1 = 1 + int(y) + width if 1 + int(y) + width < ydim else ydim
 
         if width > 0:
-            rep = np.repeat(section.reshape(dim), y1 - y0, axis=1)
-            rec_vol[:, y0:y1, :] += rep
+            add_section(
+                rec_vol, repeat_section(section, y1 - y0, axis), slice(y0, y1), axis
+            )
         else:
-            rec_vol[:, y, :] += section
+            add_section(rec_vol, section, y, axis)
 
-        n[:, y0:y1, :] += 1
+        add_section(n, 1, slice(y0, y1), axis)
 
     # normalize by number of sections within range
 
@@ -169,7 +186,8 @@ def thicken_sections_within_chunk(
         np.max(rec_vol),
     )
 
-    affine[0, 0] = affine[2, 2] = resolution
+    for a in inplane_axes(axis):
+        affine[a, a] = resolution
 
     print("\tthickened_fn", thickened_fn, rec_vol.shape)
     nib.Nifti1Image(rec_vol, affine, direction_order="lpi").to_filename(thickened_fn)
@@ -201,14 +219,15 @@ def check_all_thickened_files_exist(output_csv: str) -> bool:
     return True
 
 
-def get_section_intervals(vol: np.ndarray) -> list:
-    """Get the intervals of sections within a volume across y-axis of volume.
+def get_section_intervals(vol: np.ndarray, axis: int = DEFAULT_SECTION_AXIS) -> list:
+    """Get the intervals of sections within a volume across the sectioning axis.
 
     :param vol: np.array, volume
+    :param axis: sectioning axis along which sections are stacked (default 1, coronal)
     :return: list
     """
-    section_max = np.max(vol, axis=(0, 2))
-    section_min = np.min(vol, axis=(0, 2))
+    section_max = section_profile(vol, axis, reduction=np.max)
+    section_min = section_profile(vol, axis, reduction=np.min)
 
     valid_sections = section_max != section_min
 
@@ -231,34 +250,37 @@ def get_section_intervals(vol: np.ndarray) -> list:
     return intervals
 
 
-def create_distance_volume(volume_filename: str, distance_filename: str) -> np.ndarray:
+def create_distance_volume(
+    volume_filename: str,
+    distance_filename: str,
+    axis: int = DEFAULT_SECTION_AXIS,
+) -> np.ndarray:
     """Create a volume that represents distances from acquired sections.
 
     :param volume_filename: path to volume
     :param distance_filename: path to distance volume
+    :param axis: sectioning axis along which sections are stacked (default 1, coronal)
     :return: np.array
     """
     img = nib.load(volume_filename)
     vol = img.get_fdata()
 
-    intervals = get_section_intervals(vol)
+    intervals = get_section_intervals(vol, axis=axis)
 
     out_vol = np.zeros(vol.shape)
     for i in range(len(intervals) - 1):
         j = i + 1
         x0, x1 = intervals[i]
         y0, y1 = intervals[j]
-        x = np.mean(vol[:, x0:x1, :], axis=1)
-        vol[:, x0:x1, :] = np.repeat(
-            x.reshape(x.shape[0], 1, x.shape[1]), x1 - x0, axis=1
-        )
+        x = np.mean(get_section(vol, slice(x0, x1), axis), axis=axis)
+        set_section(vol, repeat_section(x, x1 - x0, axis), slice(x0, x1), axis)
         for ii in range(x1, y0):
             den = y0 - x1
             assert den != 0, "Error: 0 denominator when interpolating missing sections"
             d0 = ii - x1
             d1 = y1 - ii
             d = min(d0, d1)
-            out_vol[:, ii, :] = d
+            set_section(out_vol, d, ii, axis)
 
     nib.Nifti1Image(out_vol, img.affine, direction_order="lpi").to_filename(
         distance_filename
@@ -370,6 +392,8 @@ def create_thickened_volumes(
             idx = chunk_info["chunk"] == chunk
             chunk_info_row = chunk_info[idx].iloc[0]
 
+            axis = get_section_axis(chunk_info, sub, hemisphere, chunk)
+
             if tissue_type is not None:
                 thickened_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_{int(chunk)}_{acquisition}_{resolution}_{tissue_type}_thickened.nii.gz"
             else:
@@ -392,7 +416,7 @@ def create_thickened_volumes(
 
             if not os.path.exists(thickened_fn) or clobber:
                 acq_ref_coord_img = nib.load(chunk_info_row[acq_ref_coord_vol])
-                ydim = acq_ref_coord_img.shape[1]
+                ydim = acq_ref_coord_img.shape[axis]
                 affine = acq_ref_coord_img.affine
 
                 thicken_sections_within_chunk(
@@ -405,6 +429,7 @@ def create_thickened_volumes(
                     target_section=target_section,
                     gaussian_sd=gaussian_sd,
                     width=width,
+                    axis=axis,
                 )
 
             chunk_info_out = pd.concat([chunk_info_out, chunk_info_row.to_frame().T])

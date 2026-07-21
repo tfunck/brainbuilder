@@ -4,6 +4,7 @@ from subprocess import run
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
+from skimage.transform import resize
 
 # from brainbuilder.utils.nl_deformation_flow import nlflow_isometric
 from morphint.morphint import morphint
@@ -12,18 +13,20 @@ import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import apply_transforms_parallel
 from brainbuilder.interp.acqvolume import create_thickened_volumes
 from brainbuilder.utils import utils
+from brainbuilder.utils.axis_utils import DEFAULT_SECTION_AXIS, get_section, get_section_axis
 
 logger = utils.get_logger(__name__)
 
 
-def idw(vol, nearest_i, min_dist, p=2):
+def idw(vol, nearest_i, min_dist, p=2, axis=DEFAULT_SECTION_AXIS):
     # Inverse Distance Weighted interpolation (IDW) with Shepard's method
     # min_dist += 1
     weights = min_dist / np.sum(min_dist)
 
     print(min_dist, weights)
     interp = np.sum(
-        [w * vol[:, nearest_i[j], :] for j, w in enumerate(weights)], axis=0
+        [w * get_section(vol, nearest_i[j], axis) for j, w in enumerate(weights)],
+        axis=0,
     )
 
     assert np.sum(np.abs(interp)) > 0, "Error: Empty Output"
@@ -205,6 +208,8 @@ def volumetric_interpolation(
 ) -> pd.DataFrame:
     os.makedirs(output_dir, exist_ok=True)
 
+    axis = get_section_axis(curr_chunk_info)
+
     print("Volumetric Interpolation")
     chunk_info_thickened_csv = create_thickened_volumes(
         output_dir,
@@ -230,6 +235,7 @@ def volumetric_interpolation(
         output_dir,
         resolution,
         resolution_list,
+        axis=axis,
         interpolation=interpolation,
         tfm_dict=nlflow_tfm_dict,
         num_jobs=num_cores,
@@ -421,8 +427,25 @@ def chunked_percentile(
             if s.size:
                 vmin = min(vmin, float(np.nanmin(s)))
                 vmax = max(vmax, float(np.nanmax(s)))
+
+        # Sparse sampling can miss non-zero signal in thin structures.
+        # Fall back to full-volume range before declaring a degenerate input.
+        if (not np.isfinite(vmin)) or (not np.isfinite(vmax)) or (vmax <= vmin):
+            vmin, vmax = np.inf, -np.inf
+            for f in fins:
+                s = np.asarray(nib.load(f).dataobj)
+                if background is not None:
+                    s = s[s != background]
+                if s.size:
+                    vmin = min(vmin, float(np.nanmin(s)))
+                    vmax = max(vmax, float(np.nanmax(s)))
+
         if not np.isfinite(vmin):  # degenerate
             vmin, vmax = 0.0, 1.0
+
+    value_span = float(vmax - vmin)
+    if not np.isfinite(value_span) or value_span < 0:
+        value_span = 0.0
 
     edges = np.linspace(vmin, vmax, bins + 1, dtype=np.float32)
     centers = 0.5 * (edges[:-1] + edges[1:])
@@ -443,11 +466,13 @@ def chunked_percentile(
                         blk = np.where(blk == background, np.nan, blk)
                     # Map values to bin indices
                     # scale to [0, bins-1]
-                    idx = np.floor(
-                        (blk - vmin) / (vmax - vmin + 1e-12) * (bins - 1)
-                    ).astype(np.int32)
                     # mask NaNs / outside
                     m = ~np.isnan(blk)
+                    idx = np.zeros(blk.shape, dtype=np.int32)
+                    if value_span > 0 and np.any(m):
+                        idx[m] = np.floor(
+                            ((blk[m] - vmin) / value_span) * (bins - 1)
+                        ).astype(np.int32)
                     idx = np.clip(idx, 0, bins - 1, out=idx)
                     # Update histograms
                     # vectorized add: one bincount per voxel would be slow,
@@ -476,7 +501,13 @@ def chunked_percentile(
                 out[z0:z1, y0:y1, x0:x1] = val
 
     if dtype == np.uint8:
-        out = np.rint(255 * (out - vmin) / (vmax - vmin))
+        # If values are already in uint8-like range (common for cls volumes),
+        # avoid renormalizing; this prevents collapse when vmin == vmax.
+        if value_span > 0 and (vmax > 255 or vmin < 0 or np.nanmax(out) <= 1.0):
+            out = np.rint(255 * (out - vmin) / value_span)
+        else:
+            out = np.rint(out)
+        out = np.clip(out, 0, 255)
 
     out = out.astype(dtype)
 
@@ -660,6 +691,7 @@ def apply_interpolated_volumes_to_stx(
     clobber,
     sub=None,
     hemisphere=None,
+    nl_3d_tfm_list=None,
 ):
     ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
 
@@ -672,15 +704,12 @@ def apply_interpolated_volumes_to_stx(
 
     curr_chunk_info["ref_vol_rsl_list"] = ref_vol_rsl_fn
 
+    if nl_3d_tfm_list is None and "nl_3d_tfm_list" in curr_chunk_info.columns:
+        nl_3d_tfm_list = curr_chunk_info["nl_3d_tfm_list"].values[0]
+
     for _, row in curr_chunk_info.iterrows():
         interp_nat_fin = row["interp_nat"]
         interp_stx_fin = row["interp_stx"]
-
-        nl_3d_tfm_list = (
-            curr_chunk_info["nl_3d_tfm_list"]
-            .loc[curr_chunk_info["chunk"] == row["chunk"]]
-            .values[0]
-        )
 
         logger.info(
             "Applying final transform to stx space for file: %s", interp_nat_fin
@@ -689,14 +718,36 @@ def apply_interpolated_volumes_to_stx(
         logger.info("Nonlinear 3D transform file: %s", nl_3d_tfm_list)
         logger.info("Output file in stx space: %s", interp_stx_fin)
         logger.info("")
-        utils.simple_ants_apply_tfm(
-            interp_nat_fin,
-            ref_vol_rsl_fn,
-            nl_3d_tfm_list,
-            interp_stx_fin,
-            n=interpolation,
-            clobber=clobber,
-        )
+
+        if nl_3d_tfm_list in (None, "", [], ()):
+            # Without a 3D chunk-to-reference transform (e.g., when stage 3 is
+            # skipped), write a reference-grid volume directly so downstream
+            # consumers can always use interp_stx consistently.
+            if not os.path.exists(interp_stx_fin) or clobber:
+                interp_nat_img = nib.load(interp_nat_fin)
+                ref_img = nib.load(ref_vol_rsl_fn)
+
+                interp_data = interp_nat_img.get_fdata().astype(np.float32)
+                interp_on_ref_grid = resize(
+                    interp_data,
+                    ref_img.shape,
+                    order=1,
+                    preserve_range=True,
+                    anti_aliasing=False,
+                ).astype(np.float32)
+
+                nib.Nifti1Image(
+                    interp_on_ref_grid, ref_img.affine, direction_order="lpi"
+                ).to_filename(interp_stx_fin)
+        else:
+            utils.simple_ants_apply_tfm(
+                interp_nat_fin,
+                ref_vol_rsl_fn,
+                nl_3d_tfm_list,
+                interp_stx_fin,
+                n=interpolation,
+                clobber=clobber,
+            )
 
         assert os.path.exists(
             interp_stx_fin
@@ -778,17 +829,19 @@ def volumetric_pipeline(
 
         chunk_info_list.append(curr_chunk_info)
 
-        if use_final_transform:
-            curr_chunk_info = apply_interpolated_volumes_to_stx(
-                curr_chunk_info,
-                curr_hemi_info,
-                resolution,
-                output_dir,
-                interpolation,
-                clobber,
-                sub=sub,
-                hemisphere=hemisphere,
-            )
+        curr_chunk_info = apply_interpolated_volumes_to_stx(
+            curr_chunk_info,
+            curr_hemi_info,
+            resolution,
+            output_dir,
+            interpolation,
+            clobber,
+            sub=sub,
+            hemisphere=hemisphere,
+            nl_3d_tfm_list=curr_chunk_info["nl_3d_tfm_list"].values[0]
+            if use_final_transform and "nl_3d_tfm_list" in curr_chunk_info.columns
+            else None,
+        )
 
     chunk_info_out = pd.concat(chunk_info_list, ignore_index=True)
 

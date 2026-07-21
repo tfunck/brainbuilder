@@ -283,7 +283,7 @@ def setup_argparse() -> argparse.ArgumentParser:
     parser.add_argument(
         dest="chunk_info_csv",
         type=str,
-        help="Path to csv file containing chunk informatio. Mandatory columns: [ sub, hemisphere, chunk, direction, pixel_size_0, pixel_size_1, section_thickness]",
+        help="Path to csv file containing chunk information. Mandatory columns: [ sub, hemisphere, chunk, section_thickness]. Optional: section_axis (0/1/2 or x/y/z; the volume axis along which sections were acquired, default 1 = coronal).",
     )
     parser.add_argument(
         dest="sect_info_csv",

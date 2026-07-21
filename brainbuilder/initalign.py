@@ -14,6 +14,13 @@ from skimage.transform import resize
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
 from brainbuilder.utils.ANTs import ANTs
+from brainbuilder.utils.axis_utils import (
+    DEFAULT_SECTION_AXIS,
+    alloc_volume,
+    get_section_axis,
+    inplane_axes,
+    set_section,
+)
 from brainbuilder.utils.paths import (
     _init_align_chunk_dir,
     _init_align_dir,
@@ -291,6 +298,7 @@ def combine_sections_to_vol(
     y_mm: float,
     out_fn: str,
     target_tier: int = 1,
+    axis: int = DEFAULT_SECTION_AXIS,
 ) -> None:
     """Combine 2D aligned sections to volume.
 
@@ -300,6 +308,7 @@ def combine_sections_to_vol(
     :param direction: The direction of the volume.
     :param out_fn: The output filename.
     :param target_tier: The target tier.
+    :param axis: The sectioning axis along which sections are stacked (default 1).
     :return: None
     """
     example_fn = df["img"].iloc[0]
@@ -317,7 +326,7 @@ def combine_sections_to_vol(
     df["sample"].astype(int).min()
     chunk_ymax = int(order_max + 1)  # -order_min + 1
 
-    vol = np.zeros([xmax, chunk_ymax, zmax])
+    vol = alloc_volume((xmax, zmax), chunk_ymax, axis, dtype=np.float64)
     df = df.sort_values("sample")
 
     for _, row in df.iterrows():
@@ -326,24 +335,24 @@ def combine_sections_to_vol(
             ar = nib.load(row["img"]).get_fdata()
             ar = ar.reshape(ar.shape[0], ar.shape[1])
             ar = resize(ar, [xmax, zmax])
-            vol[:, int(y), :] = ar
+            set_section(vol, ar, int(y), axis)
             # vol[:,int(y),:] += int(y)
             del ar
 
     logger.info(f"\n\tWriting Volume {out_fn}\n")
     chunk_ymin = -126 + df["sample"].min() * y_mm
 
-    affine = np.array(
-        [
-            [xstep, 0, 0, xstart],
-            [0, ystep, 0, chunk_ymin],
-            [0, 0, zstep, zstart],
-            [0, 0, 0, 1],
-        ]
-    )
+    inplane = inplane_axes(axis)
+    affine = np.eye(4)
+    affine[inplane[0], inplane[0]] = xstep
+    affine[inplane[0], 3] = xstart
+    affine[inplane[1], inplane[1]] = zstep
+    affine[inplane[1], 3] = zstart
+    affine[axis, axis] = ystep
+    affine[axis, 3] = chunk_ymin
     affine = np.round(affine, 3)
-    # flip the volume along the y-axis so that the image is in RAS coordinates because ANTs requires RAS
-    # vol = np.flip(vol, axis=1)
+    # flip the volume along the sectioning axis so that the image is in RAS coordinates because ANTs requires RAS
+    # vol = np.flip(vol, axis=axis)
     nib.Nifti1Image(vol, affine, direction_order="lpi").to_filename(out_fn)
 
 
@@ -669,6 +678,7 @@ def align_chunk(
 
     n_acquisitions = len(df["acquisition"].unique())
     _, _, y_mm = utils.get_chunk_pixel_size(sub, hemisphere, chunk, chunk_info)
+    axis = get_section_axis(chunk_info, sub, hemisphere, chunk)
 
     ###########
     # Stage 1 #
@@ -768,7 +778,7 @@ def align_chunk(
     df["tier"] = 1
     if not os.path.exists(init_align_fn):
         logger.info("\tInit Align Volume:" + init_align_fn)
-        combine_sections_to_vol(df, y_mm, init_align_fn)
+        combine_sections_to_vol(df, y_mm, init_align_fn, axis=axis)
 
     sect_info["init_tfm"] = df["init_tfm"]
     sect_info["2d_align_out"] = sect_info["init_img"] = df["init_img"]

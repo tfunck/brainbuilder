@@ -9,6 +9,7 @@ from joblib import Parallel, cpu_count, delayed
 import brainbuilder.utils.utils as utils
 from brainbuilder.utils.mesh_io import load_mesh_ext
 from brainbuilder.utils.utils import get_logger
+from brainbuilder.utils.axis_utils import map_axis
 import nibabel as nib
 from PIL import Image
 
@@ -244,6 +245,34 @@ def validate_volume(fn: str, check_not_empty: bool = False) -> bool:
     return valid_inputs
 
 
+def validate_optional_section_axis(chunk_info_csv: str) -> bool:
+    """Validate the optional ``section_axis`` column in chunk_info if present.
+
+    When present, every value must be one of ``0``/``1``/``2`` or ``x``/``y``/``z``.
+    Absence of the column is valid (the sectioning axis defaults to 1, coronal).
+
+    :param chunk_info_csv: path to the chunk info csv
+    :return: bool indicating whether the section_axis values are valid
+    """
+    if not os.path.exists(chunk_info_csv):
+        return True
+
+    df = pd.read_csv(chunk_info_csv)
+
+    if "section_axis" not in df.columns:
+        return True
+
+    valid_inputs = True
+    for value in df["section_axis"].values:
+        try:
+            map_axis(value)
+        except ValueError as e:
+            logger.critical(f"\tInvalid section_axis value: {e}")
+            valid_inputs = False
+
+    return valid_inputs
+
+
 def validate_inputs(
     hemi_info_csv: str,
     chunk_info_csv: str,
@@ -283,6 +312,9 @@ def validate_inputs(
         logger.info("\nValidating Chunk Info")
         chunk_info_valid = validate_csv(
             chunk_info_csv, chunk_info_required_columns, n_jobs=n_jobs
+        )
+        chunk_info_valid = chunk_info_valid * validate_optional_section_axis(
+            chunk_info_csv
         )
         logger.info(f"\tChunk Info Valid: {bool(chunk_info_valid)}")
 

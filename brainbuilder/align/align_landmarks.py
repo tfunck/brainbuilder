@@ -12,6 +12,13 @@ import pandas as pd
 from brainbuilder.utils import ants_nibabel as nib
 from brainbuilder.utils import utils
 from brainbuilder.utils.utils import pad_volume, simple_ants_apply_tfm
+from brainbuilder.utils.axis_utils import (
+    DEFAULT_SECTION_AXIS,
+    inplane_axes,
+    repeat_section,
+    section_index,
+    volume_shape,
+)
 from joblib import Parallel, delayed
 from scipy.ndimage import binary_dilation, center_of_mass
 from skimage.transform import resize
@@ -124,15 +131,16 @@ def _init_parameters(
     section_thickness: float,
     resolution: float,
     ymax: int,
+    axis: int = DEFAULT_SECTION_AXIS,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Initialize affine and dimensions for the sparse landmark volume."""
     example_raw_img = nib.load(sect_info["raw"].values[0])
 
-    steps = [
-        example_raw_img.affine[0, 0],
-        section_thickness,
-        example_raw_img.affine[1, 1],
-    ]
+    inplane = inplane_axes(axis)
+    steps = [0.0, 0.0, 0.0]
+    steps[axis] = section_thickness
+    steps[inplane[0]] = example_raw_img.affine[0, 0]
+    steps[inplane[1]] = example_raw_img.affine[1, 1]
 
     affine = np.ones((4, 4))
     affine[0, 0] = resolution
@@ -141,12 +149,16 @@ def _init_parameters(
     affine[0:3, 3] = fixed_origin
 
     # dims for sparse landmark volume
-    dims = [example_raw_img.shape[0], ymax, example_raw_img.shape[1]]
+    dims = list(
+        volume_shape(
+            (example_raw_img.shape[0], example_raw_img.shape[1]), ymax, axis
+        )
+    )
     scaling = resolution / np.array(steps)
 
     target_dims = np.rint(dims / scaling).astype(int)
 
-    r = np.max([1, scaling[1] * 20]).astype(int)
+    r = np.max([1, scaling[axis] * 20]).astype(int)
     logger.info(f"Building sparse landmark volume with section thickness ratio {r}")
 
     return affine, dims, target_dims, scaling, r, steps
@@ -180,6 +192,7 @@ def _process_and_save_sparse_landmark_volume(
     ymax: int,
     resolution_3d: float,
     padding_offset: float = 0.15,
+    axis: int = DEFAULT_SECTION_AXIS,
 ):
 
 
@@ -190,12 +203,16 @@ def _process_and_save_sparse_landmark_volume(
     """Create and save sparse 3D landmark volume by pasting warped 2D landmark slices."""
     # Initialize affine and dimensions
     affine, dims, target_dims, scaling, r, steps = _init_parameters(
-        sect_info, reference_origin, section_thickness, resolution_3d, ymax
+        sect_info, reference_origin, section_thickness, resolution_3d, ymax, axis=axis
     )
 
+    inplane = inplane_axes(axis)
     target_dims = np.asarray(target_dims, dtype=int)
-    intermediate_dims = np.asarray([target_dims[0], dims[1], target_dims[2]], dtype=int)
-    target_slice_shape = tuple(intermediate_dims[[0, 2]])
+    intermediate_dims = np.zeros(3, dtype=int)
+    intermediate_dims[axis] = int(dims[axis])
+    intermediate_dims[inplane[0]] = target_dims[inplane[0]]
+    intermediate_dims[inplane[1]] = target_dims[inplane[1]]
+    target_slice_shape = tuple(intermediate_dims[list(inplane)])
 
     out_data = np.zeros(intermediate_dims, dtype=np.uint32)
 
@@ -229,7 +246,13 @@ def _process_and_save_sparse_landmark_volume(
         unique_labels = unique_labels[unique_labels != 0]
 
         warped = adjust_label_sizes(
-            warped, unique_labels, x_structure, z_structure, scaling, steps[0], steps[2]
+            warped,
+            unique_labels,
+            x_structure,
+            z_structure,
+            scaling,
+            steps[inplane[0]],
+            steps[inplane[1]],
         )
 
         if warped.shape != target_slice_shape:
@@ -242,15 +265,16 @@ def _process_and_save_sparse_landmark_volume(
             ).astype(np.uint32)
 
         y0 = int(max(0, y - r))
-        y1 = int(min(intermediate_dims[1], y + r))
+        y1 = int(min(intermediate_dims[axis], y + r))
 
         # repeat warped to match y1-y0
-        warped_rep = np.repeat(warped[:, np.newaxis, :], y1 - y0, axis=1)
+        warped_rep = repeat_section(warped, y1 - y0, axis)
 
         idx = warped_rep > 0
         # this is not ideal because of potential label conflicts but is necessary to prevent loss of labels
         # during transformation
-        out_data[:, y0:y1, :][idx] = warped_rep[idx]
+        out_slab = out_data[section_index(axis, slice(y0, y1))]
+        out_slab[idx] = warped_rep[idx]
 
         unique_labels_list += unique_labels.tolist()
 
@@ -388,6 +412,7 @@ def build_sparse_landmark_volume(
     output_dir: str,
     section_thickness: float,
     ymax: int,
+    axis: int = DEFAULT_SECTION_AXIS,
     padding_offset: float = 0.15,
     clobber: bool = False,
 ) -> pd.DataFrame:
@@ -431,6 +456,7 @@ def build_sparse_landmark_volume(
             ymax,
             resolution_3d,
             padding_offset=padding_offset,
+            axis=axis,
         )
 
     return sect_info
@@ -978,6 +1004,7 @@ def create_landmark_transform(
     fixed_qc_vol_path,
     ymax: int,
     section_thickness: float,
+    axis: int = DEFAULT_SECTION_AXIS,
     num_cores: int = -1,
     transform_type="bspline",
     padding_offset: float = 0.15,
@@ -1036,6 +1063,7 @@ def create_landmark_transform(
         output_landmark_dir,
         section_thickness,
         ymax,
+        axis=axis,
         padding_offset=padding_offset,
         clobber=clobber,
     )

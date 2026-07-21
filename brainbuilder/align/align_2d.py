@@ -16,6 +16,12 @@ import pandas as pd
 from brainbuilder.qc.validate_section_alignment_to_ref import get_section_metric
 from brainbuilder.utils import utils
 from brainbuilder.utils.ANTs import apply_transform_fallback
+from brainbuilder.utils.axis_utils import (
+    DEFAULT_SECTION_AXIS,
+    inplane_axes,
+    set_affine_spacing,
+    volume_shape,
+)
 from brainbuilder.utils.utils import (
     AntsParams,
     check_volume,
@@ -45,6 +51,7 @@ def resample_reference_to_sections(
     ymax: int,
     zmax: int,
     section_thickness: float,
+    axis: int = DEFAULT_SECTION_AXIS,
     clobber: bool = False,
 ) -> tuple:
     """Apply 3d transformation and resample volume into the same coordinate space as 3d receptor volume.
@@ -101,13 +108,14 @@ def resample_reference_to_sections(
 
         # Resample the transformed volume to the resolution of the section width on the y axis and the resolution of the reconstruction on the x and z axis
         affine = img.affine.copy()
-        affine[0, 0] = affine[2, 2] = resolution
-        affine[1, 1] = section_thickness
+        set_affine_spacing(affine, axis, section_thickness, resolution)
 
         assert np.sum(vol) > 0, f"Error: empty volume {output_fn}"
 
         vol = resize(
-            vol.astype(float), (xmax, ymax + 1, zmax), order=1
+            vol.astype(float),
+            volume_shape((xmax, zmax), ymax + 1, axis),
+            order=1,
         )  # .astype(np.uint8)
         img_out = nib.Nifti1Image(vol, affine, direction_order="lpi")
 
@@ -677,6 +685,7 @@ def concatenate_tfm_sections_to_volume(
     output_dir: str,
     out_fn: str,
     target_str: str = "",
+    axis: int = DEFAULT_SECTION_AXIS,
 ) -> pd.DataFrame:
     """Concatenate 2D sections into output volume.
 
@@ -687,6 +696,7 @@ def concatenate_tfm_sections_to_volume(
     :param output_dir: directory to store output files
     :param out_fn: output filename
     :param target_str: target string
+    :param axis: sectioning axis along which sections are stacked (default 1, coronal)
     :return: sect_info
     """
     hires_img = nib.load(rec_fn)
@@ -702,7 +712,7 @@ def concatenate_tfm_sections_to_volume(
     # )
 
     concatenate_sections_to_volume(
-        sect_info, target_name, out_fn, hires_img.shape, hires_img.affine
+        sect_info, target_name, out_fn, hires_img.shape, hires_img.affine, axis=axis
     )
 
     return sect_info
@@ -719,6 +729,7 @@ def align_2d(
     nl_2d_vol_fn: str,
     nl_2d_cls_fn: str,
     section_thickness: float,
+    axis: int = DEFAULT_SECTION_AXIS,
     base_lin_itr: int = 100,
     base_nl_itr: int = 20,
     use_syn: bool = True,
@@ -766,6 +777,7 @@ def align_2d(
         ymax,
         zmax,
         section_thickness,
+        axis=axis,
     )
 
     # Define fixed 'fx' filenames for each section from the resampled reference volume
@@ -778,6 +790,7 @@ def align_2d(
         ref_space_nat_fn,
         nl_2d_dir,
         dtype=np.uint8,
+        axis=axis,
     )
 
     logger.info("\t\tStep 4: 2d nl alignment")
@@ -799,12 +812,12 @@ def align_2d(
 
     # Concatenate 2D nonlinear aligned sections into output volume
     sect_info = concatenate_tfm_sections_to_volume(
-        sect_info, ref_space_nat_fn, nl_2d_dir, nl_2d_vol_fn
+        sect_info, ref_space_nat_fn, nl_2d_dir, nl_2d_vol_fn, axis=axis
     )
 
     # Concatenate 2D nonlinear aligned cls sections into an output volume
     sect_info = concatenate_tfm_sections_to_volume(
-        sect_info, ref_space_nat_fn, nl_2d_dir, nl_2d_cls_fn, target_str="_cls"
+        sect_info, ref_space_nat_fn, nl_2d_dir, nl_2d_cls_fn, target_str="_cls", axis=axis
     )
 
     return sect_info, ref_space_nat_fn

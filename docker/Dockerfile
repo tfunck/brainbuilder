@@ -9,7 +9,7 @@ RUN cd /opt && \
 	/opt/bbenv/bin/pip3 install . 
 
 
-RUN pip install --no-cache-dir awscli
+RUN /opt/bbenv/bin/pip3 install --no-cache-dir awscli
 
 
 # Create the entrypoint.sh script

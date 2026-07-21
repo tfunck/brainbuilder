@@ -11,16 +11,36 @@ import numpy as np
 import pandas as pd
 from brainbuilder.align.align_landmarks import create_landmark_transform
 from brainbuilder.utils import utils
+from brainbuilder.utils.axis_utils import (
+    DEFAULT_SECTION_AXIS,
+    get_affine_origin,
+    get_affine_spacing,
+    get_section_axis,
+    section_index,
+    section_profile,
+)
 
 logger = utils.get_logger(__name__)
 
 
 def _set_use_landmark_transform(ref_landmark_volume, landmark_dir):
-    return (
+    """Check if landmark transform should be used.
+    
+    Returns True only if both the reference landmark volume file exists
+    and the landmark directory exists and neither is None.
+    """
+    result = (
         True
-        if os.path.exists(ref_landmark_volume) and os.path.exists(landmark_dir)
+        if (ref_landmark_volume is not None
+            and landmark_dir is not None
+            and os.path.exists(ref_landmark_volume)
+            and os.path.exists(landmark_dir))
         else False
     )
+    logger.debug(
+        f"_set_use_landmark_transform: ref_lm={ref_landmark_volume}, lm_dir={landmark_dir}, result={result}"
+    )
+    return result
 
 def v2w(i: int, step: float, start: float) -> float:
     """Converts voxel coordinate to world coordinate.
@@ -33,13 +53,14 @@ def v2w(i: int, step: float, start: float) -> float:
     return start + i * step
 
 
-def find_vol_min_max(vol: np.ndarray) -> tuple:
+def find_vol_min_max(vol: np.ndarray, axis: int = DEFAULT_SECTION_AXIS) -> tuple:
     """Finds the min and max spatial coordinate of the srv image.
 
     :param vol:  image volume
+    :param axis: sectioning axis along which the profile is computed (default 1)
     :return: srvMin, srvMax
     """
-    profile = np.max(vol, axis=(0, 2))
+    profile = section_profile(vol, axis, reduction=np.max)
     if np.sum(profile) == 0:
         logger.critical("Error : empty srv file")
         exit(1)
@@ -48,22 +69,22 @@ def find_vol_min_max(vol: np.ndarray) -> tuple:
     return srvMin, srvMax
 
 
-def get_ref_info(moving_fn: str) -> tuple:
+def get_ref_info(moving_fn: str, axis: int = DEFAULT_SECTION_AXIS) -> tuple:
     """Get reference volume information.
 
     Description: Get the width, min, max, ystep, and ystart of the reference volume
 
     :param moving_fn: reference volume filename
+    :param axis: sectioning axis (default 1, coronal)
     :return: ref_width, ref_min, ref_max, ref_ystep, ref_ystart.
     """
     ref_img = nib.load(moving_fn)
     ref_vol = ref_img.get_fdata()
-    ref_vol.shape[1]
 
-    ref_ystep = abs(ref_img.affine[1, 1])
-    ref_ystart = ref_img.affine[1, 3]
+    ref_ystep = abs(get_affine_spacing(ref_img.affine, axis))
+    ref_ystart = get_affine_origin(ref_img.affine, axis)
     ref_min, ref_max = list(
-        map(lambda x: v2w(x, ref_ystep, ref_ystart), find_vol_min_max(ref_vol))
+        map(lambda x: v2w(x, ref_ystep, ref_ystart), find_vol_min_max(ref_vol, axis))
     )
     ref_width = ref_max - ref_min
 
@@ -167,25 +188,30 @@ def get_alignment_schedule(
 
 
 def verify_chunk_limits(
-    ref_rsl_fn: str, chunk_info: pd.DataFrame, verbose: bool = False
+    ref_rsl_fn: str,
+    chunk_info: pd.DataFrame,
+    axis: int = DEFAULT_SECTION_AXIS,
+    verbose: bool = False,
 ) -> tuple:
     """Get the start and end of the chunk in the reference space.
 
     :param ref_rsl_fn: reference space file name
+    :param axis: sectioning axis (default 1, coronal)
     :param verbose: verbose
     :return: (y0w, y1w) --> world coordinates; (y0, y1) --> voxel coordinates
     """
     img = nibabel.load(ref_rsl_fn)
 
-    ystart = img.affine[1, 3]
-    ystep = img.affine[1, 1]
+    ystart = get_affine_origin(img.affine, axis)
+    ystep = get_affine_spacing(img.affine, axis)
+    ndim_axis = img.shape[axis]
     if "caudal_limit" in chunk_info.columns and "rostral_limit" in chunk_info.columns:
         y0w = chunk_info["caudal_limit"].values[0]
         y1w = chunk_info["rostral_limit"].values[0]
 
-        # check if y0w and y1w are float, if not return 0 and img.shape[1]
+        # check if y0w and y1w are float, if not return 0 and ndim_axis
         y0w = y0w if isinstance(y0w, float) else ystart
-        y1w = y1w if isinstance(y1w, float) else ystart + ystep * img.shape[1]
+        y1w = y1w if isinstance(y1w, float) else ystart + ystep * ndim_axis
 
         y0 = (y0w - ystart) / ystep
         y1 = (y1w - ystart) / ystep
@@ -202,9 +228,9 @@ def verify_chunk_limits(
 
     else:
         y0w = ystart
-        y1w = ystart + ystep * img.shape[1]
+        y1w = ystart + ystep * ndim_axis
         y0 = 0
-        y1 = img.shape[1]
+        y1 = ndim_axis
 
     return [y0, y1], [y0w, y1w]
 
@@ -245,9 +271,10 @@ def write_ref_chunk_with_fixed_limits(
     chunk: int,
     ref_vol_fn: str,
     out_dir: str,
+    axis: int = DEFAULT_SECTION_AXIS,
     clobber: bool = False,
 ) -> str:
-    (y0, y1), _ = verify_chunk_limits(ref_vol_fn, chunk_info)
+    (y0, y1), _ = verify_chunk_limits(ref_vol_fn, chunk_info, axis=axis)
 
     ref_chunk_fn = f"{out_dir}/sub-{sub}_hemi-{hemi}_chunk-{chunk}_ref_{y0}_{y1}.nii.gz"
 
@@ -260,8 +287,8 @@ def write_ref_chunk_with_fixed_limits(
 
         aff = ref_img.affine
 
-        ref_vol[:, :y0, :] = 0
-        ref_vol[:, y1 + 1 :, :] = 0
+        ref_vol[section_index(axis, slice(None, y0))] = 0
+        ref_vol[section_index(axis, slice(y1 + 1, None))] = 0
 
         # rescale 0-255
         ref_vol = (
@@ -314,11 +341,12 @@ def write_ref_chunk_with_landmark_transform(
     acq_landmark_volume:str,
     ref_landmark_volume:str,
     acq_rsl_volume:str,
+    axis: int = DEFAULT_SECTION_AXIS,
     padding_offset: float = 0.15,
     clobber: bool = False,
 ):
     # 1 Calculate the landmark transform from acquisition to reference space
-    ymax = nib.load(chunk_info["init_volume"].values[0]).shape[1]
+    ymax = nib.load(chunk_info["init_volume"].values[0]).shape[axis]
 
     landmark_composite_fwd_tfm_path, landmark_composite_inv_tfm_path = create_landmark_transform(
         sub,
@@ -337,6 +365,7 @@ def write_ref_chunk_with_landmark_transform(
         fixed_qc_volume,  # qc fixed volume for visualisation
         ymax,
         chunk_info["section_thickness"].values[0],
+        axis=axis,
         padding_offset=padding_offset,
         clobber=clobber,
     )
@@ -367,7 +396,6 @@ def write_ref_chunk_with_landmark_transform(
     )
 
     # 4 Use the reference space warped indicator volume to mask the reference volume to get the reference chunk
-    clobber=True
     ref_chunk_fn = crop_volume_with_indicator(
         ref_vol_fn, ref_indicator_volume, landmark_out_dir, sub, hemi, chunk, clobber
     )
@@ -412,6 +440,14 @@ def write_ref_chunk(
     use_landmark_transform = _set_use_landmark_transform(
         ref_landmark_volume, landmark_dir
     )
+    
+    logger.info(f"write_ref_chunk: sub={sub}, hemi={hemi}, chunk={chunk}")
+    logger.info(f"  ref_vol_fn={ref_vol_fn}")
+    logger.info(f"  use_landmark_transform={use_landmark_transform}")
+    logger.info(f"  landmark_dir={landmark_dir}")
+    logger.info(f"  ref_landmark_volume={ref_landmark_volume}")
+
+    axis = get_section_axis(chunk_info, sub, hemi, chunk)
 
     landmark_composite_tfm_path = None
     ref_chunk_fn = ref_vol_fn
@@ -424,13 +460,15 @@ def write_ref_chunk(
             logger.warning(
                 "caudal_limit and rostral_limit not found in chunk_info, using full volume"
             )
+            logger.info(f"  Using full volume: ref_chunk_fn will be = {ref_chunk_fn}")
         else:
             # if landmark transform is not provided, use the fixed limits from the chunk_info.csv to get the reference chunk.
             # This is because the fixed limits may not be accurate and may not correspond to the actual tissue chunk in the reference space,
             # but it is better than nothing and will allow us to get a reference chunk that is at least in the right area of the brain.
             ref_chunk_fn = write_ref_chunk_with_fixed_limits(
-                chunk_info, sub, hemi, chunk, ref_vol_fn, align_3d_dir, clobber
+                chunk_info, sub, hemi, chunk, ref_vol_fn, align_3d_dir, axis, clobber
             )
+            logger.info(f"  Using fixed limits: ref_chunk_fn = {ref_chunk_fn}")
     else:
         if moving_landmark_volume == ref_landmark_volume: #
             # if the reference landmark volume is the moving volume, then we can use the original reference volume because
@@ -456,6 +494,7 @@ def write_ref_chunk(
             acq_landmark_volume,
             ref_landmark_volume,
             acq_rsl_volume,
+            axis=axis,
             padding_offset=padding_offset,
             clobber=clobber,
         )
@@ -463,6 +502,10 @@ def write_ref_chunk(
         # downsample the original ref gm mask to current 3d resolution
     if not os.path.exists(ref_chunk_rsl_fn) or clobber:
         order = 1
+        
+        logger.info(f"write_ref_chunk: Resampling {ref_chunk_fn} to {ref_chunk_rsl_fn}")
+        logger.info(f"  resolution_3d={resolution_3d}")
+        logger.info(f"  ref_chunk_fn exists: {os.path.exists(ref_chunk_fn)}")
 
         utils.resample_to_resolution(
             ref_chunk_fn,
@@ -473,6 +516,16 @@ def write_ref_chunk(
             factor=255,
         )
         
+        logger.info(f"  Output file created: {os.path.exists(ref_chunk_rsl_fn)}")
+        if os.path.exists(ref_chunk_rsl_fn):
+            stat_info = os.stat(ref_chunk_rsl_fn)
+            logger.info(f"  ref_chunk_rsl_fn size={stat_info.st_size}")
+            img_out = nib.load(ref_chunk_rsl_fn)
+            data_out = img_out.get_fdata()
+            n_nonzero_out = np.sum(data_out > 0)
+            logger.info(f"  OUTPUT: shape={img_out.shape}, non-zero voxels={n_nonzero_out}")
+            if n_nonzero_out == 0:
+                logger.error(f"ERROR: Output file has no non-zero voxels after resampling!")
     return ref_chunk_rsl_fn, landmark_composite_tfm_path
 
 
