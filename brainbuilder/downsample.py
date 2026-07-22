@@ -13,6 +13,7 @@ from brainbuilder.utils import utils
 from brainbuilder.utils.axis_utils import (
     alloc_volume,
     get_section_axis,
+    section_axis_from_row,
     set_affine_spacing,
     set_section,
 )
@@ -141,7 +142,13 @@ def downsample_within_chunk(
 
         if utils.check_run_stage([downsample_file], [raw_file], clobber=clobber):
             to_do.append(
-                (raw_file, downsample_file, resolution, conversion_factor)
+                (
+                    raw_file,
+                    downsample_file,
+                    resolution,
+                    conversion_factor,
+                    section_axis_from_row(row),
+                )
             )
 
     Parallel(n_jobs=num_cores, backend="multiprocessing")(
@@ -152,8 +159,9 @@ def downsample_within_chunk(
             order=1,
             factor=factor,
             max_dims=(max_dim_0, max_dim_1),
+            section_axis=section_axis,
         )
-        for raw_file, downsample_file, resolution, factor in to_do
+        for raw_file, downsample_file, resolution, factor, section_axis in to_do
     )
 
 

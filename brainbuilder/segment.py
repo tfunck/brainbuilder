@@ -144,6 +144,7 @@ def histogram_threshold(
     img = nib.load(raw_fn)
 
     affine = img.affine
+    direction = img.direction
     dimensions = img.shape
 
     ar = img.get_fdata()
@@ -165,6 +166,7 @@ def histogram_threshold(
         ref_hd = nib.load(ref)
         dimensions = ref_hd.shape  # resize to reference image
         affine = ref_hd.affine
+        direction = ref_hd.direction
 
     out = resize(out, dimensions, order=3)
     if len(out.shape) == 3:
@@ -177,7 +179,7 @@ def histogram_threshold(
     # scale to 255
     out = (out / out.max() * 255).astype(np.uint8)
 
-    nib.Nifti1Image(out, affine, direction_order="lpi").to_filename(seg_fn)
+    nib.Nifti1Image(out, affine, direction=direction).to_filename(seg_fn)
 
     return out
 

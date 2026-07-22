@@ -129,9 +129,11 @@ def resample_and_transform(
             tfm_ref_fn = tfm_input_fn
 
         # get initial rigid transform
-        print("seg", seg_fn)
-        print("\tTransforming", seg_rsl_fn, "to", seg_rsl_tfm_fn)
-        print("\t\twith:", tfm_fn, "\n")
+        print("\nseg", seg_fn)
+        print("\tTransforming", tfm_input_fn)
+        print("\tto", seg_rsl_tfm_fn)
+        print('\twith ref', tfm_ref_fn)
+        print("\twith tfm:", tfm_fn, "\n")
 
         if isinstance(tfm_fn, str):
             simple_ants_apply_tfm(
@@ -392,6 +394,7 @@ def create_acquisition_volume(
 
     param: sect_info: dataframe containing information about each section
     param: chunk_info: dataframe containing information about each chunk
+        print("created:", seg_rsl_fn)
     param: resolution_itr: current resolution iteration
     param: resolution: current resolution
     param: resolution_3d: current 3d resolution
@@ -488,7 +491,6 @@ def create_acquisition_volume(
             dtype=np.uint8,
             chunk=(48, 48, 48),
         )
-        print("created:", seg_rsl_fn)
 
         sect_info.to_csv(sect_info_csv)
 

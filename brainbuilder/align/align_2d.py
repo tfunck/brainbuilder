@@ -261,7 +261,6 @@ def ants_registration_2d_section(
                 f.write(command_str)
 
             shell(command_str, exit_on_failure=False)
-           
             # check that output files exist and are not empty, otherwise 
             # return just the initial transform and apply it to the moving image
             # if there is not initial transform, default to identity transform

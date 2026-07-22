@@ -761,37 +761,31 @@ def gen_2d_fn(prefix: str, suffix: str, ext: str = ".nii.gz") -> str:
 
 def save_sections(
     file_list: List[Tuple[str, float]],
-    vol: np.ndarray,
-    aff: np.ndarray,
+    srv_fn: str,
     dtype: int = None,
     axis: int = DEFAULT_SECTION_AXIS,
 ) -> None:
     """Save sections of a volume.
 
     :param file_list: List[Tuple[str, float]], list of filenames and y values
-    :param vol: Any, volume data
-    :param aff: Any, affine transformation
+    :param srv_fn: str, path to the source volume
     :param dtype: Optional[Any], data type
     :param axis: sectioning axis along which sections are stacked (default 1, coronal)
     :return: None
     """
+    img = ants.image_read(srv_fn)
+    vol = img.numpy()
+
     inplane = inplane_axes(axis, vol.ndim)
-    step0 = aff[inplane[0], inplane[0]]
-    step1 = aff[inplane[1], inplane[1]]
-    ystep = get_affine_spacing(aff, axis)
 
-    start0 = aff[inplane[0], 3]
-    start1 = aff[inplane[1], 3]
-
-    affine = np.array(
-        [
-            [step0, 0, 0, start0],
-            [0, step1, 0, start1],
-            [0, 0, ystep, 0],
-            [0, 0, 0, 1],
-        ]
-    )
-
+    spacing = [img.spacing[inplane[0]], img.spacing[inplane[1]]]
+    origin = [img.origin[inplane[0]], img.origin[inplane[1]]]
+    direction = img.direction[np.ix_(inplane, inplane)]
+    print(srv_fn)
+    print("Spacing:", spacing)
+    print("Origin:", origin)
+    print("Direction:", direction)
+    ystep = img.spacing[axis]  # step size along the sectioning axis
     for fn, y in file_list:
         i = 0
 
@@ -806,7 +800,15 @@ def save_sections(
 
         assert np.max(sec) != np.min(sec), f"Error: empty section {fn}"
 
-        nib.Nifti1Image(sec, affine, dtype=dtype, direction_order="lpi").to_filename(fn)
+        if dtype is not None:
+            sec = sec.astype(dtype)
+
+        direction = normalize_direction_order(direction, vol.ndim, axis)
+
+        ants.image_write(
+            ants.from_numpy(sec.astype(np.float32), origin=origin, spacing=spacing, direction=direction),
+            fn,
+        )
 
 
 def threshold(fn: str) -> str:
@@ -908,10 +910,7 @@ def create_2d_sections(
     ]
 
     if len(fx_to_do) > 0:
-        srv_img = nib.load(srv_fn)
-        affine = srv_img.affine
-        srv = srv_img.get_fdata()
-        save_sections(fx_to_do, srv, affine, dtype=dtype, axis=axis)
+        save_sections(fx_to_do, srv_fn, dtype=dtype, axis=axis)
 
     return None
 
