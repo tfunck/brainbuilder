@@ -136,6 +136,10 @@ def reconstruct(
     use_syn: bool = True,
     init_tfm_type: str = ["rigid"],
     vol_lin_tfm_type: list = ["rigid", "similarity", "affine"],
+    base_lin_itr_2d: int = 100,
+    base_nl_itr_2d: int = 30,
+    base_lin_itr_3d: int = 500,
+    base_nl_itr_3d: int = 200,
     seg_method: str = "nnunetv1",
     nnunet_model_dir: str = f"{repo_dir}/nnUNet/Dataset501_Brain/nnUNetTrainer__nnUNetPlans__2d/",
     nnunet_config_json: str = f"{repo_dir}/nnUNet/nnunet_config/primate_v1.json",
@@ -175,6 +179,10 @@ def reconstruct(
     :param use_syn: bool, use 2D nonlinear SyN (default=True)
     :param init_tfm_type: list, initial transformation types to use for alignment (default=['rigid'])
     :param vol_lin_tfm_type: list, linear transformation types to use for volume alignment (default=['rigid', 'similarity', 'affine'])
+    :param base_lin_itr_2d: int, base number of linear iterations for 2D alignment (default=100)
+    :param base_nl_itr_2d: int, base number of nonlinear iterations for 2D alignment (default=30)
+    :param base_lin_itr_3d: int, base number of linear iterations for 3D alignment (default=500)
+    :param base_nl_itr_3d: int, base number of nonlinear iterations for 3D alignment (default=200)
     :param seg_method: str, segmentation method ('nnunetv1', 'nnunetv2', 'otsu', 'triangle') (default='nnunetv1')
     :param nnunet_model_dir: str, path to nnUNet model directory for segmentation
     :param nnunet_config_json: str, path to nnUNet configuration JSON file
@@ -222,6 +230,10 @@ def reconstruct(
     logger.info(f"\t\tFinal resolution: {final_resolution}")
     logger.info(f"\t\tResolution list: {resolution_list}")
     logger.info(f"\t\tLinear steps: {vol_lin_tfm_type}")
+    logger.info(f"\t\t2D base linear iterations: {base_lin_itr_2d}")
+    logger.info(f"\t\t2D base nonlinear iterations: {base_nl_itr_2d}")
+    logger.info(f"\t\t3D base linear iterations: {base_lin_itr_3d}")
+    logger.info(f"\t\t3D base nonlinear iterations: {base_nl_itr_3d}")
     logger.info(f"\t\tNumber of cores: {num_cores}")
     logger.info(f"\t\tSegmentation method: {seg_method}")
     logger.info(f"\t\tUse 3D nonlinear CC: {use_3d_syn_cc}")
@@ -308,6 +320,10 @@ def reconstruct(
             use_syn=use_syn,
             num_cores=num_cores,
             linear_steps=vol_lin_tfm_type,
+            base_lin_itr_2d=base_lin_itr_2d,
+            base_nl_itr_2d=base_nl_itr_2d,
+            base_lin_itr_3d=base_lin_itr_3d,
+            base_nl_itr_3d=base_nl_itr_3d,
             interpolation=interpolation_2d,
             landmark_dir=landmark_dir,
             clobber=clobber,
@@ -359,7 +375,7 @@ def setup_argparse() -> argparse.ArgumentParser:
     parser.add_argument(
         dest="chunk_info_csv",
         type=str,
-        help="Path to csv file containing chunk informatio. Mandatory columns: [ sub, hemisphere, chunk, direction, pixel_size_0, pixel_size_1, section_thickness]",
+        help="Path to csv file containing chunk information. Mandatory columns: [ sub, hemisphere, chunk, section_thickness]. Optional: section_axis (0/1/2 or x/y/z; the volume axis along which sections were acquired, default 1 = coronal).",
     )
     parser.add_argument(
         dest="sect_info_csv",
@@ -403,6 +419,34 @@ def setup_argparse() -> argparse.ArgumentParser:
         dest="seg_method",
         default="nnunetv1",
         help="Use: \n\t'nnunetv1':version 1 of nnUNet segmentation,\n\t'nnunetv2': version 2 of nnUNet segmentation, \n\t'otsu': Otsu histogram thresholding, \n\t'triangle': Triangle histogram thresholding",
+    )
+    parser.add_argument(
+        "--base-2d-lin-itr",
+        dest="base_lin_itr_2d",
+        type=int,
+        default=100,
+        help="Base number of linear iterations for 2D alignment.",
+    )
+    parser.add_argument(
+        "--base-2d-nl-itr",
+        dest="base_nl_itr_2d",
+        type=int,
+        default=30,
+        help="Base number of nonlinear iterations for 2D alignment.",
+    )
+    parser.add_argument(
+        "--base-3d-lin-itr",
+        dest="base_lin_itr_3d",
+        type=int,
+        default=500,
+        help="Base number of linear iterations for 3D alignment.",
+    )
+    parser.add_argument(
+        "--base-3d-nl-itr",
+        dest="base_nl_itr_3d",
+        type=int,
+        default=200,
+        help="Base number of nonlinear iterations for 3D alignment.",
     )
 
     parser.add_argument(
@@ -499,6 +543,10 @@ if __name__ == "__main__":
         nnunet_config_json=args.nnunet_config_json,
         use_3d_syn_cc=args.use_3d_syn_cc,
         use_syn=args.use_syn,
+        base_lin_itr_2d=args.base_lin_itr_2d,
+        base_nl_itr_2d=args.base_nl_itr_2d,
+        base_lin_itr_3d=args.base_lin_itr_3d,
+        base_nl_itr_3d=args.base_nl_itr_3d,
         num_cores=args.num_cores,
         final_resolution=args.final_resolution,
         interp_method=args.interp_method,

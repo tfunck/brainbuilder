@@ -11,6 +11,15 @@ from brainbuilder.interp.volinterp import (
     chunked_percentile,
     volumetric_interpolation_over_dataframe,
 )
+from brainbuilder.utils.axis_utils import (
+    DEFAULT_SECTION_AXIS,
+    get_section,
+    inplane_axes,
+    repeat_section,
+    section_axis_from_row,
+    set_section,
+    volume_shape,
+)
 from brainbuilder.utils.utils import (
     check_consistent_dimensions,
     get_section_intervals,
@@ -20,7 +29,7 @@ from brainbuilder.utils.utils import (
 )
 from joblib import Parallel, delayed
 from scipy.ndimage import center_of_mass, shift
-from scipy.ndimage.morphology import binary_dilation, binary_erosion
+from scipy.ndimage import binary_dilation, binary_erosion
 from skimage.transform import resize
 
 
@@ -45,6 +54,7 @@ def get_input_file(
     :return: the input file for resampling and transformation
     """
     tfm_input_fn = seg_rsl_fn
+    section_axis = section_axis_from_row(row)
 
     if not os.path.exists(seg_rsl_fn):
         resample_to_resolution(
@@ -53,6 +63,7 @@ def get_input_file(
             seg_rsl_fn,
             dtype=np.uint8,
             factor=255,
+            section_axis=section_axis,
         )
 
     if resolution_2d != resolution_3d:
@@ -67,6 +78,7 @@ def get_input_file(
                 tfm_input_fn,
                 dtype=np.uint8,
                 factor=255,
+                section_axis=section_axis,
             )
     return tfm_input_fn
 
@@ -101,6 +113,7 @@ def resample_and_transform(
     seg_rsl_tfm_fn = get_seg_fn(
         output_dir, int(row["sample"]), resolution_3d, seg_fn, "_rsl_tfm"
     )
+    section_axis = section_axis_from_row(row)
 
     if resolution_itr == 0:
         tfm_fn = row["init_tfm"]
@@ -116,9 +129,11 @@ def resample_and_transform(
             tfm_ref_fn = tfm_input_fn
 
         # get initial rigid transform
-        print("seg", seg_fn)
-        print("\tTransforming", seg_rsl_fn, "to", seg_rsl_tfm_fn)
-        print("\t\twith:", tfm_fn, "\n")
+        print("\nseg", seg_fn)
+        print("\tTransforming", tfm_input_fn)
+        print("\tto", seg_rsl_tfm_fn)
+        print('\twith ref', tfm_ref_fn)
+        print("\twith tfm:", tfm_fn, "\n")
 
         if isinstance(tfm_fn, str):
             simple_ants_apply_tfm(
@@ -155,7 +170,11 @@ def resample_and_transform(
         shutil.copy(row["img"], img_rsl_tfm_fn)
 
         resample_to_resolution(
-            row["img"], [resolution_3d] * 2, output_filename=img_rsl_tfm_fn, order=1
+            row["img"],
+            [resolution_3d] * 2,
+            output_filename=img_rsl_tfm_fn,
+            order=1,
+            section_axis=section_axis,
         )
 
     row["2d_align"] = img_rsl_tfm_fn  # Final transformed 2D image at 2D resolution
@@ -169,6 +188,7 @@ def resample_and_transform(
             [resolution_3d] * 2,
             output_filename=img_rsl_tfm_3d_fn,
             order=1,
+            section_axis=section_axis,
         )
         row["2d_align_3d_res"] = img_rsl_tfm_3d_fn
 
@@ -205,6 +225,7 @@ def resample_transform_segmented_images(
     os.uname()
 
     tfm_ref_fn = output_dir + "/2d_reference_image.nii.gz"
+    section_axis = section_axis_from_row(sect_info.iloc[0])
 
     if not os.path.exists(tfm_ref_fn) and resolution_itr != 0:
         resample_to_resolution(
@@ -212,6 +233,7 @@ def resample_transform_segmented_images(
             [resolution_3d] * 2,
             tfm_ref_fn,
             order=0,
+            section_axis=section_axis,
         )
 
     results = Parallel(n_jobs=num_cores, backend="multiprocessing")(
@@ -238,12 +260,14 @@ def resample_transform_segmented_images(
 
 
 def interpolate_missing_sections(
-    vol: np.array, method="linear", dilate_volume: bool = False
+    vol: np.array, method="linear", dilate_volume: bool = False,
+    axis: int = DEFAULT_SECTION_AXIS,
 ) -> np.array:
     """Interpolates missing sections in a volume.
 
     :param vol (ndarray): The input volume.
     :dilate_volume (bool, optional): Whether to dilate the volume before interpolation. Defaults to False.
+    :param axis: sectioning axis along which sections are stacked (default 1, coronal)
     :return ndarray: The volume with missing sections interpolated.
     """
     if dilate_volume:
@@ -253,7 +277,7 @@ def interpolate_missing_sections(
     else:
         vol_dil = vol
 
-    intervals = get_section_intervals(vol_dil)
+    intervals = get_section_intervals(vol_dil, axis=axis)
 
     out_vol = vol.copy()
     for i in range(len(intervals) - 1):
@@ -261,14 +285,12 @@ def interpolate_missing_sections(
         x0, x1 = intervals[i]  # intervals of consecutive sections
         y0, y1 = intervals[j]  # intervals of consecutive sections
         x = np.mean(
-            vol[:, x0:x1, :], axis=1
+            get_section(vol, slice(x0, x1), axis), axis=axis
         )  # x is the average of the last consecutive acquired sections
         y = np.mean(
-            vol[:, y0:y1, :], axis=1
+            get_section(vol, slice(y0, y1), axis), axis=axis
         )  # y is the average of the next consecutive acquired sections
-        vol[:, x0:x1, :] = np.repeat(
-            x.reshape(x.shape[0], 1, x.shape[1]), x1 - x0, axis=1
-        )
+        set_section(vol, repeat_section(x, x1 - x0, axis), slice(x0, x1), axis)
         for ii in range(x1, y0):
             den = y0 - x1
             assert den != 0, "Error: 0 denominator when interpolating missing sections"
@@ -279,19 +301,23 @@ def interpolate_missing_sections(
             z = x * (1 - d) + d * y
             # print(x1,d,ii,y0, '-->', np.mean(x), np.mean(z), np.mean(y))
 
-            out_vol[:, ii, :] = z
+            set_section(out_vol, z, ii, axis)
 
     return out_vol
 
 
 def recenter(
-    vol: np.array, affine: np.array, direction: np.array = np.array([1, 1, -1])
+    vol: np.array,
+    affine: np.array,
+    direction: np.array = np.array([1, 1, -1]),
+    axis: int = DEFAULT_SECTION_AXIS,
 ) -> tuple:
     """Recenter the volume.
 
     :param vol: the volume
     :param affine: the affine
     :param direction: the direction
+    :param axis: sectioning axis kept fixed during recentering (default 1, coronal)
     :return: the recentered volume and affine
     """
     affine = np.array(affine)
@@ -304,7 +330,7 @@ def recenter(
     coi = np.array(vol.shape) / 2
     com = center_of_mass(vol)
     d_vox = np.rint(coi - com)
-    d_vox[1] = 0
+    d_vox[axis] = 0
     d_world = d_vox * affine[range(ndim), range(ndim)]
     d_world *= direction
     affine[range(ndim), 3] -= d_world
@@ -315,11 +341,15 @@ def recenter(
     return vol, affine
 
 
-def load_2d_sections_to_volume(sect_info, in_dir, resolution_3d, dims):
+def load_2d_sections_to_volume(
+    sect_info, in_dir, resolution_3d, dims, axis: int = DEFAULT_SECTION_AXIS
+):
     data = np.zeros(
         dims,
         dtype=np.float32,
     )
+
+    inplane = inplane_axes(axis, data.ndim)
 
     for i, row in sect_info.iterrows():
         s0 = int(row["sample"])
@@ -333,10 +363,15 @@ def load_2d_sections_to_volume(sect_info, in_dir, resolution_3d, dims):
         img_2d = nib.load(fn).get_fdata()
 
         # FIXME This is not a good way to solve issue with rsl_tfm files being the wrong size. Problem is probably in the use of nibabel's resampling function in resample
-        if img_2d.shape[0] != data.shape[0] or img_2d.shape[1] != data.shape[2]:
-            img_2d = resize(img_2d, [data.shape[0], data.shape[2]], order=0)
+        if (
+            img_2d.shape[0] != data.shape[inplane[0]]
+            or img_2d.shape[1] != data.shape[inplane[1]]
+        ):
+            img_2d = resize(
+                img_2d, [data.shape[inplane[0]], data.shape[inplane[1]]], order=0
+            )
 
-        data[:, s0, :] = img_2d
+        set_section(data, img_2d, s0, axis)
 
     return data
 
@@ -351,6 +386,7 @@ def create_acquisition_volume(
     out_dir: str,
     seg_rsl_fn: str,
     init_align_fn: str,
+    axis: int = DEFAULT_SECTION_AXIS,
     num_cores: int = 0,
     clobber: bool = False,
 ) -> None:
@@ -358,6 +394,7 @@ def create_acquisition_volume(
 
     param: sect_info: dataframe containing information about each section
     param: chunk_info: dataframe containing information about each chunk
+        print("created:", seg_rsl_fn)
     param: resolution_itr: current resolution iteration
     param: resolution: current resolution
     param: resolution_3d: current 3d resolution
@@ -410,15 +447,20 @@ def create_acquisition_volume(
         # Example image should be at maximum 2D resolution
         example_2d_img = nib.load(example_2d_list[0])
 
-        dims = [example_2d_img.shape[0], img.shape[1], example_2d_img.shape[1]]
+        dims = volume_shape(
+            (example_2d_img.shape[0], example_2d_img.shape[1]),
+            img.shape[axis],
+            axis,
+        )
 
         affine = img.affine.copy()
-        affine[0, 0] = resolution_3d
-        affine[1, 1] = img.affine[1, 1]
-        affine[2, 2] = resolution_3d
+        # in-plane axes get the reconstruction resolution; the sectioning-axis
+        # spacing (section thickness) is preserved from the init-align volume
+        for a in inplane_axes(axis):
+            affine[a, a] = resolution_3d
 
         concatenate_sections_to_volume(
-            sect_info, "seg_rsl_tfm", curr_align_fn, dims, affine
+            sect_info, "seg_rsl_tfm", curr_align_fn, dims, affine, axis=axis
         )
 
         chunk_info["nl_2d_vol_fn"] = curr_align_fn
@@ -449,7 +491,6 @@ def create_acquisition_volume(
             dtype=np.uint8,
             chunk=(48, 48, 48),
         )
-        print("created:", seg_rsl_fn)
 
         sect_info.to_csv(sect_info_csv)
 

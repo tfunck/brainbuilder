@@ -22,6 +22,13 @@ from skimage.filters import threshold_otsu
 from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
+from brainbuilder.utils.axis_utils import (
+    DEFAULT_SECTION_AXIS,
+    get_section,
+    inplane_axes,
+    section_profile,
+    set_section,
+)
 
 os_info = os.uname()
 
@@ -159,7 +166,7 @@ def load_image(fn: str) -> np.ndarray:
         return None
 
 
-def check_dimensions(fns: list, dims: tuple) -> None:
+def check_dimensions(fns: list, dims: tuple, axis: int = DEFAULT_SECTION_AXIS) -> None:
     """Check the dimensions of a list of files.
 
     Note: Small mismatches (< 10 pixels) are allowed as they will be corrected
@@ -167,24 +174,17 @@ def check_dimensions(fns: list, dims: tuple) -> None:
     precision differences in resampling calculations.
 
     :param fns: list, list of filenames
-    :param dims: tuple, expected dimensions
+    :param dims: tuple, expected (3D volume) dimensions
+    :param axis: sectioning axis; the section's two dims are compared against the
+        two in-plane volume dimensions (the axes other than ``axis``)
     :return: None
     """
+    inplane = inplane_axes(axis, len(dims))
     sections_okay_flag = True
     for fn in fns:
         sec = nibabel.load(fn)
 
-        sec_x = sec.shape[0]
-        sec_z = sec.shape[1]
-        dim_x = dims[0]
-        dim_z = dims[2]
-
-        d0 = np.abs(sec_x - dim_x)
-        d1 = np.abs(sec_z - dim_z)
-
-        # Only fail on large mismatches (>= 10 pixels)
-        # Small mismatches will be auto-corrected by resize logic
-        if (d0 > 0 and d0 >= 10) or (d1 > 0 and d1 >= 10):
+        if sec.shape[0] != dims[inplane[0]] or sec.shape[1] != dims[inplane[1]]:
             print("Warning: section dimensions do not match target dimensions")
             print("\tSection:", fn, sec.shape)
             print("\tTarget:", dims)
@@ -195,15 +195,26 @@ def check_dimensions(fns: list, dims: tuple) -> None:
     return sections_okay_flag
 
 
-def concatenate_sections_to_volume(sect_info, target_name, out_fn, dims, affine):
-    """Process sections and write the 3D volume to a file."""
+def concatenate_sections_to_volume(
+    sect_info, target_name, out_fn, dims, affine, axis: int = DEFAULT_SECTION_AXIS
+):
+    """Process sections and write the 3D volume to a file.
+
+    :param axis: sectioning axis along which sections are stacked (default 1, coronal)
+    """
     if not os.path.exists(out_fn):
         out_vol = np.zeros(dims, dtype=np.float32)
 
-        sections_okay_flag = check_dimensions(sect_info[target_name].values, dims)
+        sections_okay_flag = check_dimensions(
+            sect_info[target_name].values, dims, axis=axis
+        )
 
         if not sections_okay_flag:
             raise ValueError("Section dimensions do not match target dimensions")
+
+        inplane = inplane_axes(axis, len(dims))
+
+        inplane = inplane_axes(axis, len(dims))
 
         exit_flag = False
         for i, row in sect_info.iterrows():
@@ -216,8 +227,8 @@ def concatenate_sections_to_volume(sect_info, target_name, out_fn, dims, affine)
                 sec_x = sec.shape[0]
                 sec_z = sec.shape[1]
 
-                dim_x = dims[0]
-                dim_z = dims[2]
+                dim_x = dims[inplane[0]]
+                dim_z = dims[inplane[1]]
                 # if the difference of section dimensions is more than 1 pixel but less than 10 pixels, resize the section to match the target dimensions
                 # FIXME: this is a temporary fix for some datasets with slight mismatched section dimensions
                 d0 = np.abs(sec_x - dim_x)
@@ -231,7 +242,7 @@ def concatenate_sections_to_volume(sect_info, target_name, out_fn, dims, affine)
                         anti_aliasing=False,
                     )
 
-                out_vol[:, int(y), :] = sec
+                set_section(out_vol, sec, int(y), axis)
             except EOFError:
                 print("Error:", fn)
                 os.remove(fn)
@@ -268,17 +279,17 @@ def get_chunk_pixel_size(sub: str, hemi: str, chunk: str, chunk_info: str) -> tu
 
     try:
         pixel_size_0 = chunk_info["pixel_size_0"][idx].values[0]
-    except IndexError:
+    except KeyError:
         pass
 
     try:
         pixel_size_1 = chunk_info["pixel_size_1"][idx].values[0]
-    except IndexError:
+    except KeyError:
         pass
 
     try:
         section_thickeness = chunk_info["section_thickness"][idx].values[0]
-    except IndexError:
+    except KeyError:
         pass
 
     return pixel_size_0, pixel_size_1, section_thickeness
@@ -350,13 +361,14 @@ def get_thicken_width(
     )
 
 
-def get_section_intervals(vol: np.ndarray) -> list:
-    """Get the intervals of sections within a volume across y-axis of volume.
+def get_section_intervals(vol: np.ndarray, axis: int = DEFAULT_SECTION_AXIS) -> list:
+    """Get the intervals of sections within a volume across the sectioning axis.
 
     :param vol: np.array, volume
+    :param axis: sectioning axis along which sections are stacked (default 1, coronal)
     :return: list
     """
-    section_sums = np.sum(vol, axis=(0, 2))
+    section_sums = section_profile(vol, axis, reduction=np.sum)
     valid_sections = section_sums > np.min(section_sums)
     labeled_sections, nlabels = label(valid_sections)
     if nlabels < 2:
@@ -614,6 +626,8 @@ def check_tfm_list(tfm):
     # If `tfm` came from a CSV/DataFrame cell, a Python list may have been
     # serialized and read back as a string like "['a.h5', 'b.mat']".
     # In that case, coerce it back into a real list.
+    if tfm is None:
+        return None
     if isinstance(tfm, str):
         tfm_stripped = tfm.strip()
         if tfm_stripped.startswith("[") and tfm_stripped.endswith("]"):
@@ -627,6 +641,9 @@ def check_tfm_list(tfm):
 
 
 def parse_tfm(tfm, invert):
+    if tfm in (None, [], ()):
+        return ""
+
     if isinstance(tfm, str):
         tfm_string = f" -t {tfm} "
 
@@ -746,49 +763,59 @@ def gen_2d_fn(prefix: str, suffix: str, ext: str = ".nii.gz") -> str:
 
 def save_sections(
     file_list: List[Tuple[str, float]],
-    vol: np.ndarray,
-    aff: np.ndarray,
+    srv_fn: str,
     dtype: int = None,
+    axis: int = DEFAULT_SECTION_AXIS,
 ) -> None:
     """Save sections of a volume.
 
     :param file_list: List[Tuple[str, float]], list of filenames and y values
-    :param vol: Any, volume data
-    :param aff: Any, affine transformation
+    :param srv_fn: str, path to the source volume
     :param dtype: Optional[Any], data type
+    :param axis: sectioning axis along which sections are stacked (default 1, coronal)
     :return: None
     """
-    xstep = aff[0, 0]
-    ystep = aff[1, 1]
-    zstep = aff[2, 2]
+    img = ants.image_read(srv_fn)
+    vol = img.numpy()
 
-    xstart = aff[0, 3]
-    zstart = aff[2, 3]
+    inplane = inplane_axes(axis, vol.ndim)
 
-    affine = np.array(
-        [
-            [xstep, 0, 0, xstart],
-            [0, zstep, 0, zstart],
-            [0, 0, ystep, 0],
-            [0, 0, 0, 1],
-        ]
-    )
-
+    spacing = [img.spacing[inplane[0]], img.spacing[inplane[1]]]
+    origin = [img.origin[inplane[0]], img.origin[inplane[1]]]
+    direction = img.direction[np.ix_(inplane, inplane)]
+    print(srv_fn)
+    print("Spacing:", spacing)
+    print("Origin:", origin)
+    print("Direction:", direction)
+    ystep = img.spacing[axis]  # step size along the sectioning axis
     for fn, y in file_list:
         i = 0
 
-        if np.max(vol[:, int(y), :]) < 1:
+        if np.max(get_section(vol, int(y), axis)) < 1:
             # Create 2D srv section
             # this little while loop thing is so that if we go beyond  brain tissue in vol,
             # we find the closest y segement in vol with brain tissue
-            while np.max(vol[:, int(y - i), :]) < 1:
+            while np.max(get_section(vol, int(y - i), axis)) < 1:
                 i += ystep / np.abs(ystep)
 
-        sec = vol[:, int(y - i), :]
+        sec = get_section(vol, int(y - i), axis)
 
         assert np.max(sec) != np.min(sec), f"Error: empty section {fn}"
 
-        nib.Nifti1Image(sec, affine, dtype=dtype, direction_order="lpi").to_filename(fn)
+        if dtype is not None:
+            sec = sec.astype(dtype)
+
+        direction = normalize_direction_order(direction, vol.ndim, axis)
+
+        ants.image_write(
+            ants.from_numpy(
+                sec.astype(np.float32),
+                origin=origin,
+                spacing=spacing,
+                direction=direction,
+            ),
+            fn,
+        )
 
 
 def threshold(fn: str) -> str:
@@ -866,6 +893,7 @@ def create_2d_sections(
     output_dir: str,
     dtype: int = None,
     clobber: bool = False,
+    axis: int = DEFAULT_SECTION_AXIS,
 ) -> None:
     """Create 2D sections from a dataframe.
 
@@ -875,6 +903,7 @@ def create_2d_sections(
     :param output_dir: str, output directory
     :param dtype: Optional[int], data type
     :param clobber: bool, whether to overwrite existing files
+    :param axis: sectioning axis along which sections are stacked (default 1, coronal)
     :return: None
     """
     fx_to_do = []
@@ -888,10 +917,7 @@ def create_2d_sections(
     ]
 
     if len(fx_to_do) > 0:
-        srv_img = nib.load(srv_fn)
-        affine = srv_img.affine
-        srv = srv_img.get_fdata()
-        save_sections(fx_to_do, srv, affine, dtype=dtype)
+        save_sections(fx_to_do, srv_fn, dtype=dtype, axis=axis)
 
     return None
 
@@ -1084,7 +1110,8 @@ def parse_resample_arguments(
             output_filename, str
         ), f"Error: output filename must be as string, got {type(output_filename)}"
 
-    vol = np.array(vol, dtype=dtype)
+    # Keep native precision through interpolation; cast to output dtype only at the end.
+    vol = np.asarray(vol)
 
     vol_sum = np.sum(np.abs(vol))
     assert (
@@ -1443,7 +1470,28 @@ def check_volume_orientation(
         output_file_path = input_file_path
     else:
         output_file_path = converted_file_path
-        if not os.path.exists(converted_file_path):
+        should_convert = True
+        if os.path.exists(converted_file_path):
+            # Check if the converted file is corrupted or empty
+            try:
+                file_stat = os.stat(converted_file_path)
+                if (
+                    file_stat.st_size < 1000
+                ):  # NIfTI header is ~348 bytes, so < 1KB suggests corruption
+                    get_logger().warning(
+                        f"Converted file {converted_file_path} is suspiciously small ({file_stat.st_size} bytes), "
+                        f"will recreate it"
+                    )
+                    should_convert = True
+                else:
+                    should_convert = False
+            except Exception as e:
+                get_logger().warning(
+                    f"Could not stat {converted_file_path}: {e}, will recreate"
+                )
+                should_convert = True
+
+        if should_convert:
             vol = img.numpy()
             vol, origin, direction = convert_coordinate_system(
                 vol,
@@ -1463,6 +1511,26 @@ def check_volume_orientation(
                 ),
                 converted_file_path,
             )
+
+            # CRITICAL: Verify the written file is not corrupted
+            if os.path.exists(converted_file_path):
+                try:
+                    stat_info = os.stat(converted_file_path)
+                    written_size = stat_info.st_size
+                    get_logger().info(
+                        f"Wrote converted orientation file: {converted_file_path} ({written_size} bytes)"
+                    )
+
+                    # If the file is suspiciously small, something went wrong
+                    if written_size < 1000:
+                        get_logger().error(
+                            f"WARNING: Converted file is suspiciously small ({written_size} bytes), may be corrupted"
+                        )
+                        get_logger().error(
+                            f"  Input vol shape: {vol.shape}, dtype: {vol.dtype}, sum: {np.sum(vol)}"
+                        )
+                except Exception as e:
+                    get_logger().error(f"Error verifying converted file: {e}")
 
     # update cache (best-effort)
     cache[cache_key] = {
@@ -1495,6 +1563,23 @@ def preprocess_direction_argument(dirs: Union[str, list], str_to_dir: dict) -> l
         dirs = [1 if dirs[i][i] > 0 else -1 for i in range(len(dirs))]
 
     return dirs
+
+
+def normalize_direction_order(
+    direction_order: Union[str, list], ndim: int, section_axis: Optional[int] = None
+) -> Union[str, list]:
+    """Normalize direction metadata for 2D sections.
+
+    A 2D section inherits the two in-plane axes of the parent 3D volume. For an
+    ``lpi`` volume this yields ``pi`` for sagittal sections (axis 0), ``li`` for
+    coronal sections (axis 1), and ``lp`` for axial sections (axis 2).
+    """
+    if not isinstance(direction_order, str) or ndim != 2 or len(direction_order) != 3:
+        return direction_order
+
+    axis = DEFAULT_SECTION_AXIS if section_axis is None else int(section_axis)
+    section_axes = inplane_axes(axis, ndim=3)
+    return "".join(direction_order[i] for i in section_axes)
 
 
 def convert_coordinate_system(
@@ -1543,6 +1628,7 @@ def resample_to_resolution(
     order: int = 1,
     factor: float = 1,
     max_dims: Optional[np.ndarray] = None,
+    section_axis: Optional[int] = None,
 ) -> nib.Nifti1Image:
     """Resample a volume to a new resolution.
 
@@ -1574,14 +1660,6 @@ def resample_to_resolution(
     else:
         sigma = 0
 
-    vol = resize(
-        vol.astype(float),
-        new_dims,
-        order=order,
-        anti_aliasing=True,
-        anti_aliasing_sigma=sigma,
-    )
-
     # Set output affine
     affine = np.eye(4, 4)
     dim_range = range(ndim)
@@ -1591,13 +1669,23 @@ def resample_to_resolution(
     if max_dims is not None:
         vol, affine = pad_to_max_dims(vol, max_dims, affine, direction=direction)
 
-    # Normalize to [0, 1] before scaling if output dtype is uint8
+    # Resize in float space to avoid losing dynamic range before interpolation.
+    vol = vol.astype(np.float32, copy=False)
+
     if dtype == np.uint8 or dtype == "uint8":
         vol = (vol - np.min(vol)) / (np.max(vol) - np.min(vol) + 1e-8)
         vol *= factor
         vol = np.clip(vol, 0, 255)
     else:
         vol *= factor
+
+    vol = resize(
+        vol,
+        new_dims,
+        order=order,
+        anti_aliasing=order != 0,
+        anti_aliasing_sigma=sigma,
+    )
 
     vol = vol.astype(dtype)
 
@@ -1606,6 +1694,7 @@ def resample_to_resolution(
     )
 
     step = np.diag(affine)[0:ndim]
+    direction_order = normalize_direction_order(direction_order, ndim, section_axis)
 
     vol, origin, direction = convert_coordinate_system(
         vol, np.array(origin), step, direction, direction_order

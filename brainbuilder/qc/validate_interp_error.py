@@ -7,6 +7,11 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from brainbuilder.utils.utils import shell
+from brainbuilder.utils.axis_utils import (
+    DEFAULT_SECTION_AXIS,
+    alloc_volume,
+    set_section,
+)
 from joblib import Parallel, delayed
 from skimage import morphology
 from skimage.measure import label
@@ -333,6 +338,7 @@ def concat_sections_to_volume(
     volume_filename: str,
     ref_volume_filename: str,
     target_string: str = "cluster_2d",
+    axis: int = DEFAULT_SECTION_AXIS,
     clobber: bool = False,
 ) -> str:
     """Concatenate sections to volume."""
@@ -346,16 +352,16 @@ def concat_sections_to_volume(
 
     if not os.path.exists(volume_filename) or clobber:
         img = nib.load(ref_volume_filename)
-        ydim = img.shape[1]
+        ydim = img.shape[axis]
         xdim = nib.load(df[target_string].values[0]).shape[0]
         zdim = nib.load(df[target_string].values[0]).shape[1]
 
-        out_volume = np.zeros([xdim, ydim, zdim]).astype(np.uint32)
+        out_volume = alloc_volume((xdim, zdim), ydim, axis, dtype=np.uint32)
 
         # Iterate over df rows in chunks of 100
         for i, row in df.iterrows():
             y, section = load_section(row)
-            out_volume[:, y, :] = section
+            set_section(out_volume, section, y, axis)
 
         assert np.sum(out_volume) > 0, "Error: empty output volume"
         nib.Nifti1Image(out_volume, img.affine, direction_order="lpi").to_filename(

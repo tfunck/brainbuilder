@@ -10,6 +10,13 @@ from joblib import Parallel, delayed
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils import utils
+from brainbuilder.utils.axis_utils import (
+    alloc_volume,
+    get_section_axis,
+    section_axis_from_row,
+    set_affine_spacing,
+    set_section,
+)
 from brainbuilder.utils.paths import define_new_path_column
 from brainbuilder.utils.utils import get_logger
 
@@ -84,27 +91,27 @@ def assemble_downsampled_volume(
         vol_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm.nii.gz"
 
         if not os.path.exists(vol_fn) or clobber:
-            ydim = chunk_sect_info["sample"].max() + 1
+            axis = get_section_axis(chunk_info, sub, hemisphere, chunk)
+
+            n_sections = chunk_sect_info["sample"].max() + 1
 
             example_img = chunk_sect_info["img"].iloc[0]
-            xdim, zdim = nib.load(example_img).shape
+            section_shape = nib.load(example_img).shape
 
             print("Allocate Volume")
-            vol = np.zeros((xdim, ydim, zdim), dtype=np.uint8)
+            vol = alloc_volume(section_shape, n_sections, axis, dtype=np.uint8)
 
             for _, tdf in chunk_sect_info.groupby(["acquisition"]):
                 for _, row in tdf.iterrows():
                     y = row["sample"]
                     section = nib.load(row["img"]).get_fdata()
-                    vol[:, y, :] = section.astype(np.uint8)
+                    set_section(vol, section.astype(np.uint8), int(y), axis)
 
             _, _, section_thickness = utils.get_chunk_pixel_size(
                 sub, hemisphere, chunk, chunk_info
             )
             affine = np.eye(4)
-            affine[0, 0] = resolution
-            affine[1, 1] = section_thickness
-            affine[2, 2] = resolution
+            set_affine_spacing(affine, axis, section_thickness, resolution)
 
             nib.Nifti1Image(vol, affine, direction_order="lpi").to_filename(vol_fn)
 
@@ -135,7 +142,13 @@ def downsample_within_chunk(
 
         if utils.check_run_stage([downsample_file], [raw_file], clobber=clobber):
             to_do.append(
-                (raw_file, downsample_file, resolution, conversion_factor)
+                (
+                    raw_file,
+                    downsample_file,
+                    resolution,
+                    conversion_factor,
+                    section_axis_from_row(row),
+                )
             )
 
     Parallel(n_jobs=num_cores, backend="multiprocessing")(
@@ -143,12 +156,12 @@ def downsample_within_chunk(
             raw_file,
             [resolution, resolution],
             downsample_file,
-            # affine=affine, DEBUG : use the file affine
             order=1,
             factor=factor,
             max_dims=(max_dim_0, max_dim_1),
+            section_axis=section_axis,
         )
-        for raw_file, downsample_file, resolution, factor in to_do
+        for raw_file, downsample_file, resolution, factor, section_axis in to_do
     )
 
 

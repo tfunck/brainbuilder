@@ -2,6 +2,9 @@
 import os
 from pathlib import Path
 
+import matplotlib
+
+matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
 import nibabel
 import numpy as np
@@ -15,6 +18,7 @@ from brainbuilder.align.align_3d import align_3d, pad_acq_volume, write_ref_chun
 from brainbuilder.align.intervolume import create_acquisition_volume
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
+from brainbuilder.utils.axis_utils import get_section_axis
 from brainbuilder.utils.paths import MultiResPaths, _multires_root_dir
 
 logger = utils.get_logger(__name__)
@@ -59,6 +63,10 @@ def multiresolution_alignment(
     use_3d_syn_cc: bool = True,
     use_syn: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
+    base_lin_itr_2d: int = 100,
+    base_nl_itr_2d: int = 30,
+    base_lin_itr_3d: int = 500,
+    base_nl_itr_3d: int = 200,
     num_cores: int = 0,
     landmark_dir: Path = None,
     interpolation: str = "Linear",
@@ -71,6 +79,10 @@ def multiresolution_alignment(
     params: hemisphere: hemisphere name
     params: resolution_list: list of resolutions to align
     params: max_resolution_3d: maximum resolution to align in 3d
+    params: base_lin_itr_2d: base number of linear iterations for 2D alignment
+    params: base_nl_itr_2d: base number of nonlinear iterations for 2D alignment
+    params: base_lin_itr_3d: base number of linear iterations for 3D alignment
+    params: base_nl_itr_3d: base number of nonlinear iterations for 3D alignment
     returns: csv file containing chunk information
     """
     num_cores = utils.set_cores(num_cores)
@@ -135,7 +147,7 @@ def multiresolution_alignment(
             # Check that curr_chunk_info has only one row
             assert (
                 len(chunk_info_row) == 1
-            ), f"Error: chunk_info has multiple rows for sub-{sub}_hemi-{hemisphere}_chunk-{chunk}"
+            ), f"Error: chunk_info has {len(chunk_info_row)} rows for sub-{sub}_hemi-{hemisphere}_chunk-{chunk}:\n{chunk_info_row}"
 
             # get structural reference volume
             ref_vol_fn = (
@@ -162,6 +174,10 @@ def multiresolution_alignment(
                 use_3d_syn_cc=use_3d_syn_cc,
                 use_syn=use_syn,
                 linear_steps=linear_steps,
+                base_lin_itr_2d=base_lin_itr_2d,
+                base_nl_itr_2d=base_nl_itr_2d,
+                base_lin_itr_3d=base_lin_itr_3d,
+                base_nl_itr_3d=base_nl_itr_3d,
                 interpolation=interpolation,
                 landmark_dir=landmark_dir,
                 clobber=clobber,
@@ -321,6 +337,10 @@ def alignment_iteration(
     num_cores: int = 1,
     use_3d_syn_cc: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
+    base_lin_itr_2d: int = 100,
+    base_nl_itr_2d: int = 30,
+    base_lin_itr_3d: int = 500,
+    base_nl_itr_3d: int = 200,
     interpolation: str = "Linear",
     padding_offset: float = 0.15,  # offset for % by which we pad the segmentation volume at the start and end of each direction
     landmark_dir: str = None,
@@ -337,6 +357,8 @@ def alignment_iteration(
     logger.info("\t\tCreate intermediate 3d volume")
 
     chunk_info_out = pd.DataFrame()
+
+    axis = get_section_axis(chunk_info, sub, hemisphere, chunk)
 
     # insert 2d intersection alignment
     use_2d_intersection = False
@@ -364,6 +386,7 @@ def alignment_iteration(
         paths.intermediate_volume_dir,
         paths.acq_rsl_fn,
         paths.init_volume,
+        axis=axis,
         num_cores=num_cores,
         clobber=clobber,
     )
@@ -411,6 +434,8 @@ def alignment_iteration(
         paths.ref_3d_rsl_fn,
         resolution_3d,
         resolution_list_3d,
+        base_nl_itr=base_nl_itr_3d,
+        base_lin_itr=base_lin_itr_3d,
         use_3d_syn_cc=use_3d_syn_cc,
         linear_steps=linear_steps,
         init_tfm=landmark_composite_tfm_path,
@@ -433,6 +458,9 @@ def alignment_iteration(
             paths.nl_2d_vol_fn,
             paths.nl_2d_vol_cls_fn,
             section_thickness,
+            axis=axis,
+            base_lin_itr=base_lin_itr_2d,
+            base_nl_itr=base_nl_itr_2d,
             file_to_align="seg_rsl",
             use_syn=use_syn,
             num_cores=num_cores,
@@ -440,6 +468,15 @@ def alignment_iteration(
         )
 
     chunk_info_out = paths.to_dataframe()
+
+    # Preserve sectioning axis metadata across resolution iterations. Without
+    # this, subsequent iterations default to coronal (axis=1).
+    chunk_info_out["section_axis"] = axis
+
+    # Carry forward optional chunk metadata that may be required downstream.
+    for col in ["acquisition", "ref_landmark"]:
+        if col in chunk_info.columns and col not in chunk_info_out.columns:
+            chunk_info_out[col] = chunk_info[col].values[0]
 
     # Keep `nl_3d_tfm_fn` as the composite transform filename (string) for
     # downstream pipeline steps, but store the full transform chain (e.g.
@@ -471,6 +508,10 @@ def align_chunk(
     num_cores: int = 1,
     use_3d_syn_cc: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
+    base_lin_itr_2d: int = 100,
+    base_nl_itr_2d: int = 30,
+    base_lin_itr_3d: int = 500,
+    base_nl_itr_3d: int = 200,
     use_syn: bool = True,
     interpolation: str = "Linear",
     landmark_dir: str = None,
@@ -503,9 +544,17 @@ def align_chunk(
     sect_info_out = sect_info
     chunk_info_out = chunk_info_row
 
-    ref_landmark_volume = (
+    _raw_landmark = (
         chunk_info_row["ref_landmark"].values[0]
         if "ref_landmark" in chunk_info_row.columns
+        else ""
+    )
+    # Treat missing, null, or non-existent paths as "no landmarks"
+    ref_landmark_volume = (
+        str(_raw_landmark)
+        if _raw_landmark
+        and not pd.isna(_raw_landmark)
+        and os.path.exists(str(_raw_landmark))
         else ""
     )
 
@@ -561,6 +610,10 @@ def align_chunk(
                 use_3d_syn_cc=use_3d_syn_cc,
                 use_syn=use_syn,
                 linear_steps=linear_steps,
+                base_lin_itr_2d=base_lin_itr_2d,
+                base_nl_itr_2d=base_nl_itr_2d,
+                base_lin_itr_3d=base_lin_itr_3d,
+                base_nl_itr_3d=base_nl_itr_3d,
                 section_thickness=section_thickness,
                 num_cores=num_cores,
                 interpolation=interpolation,
@@ -610,6 +663,10 @@ def align_chunk(
         use_syn=use_syn,
         skip_2d_alignment=True,
         linear_steps=linear_steps,
+        base_lin_itr_2d=base_lin_itr_2d,
+        base_nl_itr_2d=base_nl_itr_2d,
+        base_lin_itr_3d=base_lin_itr_3d,
+        base_nl_itr_3d=base_nl_itr_3d,
         num_cores=num_cores,
         interpolation=interpolation,
         landmark_dir=landmark_dir,

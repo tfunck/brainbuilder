@@ -7,11 +7,21 @@ import os
 import shutil
 
 import brainbuilder.utils.ants_nibabel as nib
+import matplotlib
+
+matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from brainbuilder.qc.validate_section_alignment_to_ref import get_section_metric
 from brainbuilder.utils import utils
+from brainbuilder.utils.ANTs import apply_transform_fallback
+from brainbuilder.utils.axis_utils import (
+    DEFAULT_SECTION_AXIS,
+    section_axis_from_row,
+    set_affine_spacing,
+    volume_shape,
+)
 from brainbuilder.utils.utils import (
     AntsParams,
     check_volume,
@@ -41,6 +51,7 @@ def resample_reference_to_sections(
     ymax: int,
     zmax: int,
     section_thickness: float,
+    axis: int = DEFAULT_SECTION_AXIS,
     clobber: bool = False,
 ) -> tuple:
     """Apply 3d transformation and resample volume into the same coordinate space as 3d receptor volume.
@@ -97,13 +108,14 @@ def resample_reference_to_sections(
 
         # Resample the transformed volume to the resolution of the section width on the y axis and the resolution of the reconstruction on the x and z axis
         affine = img.affine.copy()
-        affine[0, 0] = affine[2, 2] = resolution
-        affine[1, 1] = section_thickness
+        set_affine_spacing(affine, axis, section_thickness, resolution)
 
         assert np.sum(vol) > 0, f"Error: empty volume {output_fn}"
 
         vol = resize(
-            vol.astype(float), (xmax, ymax + 1, zmax), order=1
+            vol.astype(float),
+            volume_shape((xmax, zmax), ymax + 1, axis),
+            order=1,
         )  # .astype(np.uint8)
         img_out = nib.Nifti1Image(vol, affine, direction_order="lpi")
 
@@ -132,27 +144,6 @@ def check_alignment_files(
         )
         return False
     return True
-
-
-def create_identity_transform_2d(
-    section_fn: str, tfm_prefix: str, output_log_fname: str
-) -> str:
-    """Create identity transform for 2D images.
-
-    Description: Create identity transform for 2D images using ANTs.
-
-    :param tfm_fn: transform filename
-    :return: tfm_fn
-    """
-    tfm_fn = tfm_prefix + "Composite.h5"
-
-    command_str = f"antsRegistration -v 1 -d 2 --write-composite-transform 1 -m GC[{section_fn},{section_fn},1,0,Regular,1] -t Rigid[1] -c 1 -f 1 -s 0  -o {tfm_prefix} &> {output_log_fname}"
-
-    shell(command_str)
-
-    assert os.path.exists(tfm_fn), f"Error: output does not exist {tfm_fn}"
-
-    return tfm_fn
 
 
 def ants_registration_2d_section(
@@ -193,8 +184,7 @@ def ants_registration_2d_section(
     :param init_tfm: initial transform
     :return: final_tfm, mv_rsl_fn
     """
-    last_transform = None
-    last_metric = None
+    last_transform_path = None
 
     if write_composite_transform:
         final_tfm = f"{prefix}_{transforms[-1]}_{metrics[-1]}_Composite.h5"
@@ -225,14 +215,21 @@ def ants_registration_2d_section(
                 fx_fn, mv_fn, minimum_foreground_ratio=minimum_foreground_ratio
             ):
                 print("\tSkipping registration step.")
-                if not (isinstance(init_tfm, str) and os.path.exists(init_tfm)):
-                    init_tfm = create_identity_transform_2d(
-                        mv_fn, prefix + "_identity_tfm_", command_log_fname
-                    )
-                return init_tfm, mv_fn
+                fallback_tfm, mv_rsl_fn = apply_transform_fallback(
+                    mv_fn,
+                    fx_fn,
+                    mv_rsl_fn,
+                    previous_tfm=last_transform_path,
+                    init_tfm=init_tfm,
+                    identity_tfm_fn=prefix + "_identity_tfm_Composite.h5",
+                    dim=2,
+                )
+                return fallback_tfm, mv_rsl_fn
 
-            if not isinstance(last_transform, type(None)):
-                init_str = f"--initial-moving-transform {prefix}_{last_transform}_{last_metric}_Composite.h5"
+            if not isinstance(last_transform_path, type(None)) and os.path.exists(
+                last_transform_path
+            ):
+                init_str = f"--initial-moving-transform {last_transform_path}"
             elif isinstance(init_tfm, str) and os.path.exists(init_tfm):
                 init_str = f"--initial-moving-transform {init_tfm}"
             elif init_tfm == "identity":
@@ -240,8 +237,15 @@ def ants_registration_2d_section(
             else:
                 init_str = f"--initial-moving-transform [{fx_fn},{mv_fn},1]"
 
-            inv_out = f"{prefix}_{transform}_{metric}_inv.nii.gz"
-            command_str = f"antsRegistration -v 1 -d 2 --write-composite-transform {write_composite_transform} {init_str} -o [{prefix}_{transform}_{metric}_,{mv_rsl_fn},{inv_out}] -t {transform}[{step}]  -m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} "
+            curr_prefix = f"{prefix}_{transform}_{metric}_"
+            curr_tfm = f"{curr_prefix}Composite.h5"
+
+            inv_out = f"{curr_prefix}inv.nii.gz"
+            command_str = f"antsRegistration -v 1 -d 2 --write-composite-transform {write_composite_transform} {init_str} "
+            command_str += (
+                f"-o [{curr_prefix},{mv_rsl_fn},{inv_out}] -t {transform}[{step}] "
+            )
+            command_str += f"-m {metric}[{fx_fn},{mv_fn},1,{bins},Random,{sampling}] -s {s_str} -f {f_str} -c {itr_str} "
 
             if int(verbose) <= 0:
                 command_str += f" &> {output_log_fname}"
@@ -250,9 +254,6 @@ def ants_registration_2d_section(
                 mask_fx = threshold(fx_fn)
                 mask_mv = threshold(mv_fn)
                 command_str += f" -x [{mask_fx},{mask_mv}] "
-
-            last_transform = transform
-            last_metric = metric
 
             logger.debug(command_str)
 
@@ -264,6 +265,31 @@ def ants_registration_2d_section(
             # Some ANTs runs can leave zero-byte/truncated outputs (e.g. interrupted I/O).
             # Validate each stage output immediately so callers can retry/skip this trial.
             check_volume(mv_rsl_fn)
+            shell(command_str, exit_on_failure=False)
+            # check that output files exist and are not empty, otherwise
+            # return just the initial transform and apply it to the moving image
+            # if there is not initial transform, default to identity transform
+            if not os.path.exists(curr_tfm) or not os.path.exists(mv_rsl_fn):
+                logger.warning(
+                    f"Warning: registration failed for {transform} with metric {metric}, returning previous transform"
+                )
+                last_transform_path, mv_rsl_fn = apply_transform_fallback(
+                    mv_fn,
+                    fx_fn,
+                    mv_rsl_fn,
+                    previous_tfm=last_transform_path,
+                    init_tfm=init_tfm,
+                    identity_tfm_fn=prefix + "_identity_tfm_Composite.h5",
+                    dim=2,
+                )
+                final_tfm = last_transform_path
+            else:
+                last_transform_path = curr_tfm
+                final_tfm = curr_tfm
+
+            assert (
+                not exit_on_failure or np.sum(np.abs(nib.load(mv_rsl_fn).dataobj)) > 0
+            ), f"Error: empty volume {mv_rsl_fn}"
 
     assert os.path.exists(final_tfm), f"Error: output does not exist {final_tfm}"
     assert os.path.exists(mv_rsl_fn), f"Error: output does not exist {mv_rsl_fn}"
@@ -387,9 +413,6 @@ def align_2d_parallel(
     :param verbose: verbose
     :return: 0
     """
-    # Set strings for alignment parameters
-    base_nl_itr = 30
-
     linParams = AntsParams(resolution_list, resolution, base_lin_itr)
 
     nlParams = AntsParams(resolution_list, resolution, base_nl_itr)
@@ -477,6 +500,7 @@ def apply_transforms_parallel(
         exit(1)
 
     img_res = np.array([img.affine[0, 0], img.affine[1, 1]])
+    section_axis = section_axis_from_row(row)
 
     # if we're not at the final resolution, we need to downsample the image
     if resolution != img_res[0] or resolution != img_res[1]:
@@ -485,6 +509,7 @@ def apply_transforms_parallel(
             [float(resolution), float(resolution)],
             order=2,
             output_filename=img_rsl_fn,
+            section_axis=section_axis,
         )
 
     else:
@@ -519,10 +544,11 @@ def apply_transforms_parallel(
 
     shell(cmd, True)
 
-    plt.imshow(nib.load(fx_fn).get_fdata())
-    plt.imshow(nib.load(out_fn).get_fdata(), cmap="nipy_spectral", alpha=0.3)
-    plt.savefig(f"{prefix}_qc.png")
-    plt.close()
+    fig, ax = plt.subplots()
+    ax.imshow(nib.load(fx_fn).get_fdata())
+    ax.imshow(nib.load(out_fn).get_fdata(), cmap="nipy_spectral", alpha=0.3)
+    fig.savefig(f"{prefix}_qc.png")
+    plt.close(fig)
 
     assert os.path.exists(f"{out_fn}"), "Error apply nl 2d tfm to img autoradiograph"
 
@@ -678,6 +704,7 @@ def concatenate_tfm_sections_to_volume(
     output_dir: str,
     out_fn: str,
     target_str: str = "",
+    axis: int = DEFAULT_SECTION_AXIS,
 ) -> pd.DataFrame:
     """Concatenate 2D sections into output volume.
 
@@ -688,6 +715,7 @@ def concatenate_tfm_sections_to_volume(
     :param output_dir: directory to store output files
     :param out_fn: output filename
     :param target_str: target string
+    :param axis: sectioning axis along which sections are stacked (default 1, coronal)
     :return: sect_info
     """
     hires_img = nib.load(rec_fn)
@@ -703,7 +731,7 @@ def concatenate_tfm_sections_to_volume(
     # )
 
     concatenate_sections_to_volume(
-        sect_info, target_name, out_fn, hires_img.shape, hires_img.affine
+        sect_info, target_name, out_fn, hires_img.shape, hires_img.affine, axis=axis
     )
 
     return sect_info
@@ -720,8 +748,9 @@ def align_2d(
     nl_2d_vol_fn: str,
     nl_2d_cls_fn: str,
     section_thickness: float,
+    axis: int = DEFAULT_SECTION_AXIS,
     base_lin_itr: int = 100,
-    base_nl_itr: int = 20,
+    base_nl_itr: int = 30,
     use_syn: bool = True,
     file_to_align: str = "acq_rsl",
     num_cores: int = 1,
@@ -767,6 +796,7 @@ def align_2d(
         ymax,
         zmax,
         section_thickness,
+        axis=axis,
     )
 
     # Define fixed 'fx' filenames for each section from the resampled reference volume
@@ -779,6 +809,7 @@ def align_2d(
         ref_space_nat_fn,
         nl_2d_dir,
         dtype=np.uint8,
+        axis=axis,
     )
 
     logger.info("\t\tStep 4: 2d nl alignment")
@@ -800,12 +831,17 @@ def align_2d(
 
     # Concatenate 2D nonlinear aligned sections into output volume
     sect_info = concatenate_tfm_sections_to_volume(
-        sect_info, ref_space_nat_fn, nl_2d_dir, nl_2d_vol_fn
+        sect_info, ref_space_nat_fn, nl_2d_dir, nl_2d_vol_fn, axis=axis
     )
 
     # Concatenate 2D nonlinear aligned cls sections into an output volume
     sect_info = concatenate_tfm_sections_to_volume(
-        sect_info, ref_space_nat_fn, nl_2d_dir, nl_2d_cls_fn, target_str="_cls"
+        sect_info,
+        ref_space_nat_fn,
+        nl_2d_dir,
+        nl_2d_cls_fn,
+        target_str="_cls",
+        axis=axis,
     )
 
     return sect_info, ref_space_nat_fn

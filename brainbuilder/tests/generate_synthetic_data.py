@@ -2,12 +2,15 @@
 import argparse
 import os
 from glob import glob
+from typing import Dict, Iterable, Tuple
 
 # import nibabel as nib
 import brainbuilder.utils.ants_nibabel as nib
 import numpy as np
 import pandas as pd
 from skimage.filters import threshold_otsu
+
+from brainbuilder.utils.axis_utils import DEFAULT_SECTION_AXIS, get_section
 
 
 def load(fn: str) -> tuple:
@@ -29,19 +32,22 @@ def rotate3d(vol, angles):
 """
 
 
-def save_section(vol: str, y: int, affine: np.array, out_fn: str) -> None:
+def save_section(
+    vol: str, y: int, affine: np.array, out_fn: str, axis: int = DEFAULT_SECTION_AXIS
+) -> None:
     """Save a 2D section of a 3D volume as a NIfTI file.
 
     Args:
         vol (ndarray): The 3D volume.
-        y (int): The y-coordinate of the section to save.
+        y (int): The index of the section to save along the sectioning axis.
         affine (ndarray): The affine transformation matrix.
         out_fn (str): The output file name.
+        axis (int): The sectioning axis (default 1, coronal).
 
     Returns:
         None
     """
-    section = vol[:, y, :]
+    section = get_section(vol, y, axis)
     # imageio.imwrite(out_fn, section)
     nib.Nifti1Image(section, affine, direction_order="lpi").to_filename(out_fn)
 
@@ -69,12 +75,38 @@ def save_coronal_sections(
     hemisphere: str,
     chunk: int,
     ystep: int = 4,
+    axis: int = DEFAULT_SECTION_AXIS,
     clobber: bool = False,
 ) -> str:
-    """Save coronal sections of a volume as NIfTI files."""
+    """Backward-compatible wrapper around generic section extraction."""
+    return save_sections(
+        input_fn,
+        out_dir,
+        raw_dir,
+        sub,
+        hemisphere,
+        chunk,
+        ystep=ystep,
+        axis=axis,
+        clobber=clobber,
+    )
+
+
+def save_sections(
+    input_fn: str,
+    out_dir: str,
+    raw_dir: str,
+    sub: str,
+    hemisphere: str,
+    chunk: int,
+    ystep: int = 4,
+    axis: int = DEFAULT_SECTION_AXIS,
+    clobber: bool = False,
+) -> str:
+    """Save sections of a volume as NIfTI files along the given sectioning axis."""
     input_img, input_vol = load(input_fn)
 
-    ymax = input_img.shape[1]
+    ymax = input_img.shape[axis]
 
     sect_info_csv = f"{out_dir}/sect_info.csv"
 
@@ -90,15 +122,16 @@ def save_coronal_sections(
 
         y_list = np.array(range(0, ymax, ystep))
 
-        section_max = np.max([np.sum(input_vol[:, y, :]) for y in y_list])
+        section_max = np.max([np.sum(get_section(input_vol, y, axis)) for y in y_list])
 
+        section_idx = 0
         for y in y_list:
             raw_sec_fn = f"{raw_dir}/sub-{sub}_chunk-{chunk}_sample-{y}_synth.nii.gz"
 
-            if np.sum(input_vol[:, y, :]) < section_max * 0.05:
+            if np.sum(get_section(input_vol, y, axis)) < section_max * 0.05:
                 continue
 
-            section = input_vol[:, y, :]
+            section = get_section(input_vol, y, axis)
 
             if np.sum(np.abs(section) > section.min()) < 200:  # skip empty sections
                 continue
@@ -113,11 +146,13 @@ def save_coronal_sections(
                 "sub": [sub],
                 "hemisphere": [hemisphere],
                 "acquisition": ["synth"],
-                "sample": [y],
+                "sample": [section_idx],
                 "chunk": [chunk],
+                "section_axis": [axis],
             }
 
             df = pd.concat([df, pd.DataFrame(row_dict)])
+            section_idx += 1
 
         df.to_csv(sect_info_csv, index=False)
 
@@ -271,6 +306,7 @@ def generate_synthetic_data(
     hemisphere: str = "both",
     chunk: int = 1,
     ystep: int = 4,
+    axis: int = DEFAULT_SECTION_AXIS,
     landmark_dir: str = None,
     clobber: bool = False,
 ) -> tuple:
@@ -297,8 +333,16 @@ def generate_synthetic_data(
     for dir_path in [out_dir, raw_dir]:
         os.makedirs(dir_path, exist_ok=True)
 
-    df = save_coronal_sections(
-        input_fn, out_dir, raw_dir, sub, hemisphere, chunk, ystep=ystep, clobber=clobber
+    df = save_sections(
+        input_fn,
+        out_dir,
+        raw_dir,
+        sub,
+        hemisphere,
+        chunk,
+        ystep=ystep,
+        axis=axis,
+        clobber=clobber,
     )
 
     ref_landmark_path = f"{out_dir}/ref_landmarks_volume.nii.gz"
@@ -309,20 +353,27 @@ def generate_synthetic_data(
         )
 
     img = nib.load(input_fn)
-    xstep, ystep, zstep = img.affine[0, 0], img.affine[1, 1], img.affine[2, 2]
+    xstep, ystep_aff, zstep = img.affine[0, 0], img.affine[1, 1], img.affine[2, 2]
+    axis_to_spacing = {0: xstep, 1: ystep_aff, 2: zstep}
+    inplane_axes = [i for i in [0, 1, 2] if i != axis]
+    pixel_size_0 = axis_to_spacing[inplane_axes[0]]
+    pixel_size_1 = axis_to_spacing[inplane_axes[1]]
+    section_thickness = ystep * axis_to_spacing[axis]
 
     chunk_info_df = pd.DataFrame(
         {
             "sub": [sub],
             "chunk": [chunk],
             "hemisphere": [hemisphere],
-            "pixel_size_0": [xstep],
-            "pixel_size_1": [zstep],
-            "section_thickness": [ystep],
-            "ref_landmark": [ref_landmark_path],
-            "direction": ["caudal_to_rostral"],
+            "pixel_size_0": [pixel_size_0],
+            "pixel_size_1": [pixel_size_1],
+            "section_thickness": [section_thickness],
+            "section_axis": [axis],
         }
     )
+
+    if landmark_dir :
+        chunk_info_df["ref_landmark"] = [ref_landmark_path]
 
     chunk_info_df.to_csv(chunk_info_csv, index=False)
 
@@ -339,3 +390,41 @@ def generate_synthetic_data(
     hemi_info_df.to_csv(hemi_info_csv, index=False)
 
     return sect_info_csv, chunk_info_csv, hemi_info_csv
+
+
+def generate_synthetic_data_for_axes(
+    input_fn: str,
+    reference_fn: str,
+    out_dir: str,
+    axes: Iterable[int] = (0, 1, 2),
+    gm_surf_fn: str = "data/MR1_gray_surface_R_81920.surf.gii",
+    wm_surf_fn: str = "data/MR1_white_surface_R_81920.surf.gii",
+    sub: str = "01",
+    hemisphere: str = "both",
+    chunk: int = 1,
+    ystep: int = 4,
+    clobber: bool = False,
+) -> Dict[int, Tuple[str, str, str]]:
+    """Generate one synthetic dataset per sectioning axis.
+
+    Returns a mapping ``axis -> (sect_info_csv, chunk_info_csv, hemi_info_csv)``.
+    """
+    axis_outputs: Dict[int, Tuple[str, str, str]] = {}
+    for axis in axes:
+        axis_out_dir = f"{out_dir}/axis_{axis}"
+        axis_outputs[axis] = generate_synthetic_data(
+            input_fn=input_fn,
+            reference_fn=reference_fn,
+            out_dir=axis_out_dir,
+            gm_surf_fn=gm_surf_fn,
+            wm_surf_fn=wm_surf_fn,
+            sub=sub,
+            hemisphere=hemisphere,
+            chunk=chunk,
+            ystep=ystep,
+            axis=axis,
+            landmark_dir=None,
+            clobber=clobber,
+        )
+
+    return axis_outputs

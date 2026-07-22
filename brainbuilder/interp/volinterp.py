@@ -4,6 +4,7 @@ from subprocess import run
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
+from skimage.transform import resize
 
 # from brainbuilder.utils.nl_deformation_flow import nlflow_isometric
 from morphint.morphint import morphint
@@ -12,18 +13,20 @@ import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import apply_transforms_parallel
 from brainbuilder.interp.acqvolume import create_thickened_volumes
 from brainbuilder.utils import utils
+from brainbuilder.utils.axis_utils import DEFAULT_SECTION_AXIS, get_section, get_section_axis
 
 logger = utils.get_logger(__name__)
 
 
-def idw(vol, nearest_i, min_dist, p=2):
+def idw(vol, nearest_i, min_dist, p=2, axis=DEFAULT_SECTION_AXIS):
     # Inverse Distance Weighted interpolation (IDW) with Shepard's method
     # min_dist += 1
     weights = min_dist / np.sum(min_dist)
 
     print(min_dist, weights)
     interp = np.sum(
-        [w * vol[:, nearest_i[j], :] for j, w in enumerate(weights)], axis=0
+        [w * get_section(vol, nearest_i[j], axis) for j, w in enumerate(weights)],
+        axis=0,
     )
 
     assert np.sum(np.abs(interp)) > 0, "Error: Empty Output"
@@ -86,6 +89,109 @@ def apply_final_2d_transforms(
     return curr_sect_info
 
 
+# Acquisition and segmentation sections must be interpolated from matching
+# resolution columns.  The first pair is for sections already resampled into the
+# 3D reconstruction grid, which is normally what stage 3 multiresolution
+# alignment consumes.  The next two pairs are 2D-resolution section images, used
+# when stage 4 interpolation should preserve the native in-plane section grid.
+SECTION_TARGET_PAIRS = [
+    ("2d_align_3d_res", "seg_rsl_tfm"),
+    ("2d_align_out", "2d_align_cls_out"),
+    ("2d_align", "2d_align_cls"),
+    ("img", "seg"),
+]
+
+
+def resolve_target_sections(
+    sect_info: pd.DataFrame,
+    target_section: str = None,
+    target_section_acq: str = None,
+    target_section_cls: str = None,
+) -> tuple[str, str]:
+    """Choose matching acquisition and segmentation section columns.
+
+    `target_section` is the legacy single-column selector.  It may name either
+    side of a known acquisition/segmentation pair; for example, passing
+    `2d_align_3d_res` resolves to (`2d_align_3d_res`, `seg_rsl_tfm`), while
+    passing `2d_align_out` resolves to (`2d_align_out`, `2d_align_cls_out`).
+
+    `target_section_acq` and `target_section_cls` are the explicit form.  Use
+    these when the caller already knows which resolution should be used.  This is
+    important because the 3D multiresolution alignment stage and the missing-
+    intensity interpolation stage can require different section grids:
+
+    - 3D reconstruction resolution: `2d_align_3d_res` with `seg_rsl_tfm`
+    - 2D section resolution after 2D alignment: `2d_align_out` with
+      `2d_align_cls_out`
+    - original/init 2D alignment columns: `2d_align` with `2d_align_cls`
+    - raw image/segmentation columns: `img` with `seg`
+
+    If nothing is specified, the first available complete pair from
+    `SECTION_TARGET_PAIRS` is used.  That means 3D-resolution columns are
+    preferred when present, so stage 4 callers that need 2D-resolution sections
+    should pass `target_section="2d_align_out"` or the explicit acq/cls columns.
+    """
+    if target_section_acq is not None and target_section_cls is not None:
+        pass
+    else:
+        for acq_col, cls_col in SECTION_TARGET_PAIRS:
+            if target_section in [acq_col, cls_col]:
+                target_section_acq = target_section_acq or acq_col
+                target_section_cls = target_section_cls or cls_col
+                break
+
+    if target_section_acq is None or target_section_cls is None:
+        for acq_col, cls_col in SECTION_TARGET_PAIRS:
+            if acq_col in sect_info.columns and cls_col in sect_info.columns:
+                target_section_acq = target_section_acq or acq_col
+                target_section_cls = target_section_cls or cls_col
+                break
+
+    missing = [
+        col
+        for col in [target_section_acq, target_section_cls]
+        if col is None or col not in sect_info.columns
+    ]
+    if missing:
+        raise ValueError(
+            "Could not resolve matching acquisition/segmentation section columns. "
+            f"target_section={target_section!r}, "
+            f"target_section_acq={target_section_acq!r}, "
+            f"target_section_cls={target_section_cls!r}, "
+            f"available columns={list(sect_info.columns)}"
+        )
+
+    return target_section_acq, target_section_cls
+
+
+def validate_target_section_pair(
+    sect_info: pd.DataFrame, target_section_acq: str, target_section_cls: str
+) -> None:
+    """Fail early if the chosen acq/cls columns are missing files or resolutions differ."""
+    for _, row in sect_info.iterrows():
+        acq_fn = row[target_section_acq]
+        cls_fn = row[target_section_cls]
+
+        if not os.path.exists(acq_fn):
+            raise FileNotFoundError(
+                f"Acquisition section file does not exist for {target_section_acq}: {acq_fn}"
+            )
+        if not os.path.exists(cls_fn):
+            raise FileNotFoundError(
+                f"Segmentation section file does not exist for {target_section_cls}: {cls_fn}"
+            )
+
+        acq_shape = nib.load(acq_fn).shape
+        cls_shape = nib.load(cls_fn).shape
+        if acq_shape != cls_shape:
+            raise ValueError(
+                "Acquisition and segmentation interpolation inputs must have the "
+                "same in-plane shape. "
+                f"{target_section_acq}={acq_fn} has shape {acq_shape}; "
+                f"{target_section_cls}={cls_fn} has shape {cls_shape}."
+            )
+
+
 def volumetric_interpolation(
     curr_sect_info: pd.DataFrame,
     curr_chunk_info: pd.DataFrame,
@@ -101,6 +207,8 @@ def volumetric_interpolation(
     clobber: bool = False,
 ) -> pd.DataFrame:
     os.makedirs(output_dir, exist_ok=True)
+
+    axis = get_section_axis(curr_chunk_info)
 
     print("Volumetric Interpolation")
     chunk_info_thickened_csv = create_thickened_volumes(
@@ -127,6 +235,7 @@ def volumetric_interpolation(
         output_dir,
         resolution,
         resolution_list,
+        axis=axis,
         interpolation=interpolation,
         tfm_dict=nlflow_tfm_dict,
         num_jobs=num_cores,
@@ -151,6 +260,8 @@ def volumetric_interpolation_over_dataframe(
     interpolation: str = "Linear",
     tissue_type: str = "cls",
     target_section: str = "2d_align_3d_res",
+    target_section_acq: str = None,
+    target_section_cls: str = None,
     num_cores: int = -1,
 ) -> pd.DataFrame:
     """Interpolates the volumes of the sections in the chunk_info dataframe.
@@ -210,6 +321,21 @@ def volumetric_interpolation_over_dataframe(
 
         curr_chunk_info = chunk_info[(chunk_info["chunk"] == chunk)]
 
+        curr_target_section_acq, curr_target_section_cls = resolve_target_sections(
+            curr_sect_info,
+            target_section=target_section,
+            target_section_acq=target_section_acq,
+            target_section_cls=target_section_cls,
+        )
+        validate_target_section_pair(
+            curr_sect_info, curr_target_section_acq, curr_target_section_cls
+        )
+        print(
+            "Target sections for interpolation:",
+            curr_target_section_acq,
+            curr_target_section_cls,
+        )
+
         # First calculate the interpolation for the acquisition volume
         interp_acq_iso_fin, nlflow_tfm_dict = volumetric_interpolation(
             curr_sect_info,
@@ -218,7 +344,7 @@ def volumetric_interpolation_over_dataframe(
             resolution,
             resolution_list,
             interpolation=interpolation,
-            target_section=target_section,
+            target_section=curr_target_section_acq,
             num_cores=num_cores,
             clobber=clobber,
             refine_2d_alignment_flag=refine_2d_alignment_flag,
@@ -232,7 +358,7 @@ def volumetric_interpolation_over_dataframe(
             resolution,
             resolution_list,
             tissue_type=tissue_type,
-            target_section=target_section,
+            target_section=curr_target_section_cls,
             nlflow_tfm_dict=nlflow_tfm_dict,
             num_cores=num_cores,
             clobber=clobber,
@@ -301,8 +427,25 @@ def chunked_percentile(
             if s.size:
                 vmin = min(vmin, float(np.nanmin(s)))
                 vmax = max(vmax, float(np.nanmax(s)))
+
+        # Sparse sampling can miss non-zero signal in thin structures.
+        # Fall back to full-volume range before declaring a degenerate input.
+        if (not np.isfinite(vmin)) or (not np.isfinite(vmax)) or (vmax <= vmin):
+            vmin, vmax = np.inf, -np.inf
+            for f in fins:
+                s = np.asarray(nib.load(f).dataobj)
+                if background is not None:
+                    s = s[s != background]
+                if s.size:
+                    vmin = min(vmin, float(np.nanmin(s)))
+                    vmax = max(vmax, float(np.nanmax(s)))
+
         if not np.isfinite(vmin):  # degenerate
             vmin, vmax = 0.0, 1.0
+
+    value_span = float(vmax - vmin)
+    if not np.isfinite(value_span) or value_span < 0:
+        value_span = 0.0
 
     edges = np.linspace(vmin, vmax, bins + 1, dtype=np.float32)
     centers = 0.5 * (edges[:-1] + edges[1:])
@@ -323,11 +466,13 @@ def chunked_percentile(
                         blk = np.where(blk == background, np.nan, blk)
                     # Map values to bin indices
                     # scale to [0, bins-1]
-                    idx = np.floor(
-                        (blk - vmin) / (vmax - vmin + 1e-12) * (bins - 1)
-                    ).astype(np.int32)
                     # mask NaNs / outside
                     m = ~np.isnan(blk)
+                    idx = np.zeros(blk.shape, dtype=np.int32)
+                    if value_span > 0 and np.any(m):
+                        idx[m] = np.floor(
+                            ((blk[m] - vmin) / value_span) * (bins - 1)
+                        ).astype(np.int32)
                     idx = np.clip(idx, 0, bins - 1, out=idx)
                     # Update histograms
                     # vectorized add: one bincount per voxel would be slow,
@@ -356,7 +501,13 @@ def chunked_percentile(
                 out[z0:z1, y0:y1, x0:x1] = val
 
     if dtype == np.uint8:
-        out = np.rint(255 * (out - vmin) / (vmax - vmin))
+        # If values are already in uint8-like range (common for cls volumes),
+        # avoid renormalizing; this prevents collapse when vmin == vmax.
+        if value_span > 0 and (vmax > 255 or vmin < 0 or np.nanmax(out) <= 1.0):
+            out = np.rint(255 * (out - vmin) / value_span)
+        else:
+            out = np.rint(out)
+        out = np.clip(out, 0, 255)
 
     out = out.astype(dtype)
 
@@ -540,6 +691,7 @@ def apply_interpolated_volumes_to_stx(
     clobber,
     sub=None,
     hemisphere=None,
+    nl_3d_tfm_list=None,
 ):
     ref_vol_fn = curr_hemi_info["struct_ref_vol"].values[0]
 
@@ -552,15 +704,12 @@ def apply_interpolated_volumes_to_stx(
 
     curr_chunk_info["ref_vol_rsl_list"] = ref_vol_rsl_fn
 
+    if nl_3d_tfm_list is None and "nl_3d_tfm_list" in curr_chunk_info.columns:
+        nl_3d_tfm_list = curr_chunk_info["nl_3d_tfm_list"].values[0]
+
     for _, row in curr_chunk_info.iterrows():
         interp_nat_fin = row["interp_nat"]
         interp_stx_fin = row["interp_stx"]
-
-        nl_3d_tfm_list = (
-            curr_chunk_info["nl_3d_tfm_list"]
-            .loc[curr_chunk_info["chunk"] == row["chunk"]]
-            .values[0]
-        )
 
         logger.info(
             "Applying final transform to stx space for file: %s", interp_nat_fin
@@ -569,14 +718,36 @@ def apply_interpolated_volumes_to_stx(
         logger.info("Nonlinear 3D transform file: %s", nl_3d_tfm_list)
         logger.info("Output file in stx space: %s", interp_stx_fin)
         logger.info("")
-        utils.simple_ants_apply_tfm(
-            interp_nat_fin,
-            ref_vol_rsl_fn,
-            nl_3d_tfm_list,
-            interp_stx_fin,
-            n=interpolation,
-            clobber=clobber,
-        )
+
+        if nl_3d_tfm_list in (None, "", [], ()):
+            # Without a 3D chunk-to-reference transform (e.g., when stage 3 is
+            # skipped), write a reference-grid volume directly so downstream
+            # consumers can always use interp_stx consistently.
+            if not os.path.exists(interp_stx_fin) or clobber:
+                interp_nat_img = nib.load(interp_nat_fin)
+                ref_img = nib.load(ref_vol_rsl_fn)
+
+                interp_data = interp_nat_img.get_fdata().astype(np.float32)
+                interp_on_ref_grid = resize(
+                    interp_data,
+                    ref_img.shape,
+                    order=1,
+                    preserve_range=True,
+                    anti_aliasing=False,
+                ).astype(np.float32)
+
+                nib.Nifti1Image(
+                    interp_on_ref_grid, ref_img.affine, direction_order="lpi"
+                ).to_filename(interp_stx_fin)
+        else:
+            utils.simple_ants_apply_tfm(
+                interp_nat_fin,
+                ref_vol_rsl_fn,
+                nl_3d_tfm_list,
+                interp_stx_fin,
+                n=interpolation,
+                clobber=clobber,
+            )
 
         assert os.path.exists(
             interp_stx_fin
@@ -595,6 +766,9 @@ def volumetric_pipeline(
     final_resolution: float = None,
     interpolation: str = "Linear",
     refine_2d_alignment_flag: bool = False,
+    target_section: str = None,
+    target_section_acq: str = None,
+    target_section_cls: str = None,
     num_cores: int = -1,
     use_final_transform: bool = True,
     clobber: bool = False,
@@ -620,18 +794,18 @@ def volumetric_pipeline(
         ]
         assert len(curr_hemi_info) > 0, "Error: no hemisphere info found"
 
-        # If the 2D aligned sections at the original resolution have already been calculated, use those for interpolation.
-        # '2d_align' is the column name for the 2D aligned images at 2D resolution (not 3D) before 3D - 2D created in align/intervolume.py
-        # This is used if no 3D - 2D alignment has been done.
-        # '2d_align_out' is the column name for 2D aligned images after 3D - 2D alignment at a given resolution, created in align/align_2d.py
-        # This is used if 3D - 2D alignment has already been done and we want to use those aligned images for interpolation instead of the original 2D aligned images.
-        target_section = (
-            "2d_align_out"
-            if "2d_align_out" in sect_info_sub_hemi.columns
-            else "2d_align"
+        curr_target_section_acq, curr_target_section_cls = resolve_target_sections(
+            sect_info_sub_hemi,
+            target_section=target_section,
+            target_section_acq=target_section_acq,
+            target_section_cls=target_section_cls,
         )
 
-        print("Target section for interpolation:", target_section)
+        print(
+            "Target sections for interpolation:",
+            curr_target_section_acq,
+            curr_target_section_cls,
+        )
         
         # Volumetric interpolation
         print("Volumetric Interpolation for sub:", sub, "hemi:", hemisphere)
@@ -644,6 +818,8 @@ def volumetric_pipeline(
             final_resolution=final_resolution,
             interpolation=interpolation,
             target_section=target_section,
+            target_section_acq=curr_target_section_acq,
+            target_section_cls=curr_target_section_cls,
             num_cores=num_cores,
             clobber=clobber,
             refine_2d_alignment_flag=refine_2d_alignment_flag,
@@ -653,17 +829,19 @@ def volumetric_pipeline(
 
         chunk_info_list.append(curr_chunk_info)
 
-        if use_final_transform:
-            curr_chunk_info = apply_interpolated_volumes_to_stx(
-                curr_chunk_info,
-                curr_hemi_info,
-                resolution,
-                output_dir,
-                interpolation,
-                clobber,
-                sub=sub,
-                hemisphere=hemisphere,
-            )
+        curr_chunk_info = apply_interpolated_volumes_to_stx(
+            curr_chunk_info,
+            curr_hemi_info,
+            resolution,
+            output_dir,
+            interpolation,
+            clobber,
+            sub=sub,
+            hemisphere=hemisphere,
+            nl_3d_tfm_list=curr_chunk_info["nl_3d_tfm_list"].values[0]
+            if use_final_transform and "nl_3d_tfm_list" in curr_chunk_info.columns
+            else None,
+        )
 
     chunk_info_out = pd.concat(chunk_info_list, ignore_index=True)
 

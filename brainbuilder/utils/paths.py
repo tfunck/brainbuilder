@@ -342,14 +342,9 @@ class MultiResPaths:
         self.ensure_stage_dirs()
 
         if self.moving is not None and self.fixed is not None:
-            sel0 = self.select_volumes(
-                self.moving,
-                self.fixed,
-                moving_landmark=self.moving,
-                fixed_landmark=self.fixed,
-            )
-            self.fixed_volume = sel0["fixed_volume"]
-            self.moving_volume = sel0["moving_volume"]
+            rec = self.as_record()
+            self.fixed_volume = rec[self.fixed]
+            self.moving_volume = rec[self.moving]
 
         if (self.moving_landmark is not None or self.moving_landmark_volume) and (
             self.fixed_landmark is not None or self.fixed_landmark_volume
