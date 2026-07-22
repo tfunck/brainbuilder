@@ -22,6 +22,7 @@ def _set_use_landmark_transform(ref_landmark_volume, landmark_dir):
         else False
     )
 
+
 def v2w(i: int, step: float, start: float) -> float:
     """Converts voxel coordinate to world coordinate.
 
@@ -307,20 +308,23 @@ def write_ref_chunk_with_landmark_transform(
     max_resolution_3d: int,
     landmark_dir: str,
     landmark_out_dir: str,
-    moving_landmark_volume:str,
-    fixed_landmark_volume:str,
-    moving_qc_volume:str,
-    fixed_qc_volume:str,
-    acq_landmark_volume:str,
-    ref_landmark_volume:str,
-    acq_rsl_volume:str,
+    moving_landmark_volume: str,
+    fixed_landmark_volume: str,
+    moving_qc_volume: str,
+    fixed_qc_volume: str,
+    acq_landmark_volume: str,
+    ref_landmark_volume: str,
+    acq_rsl_volume: str,
     padding_offset: float = 0.15,
     clobber: bool = False,
 ):
     # 1 Calculate the landmark transform from acquisition to reference space
     ymax = nib.load(chunk_info["init_volume"].values[0]).shape[1]
 
-    landmark_composite_fwd_tfm_path, landmark_composite_inv_tfm_path = create_landmark_transform(
+    (
+        landmark_composite_fwd_tfm_path,
+        landmark_composite_inv_tfm_path,
+    ) = create_landmark_transform(
         sub,
         hemi,
         chunk,
@@ -328,7 +332,7 @@ def write_ref_chunk_with_landmark_transform(
         max_resolution_3d,
         sect_info,
         chunk_info["init_volume"].values[0],  # reference volume for image dimensions
-        acq_landmark_volume, # path of the sparse landmark volume created by build_sparse_landmark_volume() 
+        acq_landmark_volume,  # path of the sparse landmark volume created by build_sparse_landmark_volume()
         moving_landmark_volume,  # moving landmark volume
         fixed_landmark_volume,  # fixed landmark volume
         landmark_dir,
@@ -350,13 +354,21 @@ def write_ref_chunk_with_landmark_transform(
     ref_indicator_volume = acq_indicator_volume.replace(".nii.gz", "_space-stx.nii.gz")
 
     # the transform from acquisition to reference space depends on which is the moving and fixed volume,
-    if moving_landmark_volume == acq_landmark_volume and fixed_landmark_volume == ref_landmark_volume:
+    if (
+        moving_landmark_volume == acq_landmark_volume
+        and fixed_landmark_volume == ref_landmark_volume
+    ):
         acq_to_ref_tfm_path = landmark_composite_fwd_tfm_path
-    elif moving_landmark_volume == ref_landmark_volume and fixed_landmark_volume == acq_landmark_volume:
+    elif (
+        moving_landmark_volume == ref_landmark_volume
+        and fixed_landmark_volume == acq_landmark_volume
+    ):
         acq_to_ref_tfm_path = landmark_composite_inv_tfm_path
-    else :
-        raise ValueError(f"Error: moving_landmark_volume ({moving_landmark_volume}) and fixed_landmark_volume ({fixed_landmark_volume}) must be either acq_landmark_volume or ref_landmark_volume")
-    
+    else:
+        raise ValueError(
+            f"Error: moving_landmark_volume ({moving_landmark_volume}) and fixed_landmark_volume ({fixed_landmark_volume}) must be either acq_landmark_volume or ref_landmark_volume"
+        )
+
     utils.simple_ants_apply_tfm(
         acq_indicator_volume,
         ref_vol_fn,
@@ -367,7 +379,7 @@ def write_ref_chunk_with_landmark_transform(
     )
 
     # 4 Use the reference space warped indicator volume to mask the reference volume to get the reference chunk
-    clobber=True
+    clobber = True
     ref_chunk_fn = crop_volume_with_indicator(
         ref_vol_fn, ref_indicator_volume, landmark_out_dir, sub, hemi, chunk, clobber
     )
@@ -382,19 +394,19 @@ def write_ref_chunk(
     hemi: str,
     chunk: int,
     ref_vol_fn: str,
-    ref_chunk_rsl_fn: str, # output filename of the reference chunk that is resampled to the current 3d resolution
+    ref_chunk_rsl_fn: str,  # output filename of the reference chunk that is resampled to the current 3d resolution
     landmark_dir: str,
     align_3d_dir: str,
     landmark_out_dir: str,
-    resolution_3d:int,
+    resolution_3d: int,
     max_resolution_3d: int,
     moving_landmark_volume: str,
     fixed_landmark_volume: str,
-    moving_qc_volume:str,
-    fixed_qc_volume:str,
-    acq_landmark_volume:str,
+    moving_qc_volume: str,
+    fixed_qc_volume: str,
+    acq_landmark_volume: str,
     ref_landmark_volume: str,
-    acq_rsl_volume:str,
+    acq_rsl_volume: str,
     padding_offset: float = 0.15,
     clobber: bool = False,
 ) -> tuple:
@@ -408,13 +420,12 @@ def write_ref_chunk(
     :param clobber: overwrite existing files
     :return: tuple containing the reference chunk filename and the landmark composite transform path
     """
-
     use_landmark_transform = _set_use_landmark_transform(
         ref_landmark_volume, landmark_dir
     )
 
     landmark_composite_tfm_path = None
-    
+
     if not use_landmark_transform:
         if (
             "caudal_limit" not in chunk_info.columns
@@ -433,14 +444,25 @@ def write_ref_chunk(
             chunk_info, sub, hemi, chunk, ref_vol_fn, align_3d_dir, clobber
         )
     else:
-        if moving_landmark_volume == ref_landmark_volume: #
+        if moving_landmark_volume == ref_landmark_volume:  #
             # if the reference landmark volume is the moving volume, then we can use the original reference volume because
-            # the ref_rsl_fn has not been created yet and will only be created after applying the landmark transform to the original reference volume. 
+            # the ref_rsl_fn has not been created yet and will only be created after applying the landmark transform to the original reference volume.
             moving_qc_volume = ref_vol_fn
+        elif fixed_landmark_volume == ref_landmark_volume:
+            # if the reference landmark volume is the fixed volume, then we can use the original reference volume because
+            # the ref_rsl_fn has not been created yet and will only be created after applying the landmark transform to the original reference volume.
+            fixed_qc_volume = ref_vol_fn
+        else:
+            raise ValueError(
+                f"Error: moving_landmark_volume ({moving_landmark_volume}) and fixed_landmark_volume ({fixed_landmark_volume}) must be either acq_landmark_volume or ref_landmark_volume"
+            )
 
         # if landmark transform is provided, use the landmark transform to get the reference chunk that corresponds to the tissue chunk, instead of using the fixed limits from the chunk_info.csv. This is because the fixed limits may not be accurate and may not correspond to the actual tissue chunk in the reference space.
         # The landmark transform will allow us to get a more accurate reference chunk that corresponds to the tissue chunk in the reference space.
-        ref_chunk_fn, landmark_composite_fwd_tfm_path = write_ref_chunk_with_landmark_transform(
+        (
+            ref_chunk_fn,
+            landmark_composite_fwd_tfm_path,
+        ) = write_ref_chunk_with_landmark_transform(
             sect_info,
             chunk_info,
             sub,
@@ -473,7 +495,7 @@ def write_ref_chunk(
             dtype=np.uint8,
             factor=255,
         )
-        
+
     return ref_chunk_rsl_fn, landmark_composite_fwd_tfm_path
 
 
@@ -483,7 +505,9 @@ def set_init_tfm(init_tfm, fx_fn, mv_fn, out_dir) -> str:
     if init_tfm is None:
         init_str = f" --initial-moving-transform [{fx_fn},{mv_fn},1] "
     else:
-        mv_rsl_fn = os.path.join(out_dir, re.sub(".nii", "_init_moving.nii", os.path.basename(mv_fn)))
+        mv_rsl_fn = os.path.join(
+            out_dir, re.sub(".nii", "_init_moving.nii", os.path.basename(mv_fn))
+        )
         utils.simple_ants_apply_tfm(mv_fn, fx_fn, init_tfm, mv_rsl_fn, n="BSpline[2]")
         mv_fn = mv_rsl_fn
         init_str = ""

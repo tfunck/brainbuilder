@@ -12,13 +12,13 @@ from skimage.filters import threshold_otsu
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import align_2d
 from brainbuilder.align.align_3d import align_3d, pad_acq_volume, write_ref_chunk
-from brainbuilder.align.align_landmarks import create_landmark_transform
 from brainbuilder.align.intervolume import create_acquisition_volume
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
 from brainbuilder.utils.paths import MultiResPaths, _multires_root_dir
 
 logger = utils.get_logger(__name__)
+
 
 def check_chunk_outputs(chunk_csv: str) -> None:
     """Check if chunk outputs exist, if not remove the chunk output csv and the chunk output directory.
@@ -364,7 +364,7 @@ def alignment_iteration(
         paths.intermediate_volume_dir,
         paths.acq_rsl_fn,
         paths.init_volume,
-        num_cores = num_cores,
+        num_cores=num_cores,
         clobber=clobber,
     )
 

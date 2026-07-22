@@ -162,6 +162,10 @@ def load_image(fn: str) -> np.ndarray:
 def check_dimensions(fns: list, dims: tuple) -> None:
     """Check the dimensions of a list of files.
 
+    Note: Small mismatches (< 10 pixels) are allowed as they will be corrected
+    by resizing in concatenate_sections_to_volume(). This accounts for floating-point
+    precision differences in resampling calculations.
+
     :param fns: list, list of filenames
     :param dims: tuple, expected dimensions
     :return: None
@@ -170,7 +174,17 @@ def check_dimensions(fns: list, dims: tuple) -> None:
     for fn in fns:
         sec = nibabel.load(fn)
 
-        if sec.shape[0] != dims[0] or sec.shape[1] != dims[2]:
+        sec_x = sec.shape[0]
+        sec_z = sec.shape[1]
+        dim_x = dims[0]
+        dim_z = dims[2]
+
+        d0 = np.abs(sec_x - dim_x)
+        d1 = np.abs(sec_z - dim_z)
+
+        # Only fail on large mismatches (>= 10 pixels)
+        # Small mismatches will be auto-corrected by resize logic
+        if (d0 > 0 and d0 >= 10) or (d1 > 0 and d1 >= 10):
             print("Warning: section dimensions do not match target dimensions")
             print("\tSection:", fn, sec.shape)
             print("\tTarget:", dims)
@@ -189,8 +203,7 @@ def concatenate_sections_to_volume(sect_info, target_name, out_fn, dims, affine)
         sections_okay_flag = check_dimensions(sect_info[target_name].values, dims)
 
         if not sections_okay_flag:
-            print("Error: section dimensions do not match target dimensions")
-            exit(1)
+            raise ValueError("Section dimensions do not match target dimensions")
 
         exit_flag = False
         for i, row in sect_info.iterrows():
@@ -394,7 +407,7 @@ class AntsParams:
         self.resolution_list = resolution_list
         self.max_n = len(resolution_list)
         self.cur_n = resolution_list.index(resolution)
-        self.max_itr = int((self.max_n ) * base_itr)
+        self.max_itr = int((self.max_n) * base_itr)
 
         self.f_list = self.gen_downsample_factor_list(resolution_list)
         self.max_downsample_factor = int(self.f_list[0])

@@ -259,10 +259,11 @@ def ants_registration_2d_section(
             with open(command_log_fname, "w") as f:
                 f.write(command_str)
 
-            shell(command_str)
-            assert (
-                not exit_on_failure or np.sum(np.abs(nib.load(mv_rsl_fn).dataobj)) > 0
-            ), f"Error: empty volume {mv_rsl_fn}"
+            shell(command_str, exit_on_failure=exit_on_failure)
+
+            # Some ANTs runs can leave zero-byte/truncated outputs (e.g. interrupted I/O).
+            # Validate each stage output immediately so callers can retry/skip this trial.
+            check_volume(mv_rsl_fn)
 
     assert os.path.exists(final_tfm), f"Error: output does not exist {final_tfm}"
     assert os.path.exists(mv_rsl_fn), f"Error: output does not exist {mv_rsl_fn}"
@@ -290,7 +291,7 @@ def affine_trials(
     :return: affine_tfm
     """
     lin_transforms = ["Rigid", "Similarity", "Affine"]
-    max_dice = 0
+    max_dice = -np.inf
     best_trial = 0
     affine_tfm_trials = {}
 
@@ -306,31 +307,46 @@ def affine_trials(
 
         trial_prefix = affine_dir + f"_trial-{trial}"
 
-        affine_tfm, mv_rsl_fn = ants_registration_2d_section(
-            fx_fn=fx_fn,
-            mv_fn=mv_fn,
-            itr_list=itr_list,
-            s_list=s_list,
-            f_list=f_list,
-            prefix=trial_prefix,
-            transforms=lin_transforms,
-            sampling=0.8,
-            metrics=["Mattes"] * len(lin_transforms),
-            verbose=verbose,
-        )
+        try:
+            affine_tfm, mv_rsl_fn = ants_registration_2d_section(
+                fx_fn=fx_fn,
+                mv_fn=mv_fn,
+                itr_list=itr_list,
+                s_list=s_list,
+                f_list=f_list,
+                prefix=trial_prefix,
+                transforms=lin_transforms,
+                sampling=0.8,
+                metrics=["Mattes"] * len(lin_transforms),
+                verbose=verbose,
+            )
 
-        trial_dice, _ = get_section_metric(
-            fx_fn, mv_rsl_fn, trial_prefix + "_dice.png", 0, verbose=False
-        )
+            # Re-validate the final moving image before metric computation.
+            check_volume(mv_rsl_fn)
+
+            trial_dice, _ = get_section_metric(
+                fx_fn, mv_rsl_fn, trial_prefix + "_dice.png", 0, verbose=False
+            )
+        except Exception as e:
+            logger.warning(
+                f"Skipping affine trial {trial} for {prefix} due to invalid output: {e}"
+            )
+            continue
 
         best_trial = trial if trial_dice > max_dice else best_trial
         max_dice = trial_dice if trial_dice > max_dice else max_dice
         affine_tfm_trials[trial] = affine_tfm
 
+    if len(affine_tfm_trials) == 0:
+        raise RuntimeError(
+            "All affine trials failed; generated outputs were missing/corrupt. "
+            f"Check disk space and intermediate files under {affine_dir}"
+        )
+
     json.dump(affine_tfm_trials, open(f"{prefix}_affine_tfm_trials.json", "w"))
 
-    for fn in glob.glob(f"{prefix}/*trial-*"):
-        if "_trial-{best_trial}" not in fn:
+    for fn in glob.glob(f"{affine_dir}/*trial-*"):
+        if f"_trial-{best_trial}" not in fn:
             os.remove(fn)
 
     affine_tfm = affine_tfm_trials[best_trial]

@@ -5,14 +5,13 @@ import logging
 import os
 from pathlib import Path
 
-import pandas as pd
-
 import brainbuilder.utils.utils as utils
 from brainbuilder.downsample import downsample_sections
 from brainbuilder.initalign import initalign
 from brainbuilder.intensity_correction import intensity_correction
 from brainbuilder.interpsections import interpolate_missing_sections
 from brainbuilder.segment import segment
+from brainbuilder.utils.paths import _init_align_dir, _multires_root_dir
 from brainbuilder.utils.utils import get_logger
 from brainbuilder.utils.validate_inputs import validate_inputs
 from brainbuilder.volalign import multiresolution_alignment
@@ -26,6 +25,77 @@ manual_dir = base_file_dir + os.sep + "manual_points" + os.sep
 
 
 logger = get_logger(__name__)
+
+
+def _get_pipeline_manifest_csvs(
+    output_dir: str, use_intensity_correction: bool
+) -> list[Path]:
+    """Return the stage manifest CSVs that gate pipeline reruns.
+
+    These CSVs are the lightweight checkpoints used to decide whether a stage
+    should be entered. Deleting them forces the stage wrapper to rebuild the
+    manifest while still allowing inner per-file checks to reuse existing data.
+    """
+    downsample_csv = Path(output_dir) / "0_downsample" / "downsample_sect_info.csv"
+    segment_csv = Path(output_dir) / "1_seg" / f"{downsample_csv.stem}_segment.csv"
+    init_align_dir = Path(_init_align_dir(output_dir))
+    multires_align_dir = Path(_multires_root_dir(output_dir))
+
+    manifest_csvs = [
+        downsample_csv,
+        segment_csv,
+        init_align_dir / "initalign_sect_info.csv",
+        init_align_dir / "initalign_chunk_info.csv",
+        multires_align_dir / "sect_info_multiresolution_alignment.csv",
+        multires_align_dir / "chunk_info_multiresolution_alignment.csv",
+        Path(output_dir) / "4_interp" / "reconstructed_chunk_info.csv",
+    ]
+
+    if use_intensity_correction:
+        manifest_csvs.append(
+            Path(output_dir)
+            / "1.5_intensity_corr"
+            / "chunk"
+            / "initalign_sect_info_batch-corrected.csv"
+        )
+
+    # Hemisphere manifests are not currently emitted by the main pipeline, but
+    # keep the reset path ready for any future hemi_info stage CSVs.
+    stage_roots = [
+        Path(output_dir) / "0_downsample",
+        Path(output_dir) / "1_seg",
+        init_align_dir,
+        multires_align_dir,
+        Path(output_dir) / "4_interp",
+    ]
+    if use_intensity_correction:
+        stage_roots.append(Path(output_dir) / "1.5_intensity_corr")
+
+    for stage_root in stage_roots:
+        manifest_csvs.extend(stage_root.glob("hemi_info*.csv"))
+
+    return list(dict.fromkeys(manifest_csvs))
+
+
+def _clobber_pipeline_manifest_csvs(
+    output_dir: str, use_intensity_correction: bool
+) -> None:
+    """Remove pipeline manifest CSVs without deleting heavier stage outputs."""
+    removed_paths = []
+    for csv_path in _get_pipeline_manifest_csvs(output_dir, use_intensity_correction):
+        if csv_path.exists():
+            csv_path.unlink()
+            removed_paths.append(csv_path)
+
+    if removed_paths:
+        logger.info(
+            "Removed %d pipeline manifest CSVs to force a manifest-only rerun",
+            len(removed_paths),
+        )
+        for csv_path in removed_paths:
+            logger.info("\tRemoved manifest: %s", csv_path)
+    else:
+        logger.info("CSV clobber requested, but no pipeline manifest CSVs were found")
 
 
 def setup_args(args: argparse.Namespace) -> argparse.Namespace:
@@ -81,6 +151,7 @@ def reconstruct(
     use_interp_stage: bool = True,
     verbose: bool = False,
     clobber: bool = False,
+    csv_clobber: bool = False,
 ) -> None:
     """Reconstruct 2D histological sections to 3D volume using a structural reference volume (e.g., T1w MRI from brain donor, stereotaxic template).
 
@@ -118,6 +189,7 @@ def reconstruct(
     :param use_interp_stage: bool, run interpolation stage (default=True)
     :param verbose: bool, verbose output for debugging (default=False)
     :param clobber: bool, overwrite existing results (default=False)
+    :param csv_clobber: bool, overwrite stage manifest CSVs only (default=False)
     :return: str, output_csv filename
     """
     # Set the logger level that will be used for the whole reconstruction
@@ -158,6 +230,7 @@ def reconstruct(
     logger.info(f"\t\t2D interpolation method: {interpolation_2d}")
     logger.info(f"\t\tUse intensity correction: {use_intensity_correction}")
     logger.info(f"\t\tClobber: {clobber}")
+    logger.info(f"\t\tCSV clobber: {csv_clobber}")
     logger.info("\tStages to run:")
     logger.info(f"\t\tDownsample: {downsample_dir}")
     logger.info(f"\t\tSegment: {seg_dir}")
@@ -169,13 +242,16 @@ def reconstruct(
     logger.info(f"\t\tQuality control: {qc_dir}")
     logger.info(f"\t\tIntensity correction: {intens_corr_dir}")
 
+    if csv_clobber and not clobber:
+        _clobber_pipeline_manifest_csvs(output_dir, use_intensity_correction)
+
     valid_inputs = validate_inputs(
         hemi_info_csv,
         chunk_info_csv,
         sect_info_csv,
         valid_inputs_npz,
         n_jobs=num_cores,
-        clobber=clobber,
+        clobber=clobber or csv_clobber,
     )
     assert valid_inputs, "Error: invalid inputs"
 
@@ -316,7 +392,7 @@ def setup_argparse() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--num-cores",
-        "-r",
+        "-n",
         dest="num_cores",
         type=int,
         default=0,
@@ -372,6 +448,13 @@ def setup_argparse() -> argparse.ArgumentParser:
         action="store_true",
         help="Overwrite existing results",
     )
+    parser.add_argument(
+        "--clobber-csvs",
+        dest="csv_clobber",
+        default=False,
+        action="store_true",
+        help="Overwrite stage manifest CSVs only and keep other pipeline outputs",
+    )
 
     parser.add_argument(
         "--no-3d-nl-cc",
@@ -404,19 +487,23 @@ def setup_argparse() -> argparse.ArgumentParser:
 if __name__ == "__main__":
     args = setup_argparse().parse_args()
 
-    sect_info = pd.read_csv(args.sect_info_fn)
-
     reconstruct(
         args.hemi_info_csv,
         args.chunk_info_csv,
         args.sect_info_csv,
         resolution_list=args.resolution_list,
         output_dir=args.output_dir,
-        pytorch_model_dir=args.pytorch_model_dir,
         n_depths=args.n_depths,
         seg_method=args.seg_method,
+        nnunet_model_dir=args.pytorch_model_dir,
+        nnunet_config_json=args.nnunet_config_json,
         use_3d_syn_cc=args.use_3d_syn_cc,
         use_syn=args.use_syn,
         num_cores=args.num_cores,
-        skip_interp=args.skip_interp,
+        final_resolution=args.final_resolution,
+        interp_method=args.interp_method,
+        use_interp_stage=not args.skip_interp,
+        verbose=args.verbose,
+        clobber=args.clobber,
+        csv_clobber=args.csv_clobber,
     )
