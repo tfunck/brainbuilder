@@ -70,9 +70,7 @@ def map_axis(value: Union[str, int, float, None]) -> int:
     try:
         return _AXIS_LABEL_TO_INDEX[key]
     except (KeyError, TypeError):
-        raise ValueError(
-            f"Invalid section_axis '{value}'. Use one of x/y/z or 0/1/2."
-        )
+        raise ValueError(f"Invalid section_axis '{value}'. Use one of x/y/z or 0/1/2.")
 
 
 def get_section_axis(
@@ -143,9 +141,7 @@ def section_index(
     return tuple(index)
 
 
-def get_section(
-    vol: np.ndarray, position: Union[int, slice], axis: int
-) -> np.ndarray:
+def get_section(vol: np.ndarray, position: Union[int, slice], axis: int) -> np.ndarray:
     """Read the section (or slab) at ``position`` along ``axis``.
 
     :param vol: 3D volume
@@ -166,7 +162,15 @@ def set_section(
     :param position: index or slice along the sectioning axis
     :param axis: sectioning axis (numpy index)
     """
-    vol[section_index(axis, position, vol.ndim)] = section
+    # vol[section_index(axis, position, vol.ndim)] = section
+    if axis == 0:
+        vol[position, :, :] = section
+    elif axis == 1:
+        vol[:, position, :] = section
+    elif axis == 2:
+        vol[:, :, position] = section
+
+    return vol
 
 
 def add_section(
@@ -192,9 +196,7 @@ def inplane_axes(axis: int, ndim: int = 3) -> Tuple[int, ...]:
     return tuple(a for a in range(ndim) if a != axis)
 
 
-def section_profile(
-    vol: np.ndarray, axis: int, reduction=np.max
-) -> np.ndarray:
+def section_profile(vol: np.ndarray, axis: int, reduction=np.max) -> np.ndarray:
     """Reduce over the in-plane axes, giving a 1D profile along the sectioning axis.
 
     Equivalent to the legacy ``np.max(vol, axis=(0, 2))`` for ``axis == 1``.

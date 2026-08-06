@@ -5,23 +5,21 @@ import os
 import shutil
 import subprocess
 from glob import glob
+from typing import Tuple
 
 import ants
 import numpy as np
 import pandas as pd
 from brainbuilder.utils import ants_nibabel as nib
 from brainbuilder.utils import utils
-from brainbuilder.utils.utils import pad_volume, simple_ants_apply_tfm
 from brainbuilder.utils.axis_utils import (
     DEFAULT_SECTION_AXIS,
     inplane_axes,
-    repeat_section,
-    section_index,
     volume_shape,
 )
+from brainbuilder.utils.utils import pad_volume, simple_ants_apply_tfm
 from joblib import Parallel, delayed
 from scipy.ndimage import binary_dilation, center_of_mass
-from skimage.transform import resize
 
 logger = utils.get_logger(__name__)
 
@@ -35,7 +33,7 @@ def get_unique_values(path):
     return np.unique(data)[1:]
 
 
-def _strip_ext(p: p) -> str:
+def _strip_ext(p: str) -> str:
     """Return root (without .nii/.nii.gz)."""
     s = os.path.basename(p)
     s = s.replace(".nii.gz", "").replace(".nii", "")
@@ -47,68 +45,26 @@ def _label_ids(img_data: np.ndarray) -> np.ndarray:
     return labs[labs > 0]
 
 
-def dilate_labels(
-    label_binary: np.array,
-    structure: np.array,
-    scaling: float,
-    idx_range: int,
-    min_size: int = 10,
-):
-    """Dilate label_binary in x or z direction if needed to prevent loss during resizing."""
-    ratio = idx_range / scaling
-    assert ratio > 0, "Dilation ratio must be positive."
-    if ratio < min_size:
-        # (factor + range) / scaling = min_size =>  factor = min_size * scaling -range
-        x_dilation_factor = (
-            np.ceil(min_size * scaling - idx_range).astype(int) // 2
-        )  # divide by 2 because we dilate on both sides
+def _stamp_label_sphere(
+    vol: np.ndarray, center: np.ndarray, radius: int, label: int
+) -> None:
+    """Stamp a solid isotropic sphere of ``label`` into ``vol`` centred at voxel
+    ``center`` (clipped to the volume bounds).
 
-        # print(
-        #    "\tDilating label with factor",
-        #    x_dilation_factor,
-        #    "to prevent loss during resizing.",
-        # )
-        label_binary = binary_dilation(
-            label_binary, structure=structure, iterations=x_dilation_factor
-        )
-
-    return label_binary
-
-
-def adjust_label_sizes(
-    warped: np.array,
-    unique_labels: np.array,
-    x_structure: np.array,
-    z_structure: np.array,
-    scaling: np.array,
-    x_step: float,
-    z_step: float,
-) -> np.array:
-    """Adjust label sizes in warped slice to prevent loss during resizing."""
-    x_scaling = scaling[0]
-    z_scaling = scaling[2]
-
-    for label in unique_labels:
-        # get the extent of the label in dim 0 and 1 (x and z)
-        label_binary = warped == label
-
-        coords = np.argwhere(label_binary)
-        if coords.size == 0:
-            return warped
-
-        x_min, z_min = coords.min(axis=0)
-        x_max, z_max = coords.max(axis=0) + 1  # add 1 to include the max index
-
-        x_range = (x_max - x_min) * x_step
-        z_range = (z_max - z_min) * z_step
-
-        # check if the label is too small, that is, if it might disappear during resizing
-        label_binary = dilate_labels(label_binary, x_structure, x_scaling, x_range)
-        label_binary = dilate_labels(label_binary, z_structure, z_scaling, z_range)
-
-        warped[label_binary > 0] = label
-
-    return warped
+    Landmark registration only uses each label's centre of mass, so a small,
+    fixed-size sphere placed at the label centroid is a faithful and
+    resolution-independent representation of the landmark.
+    """
+    center = np.asarray(center, dtype=int)
+    shape = np.asarray(vol.shape)
+    lo = np.maximum(center - radius, 0)
+    hi = np.minimum(center + radius + 1, shape)
+    if np.any(hi <= lo):
+        return
+    sub = vol[lo[0] : hi[0], lo[1] : hi[1], lo[2] : hi[2]]
+    grids = np.ogrid[lo[0] : hi[0], lo[1] : hi[1], lo[2] : hi[2]]
+    dist2 = sum((g - center[a]) ** 2 for a, g in enumerate(grids))
+    sub[dist2 <= radius * radius] = label
 
 
 def set_scaling(
@@ -150,27 +106,20 @@ def _init_parameters(
 
     # dims for sparse landmark volume
     dims = list(
-        volume_shape(
-            (example_raw_img.shape[0], example_raw_img.shape[1]), ymax, axis
-        )
+        volume_shape((example_raw_img.shape[0], example_raw_img.shape[1]), ymax, axis)
     )
     scaling = resolution / np.array(steps)
 
     target_dims = np.rint(dims / scaling).astype(int)
 
-    r = np.max([1, scaling[axis] * 20]).astype(int)
-    logger.info(f"Building sparse landmark volume with section thickness ratio {r}")
-
-    return affine, dims, target_dims, scaling, r, steps
+    return affine, dims, target_dims, scaling, steps
 
 
 def get_transform_type(labels: np.ndarray) -> str:
     n_landmarks = len(np.unique(labels))
 
     if n_landmarks < 2:
-        logger.warning(
-            f"Not enough landmarks ({n_landmarks}) found, skipping."
-        )
+        logger.warning(f"Not enough landmarks ({n_landmarks}) found, skipping.")
         return None
     elif n_landmarks < 12:
         transform_type = "rigid"
@@ -179,7 +128,9 @@ def get_transform_type(labels: np.ndarray) -> str:
     else:
         transform_type = "bspline"
 
-    logger.info(f"Using transform type '{transform_type}' with {n_landmarks} landmarks.")
+    logger.info(
+        f"Using transform type '{transform_type}' with {n_landmarks} landmarks."
+    )
 
     return transform_type
 
@@ -193,36 +144,37 @@ def _process_and_save_sparse_landmark_volume(
     resolution_3d: float,
     padding_offset: float = 0.15,
     axis: int = DEFAULT_SECTION_AXIS,
+    sphere_radius: int = 2,
 ):
+    """Create and save a sparse 3D landmark volume by stamping each landmark
+    label as a small sphere at its centre of mass, directly in the target grid.
 
-
+    Landmark-based registration (antsLandmarkBasedTransformInitializer) only uses
+    each label's centre of mass, so every label is represented by a compact,
+    fixed-size sphere placed at its centroid. Building directly in the output
+    (target) grid avoids the previous dilate -> downsample -> overwrite pipeline,
+    which could silently drop small labels and behaved differently at each
+    resolution.
+    """
     reference_origin = nib.load(reference_vol_path).affine[0:3, 3]
-    reference_direction = ants.image_read(reference_vol_path).direction[[0,1,2],[0,1,2]]
+    reference_direction = ants.image_read(reference_vol_path).direction[
+        [0, 1, 2], [0, 1, 2]
+    ]
     print(f"Reference origin: {reference_origin}, direction: {reference_direction}")
 
-    """Create and save sparse 3D landmark volume by pasting warped 2D landmark slices."""
     # Initialize affine and dimensions
-    affine, dims, target_dims, scaling, r, steps = _init_parameters(
+    affine, dims, target_dims, scaling, steps = _init_parameters(
         sect_info, reference_origin, section_thickness, resolution_3d, ymax, axis=axis
     )
 
     inplane = inplane_axes(axis)
+    dims = np.asarray(dims, dtype=int)
     target_dims = np.asarray(target_dims, dtype=int)
-    intermediate_dims = np.zeros(3, dtype=int)
-    intermediate_dims[axis] = int(dims[axis])
-    intermediate_dims[inplane[0]] = target_dims[inplane[0]]
-    intermediate_dims[inplane[1]] = target_dims[inplane[1]]
-    target_slice_shape = tuple(intermediate_dims[list(inplane)])
 
-    out_data = np.zeros(intermediate_dims, dtype=np.uint32)
-
-    x_structure = np.zeros([3, 3])
-    x_structure[1, :] = 1
-
-    z_structure = np.zeros([3, 3])
-    z_structure[:, 1] = 1
+    out_data = np.zeros(target_dims, dtype=np.uint32)
 
     unique_labels_list = []
+    label_centers = {}  # label id -> centre voxel in the target grid
     for _, row in sect_info.iterrows():
         y = int(row["sample"])
 
@@ -242,61 +194,59 @@ def _process_and_save_sparse_landmark_volume(
                 f"Expected 2D warped landmark slice, got shape {warped.shape}: {warped_slice_path}"
             )
 
-        unique_labels = np.unique(warped[warped > 0])
-        unique_labels = unique_labels[unique_labels != 0]
-
-        warped = adjust_label_sizes(
-            warped,
-            unique_labels,
-            x_structure,
-            z_structure,
-            scaling,
-            steps[inplane[0]],
-            steps[inplane[1]],
+        # Target index along the sectioning axis for this section (same mapping
+        # the previous per-section resize applied: full-resolution axis -> target).
+        y_t = int(
+            np.clip(round(y * target_dims[axis] / dims[axis]), 0, target_dims[axis] - 1)
         )
 
-        if warped.shape != target_slice_shape:
-            warped = resize(
-                warped,
-                target_slice_shape,
-                anti_aliasing=False,
-                order=0,
-                preserve_range=True,
-            ).astype(np.uint32)
+        for label in np.unique(warped[warped > 0]):
+            coords = np.argwhere(warped == label)
+            if coords.size == 0:
+                continue
 
-        y0 = int(max(0, y - r))
-        y1 = int(min(intermediate_dims[axis], y + r))
+            # Centroid in the warped slice, mapped into the target in-plane grid.
+            c_in = coords.mean(axis=0)
+            center = np.zeros(3, dtype=int)
+            center[axis] = y_t
+            center[inplane[0]] = int(
+                np.clip(
+                    round(c_in[0] * target_dims[inplane[0]] / warped.shape[0]),
+                    0,
+                    target_dims[inplane[0]] - 1,
+                )
+            )
+            center[inplane[1]] = int(
+                np.clip(
+                    round(c_in[1] * target_dims[inplane[1]] / warped.shape[1]),
+                    0,
+                    target_dims[inplane[1]] - 1,
+                )
+            )
 
-        # repeat warped to match y1-y0
-        warped_rep = repeat_section(warped, y1 - y0, axis)
+            label_centers[int(label)] = center
+            unique_labels_list.append(int(label))
 
-        idx = warped_rep > 0
-        # this is not ideal because of potential label conflicts but is necessary to prevent loss of labels
-        # during transformation
-        out_slab = out_data[section_index(axis, slice(y0, y1))]
-        out_slab[idx] = warped_rep[idx]
+    # Stamp all spheres, then force each centroid voxel so that overlapping
+    # spheres from neighbouring landmarks can never erase a label's centre.
+    for label, center in label_centers.items():
+        _stamp_label_sphere(out_data, center, sphere_radius, label)
+    for label, center in label_centers.items():
+        out_data[tuple(center)] = label
 
-        unique_labels_list += unique_labels.tolist()
-
-    if tuple(out_data.shape) != tuple(target_dims):
-        out_data = resize(
-            out_data,
-            target_dims,
-            anti_aliasing=False,
-            order=0,
-            preserve_range=True,
-        ).astype(np.uint32)
-
-    #nib.Nifti1Image(out_data, affine, direction_order="lpi").to_filename(out_vol_path.replace('.nii.gz', '_no-padding.nii.gz'))
-    #print("Saved sparse landmark volume before padding to", out_vol_path.replace('.nii.gz', '_no-padding.nii.gz'))
     # we need to pad because if we transform into the acquisition space, then landmarks at the edge might be cut off
-    out_data, affine = pad_volume(out_data, affine, reference_direction, padding_offset=padding_offset)
+    out_data, affine = pad_volume(
+        out_data, affine, reference_direction, padding_offset=padding_offset
+    )
 
     unique_labels_rsl = np.unique(out_data)[1:]
 
-    assert (
-        set(unique_labels_list) == set(unique_labels_rsl)
-    ), f"Some labels are missing after resizing sparse landmark volume. Before: {unique_labels_list}, after: {unique_labels_rsl}"
+    assert set(unique_labels_list) == set(unique_labels_rsl), (
+        "Some labels are missing after building sparse landmark volume "
+        "(two landmarks may map to the same voxel at this resolution). "
+        f"Before: {sorted(set(unique_labels_list))}, "
+        f"after: {sorted(int(v) for v in unique_labels_rsl)}"
+    )
 
     print("Writing sparse landmark volume to", out_vol_path)
     nib.Nifti1Image(out_data, affine, direction_order="lpi").to_filename(out_vol_path)
@@ -318,6 +268,10 @@ def apply_tfm_and_check(
         ".nii.gz", "_dilate_tmp.nii.gz"
     )
 
+    original_img = nib.load(input_file)
+    original_data = np.squeeze(np.array(original_img.dataobj))
+    required_labels = _label_ids(original_data)
+
     current_input_file = input_file
 
     dilate_count = 0
@@ -336,12 +290,10 @@ def apply_tfm_and_check(
         )
 
         # check that every label in input_file is present in output_file
-        input_img = nib.load(current_input_file)
         out_img = nib.load(output_file)
-        input_labels = _label_ids(input_img.get_fdata())
         out_labels = _label_ids(out_img.get_fdata())
 
-        missing_labels = set(input_labels) - set(out_labels)
+        missing_labels = set(required_labels) - set(out_labels)
 
         if len(missing_labels) == 0:
             return
@@ -350,18 +302,18 @@ def apply_tfm_and_check(
         #    f"Missing labels {missing_labels} in warped landmark {output_file}. Dilating and retrying..."
         # )
 
-        # dilate all labels in input_file by 1
-        input_data = np.squeeze(np.array(input_img.dataobj))
-        dilated_data = np.zeros_like(input_data)
+        # Rebuild the retry input from the original labels so the success criteria
+        # stay anchored to the source landmark set instead of the prior dilation.
+        dilated_data = np.array(original_data, copy=True)
 
-        for label in input_labels:
-            label_binary = input_data == label
+        for label in sorted(missing_labels):
+            label_binary = original_data == label
             # print(f"\tDilating label {label}...{np.sum(label_binary)} voxels")
             label_binary_dilated = binary_dilation(label_binary, iterations=2)
             dilated_data[label_binary_dilated] = label
 
         dilated_img = nib.Nifti1Image(
-            dilated_data, input_img.affine, direction_order="lpi"
+            dilated_data, original_img.affine, direction_order="lpi"
         )
         dilated_img.to_filename(dilated_input_file)
 
@@ -370,7 +322,7 @@ def apply_tfm_and_check(
         current_input_file = dilated_input_file
 
     raise RuntimeError(
-        f"Failed to warp landmark {input_file} after {max_dilation} dilations."
+        f"Failed to warp landmark {input_file} after {max_dilation} dilations. Missing labels: {sorted(missing_labels)}"
     )
 
 
@@ -425,7 +377,6 @@ def build_sparse_landmark_volume(
       (e.g., the same path you pass to create_intermediate_volume(); typically row['init_volume'])
     """
     output_2d_dir = output_dir + "/landmark_2d_warped/"
-
 
     os.makedirs(output_2d_dir, exist_ok=True)
 
@@ -636,9 +587,7 @@ def init_landmark_transform(
 
     affine_tfm = output_dir + os.path.basename(out_tfm).replace(".h5", "_affine.h5")
 
-    nl_tfm = output_dir + os.path.basename(out_tfm).replace(
-        ".h5", f"_nl.nii.gz"
-    )
+    nl_tfm = output_dir + os.path.basename(out_tfm).replace(".h5", "_nl.nii.gz")
 
     if not os.path.exists(fixed_landmarks):
         raise RuntimeError(f"Reference landmarks not found: {fixed_landmarks}")
@@ -678,10 +627,8 @@ def init_landmark_transform(
         clobber=clobber,
     )
 
-    if use_com_qc :
-        point_qc2_csv = (
-            f"{output_dir}/{os.path.basename(affine_vol_fn).replace('.nii.gz', '_qc.csv')}"
-        )
+    if use_com_qc:
+        point_qc2_csv = f"{output_dir}/{os.path.basename(affine_vol_fn).replace('.nii.gz', '_qc.csv')}"
         calculate_dist_between_labels(fixed_landmarks, affine_vol_fn, point_qc2_csv)
 
     moving_qc_affine_path = None
@@ -757,8 +704,7 @@ def init_landmark_transform(
             clobber=clobber,
         )
 
-
-    if use_com_qc :
+    if use_com_qc:
         point_qc3_csv = (
             f"{output_dir}/{os.path.basename(nl_vol_fn).replace('.nii.gz', '_qc.csv')}"
         )
@@ -826,7 +772,6 @@ def find_landmark_files(sect_info: pd.DataFrame, landmark_dir: str) -> pd.Series
             raise ValueError(
                 f'Multiple landmark files found for section {row["sample"]} with pattern {landmark_str}.'
             )
-
     assert len(output_landmark_files) > 0, f"No landmark files found in {landmark_dir}."
     landmark_series = np.array(
         output_landmark_files
@@ -994,8 +939,8 @@ def create_landmark_transform(
     resolution: float,
     resolution_3d: float,
     sect_info: pd.DataFrame,
-    acq_rsl_fn: str, # reference volume for the sparse landmark volume (e.g., the output of create_intermediate_volume())
-    acq_landmark_path: str, # path to the sparse landmark volume created by build_sparse_landmark_volume()
+    acq_rsl_fn: str,  # reference volume for the sparse landmark volume (e.g., the output of create_intermediate_volume())
+    acq_landmark_path: str,  # path to the sparse landmark volume created by build_sparse_landmark_volume()
     moving_landmark_path: str,
     fixed_landmark_path: str,
     source_landmark_dir: str,
@@ -1031,15 +976,20 @@ def create_landmark_transform(
 
     os.makedirs(output_landmark_dir, exist_ok=True)
 
-    if os.path.exists(landmark_fwd_tfm_path) and os.path.exists(landmark_inv_tfm_path) and not clobber:
+    if (
+        os.path.exists(landmark_fwd_tfm_path)
+        and os.path.exists(landmark_inv_tfm_path)
+        and not clobber
+    ):
         logger.info(f"Landmark transform already exists: {landmark_fwd_tfm_path}")
         return landmark_fwd_tfm_path, landmark_inv_tfm_path
 
-    logger.info(f"Creating landmark transform for sub-{sub} hemi-{hemisphere} chunk-{chunk} with {transform_type} transform...")
+    logger.info(
+        f"Creating landmark transform for sub-{sub} hemi-{hemisphere} chunk-{chunk} with {transform_type} transform..."
+    )
     logger.info(f"Acquisition landmark path: {acq_landmark_path}")
     logger.info(f"Fixed landmark path: {fixed_landmark_path}")
     logger.info(f"Moving landmark path: {moving_landmark_path}")
-
 
     # TODO move this to a separate pre-processing step
     # moving_landmark_path = adjust_reference_landmark_labels(
@@ -1048,6 +998,12 @@ def create_landmark_transform(
     # check_for_identical_landmark_values(sect_info["landmark"], moving_landmark_path)
 
     sect_info["landmark"] = find_landmark_files(sect_info, source_landmark_dir)
+
+    logger.info(
+        f"Found {sect_info['landmark'].notnull().sum()} landmark files in {source_landmark_dir}."
+    )
+    for fn in sect_info.loc[sect_info["landmark"].notnull(), ["landmark"]].values:
+        logger.info(f"\t{fn}")
 
     # check that at least some landmarks are found
     assert (
@@ -1073,8 +1029,8 @@ def create_landmark_transform(
     logger.info("Creating forward landmark transform...")
     _, _, fwd_composite_tfm = init_landmark_transform(
         landmark_fwd_tfm_path,
-        fixed_landmark_path, #fixed
-        moving_landmark_path, #moving
+        fixed_landmark_path,  # fixed
+        moving_landmark_path,  # moving
         output_landmark_dir,
         transform_type=transform_type,
         qc_dir=output_landmark_dir + "/qc",
@@ -1087,8 +1043,8 @@ def create_landmark_transform(
     logger.info("Creating inverse landmark transform...")
     _, _, inv_composite_tfm = init_landmark_transform(
         landmark_inv_tfm_path,
-        moving_landmark_path, #fixed
-        fixed_landmark_path, #moving
+        moving_landmark_path,  # fixed
+        fixed_landmark_path,  # moving
         output_landmark_dir,
         transform_type=transform_type,
         qc_dir=output_landmark_dir + "/qc",
@@ -1099,4 +1055,3 @@ def create_landmark_transform(
     )
 
     return fwd_composite_tfm, inv_composite_tfm
-

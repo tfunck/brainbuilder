@@ -28,8 +28,7 @@ from brainbuilder.utils.utils import (
     simple_ants_apply_tfm,
 )
 from joblib import Parallel, delayed
-from scipy.ndimage import center_of_mass, shift
-from scipy.ndimage import binary_dilation, binary_erosion
+from scipy.ndimage import binary_dilation, binary_erosion, center_of_mass, shift
 from skimage.transform import resize
 
 
@@ -126,14 +125,42 @@ def resample_and_transform(
         )
 
         if resolution_itr == 0:
-            tfm_ref_fn = tfm_input_fn
+            init_fixed = row.get("init_fixed", None)
+            if isinstance(init_fixed, str) and os.path.exists(init_fixed):
+                fixed_rsl_fn = get_seg_fn(
+                    output_dir,
+                    int(row["sample"]),
+                    resolution_3d,
+                    init_fixed,
+                    "_fixed_rsl",
+                )
+                if not os.path.exists(fixed_rsl_fn) or clobber:
+                    resample_to_resolution(
+                        init_fixed,
+                        [resolution_3d] * 2,
+                        fixed_rsl_fn,
+                        order=1,
+                        section_axis=section_axis,
+                    )
+                tfm_ref_fn = fixed_rsl_fn
+            else:
+                tfm_ref_fn = tfm_input_fn
 
         # get initial rigid transform
-        print("\nseg", seg_fn)
-        print("\tTransforming", tfm_input_fn)
-        print("\tto", seg_rsl_tfm_fn)
-        print('\twith ref', tfm_ref_fn)
-        print("\twith tfm:", tfm_fn, "\n")
+
+        if "1483" in row["base"]:
+            print("\nseg", seg_fn)
+            print("\tTransforming", tfm_input_fn)
+            print("\tto", seg_rsl_tfm_fn)
+            print("\twith ref", tfm_ref_fn)
+            print("\twith tfm:", tfm_fn, "\n")
+            # compare origins of the images used to build the concat vs the images used here
+            _img = nib.load(row["img"])
+            _seg = nib.load(tfm_input_fn)
+            print(f"\timg origin: {_img.affine[:3,3]}, shape: {_img.shape}")
+            print(f"\tseg origin: {_seg.affine[:3,3]}, shape: {_seg.shape}")
+            print(f"\timg spacing: {_img.affine.diagonal()[:3]}")
+            print(f"\tseg spacing: {_seg.affine.diagonal()[:3]}")
 
         if isinstance(tfm_fn, str):
             simple_ants_apply_tfm(
@@ -154,10 +181,35 @@ def resample_and_transform(
     )
 
     # Resample and transform the original image to the 2D resolution
+    if resolution_itr == 0:
+        init_fixed = row.get("init_fixed", None)
+
+        if isinstance(init_fixed, str) and os.path.exists(init_fixed):
+            fixed_rsl_img_fn = get_seg_fn(
+                output_dir,
+                int(row["sample"]),
+                resolution_2d,
+                init_fixed,
+                "_fixed_rsl_img",
+            )
+            if not os.path.exists(fixed_rsl_img_fn) or clobber:
+                resample_to_resolution(
+                    init_fixed,
+                    [resolution_2d] * 2,
+                    fixed_rsl_img_fn,
+                    order=1,
+                    section_axis=section_axis,
+                )
+            img_tfm_ref_fn = fixed_rsl_img_fn
+        else:
+            img_tfm_ref_fn = seg_rsl_fn
+    else:
+        img_tfm_ref_fn = seg_rsl_fn
+
     if isinstance(tfm_fn, str):
         simple_ants_apply_tfm(
             row["img"],
-            seg_rsl_fn,
+            img_tfm_ref_fn,
             tfm_fn,
             img_rsl_tfm_fn,
             ndim=2,
@@ -236,6 +288,7 @@ def resample_transform_segmented_images(
             section_axis=section_axis,
         )
 
+    num_cores = 1  # DEBUG DELETE ME
     results = Parallel(n_jobs=num_cores, backend="multiprocessing")(
         delayed(resample_and_transform)(
             output_dir,
@@ -260,7 +313,9 @@ def resample_transform_segmented_images(
 
 
 def interpolate_missing_sections(
-    vol: np.array, method="linear", dilate_volume: bool = False,
+    vol: np.array,
+    method="linear",
+    dilate_volume: bool = False,
     axis: int = DEFAULT_SECTION_AXIS,
 ) -> np.array:
     """Interpolates missing sections in a volume.

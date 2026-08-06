@@ -256,7 +256,13 @@ def crop_volume_with_indicator(
         ref_img = nib.load(ref_vol_fn)
         ref_vol = ref_img.get_fdata()
 
-        ref_chunk_vol = np.where(ref_indicator_vol > 0, ref_vol, 0).astype(np.uint8)
+        ref_chunk_vol = np.where(ref_indicator_vol > 0, ref_vol, 0)
+
+        ref_chunk_vol = (
+            255
+            * (ref_chunk_vol - np.min(ref_chunk_vol))
+            / (np.max(ref_chunk_vol) - np.min(ref_chunk_vol))
+        ).astype(np.uint8)
 
         nib.Nifti1Image(
             ref_chunk_vol,
@@ -566,7 +572,9 @@ def set_init_tfm(init_tfm, fx_fn, mv_fn, out_dir) -> str:
         mv_rsl_fn = os.path.join(
             out_dir, re.sub(".nii", "_init_moving.nii", os.path.basename(mv_fn))
         )
-        utils.simple_ants_apply_tfm(mv_fn, fx_fn, init_tfm, mv_rsl_fn, n="BSpline[2]")
+        utils.simple_ants_apply_tfm(
+            mv_fn, fx_fn, init_tfm, mv_rsl_fn, n="Linear", verbose=True
+        )
         mv_fn = mv_rsl_fn
         init_str = ""
         init_tfm_list = init_tfm

@@ -48,6 +48,28 @@ def get_logger(name="brainbuilder"):
     return logger
 
 
+def get_reference_volume_info(
+    hemi_info: pd.DataFrame, sub: str, hemisphere: str
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Get the reference volume for a given subject and hemisphere.
+
+    :param hemi_info: pd.DataFrame, hemi_info dataframe
+    :param sub: str, subject name
+    :param hemisphere: str, hemisphere name
+    :param section_axis: int, sectioning axis (default: DEFAULT_SECTION_AXIS)
+    :return: Tuple[np.ndarray, np.ndarray, np.ndarray], reference volume, affine, and voxel sizes
+    """
+    idx = (hemi_info["sub"] == sub) & (hemi_info["hemisphere"] == hemisphere)
+    ref_vol_fn = hemi_info["struct_ref_vol"][idx].values[0]
+    ref_img = ants.image_read(ref_vol_fn)
+
+    spacing = ref_img.spacing
+    origin = ref_img.origin
+    direction = ref_img.direction
+
+    return spacing, origin, direction
+
+
 def convert_gm_com_dist_map(vol: np.ndarray, voxel_sizes: np.ndarray) -> np.ndarray:
     """Convert the volume to a distance map from the center of mass.
 
@@ -553,10 +575,12 @@ def check_transformation_not_empty(
     assert os.path.exists(out_fn), f"Error: transformed file does not exist {out_fn}"
 
     dataobj = nibabel.load(out_fn).dataobj
+    out_empty = np.min(dataobj) == np.max(dataobj)
 
-    assert (
-        np.min(dataobj) != np.max(dataobj) or empty_ok
-    ), f"Error in applying transformation: empty output \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n"
+    if out_empty and not empty_ok:
+        in_dataobj = nibabel.load(in_fn).dataobj
+        in_empty = np.min(in_dataobj) == np.max(in_dataobj)
+        assert in_empty, f"Error in applying transformation: empty output \n\t-i {in_fn}\n\t-r {ref_fn}\n\t-t {tfm_fn}\n\t-o {out_fn}\n"
 
 
 def resample_struct_reference_volume(
@@ -671,6 +695,7 @@ def simple_ants_apply_tfm(
     n: str = "Linear",
     empty_ok: bool = False,
     invert: Union[bool, list] = False,
+    verbose: bool = True,
     clobber: bool = False,
 ) -> None:
     """Apply transformation using ANTs.
@@ -689,9 +714,11 @@ def simple_ants_apply_tfm(
 
         tfm_string = parse_tfm(tfm, invert)
 
-        str0 = f"antsApplyTransforms -n {n} -v 0 -d {ndim} -i {in_fn} -r {ref_fn} {tfm_string}  -o {out_fn}"
+        v = 1 if verbose else 0
 
-        shell(str0, verbose=True)
+        str0 = f"antsApplyTransforms -n {n} -v {v} -d {ndim} -i {in_fn} -r {ref_fn} {tfm_string}  -o {out_fn}"
+
+        shell(str0, verbose=verbose)
 
         tfm_list = tfm if isinstance(tfm, list) else [tfm]
 
@@ -766,6 +793,7 @@ def save_sections(
     srv_fn: str,
     dtype: int = None,
     axis: int = DEFAULT_SECTION_AXIS,
+    ref_2d_fn: Optional[str] = None,
 ) -> None:
     """Save sections of a volume.
 
@@ -773,6 +801,9 @@ def save_sections(
     :param srv_fn: str, path to the source volume
     :param dtype: Optional[Any], data type
     :param axis: sectioning axis along which sections are stacked (default 1, coronal)
+    :param ref_2d_fn: optional path to a moving 2D section whose in-plane frame
+        (origin, spacing, direction) the saved sections should adopt so that all
+        sections share one coordinate space
     :return: None
     """
     img = ants.image_read(srv_fn)
@@ -780,9 +811,24 @@ def save_sections(
 
     inplane = inplane_axes(axis, vol.ndim)
 
-    spacing = [img.spacing[inplane[0]], img.spacing[inplane[1]]]
-    origin = [img.origin[inplane[0]], img.origin[inplane[1]]]
-    direction = img.direction[np.ix_(inplane, inplane)]
+    if ref_2d_fn is not None:
+        # Write every fixed section in the same 2D frame (origin, spacing,
+        # direction) as the moving sections it will be registered against. The
+        # reference volume is written 'lpi', so its in-plane direction is flipped
+        # relative to the moving sections; inheriting it would place the fixed
+        # sections in disjoint physical space, where even an identity transform
+        # resamples to an empty image. The voxel data is never flipped -- the
+        # sliced reference and the moving sections share the same grid, only the
+        # direction label needs to agree.
+        ref_img = ants.image_read(ref_2d_fn)
+        spacing = list(ref_img.spacing)
+        origin = list(ref_img.origin)
+        direction = np.array(ref_img.direction)
+    else:
+        spacing = [img.spacing[inplane[0]], img.spacing[inplane[1]]]
+        origin = [img.origin[inplane[0]], img.origin[inplane[1]]]
+        direction = img.direction[np.ix_(inplane, inplane)]
+
     print(srv_fn)
     print("Spacing:", spacing)
     print("Origin:", origin)
@@ -804,8 +850,6 @@ def save_sections(
 
         if dtype is not None:
             sec = sec.astype(dtype)
-
-        direction = normalize_direction_order(direction, vol.ndim, axis)
 
         ants.image_write(
             ants.from_numpy(
@@ -894,6 +938,7 @@ def create_2d_sections(
     dtype: int = None,
     clobber: bool = False,
     axis: int = DEFAULT_SECTION_AXIS,
+    ref_2d_fn: Optional[str] = None,
 ) -> None:
     """Create 2D sections from a dataframe.
 
@@ -904,6 +949,8 @@ def create_2d_sections(
     :param dtype: Optional[int], data type
     :param clobber: bool, whether to overwrite existing files
     :param axis: sectioning axis along which sections are stacked (default 1, coronal)
+    :param ref_2d_fn: optional moving 2D section whose in-plane frame the created
+        sections should adopt so all sections share one coordinate space
     :return: None
     """
     fx_to_do = []
@@ -917,7 +964,7 @@ def create_2d_sections(
     ]
 
     if len(fx_to_do) > 0:
-        save_sections(fx_to_do, srv_fn, dtype=dtype, axis=axis)
+        save_sections(fx_to_do, srv_fn, dtype=dtype, axis=axis, ref_2d_fn=ref_2d_fn)
 
     return None
 
@@ -1298,6 +1345,8 @@ def pad_to_max_dims(
     # Compute total padding needed in each dimension (no padding if already >= max_dims)
     ndim = len(vol.shape)
 
+    input_affine = affine.copy()  # Make a copy to avoid modifying the original affine
+
     pad0_total = max(int(max_dims[0] - vol.shape[0]), 0)
     pad1_total = max(int(max_dims[1] - vol.shape[1]), 0)
 
@@ -1311,12 +1360,22 @@ def pad_to_max_dims(
     # Split padding to center the volume within the padded output
     pad0_before = pad0_total // 2
     pad0_after = pad0_total - pad0_before
+    assert (
+        pad0_after + vol.shape[0] + pad0_before == max_dims[0]
+    ), f"Error: padding mismatch {pad0_after} + {vol.shape[0]} + {pad0_before} != {max_dims[0]}"
 
     pad1_before = pad1_total // 2
     pad1_after = pad1_total - pad1_before
+    assert (
+        pad1_after + vol.shape[1] + pad1_before == max_dims[1]
+    ), f"Error: padding mismatch {pad1_after} + {vol.shape[1]} + {pad1_before} != {max_dims[1]}"
 
-    pad2_before = pad2_total // 2
-    pad2_after = pad2_total - pad2_before
+    if ndim == 3:
+        pad2_before = pad2_total // 2
+        pad2_after = pad2_total - pad2_before
+        assert (
+            pad2_after + vol.shape[2] + pad2_before == max_dims[2]
+        ), f"Error: padding mismatch {pad2_after} + {vol.shape[2]} + {pad2_before} != {max_dims[2]}"
 
     if ndim == 2:
         direction = direction[0, 0], direction[1, 1]
@@ -1325,6 +1384,11 @@ def pad_to_max_dims(
     else:
         raise ValueError(f"Error: volume must be 2D or 3D, got shape {vol.shape}")
 
+    input_vol = vol.copy()  # Make a copy to avoid modifying the original volume
+
+    affine[0, 3] -= pad0_before * abs(affine[0, 0]) * direction[0]
+    affine[1, 3] -= pad1_before * abs(affine[1, 1]) * direction[1]
+
     if ndim == 2:
         vol = np.pad(
             vol,
@@ -1332,9 +1396,6 @@ def pad_to_max_dims(
             mode="constant",
         )
         # for 2D images, we assume the direction order is "li" (left-to-right, inferior-to-superior)
-
-        affine[0, 3] -= pad0_before * abs(affine[0, 0]) * direction[0]
-        affine[1, 3] -= pad1_before * abs(affine[1, 1]) * direction[1]
     elif len(vol.shape) == 3:
         vol = np.pad(
             vol,
@@ -1346,11 +1407,44 @@ def pad_to_max_dims(
             mode="constant",
         )
 
-        affine[0, 3] -= pad0_before * abs(affine[0, 0]) * direction[0]
-        affine[1, 3] -= pad1_before * abs(affine[1, 1]) * direction[1]
-        affine[2, 3] -= pad2_before * abs(affine[2, 2]) * direction[2]
+        affine[2, 3] += pad2_before * abs(affine[2, 2]) * direction[2]
     else:
         raise ValueError(f"Error: volume must be 2D or 3D, got shape {vol.shape}")
+
+    # print(f"pad {pad0_before}\t{pad0_after}\npad {pad1_before}\t{pad1_after}\npad {pad2_before}\t{pad2_after}\nInput :\n{input_affine}\noutput\n{affine}")
+
+    # check that the new dimensions match the max dimensions
+    new_dims = np.array(vol.shape)
+    assert np.all(
+        new_dims <= max_dims
+    ), f"Error: padded volume dimensions {new_dims} exceed max dimensions {max_dims}"
+
+    # check that the voxel values are preserved after padding
+    # calculate the world coordinates of the input voxels before padding
+    # then transform these to the world coordinates of the padded volume and then to the padded voxel coordinates
+    # then check that the voxel values are the same
+    input_voxel_coords = np.array(
+        np.meshgrid(*[np.arange(n) for n in input_vol.shape])
+    ).reshape(-1, len(input_vol.shape))
+
+    def v2w(voxel_coords, affine):
+        ndim = voxel_coords.shape[1]
+        world_coords = np.zeros((voxel_coords.shape))
+        for i in range(ndim):
+            world_coords[:, i] = voxel_coords[:, i] * affine[i, i] + affine[i, 3]
+        return world_coords
+
+    def w2v(world_coords, affine):
+        voxel_coords = np.zeros((world_coords.shape))
+        for i in range(world_coords.shape[1]):
+            voxel_coords[:, i] = (world_coords[:, i] - affine[i, 3]) / affine[i, i]
+        return voxel_coords
+
+    # input_world_coords = v2w(input_voxel_coords, input_affine)
+    # padded_voxel_coords = w2v(input_world_coords, affine)
+    # padded_voxel_coords = np.round(padded_voxel_coords).astype(int)
+    # padded_voxel_coords = np.clip(padded_voxel_coords, 0, np.array(vol.shape) - 1)
+    # assert np.all(input_vol[tuple(input_voxel_coords.T)] == vol[tuple(padded_voxel_coords.T)]), "Error: voxel values are not preserved after padding"
 
     return vol, affine
 
@@ -1624,7 +1718,7 @@ def resample_to_resolution(
     output_filename: Optional[str] = None,
     dtype: Optional[np.dtype] = None,
     affine: Optional[np.ndarray] = None,
-    direction_order: str = "lpi",
+    input_direction: str = None,
     order: int = 1,
     factor: float = 1,
     max_dims: Optional[np.ndarray] = None,
@@ -1660,15 +1754,6 @@ def resample_to_resolution(
     else:
         sigma = 0
 
-    # Set output affine
-    affine = np.eye(4, 4)
-    dim_range = range(ndim)
-    affine[dim_range, dim_range] = new_resolution
-    affine[dim_range, 3] = origin
-
-    if max_dims is not None:
-        vol, affine = pad_to_max_dims(vol, max_dims, affine, direction=direction)
-
     # Resize in float space to avoid losing dynamic range before interpolation.
     vol = vol.astype(np.float32, copy=False)
 
@@ -1686,6 +1771,16 @@ def resample_to_resolution(
         anti_aliasing=order != 0,
         anti_aliasing_sigma=sigma,
     )
+    # Set output affine
+    affine = np.eye(4, 4)
+    dim_range = range(ndim)
+    affine[dim_range, dim_range] = new_resolution
+    affine[dim_range, 3] = origin
+
+    if max_dims is not None:
+        vol, affine = pad_to_max_dims(vol, max_dims, affine, direction=direction)
+        # After padding to max_dims, resize to the padded dimensions (not the original new_dims)
+        new_dims = tuple(vol.shape)
 
     vol = vol.astype(dtype)
 
@@ -1693,17 +1788,26 @@ def resample_to_resolution(
         "Error: empty output array for prefilter_and_downsample\n" + output_filename
     )
 
-    step = np.diag(affine)[0:ndim]
-    direction_order = normalize_direction_order(direction_order, ndim, section_axis)
+    # update origin
+    origin_final = affine[range(ndim), 3]
 
-    vol, origin, direction = convert_coordinate_system(
-        vol, np.array(origin), step, direction, direction_order
-    )
+    # update step
+    step_final = np.diag(affine)[0:ndim]
+
+    if input_direction is not None:
+        direction_order = normalize_direction_order(input_direction, ndim, section_axis)
+
+        vol, origin, direction = convert_coordinate_system(
+            vol, np.array(origin), step_final, direction, direction_order
+        )
 
     if not isinstance(output_filename, type(None)):
         ants.image_write(
             ants.from_numpy(
-                vol, origin=list(origin), spacing=list(step), direction=direction
+                vol,
+                origin=list(origin_final),
+                spacing=list(step_final),
+                direction=direction,
             ),
             output_filename,
         )
@@ -1711,8 +1815,8 @@ def resample_to_resolution(
         img_out = nib.load(output_filename)
     else:
         for i in range(ndim):
-            affine[i, i] = step[i] * direction[i, i]
-        affine[range(ndim), 3] = origin
+            affine[i, i] = step_final[i] * direction[i, i]
+        affine[range(ndim), 3] = origin_final
         img_out = nib.Nifti1Image(
             vol, affine, dtype=dtype, direction_order=direction_order
         )

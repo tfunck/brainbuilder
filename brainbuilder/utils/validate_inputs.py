@@ -2,16 +2,16 @@
 import os
 from typing import Union
 
+import nibabel as nib
 import numpy as np
 import pandas as pd
 from joblib import Parallel, cpu_count, delayed
+from PIL import Image
 
 import brainbuilder.utils.utils as utils
+from brainbuilder.utils.axis_utils import map_axis
 from brainbuilder.utils.mesh_io import load_mesh_ext
 from brainbuilder.utils.utils import get_logger
-from brainbuilder.utils.axis_utils import map_axis
-import nibabel as nib
-from PIL import Image
 
 global chunk_info_required_columns
 global sect_info_required_columns
@@ -83,9 +83,9 @@ class Column:
 sub = Column("sub", None)
 hemisphere = Column("hemisphere", None)
 chunk = Column("chunk", None)
-#direction = Column("direction", None) #DEPRECIATED
-#pixel_size_0 = Column("pixel_size_0", float) #DEPRECIATED
-#pixel_size_1 = Column("pixel_size_1", float) #DEPRECIATED
+# direction = Column("direction", None) #DEPRECIATED
+# pixel_size_0 = Column("pixel_size_0", float) #DEPRECIATED
+# pixel_size_1 = Column("pixel_size_1", float) #DEPRECIATED
 section_thickness = Column("section_thickness", float)
 acquisition = Column("acquisition", None)
 sample = Column("sample", int)
@@ -95,12 +95,12 @@ raw = Column("raw", "volume")
 struct_ref_vol = Column("struct_ref_vol", "volume")
 
 # Surfaces
-#gm_surf = Column("gm_surf", "surface", False) #DEPRECIATED
-#wm_surf = Column("wm_surf", "surface", False) #DEPRECIATED
+# gm_surf = Column("gm_surf", "surface", False) #DEPRECIATED
+# wm_surf = Column("wm_surf", "surface", False) #DEPRECIATED
 
-chunk_info_required_columns = [sub, hemisphere, chunk, section_thickness ]
-sect_info_required_columns = [acquisition, sub, hemisphere, chunk, raw, sample ]
-hemi_info_required_columns = [sub, hemisphere, struct_ref_vol ] 
+chunk_info_required_columns = [sub, hemisphere, chunk, section_thickness]
+sect_info_required_columns = [acquisition, sub, hemisphere, chunk, raw, sample]
+hemi_info_required_columns = [sub, hemisphere, struct_ref_vol]
 
 
 def validate_dataframe(
@@ -212,6 +212,7 @@ def _can_open_volume(path: str) -> bool:
         logger.critical(last_exc)
     return False
 
+
 def validate_volume(fn: str, check_not_empty: bool = False) -> bool:
     """Validate that a volume exists and that it is not empty.
 
@@ -226,13 +227,13 @@ def validate_volume(fn: str, check_not_empty: bool = False) -> bool:
         valid_inputs = False
     else:
         try:
-            if check_not_empty :
+            if check_not_empty:
                 vol = utils.load_image(fn)
 
                 if np.sum(np.abs(vol)) == 0:
                     valid_inputs = False
                     logger.info(f"\tMissing input: empty template file {fn}")
-            else :
+            else:
                 valid_inputs = _can_open_volume(fn)
 
         except Exception as e:
@@ -271,6 +272,39 @@ def validate_optional_section_axis(chunk_info_csv: str) -> bool:
             valid_inputs = False
 
     return valid_inputs
+
+
+def validate_unique_samples(sect_info_csv: str) -> bool:
+    """Validate that sample numbers and raw input files are unique in the sect_info CSV.
+
+    :param sect_info_csv: path to the section info csv
+    :return: bool indicating whether all sample numbers and raw files are unique
+    """
+    if not os.path.exists(sect_info_csv):
+        return True
+
+    df = pd.read_csv(sect_info_csv)
+    valid = True
+
+    if "sample" in df.columns:
+        duplicated_samples = df["sample"][df["sample"].duplicated()].unique()
+        if len(duplicated_samples) > 0:
+            logger.critical(
+                f"\tDuplicate sample numbers found in {sect_info_csv}: {sorted(duplicated_samples.tolist())}. "
+                "Each sample number must be unique."
+            )
+            valid = False
+
+    if "raw" in df.columns:
+        duplicated_raw = df["raw"][df["raw"].duplicated()].unique()
+        if len(duplicated_raw) > 0:
+            logger.critical(
+                f"\tDuplicate raw input files found in {sect_info_csv}: {sorted(duplicated_raw.tolist())}. "
+                "Each input file must be unique."
+            )
+            valid = False
+
+    return valid
 
 
 def validate_inputs(
@@ -322,6 +356,7 @@ def validate_inputs(
         sect_info_valid = validate_csv(
             sect_info_csv, sect_info_required_columns, n_jobs=n_jobs
         )
+        sect_info_valid = sect_info_valid * validate_unique_samples(sect_info_csv)
         logger.info(f"\tSect Info Valid: {bool(sect_info_valid)}")
 
         valid_inputs = sect_info_valid * chunk_info_valid * hemi_info_valid

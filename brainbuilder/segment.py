@@ -244,8 +244,10 @@ def convert_2d_array_to_nnunet(
 
         assert np.sum(np.abs(img)) > 0
 
-        if '.nii.gz' in output_filename:
-            img = img[None, None]  # add dimensions #FIXME this was needed for nnunet v1 for some reason, but probably not needed for v2. remove if possible
+        if ".nii.gz" in output_filename:
+            img = img[
+                None, None
+            ]  # add dimensions #FIXME this was needed for nnunet v1 for some reason, but probably not needed for v2. remove if possible
             # image is now (c, y, x, z) where x=1 since it's 2d
             img = img.astype(np.float32)
 
@@ -687,17 +689,18 @@ def get_nnunet_parameters(nnunet_config_json: str, model_dir: str):
 
     return x_scale, foreground_labels, datasetname, fold, checkpoint, nnunet_ext
 
-def _check_missing_segmentations(sect_info: pd.DataFrame, output_dir: str, nnunet_input_str: str) -> bool:
+
+def _check_missing_segmentations(
+    sect_info: pd.DataFrame, output_dir: str, nnunet_input_str: str
+) -> bool:
     missing_segmentations = False
-    for (sub, hemi, chunk), sub_df in sect_info.groupby(
-        ["sub", "hemisphere", "chunk"]
-    ):
-        
+    for (sub, hemi, chunk), sub_df in sect_info.groupby(["sub", "hemisphere", "chunk"]):
         if not check_seg_files(
             sub_df, output_dir, False, nnunet_input_str=nnunet_input_str
         ):
             missing_segmentations = True
     return missing_segmentations
+
 
 def segment(
     sect_info_csv: str,
@@ -733,15 +736,12 @@ def segment(
 
     sect_info = pd.read_csv(sect_info_csv, index_col=False)
 
-   
-
     sect_info = define_new_path_column(
-        sect_info, output_dir, tag=f"{resolution}mm_seg", col="seg", ext='.nii.gz'
+        sect_info, output_dir, tag=f"{resolution}mm_seg", col="seg", ext=".nii.gz"
     )
 
     run_nnunet = isinstance(seg_method, str) and "nnunet" in seg_method
     for _, df in sect_info.groupby(["hemisphere", "chunk"]):
-
         run_stage = utils.check_run_stage(
             df["seg"], df["img"], output_csv, clobber=clobber
         )
@@ -755,14 +755,14 @@ def segment(
 
             if run_nnunet:
                 (
-                        x_scale,
-                        foreground_labels,
-                        datasetname,
-                        fold,
-                        checkpoint,
-                        nnunet_ext,
+                    x_scale,
+                    foreground_labels,
+                    datasetname,
+                    fold,
+                    checkpoint,
+                    nnunet_ext,
                 ) = get_nnunet_parameters(nnunet_config_json, model_dir)
-                
+
                 convert_nifti_to_nnunet(
                     sect_info,
                     output_dir,
@@ -774,8 +774,10 @@ def segment(
                 )
 
             # *** CHANGED: check segmentation files per subject using per-subject nnunet_out dirs ***
-            missing_segmentations = _check_missing_segmentations(sect_info, output_dir, nnunet_input_str)   
-            
+            missing_segmentations = _check_missing_segmentations(
+                sect_info, output_dir, nnunet_input_str
+            )
+
             nnunet_failed = False
 
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -793,7 +795,7 @@ def segment(
                     os.makedirs(nnunet_in_dir, exist_ok=True)
                     os.makedirs(nnunet_out_dir, exist_ok=True)
 
-                    if run_nnunet : 
+                    if run_nnunet:
                         nnunet_failed = run_nnunet_segmentation(
                             seg_method,
                             nnunet_in_dir,
@@ -827,13 +829,18 @@ def segment(
                         clobber=clobber,
                     )
 
-            for _, temp_sect_info in sect_info.groupby(["sub", "hemisphere", "chunk"]):
-                assert check_seg_files(
-                    temp_sect_info,
-                    output_dir,
-                    warning_flag=True,
-                    nnunet_input_str=nnunet_input_str,
-                ), "Missing segmentations"
+            # Only check for segmentation files when a segmentation method is actually used
+            # Skip check when using "identity" (no segmentation, use raw images)
+            if seg_method in HISTOGRAM_METHODS or "nnunet" in seg_method:
+                for _, temp_sect_info in sect_info.groupby(
+                    ["sub", "hemisphere", "chunk"]
+                ):
+                    assert check_seg_files(
+                        temp_sect_info,
+                        output_dir,
+                        warning_flag=True,
+                        nnunet_input_str=nnunet_input_str,
+                    ), "Missing segmentations"
 
     sect_info.to_csv(output_csv, index=False)
 
@@ -855,10 +862,10 @@ def convert_from_nnunet(
     param: seg_dir: directory to save output
     return: None
     """
-    ref_img = nib.load(reference_fn)
+    ref_img = ants.image_read(reference_fn)
 
     if ".nii" in input_fn:
-        ar = nib.load(input_fn).get_fdata()
+        ar = ants.image_read(input_fn).numpy()
     else:
         ar = iio.imread(input_fn)
 
@@ -898,8 +905,15 @@ def convert_from_nnunet(
         # scale to 255
         ar = (ar / ar.max() * 255).astype(np.uint8)
 
-        nib.Nifti1Image(ar, ref_img.affine, direction_order="lpi").to_filename(
-            output_fn
+        # nib.Nifti1Image(ar, ref_img.affine, direction_order="lpi").to_filename(
+        #    output_fn
+        # )
+        img = ants.from_numpy(
+            ar,
+            spacing=ref_img.spacing,
+            origin=ref_img.origin,
+            direction=ref_img.direction,
         )
+        ants.image_write(img, output_fn)
 
     return None

@@ -1,7 +1,5 @@
 """Performs 2D non-linear alignment of sections to sections from reference volume using ANTs."""
 
-import glob
-import json
 import logging
 import os
 import shutil
@@ -10,6 +8,7 @@ import brainbuilder.utils.ants_nibabel as nib
 import matplotlib
 
 matplotlib.use("Agg", force=True)
+import ants
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -303,7 +302,9 @@ def affine_trials(
     linParams: AntsParams,
     prefix: str,
     n_trials: int = 5,
+    lin_transforms: list = ["Rigid", "Similarity", "Affine"],
     verbose: bool = False,
+    cleanup_affine_files: bool = True,
 ) -> str:
     """About: Calculate affine transformation between volumes.
 
@@ -314,9 +315,14 @@ def affine_trials(
     :param prefix: prefix
     :param n_trials: number of trials
     :param verbose: verbose
+    :param cleanup_affine_files: remove suboptimal affine trial files and directories to reduce storage (default: True)
     :return: affine_tfm
     """
-    lin_transforms = ["Rigid", "Similarity", "Affine"]
+    output_tfm = f"{prefix}_affine_trials_Composite.h5"
+
+    if os.path.exists(output_tfm):
+        return output_tfm
+
     max_dice = -np.inf
     best_trial = 0
     affine_tfm_trials = {}
@@ -334,6 +340,8 @@ def affine_trials(
         trial_prefix = affine_dir + f"_trial-{trial}"
 
         try:
+            # print(f"trial {trial}\nfx_fn: {fx_fn}\nmv_fn: {mv_fn}\ntrial_prefix: {trial_prefix}\nlin_transforms: {lin_transforms}\nitr_list: {itr_list}\ns_list: {s_list}\nf_list: {f_list}\n")
+
             affine_tfm, mv_rsl_fn = ants_registration_2d_section(
                 fx_fn=fx_fn,
                 mv_fn=mv_fn,
@@ -342,7 +350,7 @@ def affine_trials(
                 f_list=f_list,
                 prefix=trial_prefix,
                 transforms=lin_transforms,
-                sampling=0.8,
+                sampling=0.5,
                 metrics=["Mattes"] * len(lin_transforms),
                 verbose=verbose,
             )
@@ -363,21 +371,35 @@ def affine_trials(
         max_dice = trial_dice if trial_dice > max_dice else max_dice
         affine_tfm_trials[trial] = affine_tfm
 
-    if len(affine_tfm_trials) == 0:
-        raise RuntimeError(
-            "All affine trials failed; generated outputs were missing/corrupt. "
-            f"Check disk space and intermediate files under {affine_dir}"
+        logger.info(
+            f"trial {trial}\tdice: {trial_dice}\tmax_dice: {max_dice}\tbest_trial: {best_trial}"
         )
 
-    json.dump(affine_tfm_trials, open(f"{prefix}_affine_tfm_trials.json", "w"))
+    if len(affine_tfm_trials) == 0:
+        logger.warning(
+            "All affine trials failed; falling back to identity transform. "
+            f"Check disk space and intermediate files under {affine_dir}"
+        )
+        identity_inv_fn = output_tfm.replace(".h5", "_inv.h5")
+        identity_rsl_fn = prefix + "_identity_rsl.nii.gz"
+        from brainbuilder.utils.ANTs import use_identity_backup
 
-    for fn in glob.glob(f"{affine_dir}/*trial-*"):
-        if f"_trial-{best_trial}" not in fn:
-            os.remove(fn)
+        use_identity_backup(
+            output_tfm, identity_inv_fn, fx_fn, mv_fn, identity_rsl_fn, 2
+        )
+    else:
+        shutil.copy(affine_tfm_trials[best_trial], output_tfm)
 
-    affine_tfm = affine_tfm_trials[best_trial]
+    assert os.path.exists(output_tfm), f"Error: output does not exist {output_tfm}"
+    assert ants.read_transform(
+        output_tfm
+    ), f"Error: output is not a valid transform {output_tfm}"
 
-    return affine_tfm
+    if cleanup_affine_files:
+        if os.path.exists(affine_dir):
+            shutil.rmtree(affine_dir)
+
+    return output_tfm
 
 
 def align_2d_parallel(
@@ -427,6 +449,7 @@ def align_2d_parallel(
     mv_fn = row[file_to_align]
 
     verbose = False
+
     affine_tfm = affine_trials(
         fx_fn, mv_fn, linParams, prefix, n_trials=n_affine_trials, verbose=verbose
     )
@@ -802,7 +825,11 @@ def align_2d(
     # Define fixed 'fx' filenames for each section from the resampled reference volume
     sect_info["fx"] = utils.get_fx_list(sect_info, nl_2d_dir, "_fx")
 
-    # Create 2D sections from the resampled reference volume
+    # Create 2D sections from the resampled reference volume. Pass an example
+    # moving section (seg_rsl) so the fixed sections are written in the same
+    # in-plane frame (origin/spacing/direction) as the sections they register
+    # against -- otherwise they inherit the reference volume's 'lpi' direction
+    # and land in disjoint physical space.
     utils.create_2d_sections(
         sect_info["fx"].values,
         sect_info["sample"].values,
@@ -810,6 +837,7 @@ def align_2d(
         nl_2d_dir,
         dtype=np.uint8,
         axis=axis,
+        ref_2d_fn=example_2d_fn,
     )
 
     logger.info("\t\tStep 4: 2d nl alignment")

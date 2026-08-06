@@ -12,8 +12,8 @@ import pandas as pd
 from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
+from brainbuilder.align.align_2d import affine_trials
 from brainbuilder.utils import utils
-from brainbuilder.utils.ANTs import ANTs
 from brainbuilder.utils.axis_utils import (
     DEFAULT_SECTION_AXIS,
     alloc_volume,
@@ -43,14 +43,16 @@ def align_neighbours_to_fixed(
     j_list: List[int],
     df: pd.DataFrame,
     transforms: Dict[int, List[str]],
-    iteration: int,
-    shrink_factor: float,
-    smooth_sigma: float,
     output_dir: str,
     tfm_type_list: List[str],
     desc: Tuple[str, str, str, str, str, str],
+    image_string: str = "img",
+    image_string_new: str = "img_new",
     target_acquisition: Optional[str] = None,
     clobber: bool = False,
+    use_affine_trials: bool = False,
+    n_affine_trials: int = 5,
+    linParams: Optional[AntsParams] = None,
 ) -> None:
     """Aligns the neighbours to the fixed section.
 
@@ -62,32 +64,46 @@ def align_neighbours_to_fixed(
     :param shrink_factor: The shrink factor for the alignment.
     :param smooth_sigma: The smoothing sigma for the alignment.
     :param output_dir: The output directory for the alignment results.
-    :param tfm_type: The type of transformation.
+    :param tfm_type_list: The list of transformation types.
     :param desc: The description tuple.
+    :param image_string: The image string.
     :param target_acquisition: The target acquisition type (optional).
     :param clobber: Whether to overwrite existing files (default: False).
+    :param use_affine_trials: Whether to use affine trials for robust initial alignment (default: False).
+    :param n_affine_trials: Number of affine trials to run (default: 5).
+    :param linParams: Linear parameters for affine trials (required if use_affine_trials=True).
     """
     # For neighbours  a single section is selected as fixed (ith section),
     # then the subsequent sections are considred moving sections (jth section)
     # and are registered to the fixed section.
     i_idx = df["sample"] == i
 
-    fixed_fn = df["img"].loc[i_idx].values[0]
+    fixed_fn = df[image_string].loc[i_idx].values[0]
 
     level = len(tfm_type_list) - 1
 
     for j in j_list:
         j_idx = df["sample"] == j
+
+        moving_fn = df[image_string].loc[j_idx].values[0]
+        basename = (
+            os.path.basename(df[image_string].loc[j_idx].values[0])
+            .replace(".nii.gz", "")
+            .replace(".nii", "")
+        )
+
         tfm_type_final = tfm_type_list[-1]
 
-        outprefix = "{}/init_transforms/{}_{}-0/".format(output_dir, j, tfm_type_final)
+        outprefix = "{}/init_transforms/{}_{}_{}-0/".format(
+            output_dir, basename, j, tfm_type_final
+        )
 
         moving_rsl_fn = outprefix + "_level-{}_Mattes_{}.nii.gz".format(
             level, tfm_type_final
         )
-        tfm_fn = outprefix + "_level-{}_Mattes_{}_Composite.h5".format(
-            level, tfm_type_final
-        )
+        # tfm_fn = outprefix + "_level-{}_Mattes_{}_Composite.h5".format(
+        #    level, tfm_type_final
+        # )
         concat_tfm_fn = (
             outprefix
             + "level-{}_Mattes_{}_Composite_Concatenated.h5".format(
@@ -97,50 +113,32 @@ def align_neighbours_to_fixed(
         qc_fn = "{}/qc/{}_{}_{}_{}_{}_{}-0.png".format(
             output_dir, *desc, j, i, tfm_type_final
         )
-        moving_fn = df["img"].loc[j_idx].values[0]
 
         # calculate rigid transform from moving to fixed images
-        if not os.path.exists(tfm_fn) or not os.path.exists(qc_fn):
-            logger.info(f"\tFixed: {i} {fixed_fn}")
-            logger.info(f"\tMoving: {j} {moving_fn}")
-            logger.info(f"\tTfm: {tfm_fn} {os.path.exists(tfm_fn)}")
-            logger.info(f"\tQC: {qc_fn} {os.path.exists(qc_fn)}")
-            logger.info(f"\tMoving RSL:  {moving_rsl_fn}")
+        if target_acquisition is not None:
+            if df["acquisition"].loc[j_idx].values[0] != target_acquisition:
+                logger.info("\tSkipping")
+                continue
 
-            if target_acquisition is not None:
-                if df["acquisition"].loc[j_idx].values[0] != target_acquisition:
-                    logger.info("\tSkipping")
-                    continue
+        os.makedirs(outprefix, exist_ok=True)
 
-            os.makedirs(outprefix, exist_ok=True)
-
-            _, _, moving_rsl_fn = ANTs(
-                tfm_prefix=outprefix,
-                fixed_fn=fixed_fn,
-                moving_fn=moving_fn,
-                moving_rsl_prefix=outprefix,
-                iterations=iteration,
-                metrics=["Mattes"] * len(tfm_type_list),
-                tfm_type=tfm_type_list,
-                shrink_factors=shrink_factor,
-                smoothing_sigmas=smooth_sigma,
-                init_tfm=None,
-                no_init_tfm=False,
-                dim=2,
-                sampling_method="Random",
-                sampling=0.5,
-                verbose=0,
-                generate_masks=False,
-                clobber=True,
-            )
-           
-            assert np.sum(np.abs(nib.load(moving_rsl_fn).dataobj)) > 0, f"Error: Registered image is empty: {moving_rsl_fn}" 
-            
+        affine_prefix = outprefix.rstrip("/") + "_affine"
+        tfm_fn = affine_trials(
+            fx_fn=fixed_fn,
+            mv_fn=moving_fn,
+            linParams=linParams,
+            prefix=affine_prefix,
+            lin_transforms=tfm_type_list,
+            n_trials=1,
+            cleanup_affine_files=True,
+            verbose=False,
+        )
 
         # concatenate the transformation files that have been applied to the fixed image and the new transform
         # that is being applied to the moving image
         if not os.path.exists(concat_tfm_fn):
             transforms_str = "-t {} ".format(" -t ".join(transforms[i] + [tfm_fn]))
+
             utils.shell(
                 f"antsApplyTransforms -v 0 -d 2 -i {moving_fn} -r {moving_fn} {transforms_str} -o Linear[{concat_tfm_fn}] ",
             )
@@ -153,6 +151,9 @@ def align_neighbours_to_fixed(
             )
 
         if not os.path.exists(qc_fn):
+            print(
+                f"\tCreating QC image for fixed: {fixed_fn}, moving: {moving_fn}, registered: {moving_rsl_fn}"
+            )
             create_qc_image(
                 load2d(fixed_fn),
                 load2d(moving_fn),
@@ -166,7 +167,7 @@ def align_neighbours_to_fixed(
                 qc_fn,
             )
 
-        df.loc[df["sample"] == j, "img_new"] = moving_rsl_fn
+        df.loc[df["sample"] == j, image_string_new] = moving_rsl_fn
         df.loc[df["sample"] == j, "init_tfm"] = concat_tfm_fn
         df.loc[df["sample"] == j, "init_fixed"] = fixed_fn
         transforms[j] = [concat_tfm_fn]
@@ -206,6 +207,13 @@ def create_qc_image(
     plt.title(
         "fixed (gray): {} {} {}".format(fixed_order, tier_fixed, acquisition_fixed)
     )
+
+    # edge detection on moving image to highlight the alignment
+    from skimage import filters
+
+    moving = filters.sobel(moving)
+    rsl = filters.sobel(rsl)
+
     plt.imshow(fixed, cmap=plt.cm.gray)
     plt.imshow(moving, alpha=0.35, cmap=plt.cm.hot)
     plt.subplot(1, 2, 2)
@@ -227,13 +235,15 @@ def adjust_alignment(
     step: int,
     output_dir: str,
     desc: str,
-    shrink_factor: float,
-    smooth_sigma: float,
-    iteration: int,
     tfm_type_list: List[str],
+    image_string: str = "img",
+    image_string_new: str = "img_new",
     target_acquisition: Optional[str] = None,
     target_tier: int = 1,
     clobber: bool = False,
+    use_affine_trials: bool = False,
+    n_affine_trials: int = 5,
+    linParams: Optional[AntsParams] = None,
 ) -> None:
     """Adjust the alignment of images.
 
@@ -248,10 +258,14 @@ def adjust_alignment(
         shrink_factor: The shrink factor.
         smooth_sigma: The smooth sigma.
         iteration: The number of iterations.
-        tfm_type: The transform type.
+        tfm_type_list: The list of transformation types.
+        image_string: The image string.
         target_acquisition: The target acquisition.
         target_tier: The target tier.
         clobber: Whether to overwrite existing files.
+        use_affine_trials: Whether to use affine trials for robust initial alignment.
+        n_affine_trials: Number of affine trials to run.
+        linParams: Linear parameters for affine trials.
 
     Returns:
         None
@@ -259,7 +273,6 @@ def adjust_alignment(
     os.makedirs(output_dir + "/qc/", exist_ok=True)
     i = mid
     j = i
-    len(y_idx)
     y_idx_tier1 = df["sample"].loc[df["tier"] == 1].values.astype(int)
 
     y_idx_tier1.sort()
@@ -280,14 +293,16 @@ def adjust_alignment(
             j_list,
             df,
             transforms,
-            iteration,
-            shrink_factor,
-            smooth_sigma,
             output_dir,
             tfm_type_list,
             desc,
             target_acquisition=target_acquisition,
+            image_string=image_string,
+            image_string_new=image_string_new,
             clobber=clobber,
+            use_affine_trials=use_affine_trials,
+            n_affine_trials=n_affine_trials,
+            linParams=linParams,
         )
 
     return transforms, df
@@ -298,6 +313,7 @@ def combine_sections_to_vol(
     y_mm: float,
     out_fn: str,
     target_tier: int = 1,
+    image_string: str = "img",
     axis: int = DEFAULT_SECTION_AXIS,
 ) -> None:
     """Combine 2D aligned sections to volume.
@@ -311,7 +327,7 @@ def combine_sections_to_vol(
     :param axis: The sectioning axis along which sections are stacked (default 1).
     :return: None
     """
-    example_fn = df["img"].iloc[0]
+    example_fn = df[image_string].iloc[0]
     shape = nib.load(example_fn).shape
     affine = nib.load(example_fn).affine
     xstart = affine[0, 3]
@@ -332,7 +348,7 @@ def combine_sections_to_vol(
     for _, row in df.iterrows():
         if row["tier"] == target_tier:
             y = row["sample"]
-            ar = nib.load(row["img"]).get_fdata()
+            ar = nib.load(row[image_string]).get_fdata()
             ar = ar.reshape(ar.shape[0], ar.shape[1])
             ar = resize(ar, [xmax, zmax])
             set_section(vol, ar, int(y), axis)
@@ -358,31 +374,34 @@ def combine_sections_to_vol(
 
 def alignment_stage(
     df: pd.DataFrame,
-    vol_fn_str: str,
     output_dir: str,
     transforms: list,
     linParams: utils.AntsParams,
     desc: Tuple[int, int, int] = (0, 0, 0),
     target_acquisition: Optional[str] = None,
     target_tier: int = 1,
-    acquisition_n: int = 0,
     tfm_type: List[str] = ["Rigid"],
+    image_string: str = "img",
     clobber: bool = False,
+    use_affine_trials: bool = False,
+    n_affine_trials: int = 5,
 ) -> Tuple[pd.DataFrame, Dict[int, List[str]]]:
     """Perform alignment of autoradiographs within a chunk.
 
     Alignment is calculated once from the middle section in the posterior direction and a second time from the middle section in the anterior direction.
 
     :param df: The DataFrame containing the section information.
-    :param vol_fn_str: The volume filename string.
     :param output_dir: The output directory.
     :param transforms: The transforms.
     :param linParams: The linear parameters.
     :param desc: The description.
     :param target_acquisition: The target acquisition.
     :param target_tier: The target tier.
-    :param acquisition_n: The acquisition number.
+    :param tfm_type: The transformation type(s).
+    :param image_string: The image column name.
     :param clobber: The clobber flag.
+    :param use_affine_trials: Whether to use affine trials for robust initial alignment.
+    :param n_affine_trials: Number of affine trials to run.
     :return: A tuple containing the DataFrame and a dictionary.
     """
     # Set parameters for rigid transform
@@ -391,25 +410,21 @@ def alignment_stage(
     iterations = linParams.itr_str.split(",")[0][1:]
 
     tfm_type_list = tfm_type if isinstance(tfm_type, list) else [tfm_type]
-    tfm_type_final = tfm_type_list[-1]
-    n_levels = len(tfm_type_list)
-
-    shrink_factor = ["4x3x2x1"] * n_levels
-    smooth_sigma = [".8x0.66x.3x0"] * n_levels
-    iterations = ["2000x1000x500x250"] * n_levels
 
     df.sort_values(["sample"], inplace=True, ascending=False)
 
     y_idx = df["sample"].values
 
-    y_idx_tier1 = (
-        df["sample"].loc[df["tier"].astype(int) == np.min(df["tier"])].values
-    )
+    y_idx_tier1 = df["sample"].loc[df["tier"].astype(int) == np.min(df["tier"])].values
     mid = int(len(y_idx_tier1) / 2)
 
-    df["img_new"] = df["img"]
+    image_string_new = image_string + "_new"
+
+    df[image_string_new] = df[image_string]
     df["init_tfm"] = [None] * df.shape[0]
-    df["init_img"] = df["img_new"]
+    df["init_img"] = df[
+        image_string_new
+    ]  # This line remains the same, as it references the new column created above
     df["init_fixed"] = [None] * df.shape[0]
 
     # perform alignment in forward direction from middle section
@@ -421,13 +436,15 @@ def alignment_stage(
         -1,
         output_dir,
         desc,
-        shrink_factor,
-        smooth_sigma,
-        iterations,
         tfm_type_list,
+        image_string=image_string,
+        image_string_new=image_string_new,
         target_acquisition=target_acquisition,
         target_tier=target_tier,
         clobber=clobber,
+        use_affine_trials=use_affine_trials,
+        n_affine_trials=n_affine_trials,
+        linParams=linParams,
     )
 
     # perform alignment in reverse direction from middle section
@@ -439,18 +456,19 @@ def alignment_stage(
         1,
         output_dir,
         desc,
-        shrink_factor,
-        smooth_sigma,
-        iterations,
-        tfm_type,
+        tfm_type_list,
+        image_string=image_string,
+        image_string_new=image_string_new,
         target_acquisition=target_acquisition,
         target_tier=target_tier,
         clobber=clobber,
+        use_affine_trials=use_affine_trials,
+        n_affine_trials=n_affine_trials,
+        linParams=linParams,
     )
 
-    # update the img so it has the new, resampled file names
-    df["img"] = df["img_new"]
-
+    # update the img column to the aligned outputs for use as fixed in subsequent stages
+    df[image_string] = df[image_string_new]
 
     return df, transforms
 
@@ -459,6 +477,7 @@ def create_final_outputs(
     final_tfm_dir: str,
     df: pd.DataFrame,
     step: int,
+    image_string: str = "img",
 ) -> pd.DataFrame:
     """Create final outputs for the alignment stage.
 
@@ -485,32 +504,28 @@ def create_final_outputs(
     #   s0  s1   s2   s3   s4  s5
     #   a ( b1 (s2) )  --> s2
     #
-    for i, y in enumerate(y_idx_tier[mid::step]):
+    for _, y in enumerate(y_idx_tier[mid::step]):
         row = df.loc[y == df["sample"]]
 
         final_tfm_fn = "{}/{}_final_Rigid.h5".format(
             final_tfm_dir, int(row["sample"].values[0])
         )
-        final_section_fn = f'{final_tfm_dir}/{int(row["sample"].values[0])}{os.path.basename(row["img"].values[0])}'
-        idx = df["sample"].values == row["sample"].values
-        if not os.path.exists(final_tfm_fn) or not os.path.exists(final_section_fn):
-            if isinstance(row["init_tfm"].values[0], str):
+        final_section_fn = f'{final_tfm_dir}/{int(row["sample"].values[0])}{os.path.basename(row[image_string].values[0])}'
+        idx = df["sample"].values == row["sample"].values[0]
+        init_tfm_fn = row["init_tfm"].values[0]
+        if not os.path.exists(final_tfm_fn):
+            if isinstance(init_tfm_fn, str):
                 # standard rigid transformation for moving image
-                shutil.copy(row["init_tfm"].values[0], final_tfm_fn)
-
-                # if not os.path.exists(final_section_fn) and not os.path.islink(
-                #    final_section_fn
-                # ):
-                #    os.symlink(row["img"].values[0], final_section_fn)
+                shutil.copy(init_tfm_fn, final_tfm_fn)
             else:
                 if not os.path.exists(final_section_fn) and not os.path.islink(
                     final_section_fn
                 ):
-                    os.symlink(row["img"].values[0], final_section_fn)
+                    os.symlink(row[image_string].values[0], final_section_fn)
                 final_tfm_fn = None
 
         df.loc[idx, "init_tfm"] = final_tfm_fn
-        df.loc[idx, "init_img"] = row["img"].values[0]
+        df.loc[idx, "init_img"] = row[image_string].values[0]
     return df
 
 
@@ -520,6 +535,7 @@ def initalign(
     output_dir: str,
     resolution_list: list,
     tfm_type: list = ["Rigid"],
+    image_string: str = "img",
     clobber: bool = True,
 ) -> str:
     """Calulate initial rigid aligment between sections.
@@ -550,15 +566,16 @@ def initalign(
 
     run_stage = utils.check_run_stage(initalign_sect_info_csv, "init_tfm", "seg")
 
-    linParams = AntsParams(resolution_list, resolution_list[-1], 100)
+    linParams = AntsParams(resolution_list, resolution_list[-1], 250)
 
     if (
         not os.path.exists(initalign_sect_info_csv)
         or not os.path.exists(initalign_chunk_info_csv)
         or clobber
-        or run_stage  
+        or run_stage
     ):
         sect_info = pd.read_csv(sect_info_csv)
+
         chunk_info = pd.read_csv(chunk_info_csv)
 
         initalign_sect_info = pd.DataFrame({})
@@ -592,6 +609,7 @@ def initalign(
                 curr_sect_info,
                 linParams,
                 curr_chunk_info,
+                image_string=image_string,
                 tfm_type=tfm_type,
                 clobber=clobber,
             )
@@ -605,7 +623,7 @@ def initalign(
     return initalign_sect_info_csv, initalign_chunk_info_csv
 
 
-def get_acquisition_contrast_order(df: pd.DataFrame) -> list:
+def get_acquisition_contrast_order(df: pd.DataFrame, image_string: str = "img") -> list:
     """Calculate the contrast order of the acquisitions.
 
     :param df: The DataFrame containing the section information.
@@ -614,7 +632,7 @@ def get_acquisition_contrast_order(df: pd.DataFrame) -> list:
     df_list = []
     for i, acquisition_df in df.groupby(["acquisition"]):
         for j, row in acquisition_df.iterrows():
-            ar = nib.load(row["img"]).dataobj
+            ar = nib.load(row[image_string]).dataobj
             i_max = np.max(ar)
             i_min = np.min(ar)
             contrast = (i_max - i_min) / (i_max + i_min)
@@ -650,6 +668,7 @@ def align_chunk(
     linParams: utils.AntsParams,
     chunk_info: pd.DataFrame,
     tfm_type: List[str] = ["Rigid"],
+    image_string: str = "img",
     clobber: bool = False,
 ) -> pd.DataFrame:
     """Calulate initial rigid aligment between sections for a given chunk.
@@ -667,7 +686,7 @@ def align_chunk(
 
     df = sect_info.copy()
 
-    df["original_img"] = df["img"]
+    df["original_img"] = df[image_string]
 
     acquisition_contrast_order = get_acquisition_contrast_order(sect_info)
     logger.info(f"\tAcquistion contrast order: {acquisition_contrast_order}")
@@ -697,12 +716,11 @@ def align_chunk(
 
     df_acquisition, transforms_1 = alignment_stage(
         df_acquisition,
-        chunk_img_fn_str,
         output_dir_1,
         transforms_1,
         linParams,
         target_acquisition=acquisition_contrast_order[0],
-        acquisition_n=0,
+        image_string=image_string,
         target_tier=1,
         desc=(sub, hemisphere, chunk),
         tfm_type=tfm_type,
@@ -732,8 +750,12 @@ def align_chunk(
         target_acquisition = current_acquisitions[-1]
         idx = df["acquisition"].apply(lambda x: x in current_acquisitions)
         df_acquisition = df.loc[idx]
-        df_acquisition.loc[df_acquisition["acquisition"] == target_acquisition, "tier"] = 2
-        df_acquisition.loc[df_acquisition["acquisition"] == acquisition_contrast_order[0], "tier"] = 1
+        df_acquisition.loc[
+            df_acquisition["acquisition"] == target_acquisition, "tier"
+        ] = 2
+        df_acquisition.loc[
+            df_acquisition["acquisition"] == acquisition_contrast_order[0], "tier"
+        ] = 1
         # Init dict with initial transforms
         transforms = {}
         for i in df_acquisition["sample"]:
@@ -741,12 +763,11 @@ def align_chunk(
 
         df_acquisition, transforms = alignment_stage(
             df_acquisition,
-            chunk_img_fn_str,
             output_dir_2,
             transforms,
             linParams,
             target_acquisition=target_acquisition,
-            acquisition_n=i,
+            image_string=image_string,
             target_tier=2,
             desc=(sub, hemisphere, chunk),
             tfm_type=tfm_type,
@@ -765,11 +786,8 @@ def align_chunk(
     ###########
     # Stage 3 #
     ###########
-    final_tfm_dir = f"{init_align_dir}/final_tfm"
-    os.makedirs(final_tfm_dir, exist_ok=True)
+    # Use the computed per-section init_tfm paths directly.
     df = stage_2_df
-    df = create_final_outputs(final_tfm_dir, df, 1)
-    df = create_final_outputs(final_tfm_dir, df, -1)
 
     logger.info("Writing:" + init_tfm_csv)
 
@@ -786,6 +804,8 @@ def align_chunk(
     chunk_info["init_volume"] = init_align_fn
 
     sect_info["2d_tfm"] = sect_info["init_tfm"]
+
+    sect_info["init_fixed"] = df["init_fixed"]
 
     assert False not in [
         os.path.exists(x) for x in sect_info["init_tfm"].values if not pd.isnull(x)

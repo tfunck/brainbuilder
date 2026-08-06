@@ -137,7 +137,6 @@ def local_metric(
     :param: offset: int
     :return: local_dice_volume: np.ndarray
     """
-
     local_dice_section = np.zeros(fx_vol.shape)
 
     xy = [
@@ -212,7 +211,12 @@ def dice_local(fx: np.array, mv: np.array, offset: int = 5):
 
 
 def get_section_metric(
-    fx_fn: str, mv_fn: str, out_png: str, idx: int, verbose: bool = False
+    fx_fn: str,
+    mv_fn: str,
+    out_png: str,
+    idx: int,
+    create_qc_plot: bool = False,
+    verbose: bool = False,
 ) -> None:
     """Calculate the section metric for given input files and parameters.
 
@@ -223,8 +227,8 @@ def get_section_metric(
     :param verbose: Whether to enable verbose mode.
     :return: None
     """
-    print('\tfx_fn:', fx_fn)
-    print('\tmv_fn:', mv_fn)
+    print("\tfx_fn:", fx_fn)
+    print("\tmv_fn:", mv_fn)
     img0 = nib.load(fx_fn)
     fx_vol = img0.get_fdata()
     img1 = nib.load(mv_fn)
@@ -232,24 +236,25 @@ def get_section_metric(
 
     section_dice_mean = dice_local(fx_vol, mv_vol, offset=5)
 
-    fx_vol = prepare_volume(img0.get_fdata())
-    mv_vol = prepare_volume(nib.load(mv_fn).get_fdata())
-    plt.cla()
-    plt.clf()
-    plt.title(f"Dice: {section_dice_mean:.3f}")
-    plt.subplot(1, 3, 1)
-    plt.imshow(fx_vol)
-    plt.subplot(1, 3, 2)
-    plt.imshow(mv_vol)
-    plt.subplot(1, 3, 3)
-    dice_vol = np.zeros(fx_vol.shape)
-    dice_vol[(fx_vol > 0) & (mv_vol > 0)] = 1
-    dice_vol[fx_vol * mv_vol > 0] = 2
-    plt.imshow(mv_vol * fx_vol)
-    plt.savefig(out_png)
-    plt.cla()
-    plt.clf()
-    plt.close()
+    if create_qc_plot:
+        fx_vol = prepare_volume(img0.get_fdata())
+        mv_vol = prepare_volume(nib.load(mv_fn).get_fdata())
+        plt.cla()
+        plt.clf()
+        plt.title(f"Dice: {section_dice_mean:.3f}")
+        plt.subplot(1, 3, 1)
+        plt.imshow(fx_vol)
+        plt.subplot(1, 3, 2)
+        plt.imshow(mv_vol)
+        plt.subplot(1, 3, 3)
+        dice_vol = np.zeros(fx_vol.shape)
+        dice_vol[(fx_vol > 0) & (mv_vol > 0)] = 1
+        dice_vol[fx_vol * mv_vol > 0] = 2
+        plt.imshow(mv_vol * fx_vol)
+        plt.savefig(out_png)
+        plt.cla()
+        plt.clf()
+        plt.close()
 
     if verbose:
         print("\tValidation: ", out_png)

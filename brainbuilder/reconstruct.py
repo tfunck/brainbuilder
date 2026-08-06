@@ -146,6 +146,7 @@ def reconstruct(
     num_cores: int = None,
     max_resolution_3d: float = 0.3,
     final_resolution: float = None,
+    init_align_string: str = "img",
     interp_method: str = "volumetric",
     interpolation_2d: str = "Linear",
     landmark_dir: Path = None,
@@ -268,6 +269,7 @@ def reconstruct(
     assert valid_inputs, "Error: invalid inputs"
 
     sect_info_csv = downsample_sections(
+        hemi_info_csv,
         chunk_info_csv,
         sect_info_csv,
         min(resolution_list),
@@ -297,6 +299,7 @@ def reconstruct(
         output_dir,
         resolution_list,
         tfm_type=init_tfm_type,
+        image_string=init_align_string,
         clobber=clobber,
     )
 
@@ -421,6 +424,12 @@ def setup_argparse() -> argparse.ArgumentParser:
         help="Use: \n\t'nnunetv1':version 1 of nnUNet segmentation,\n\t'nnunetv2': version 2 of nnUNet segmentation, \n\t'otsu': Otsu histogram thresholding, \n\t'triangle': Triangle histogram thresholding",
     )
     parser.add_argument(
+        "--init-align-string",
+        dest="init_align_string",
+        default="img",
+        help="Initial alignment string for the images.",
+    )
+    parser.add_argument(
         "--base-2d-lin-itr",
         dest="base_lin_itr_2d",
         type=int,
@@ -540,6 +549,7 @@ if __name__ == "__main__":
         n_depths=args.n_depths,
         seg_method=args.seg_method,
         nnunet_model_dir=args.pytorch_model_dir,
+        init_align_string=args.init_align_string,
         nnunet_config_json=args.nnunet_config_json,
         use_3d_syn_cc=args.use_3d_syn_cc,
         use_syn=args.use_syn,

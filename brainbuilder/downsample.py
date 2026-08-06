@@ -1,8 +1,8 @@
 """Script for downsampling raw files to reconstruction resolution."""
 
 import os
-import re
 
+import ants
 import nibabel
 import numpy as np
 import pandas as pd
@@ -14,11 +14,10 @@ from brainbuilder.utils.axis_utils import (
     alloc_volume,
     get_section_axis,
     section_axis_from_row,
-    set_affine_spacing,
     set_section,
 )
 from brainbuilder.utils.paths import define_new_path_column
-from brainbuilder.utils.utils import get_logger
+from brainbuilder.utils.utils import get_logger, get_reference_volume_info
 
 logger = get_logger(__name__)
 
@@ -74,7 +73,7 @@ def compute_max_new_dims(
 
 
 def assemble_downsampled_volume(
-    sect_info, output_dir, resolution, chunk_info, clobber=False
+    sect_info, output_dir, resolution, chunk_info, origin, direction, clobber=False
 ):
     """Assemble downsampled sections into 3D volumes per chunk."""
     for (sub, hemisphere, chunk), chunk_sect_info in sect_info.groupby(
@@ -95,8 +94,12 @@ def assemble_downsampled_volume(
 
             n_sections = chunk_sect_info["sample"].max() + 1
 
-            example_img = chunk_sect_info["img"].iloc[0]
-            section_shape = nib.load(example_img).shape
+            # Load the precomputed max dimensions used during resampling
+            results_file = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_max_dims_{resolution}mm.npy"
+
+            max_dims = np.load(results_file)
+            max_dim_0, max_dim_1 = int(max_dims[0]), int(max_dims[1])
+            section_shape = (max_dim_0, max_dim_1)
 
             print("Allocate Volume")
             vol = alloc_volume(section_shape, n_sections, axis, dtype=np.uint8)
@@ -104,16 +107,22 @@ def assemble_downsampled_volume(
             for _, tdf in chunk_sect_info.groupby(["acquisition"]):
                 for _, row in tdf.iterrows():
                     y = row["sample"]
-                    section = nib.load(row["img"]).get_fdata()
+                    section = ants.image_read(row["img"]).numpy()
                     set_section(vol, section.astype(np.uint8), int(y), axis)
 
             _, _, section_thickness = utils.get_chunk_pixel_size(
                 sub, hemisphere, chunk, chunk_info
             )
-            affine = np.eye(4)
-            set_affine_spacing(affine, axis, section_thickness, resolution)
 
-            nib.Nifti1Image(vol, affine, direction_order="lpi").to_filename(vol_fn)
+            spacing = [resolution] * 3
+
+            spacing[axis] = section_thickness
+
+            ants_img = ants.from_numpy(
+                vol, origin=origin, spacing=spacing, direction=direction
+            )
+
+            ants.image_write(ants_img, vol_fn)
 
 
 def downsample_within_chunk(
@@ -130,10 +139,6 @@ def downsample_within_chunk(
     for _, row in sect_info.iterrows():
         raw_file = row["raw"]
         downsample_file = row["img"]
-
-        sub = row["sub"]
-        hemi = row["hemisphere"]
-        chunk = row["chunk"]
 
         try:
             conversion_factor = row["conversion_factor"]
@@ -165,10 +170,8 @@ def downsample_within_chunk(
     )
 
 
-
-
-
 def downsample_sections(
+    hemi_info_csv: str,
     chunk_info_csv: str,
     sect_info_csv: str,
     resolution: str,
@@ -187,6 +190,7 @@ def downsample_sections(
     """
     logger.info(f"Downsampling sections to resolution: {resolution}")
 
+    hemi_info = pd.read_csv(hemi_info_csv)
     chunk_info = pd.read_csv(chunk_info_csv)
     sect_info = pd.read_csv(sect_info_csv)
 
@@ -194,7 +198,9 @@ def downsample_sections(
         num_cores = -1
 
     # define downsample img filenames based on current resolution
-    sect_info = define_new_path_column(sect_info, output_dir, tag=f"{resolution}mm", col='img')
+    sect_info = define_new_path_column(
+        sect_info, output_dir, tag=f"{resolution}mm", col="img"
+    )
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -233,8 +239,15 @@ def downsample_sections(
 
         sect_info.to_csv(sect_info_csv, index=False)
 
-        assemble_downsampled_volume(
-            sect_info, output_dir, resolution, chunk_info, clobber=clobber
-        )
+        _, origin, direction = get_reference_volume_info(hemi_info, sub, hemi)
 
+        assemble_downsampled_volume(
+            sect_info,
+            output_dir,
+            resolution,
+            chunk_info,
+            origin,
+            direction,
+            clobber=clobber,
+        )
     return sect_info_csv

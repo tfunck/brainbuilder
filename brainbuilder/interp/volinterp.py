@@ -4,16 +4,20 @@ from subprocess import run
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
-from skimage.transform import resize
 
 # from brainbuilder.utils.nl_deformation_flow import nlflow_isometric
 from morphint.morphint import morphint
+from skimage.transform import resize
 
 import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import apply_transforms_parallel
 from brainbuilder.interp.acqvolume import create_thickened_volumes
 from brainbuilder.utils import utils
-from brainbuilder.utils.axis_utils import DEFAULT_SECTION_AXIS, get_section, get_section_axis
+from brainbuilder.utils.axis_utils import (
+    DEFAULT_SECTION_AXIS,
+    get_section,
+    get_section_axis,
+)
 
 logger = utils.get_logger(__name__)
 
@@ -239,9 +243,9 @@ def volumetric_interpolation(
         interpolation=interpolation,
         tfm_dict=nlflow_tfm_dict,
         num_jobs=num_cores,
-        refine_2d_alignment_flag = refine_2d_alignment_flag,
-        base_ants_itr = 40,
-        n_resolutions = 4,
+        refine_2d_alignment_flag=refine_2d_alignment_flag,
+        base_ants_itr=40,
+        n_resolutions=4,
         clobber=clobber,
     )
 
@@ -806,7 +810,7 @@ def volumetric_pipeline(
             curr_target_section_acq,
             curr_target_section_cls,
         )
-        
+
         # Volumetric interpolation
         print("Volumetric Interpolation for sub:", sub, "hemi:", hemisphere)
         acq_interp_chunk_info = volumetric_interpolation_over_dataframe(

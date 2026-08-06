@@ -2,7 +2,6 @@
 import os
 from os.path import basename
 from re import sub
-from shutil import copy
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -14,9 +13,9 @@ import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.utils.utils import shell, simple_ants_apply_tfm, splitext
 
 
-def generate_mask(fn:str, out_fn:str, sigma:float=8)->None:
+def generate_mask(fn: str, out_fn: str, sigma: float = 8) -> None:
     """Generate mask.
-    
+
     :param fn: input file name
     :param out_fn: output file name
     :param sigma: sigma
@@ -67,11 +66,24 @@ def use_identity_backup(
 
     write_identity_transform(final_tfm_fn, fixed_fn)
     write_identity_transform(final_tfm_inv_fn, moving_fn)
-    copy(moving_fn, final_moving_rsl_fn)
+
+    # Apply the (forward) identity transform through ANTs rather than simply
+    # copying the moving image. This resamples the moving image into the fixed
+    # image's grid and validates that the transform actually applies cleanly,
+    # so downstream stages that reuse this transform don't fail unexpectedly.
+    # Only the forward transform needs to be exercised here.
+    simple_ants_apply_tfm(
+        moving_fn,
+        fixed_fn,
+        final_tfm_fn,
+        final_moving_rsl_fn,
+        ndim=dim,
+        clobber=True,
+    )
 
     print("Wrote identity transform to", final_tfm_fn)
     print("Wrote identity inverse transform to", final_tfm_inv_fn)
-    print("Copied moving image to", final_moving_rsl_fn)
+    print("Applied identity transform to", final_moving_rsl_fn)
 
     return final_tfm_fn, final_tfm_inv_fn, final_moving_rsl_fn
 
@@ -95,11 +107,16 @@ def apply_transform_fallback(
             identity_tfm_fn = os.path.join(
                 os.path.dirname(moving_rsl_fn), "identity_Composite.h5"
             )
-        identity_tfm_dir = os.path.dirname(identity_tfm_fn)
-        if identity_tfm_dir:
-            os.makedirs(identity_tfm_dir, exist_ok=True)
-        sitk.WriteTransform(sitk.AffineTransform(dim), identity_tfm_fn)
-        fallback_tfm = identity_tfm_fn
+        identity_inv_fn = identity_tfm_fn.replace(".h5", "_inv.h5")
+        fallback_tfm, _, moving_rsl_fn = use_identity_backup(
+            identity_tfm_fn,
+            identity_inv_fn,
+            fixed_fn,
+            moving_fn,
+            moving_rsl_fn,
+            dim,
+        )
+        return fallback_tfm, moving_rsl_fn
 
     simple_ants_apply_tfm(
         moving_fn,
@@ -144,9 +161,9 @@ def ANTs(
     n_tries: int = 5,
     init_tfm_direction: str = "moving",
     interpolation: str = "Linear",
-)->Tuple[str, str, str]:
+) -> Tuple[str, str, str]:
     """Run ANTs registration using user parameters.
-    
+
     :param tfm_prefix: transform prefix
     :param fixed_fn: fixed file name
     :param moving_fn: moving file name
@@ -261,13 +278,12 @@ def ANTs(
             moving_mask_fn = None
             fixed_mask_fn = None
 
-
     img_fx = nib.load(fixed_fn)
     img_mv = nib.load(moving_fn)
     # If image volume is empty, write identity matrix
     if np.sum(img_fx.get_fdata()) == 0 or np.sum(img_mv.get_fdata()) == 0:
         print("Warning: at least one of the image volume is empty")
-    
+
         return use_identity_backup(
             final_tfm_fn,
             final_tfm_inv_fn,
@@ -276,9 +292,8 @@ def ANTs(
             final_moving_rsl_fn,
             dim,
         )
-    
+
     for level in range(nLevels):
-        
         moving_rsl_level_prefix = (
             moving_rsl_prefix
             + "_level-"
@@ -288,7 +303,7 @@ def ANTs(
             + "_"
             + tfm_type[level]
         )
-        
+
         tfm_level_prefix = (
             tfm_prefix
             + "_level-"
@@ -423,12 +438,14 @@ def ANTs(
                         print(stderr)
                 except RuntimeError:
                     continue
-                
+
                 if errorcode == 0:
                     break
             if errorcode != 0:
                 # If registration fails after n_tries, write identity transform and copy moving image to output
-                print(f"Error: ANTs registration failed after {n_tries} attempts. Writing identity transform and copying moving image to output.")
+                print(
+                    f"Error: ANTs registration failed after {n_tries} attempts. Writing identity transform and copying moving image to output."
+                )
                 return use_identity_backup(
                     final_tfm_fn,
                     final_tfm_inv_fn,
@@ -440,14 +457,18 @@ def ANTs(
 
             expected_stage_outputs = [moving_rsl_fn, tfm_fn]
             stage_tfm_inv_fn = tfm_level_prefix + tfm_inv_ext
-            if write_composite_transform == 1 or tfm_inv_ext.endswith("InverseWarp.nii.gz"):
+            if write_composite_transform == 1 or tfm_inv_ext.endswith(
+                "InverseWarp.nii.gz"
+            ):
                 expected_stage_outputs.append(stage_tfm_inv_fn)
 
             missing_stage_outputs = [
                 fn for fn in expected_stage_outputs if not os.path.exists(fn)
             ]
             if missing_stage_outputs:
-                print("Error: ANTs registration completed but expected outputs are missing")
+                print(
+                    "Error: ANTs registration completed but expected outputs are missing"
+                )
                 print(missing_stage_outputs)
                 return use_identity_backup(
                     final_tfm_fn,
@@ -464,9 +485,15 @@ def ANTs(
             init_tfm = [tfm_fn]
             no_init_tfm = False
             init_inverse = False
-    assert os.path.exists(final_tfm_fn), f"Error: final transform file does not exist: {final_tfm_fn}"
-    assert os.path.exists(final_tfm_inv_fn), f"Error: final inverse transform file does not exist: {final_tfm_inv_fn}"
-    assert os.path.exists(final_moving_rsl_fn), f"Error: final moving reslice file does not exist: {final_moving_rsl_fn}"
+    assert os.path.exists(
+        final_tfm_fn
+    ), f"Error: final transform file does not exist: {final_tfm_fn}"
+    assert os.path.exists(
+        final_tfm_inv_fn
+    ), f"Error: final inverse transform file does not exist: {final_tfm_inv_fn}"
+    assert os.path.exists(
+        final_moving_rsl_fn
+    ), f"Error: final moving reslice file does not exist: {final_moving_rsl_fn}"
     return final_tfm_fn, final_tfm_inv_fn, final_moving_rsl_fn
 
 
@@ -479,9 +506,9 @@ def antsApplyTransforms(
     input_image_type: int = 0,
     dimensionality: int = 3,
     verbose: int = 0,
-)->None:
+) -> None:
     """Apply ANTs transforms.
-    
+
     :param input_image: input image
     :param reference_image: reference image
     :param transform_list: transform list
