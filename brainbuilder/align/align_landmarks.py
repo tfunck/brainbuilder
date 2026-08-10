@@ -40,6 +40,28 @@ def _strip_ext(p: str) -> str:
     return s
 
 
+def _is_missing(value) -> bool:
+    """Return True if a DataFrame cell represents a missing path.
+
+    Handles ``None``, float ``NaN`` (pandas coerces ``None`` -> ``NaN`` on many
+    operations, especially under newer pandas / Python 3.11), and empty or
+    whitespace-only strings uniformly. This is safer than a bare ``not value``
+    truthiness test, because ``not float('nan')`` is ``False`` and passing a
+    ``NaN`` on to ``os.path.exists`` / ``str`` produces wrong results or errors.
+    """
+    if value is None:
+        return True
+    try:
+        if pd.isna(value):
+            return True
+    except (TypeError, ValueError):
+        # pd.isna on array-likes is ambiguous; those are never a missing path.
+        pass
+    if isinstance(value, str) and value.strip() == "":
+        return True
+    return False
+
+
 def _label_ids(img_data: np.ndarray) -> np.ndarray:
     labs = np.unique(img_data.astype(np.int64))
     return labs[labs > 0]
@@ -180,8 +202,10 @@ def _process_and_save_sparse_landmark_volume(
 
         warped_slice_path = row["landmark_2d_rsl"]
 
-        if not warped_slice_path:
+        if _is_missing(warped_slice_path):
             continue
+
+        warped_slice_path = str(warped_slice_path)
 
         print("\tProcessing warped slice:", warped_slice_path)
 
@@ -331,7 +355,8 @@ def process_row(row: pd.Series, clobber: bool = False) -> None:
     landmark_2d_rsl = str(row["landmark_2d_rsl"])
 
     lm_path = row["landmark"]
-    if not lm_path or not os.path.exists(lm_path):
+
+    if _is_missing(lm_path) or not isinstance(lm_path, str) or not os.path.exists(lm_path):
         return None
 
     tfm_path = row["2d_tfm"]
@@ -339,9 +364,7 @@ def process_row(row: pd.Series, clobber: bool = False) -> None:
 
     # landmark_tfm = row["landmark_2d_tfm"]
 
-    if not isinstance(tfm_path, str) or (
-        isinstance(tfm_path, str) and not os.path.exists(tfm_path)
-    ):
+    if _is_missing(tfm_path) or not os.path.exists(str(tfm_path)):
         # Copy landmark as is (no transform)
         print(f"No transform found for section {lm_path}, copying landmark as is.")
         # shutil.copy(str(lm_path), str(landmark_tfm))
@@ -840,7 +863,7 @@ def check_for_identical_landmark_values(
 
     all_labels = set()
     for landmark_path in landmark_series:
-        if not landmark_path or not os.path.exists(landmark_path):
+        if _is_missing(landmark_path) or not os.path.exists(landmark_path):
             continue
 
         lm_img = nib.load(landmark_path)

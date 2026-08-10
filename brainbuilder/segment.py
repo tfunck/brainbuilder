@@ -561,6 +561,7 @@ def run_nnunet_segmentation(
             logger.warning(e)
             nnunet_failed = True
 
+
     return nnunet_failed
 
 
@@ -877,7 +878,7 @@ def convert_from_nnunet(
 
         return out
 
-    if (np.sum(ar == 1) / np.product(ar.shape)) < 0.02:
+    if (np.sum(ar == 1) / np.prod(ar.shape)) < 0.02:
         logger.info("\nWarning: Found a section that nnUNet failed to segment!\n")
         histogram_threshold(reference_fn, output_fn)
     else:

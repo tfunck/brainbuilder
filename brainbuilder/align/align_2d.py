@@ -695,6 +695,7 @@ def align_sections(
                     base_nl_itr=base_nl_itr,
                     file_to_align=file_to_align,
                     use_syn=use_syn,
+                    n_affine_trials=1,
                     verbose=verbose,
                 )
                 for row in to_do_sect_info

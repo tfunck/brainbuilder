@@ -1,6 +1,5 @@
-numpy<2
-stripy
-scipy
+#numpy
+#scipy
 pandas
 h5py
 psutil
@@ -20,4 +19,4 @@ ruff
 pre-commit
 nnunet
 nnunetv2
-medpy
+#medpy
