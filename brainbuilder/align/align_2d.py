@@ -75,10 +75,6 @@ def resample_reference_to_sections(
 
     if not os.path.exists(iso_output_fn) or not os.path.exists(output_fn) or clobber:
         # Apply 3d transformation to the reference volume
-        print("-i", input_fn)
-        print("-r", ref_fn)
-        print("-t", tfm_fn)
-        print("-o", iso_output_fn)
 
         utils.simple_ants_apply_tfm(input_fn, ref_fn, tfm_fn, iso_output_fn, ndim=3)
 
@@ -304,11 +300,12 @@ def affine_trials(
     n_trials: int = 5,
     lin_transforms: list = ["Rigid", "Similarity", "Affine"],
     verbose: bool = False,
+    metric: str = "MattesMutualInformation",
     cleanup_affine_files: bool = True,
 ) -> str:
     """About: Calculate affine transformation between volumes.
 
-    Description: Try multiple affine transformations and return the best one based on dice score.
+    Description: Try multiple affine transformations and return the best one based on metric score.
     :param fx_fn: fixed image filename
     :param mv_fn: moving image filename
     :param linParams: linear parameters
@@ -316,16 +313,17 @@ def affine_trials(
     :param n_trials: number of trials
     :param verbose: verbose
     :param cleanup_affine_files: remove suboptimal affine trial files and directories to reduce storage (default: True)
-    :return: affine_tfm
+    :return: affine_tfm, best moving image filename
     """
     output_tfm = f"{prefix}_affine_trials_Composite.h5"
 
     if os.path.exists(output_tfm):
         return output_tfm
 
-    max_dice = -np.inf
+    max_metric = -np.inf
     best_trial = 0
     affine_tfm_trials = {}
+    trial_log = "Affine trials:\n"
 
     affine_dir = prefix + "_affines/"
 
@@ -340,7 +338,6 @@ def affine_trials(
         trial_prefix = affine_dir + f"_trial-{trial}"
 
         try:
-            # print(f"trial {trial}\nfx_fn: {fx_fn}\nmv_fn: {mv_fn}\ntrial_prefix: {trial_prefix}\nlin_transforms: {lin_transforms}\nitr_list: {itr_list}\ns_list: {s_list}\nf_list: {f_list}\n")
 
             affine_tfm, mv_rsl_fn = ants_registration_2d_section(
                 fx_fn=fx_fn,
@@ -358,8 +355,10 @@ def affine_trials(
             # Re-validate the final moving image before metric computation.
             check_volume(mv_rsl_fn)
 
-            trial_dice, _ = get_section_metric(
-                fx_fn, mv_rsl_fn, trial_prefix + "_dice.png", 0, verbose=False
+            metric_str = '_'.join(metric)
+
+            trial_metric, _ = get_section_metric(
+                fx_fn, mv_rsl_fn, trial_prefix + f"_{metric_str}.png", 0, metric=metric, verbose=False
             )
         except Exception as e:
             logger.warning(
@@ -367,13 +366,17 @@ def affine_trials(
             )
             continue
 
-        best_trial = trial if trial_dice > max_dice else best_trial
-        max_dice = trial_dice if trial_dice > max_dice else max_dice
+        best_trial = trial if trial_metric > max_metric else best_trial
+        max_metric = trial_metric if trial_metric > max_metric else max_metric
         affine_tfm_trials[trial] = affine_tfm
 
-        logger.info(
-            f"trial {trial}\tdice: {trial_dice}\tmax_dice: {max_dice}\tbest_trial: {best_trial}"
-        )
+        trial_log += f"trial {trial}\tmetric: {trial_metric}\n"
+
+    trial_log += f"max_metric: {max_metric}\tbest_trial: {best_trial}\n"
+
+    logger.info(
+        trial_log
+    )
 
     if len(affine_tfm_trials) == 0:
         logger.warning(
@@ -451,7 +454,8 @@ def align_2d_parallel(
     verbose = False
 
     affine_tfm = affine_trials(
-        fx_fn, mv_fn, linParams, prefix, n_trials=n_affine_trials, verbose=verbose
+        fx_fn, mv_fn, linParams, prefix, n_trials=n_affine_trials,  metric = "MattesMutualInformation", verbose=verbose
+       
     )
 
     if use_syn:
@@ -695,7 +699,6 @@ def align_sections(
                     base_nl_itr=base_nl_itr,
                     file_to_align=file_to_align,
                     use_syn=use_syn,
-                    n_affine_trials=1,
                     verbose=verbose,
                 )
                 for row in to_do_sect_info

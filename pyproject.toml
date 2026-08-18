@@ -9,7 +9,7 @@ packages = [{include = "brainbuilder", from = "./"}]
 
 [tool.poetry.dependencies]
 python = ">3.11"
-morphint = { git = "https://github.com/tfunck/morphint.git", rev = "9290910f241a95320fa6a68b792fec64fd918300" }
+morphint = "0.2" # { git = "https://github.com/tfunck/morphint.git" } #, rev = "9290910f241a95320fa6a68b792fec64fd918300"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.4"

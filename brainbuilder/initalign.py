@@ -129,8 +129,9 @@ def align_neighbours_to_fixed(
             linParams=linParams,
             prefix=affine_prefix,
             lin_transforms=tfm_type_list,
-            n_trials=1,
+            n_trials=5,
             cleanup_affine_files=True,
+            metric="MattesMutualInformation",
             verbose=False,
         )
 

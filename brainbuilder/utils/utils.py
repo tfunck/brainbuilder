@@ -47,6 +47,8 @@ def get_logger(name="brainbuilder"):
         logger.setLevel(LOG_VERBOSITY_LEVEL)
     return logger
 
+logger = get_logger()
+
 
 def get_reference_volume_info(
     hemi_info: pd.DataFrame, sub: str, hemisphere: str
@@ -1009,7 +1011,7 @@ def unbuffered(proc: Popen, stream: str = "stdout") -> str:
                 out.append(last)
                 last = stream.read(1)
             out = "".join(out)
-            print(out)
+            #print(out)
             yield out
 
 
@@ -1161,9 +1163,10 @@ def parse_resample_arguments(
     vol = np.asarray(vol)
 
     vol_sum = np.sum(np.abs(vol))
-    assert (
-        vol_sum > 0
-    ), f"Error: empty ({vol_sum}) input file for resample_to_resolution\n"
+
+    if not vol_sum > 0 :
+        logger.warning(f"Error: empty ({vol_sum}) input file for resample_to_resolution\ninput_arg = {input_arg}")
+
     ndim = len(vol.shape)
 
     if ndim == 3:
@@ -1783,10 +1786,6 @@ def resample_to_resolution(
         new_dims = tuple(vol.shape)
 
     vol = vol.astype(dtype)
-
-    assert np.sum(np.abs(vol)) > 0, (
-        "Error: empty output array for prefilter_and_downsample\n" + output_filename
-    )
 
     # update origin
     origin_final = affine[range(ndim), 3]
