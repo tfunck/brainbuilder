@@ -1,12 +1,19 @@
 FROM tffunck/brainbuilder:base
 
 SHELL ["/bin/bash", "-c"]
-RUN cd /opt && \
-	rm -fr brainbuilder && \
-    git clone -b dev https://www.github.com/tfunck/brainbuilder &&\
-	cd brainbuilder &&\
-	/opt/bbenv/bin/pip3 install -r requirements.txt &&\
-	/opt/bbenv/bin/pip3 install . 
+WORKDIR /opt 
+RUN rm -fr brainbuilder && \
+    git clone -b dev https://www.github.com/tfunck/brainbuilder
+WORKDIR /opt/brainbuilder
+RUN  git submodule update --init --recursive
+WORKDIR /opt/brainbuilder/morphint
+RUN /opt/bbenv/bin/pip3 install . 
+
+RUN /opt/bbenv/bin/pip3 show morphint | grep -i version
+
+WORKDIR /opt/brainbuilder
+RUN /opt/bbenv/bin/pip3 install -r requirements.txt 
+RUN /opt/bbenv/bin/pip3 install . 
 
 
 RUN /opt/bbenv/bin/pip3 install --no-cache-dir awscli
