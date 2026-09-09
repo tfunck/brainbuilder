@@ -51,6 +51,31 @@ def check_chunk_outputs(chunk_csv: str) -> None:
     return None
 
 
+def _multires_output_covers_resolution_list(
+    chunk_output_csv: str, sect_output_csv: str, resolution_list: list
+) -> bool:
+    """Check if existing multiresolution alignment output already covers the finest requested resolution.
+
+    :param chunk_output_csv: path to chunk output csv from a previous run
+    :param sect_output_csv: path to section output csv from a previous run
+    :param resolution_list: resolutions requested for the current run
+    :return: True if the existing outputs were already computed down to resolution_list[-1]
+    """
+    if not os.path.exists(chunk_output_csv) or not os.path.exists(sect_output_csv):
+        return False
+
+    chunk_info_out = pd.read_csv(chunk_output_csv, index_col=None)
+
+    if len(chunk_info_out) == 0 or "resolution" not in chunk_info_out.columns:
+        return False
+
+    target_resolution = float(resolution_list[-1])
+
+    return bool(
+        (chunk_info_out["resolution"].astype(float) == target_resolution).all()
+    )
+
+
 def multiresolution_alignment(
     hemi_info_csv: pd.DataFrame,
     chunk_info_csv: pd.DataFrame,
@@ -110,9 +135,10 @@ def multiresolution_alignment(
     os.makedirs(qc_dir, exist_ok=True)
 
     if (
-        not os.path.exists(sect_output_csv)
-        or not os.path.exists(chunk_output_csv)
-        or clobber
+        clobber
+        or not _multires_output_covers_resolution_list(
+            chunk_output_csv, sect_output_csv, resolution_list
+        )
     ):
         hemi_info = pd.read_csv(hemi_info_csv, index_col=None)
 

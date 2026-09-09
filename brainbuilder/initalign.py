@@ -530,6 +530,139 @@ def create_final_outputs(
     return df
 
 
+def _initalign_cache_matches_current_images(
+    initalign_sect_info_csv: str, sect_info_csv: str, image_string: str = "img"
+) -> bool:
+    """Check if a cached initalign output still references the current base-resolution images.
+
+    The rigid transforms computed by initalign are reused as-is across resolution
+    schedule changes, but the "original_img"/"init_fixed" columns of the cached
+    output are real image file paths captured at the time initalign ran. If the
+    base resolution (min(resolution_list) used by downsample/segment) changes,
+    those paths point at stale images that no longer match the current
+    `img`/`seg` files, so the cache must be invalidated and rebuilt.
+
+    :param initalign_sect_info_csv: path to a previously computed initalign sect info csv
+    :param sect_info_csv: path to the current run's sect info csv (from segment())
+    :param image_string: column name used to identify the base image
+    :return: True if the cached "original_img" paths still match the current images
+    """
+    if not os.path.exists(initalign_sect_info_csv):
+        return False
+
+    cached_sect_info = pd.read_csv(initalign_sect_info_csv, index_col=False)
+    current_sect_info = pd.read_csv(sect_info_csv, index_col=False)
+
+    if (
+        "original_img" not in cached_sect_info.columns
+        or image_string not in current_sect_info.columns
+    ):
+        return False
+
+    merge_cols = ["sub", "hemisphere", "chunk", "sample"]
+    merged = current_sect_info[merge_cols + [image_string]].merge(
+        cached_sect_info[merge_cols + ["original_img"]],
+        on=merge_cols,
+        how="inner",
+    )
+
+    if len(merged) == 0 or len(merged) != len(current_sect_info):
+        return False
+
+    return bool((merged[image_string] == merged["original_img"]).all())
+
+
+def _reapply_cached_transforms_for_chunk(
+    cached_sect_info: pd.DataFrame,
+    current_sect_info: pd.DataFrame,
+    chunk_info: pd.DataFrame,
+    output_dir: str,
+    sub: str,
+    hemisphere: str,
+    chunk: str,
+    image_string: str = "img",
+) -> Optional[pd.DataFrame]:
+    """Reuse a chunk's already-computed rigid transforms at a new base resolution.
+
+    Every section's "init_tfm" is a physical-space (resolution-independent)
+    composite transform that maps its ORIGINAL image directly onto the grid of
+    the chunk's single root/anchor section (the one row with no "init_tfm").
+    Rather than rerunning the expensive pairwise registration in align_chunk,
+    reapply each cached transform to the freshly downsampled `image_string`
+    files with a single antsApplyTransforms call.
+
+    :return: refreshed sect_info for this chunk, or None if the cache is
+        missing information needed to safely reuse it (caller should fall
+        back to a full re-alignment of this chunk).
+    """
+    required_cols = {"sample", "init_tfm", "original_img"}
+    if not required_cols.issubset(cached_sect_info.columns):
+        return None
+
+    root_rows = cached_sect_info.loc[cached_sect_info["init_tfm"].isnull()]
+    if len(root_rows) != 1:
+        return None
+
+    root_sample = root_rows["sample"].values[0]
+
+    current_by_sample = current_sect_info.set_index("sample", drop=False)
+    if not set(cached_sect_info["sample"]).issubset(set(current_by_sample.index)):
+        return None
+    if root_sample not in current_by_sample.index:
+        return None
+
+    root_img_fn = current_by_sample.loc[root_sample, image_string]
+
+    out_dir = f"{output_dir}/sub-{sub}/hemi-{hemisphere}/chunk-{chunk}/reapplied_init_tfm/"
+    os.makedirs(out_dir, exist_ok=True)
+
+    result = current_sect_info.copy()
+    result["init_tfm"] = None
+    result["init_fixed"] = None
+    result["init_img"] = result[image_string]
+
+    for _, cached_row in cached_sect_info.iterrows():
+        sample = cached_row["sample"]
+        idx = result["sample"] == sample
+
+        if sample == root_sample:
+            result.loc[idx, "init_img"] = root_img_fn
+            continue
+
+        tfm_fn = cached_row["init_tfm"]
+        if not isinstance(tfm_fn, str) or not os.path.exists(tfm_fn):
+            return None
+
+        current_moving_fn = current_by_sample.loc[sample, image_string]
+        basename = os.path.basename(current_moving_fn).replace(".nii.gz", "")
+        moving_rsl_fn = f"{out_dir}/{basename}_reapplied.nii.gz"
+
+        if not os.path.exists(moving_rsl_fn):
+            utils.shell(
+                f"antsApplyTransforms -v 0 -d 2 -i {current_moving_fn} -r {root_img_fn} -t {tfm_fn} -o {moving_rsl_fn}"
+            )
+
+        result.loc[idx, "init_tfm"] = tfm_fn
+        result.loc[idx, "init_fixed"] = root_img_fn
+        result.loc[idx, "init_img"] = moving_rsl_fn
+
+    result["2d_align_out"] = result["init_img"]
+    result["2d_tfm"] = result["init_tfm"]
+
+    init_volume = _init_align_filename(output_dir, sub, hemisphere, chunk)
+    _, _, y_mm = utils.get_chunk_pixel_size(sub, hemisphere, chunk, chunk_info)
+    axis = get_section_axis(chunk_info, sub, hemisphere, chunk)
+    combine_sections_to_vol(
+        result.assign(tier=1),
+        y_mm,
+        init_volume,
+        image_string="init_img",
+        axis=axis,
+    )
+
+    return result
+
+
 def initalign(
     sect_info_csv: str,
     chunk_info_csv: str,
@@ -565,36 +698,79 @@ def initalign(
     initalign_sect_info = pd.DataFrame({})
     initalign_chunk_info = pd.DataFrame({})
 
-    run_stage = utils.check_run_stage(initalign_sect_info_csv, "init_tfm", "seg")
-
     linParams = AntsParams(resolution_list, resolution_list[-1], 250)
 
-    if (
-        not os.path.exists(initalign_sect_info_csv)
-        or not os.path.exists(initalign_chunk_info_csv)
-        or clobber
-        or run_stage
+    cache_exists = os.path.exists(initalign_sect_info_csv) and os.path.exists(
+        initalign_chunk_info_csv
+    )
+    cache_is_current = cache_exists and _initalign_cache_matches_current_images(
+        initalign_sect_info_csv, sect_info_csv, image_string=image_string
+    )
+
+    if not clobber and cache_is_current:
+        return initalign_sect_info_csv, initalign_chunk_info_csv
+
+    if not clobber and cache_exists:
+        # Base resolution changed: try to reuse each chunk's already-computed
+        # rigid transforms by reapplying them to the new base-resolution
+        # images, instead of rerunning the expensive pairwise registration.
+        cached_sect_info = pd.read_csv(initalign_sect_info_csv, index_col=False)
+    else:
+        cached_sect_info = None
+
+    sect_info = pd.read_csv(sect_info_csv)
+
+    chunk_info = pd.read_csv(chunk_info_csv)
+
+    initalign_sect_info = pd.DataFrame({})
+    initalign_chunk_info = pd.DataFrame({})
+
+    for (sub, hemisphere, chunk), curr_sect_info in sect_info.groupby(
+        [
+            "sub",
+            "hemisphere",
+            "chunk",
+        ]
     ):
-        sect_info = pd.read_csv(sect_info_csv)
+        idx = (
+            (chunk_info["sub"] == sub)
+            & (chunk_info["hemisphere"] == hemisphere)
+            & (chunk_info["chunk"] == chunk)
+        )
+        curr_chunk_info = chunk_info.loc[idx]
 
-        chunk_info = pd.read_csv(chunk_info_csv)
-
-        initalign_sect_info = pd.DataFrame({})
-
-        for (sub, hemisphere, chunk), curr_sect_info in sect_info.groupby(
-            [
-                "sub",
-                "hemisphere",
-                "chunk",
+        curr_reapplied_sect_info = None
+        if cached_sect_info is not None:
+            cached_curr_sect_info = cached_sect_info.loc[
+                (cached_sect_info["sub"] == sub)
+                & (cached_sect_info["hemisphere"] == hemisphere)
+                & (cached_sect_info["chunk"] == chunk)
             ]
-        ):
-            idx = (
-                (chunk_info["sub"] == sub)
-                & (chunk_info["hemisphere"] == hemisphere)
-                & (chunk_info["chunk"] == chunk)
-            )
-            curr_chunk_info = chunk_info.loc[idx]
+            if len(cached_curr_sect_info) > 0:
+                curr_reapplied_sect_info = _reapply_cached_transforms_for_chunk(
+                    cached_curr_sect_info,
+                    curr_sect_info,
+                    curr_chunk_info,
+                    output_dir,
+                    sub,
+                    hemisphere,
+                    chunk,
+                    image_string=image_string,
+                )
 
+        if curr_reapplied_sect_info is not None:
+            logger.info(
+                "\tReusing cached rigid transforms for sub-%s hemi-%s chunk-%s at new base resolution",
+                sub,
+                hemisphere,
+                chunk,
+            )
+            curr_sect_info = curr_reapplied_sect_info
+            curr_chunk_info = curr_chunk_info.copy()
+            curr_chunk_info["init_volume"] = _init_align_filename(
+                output_dir, sub, hemisphere, chunk
+            )
+        else:
             init_volume = _init_align_filename(output_dir, sub, hemisphere, chunk)
 
             init_align_chunk_dir = _init_align_chunk_dir(
@@ -615,11 +791,11 @@ def initalign(
                 clobber=clobber,
             )
 
-            initalign_sect_info = pd.concat([initalign_sect_info, curr_sect_info])
-            initalign_chunk_info = pd.concat([initalign_chunk_info, curr_chunk_info])
+        initalign_sect_info = pd.concat([initalign_sect_info, curr_sect_info])
+        initalign_chunk_info = pd.concat([initalign_chunk_info, curr_chunk_info])
 
-        initalign_sect_info.to_csv(initalign_sect_info_csv, index=False)
-        initalign_chunk_info.to_csv(initalign_chunk_info_csv, index=False)
+    initalign_sect_info.to_csv(initalign_sect_info_csv, index=False)
+    initalign_chunk_info.to_csv(initalign_chunk_info_csv, index=False)
 
     return initalign_sect_info_csv, initalign_chunk_info_csv
 

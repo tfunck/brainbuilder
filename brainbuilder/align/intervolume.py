@@ -148,21 +148,11 @@ def resample_and_transform(
 
         # get initial rigid transform
 
-        if "1483" in row["base"]:
-            print("\nseg", seg_fn)
-            print("\tTransforming", tfm_input_fn)
-            print("\tto", seg_rsl_tfm_fn)
-            print("\twith ref", tfm_ref_fn)
-            print("\twith tfm:", tfm_fn, "\n")
-            # compare origins of the images used to build the concat vs the images used here
-            _img = nib.load(row["img"])
-            _seg = nib.load(tfm_input_fn)
-            print(f"\timg origin: {_img.affine[:3,3]}, shape: {_img.shape}")
-            print(f"\tseg origin: {_seg.affine[:3,3]}, shape: {_seg.shape}")
-            print(f"\timg spacing: {_img.affine.diagonal()[:3]}")
-            print(f"\tseg spacing: {_seg.affine.diagonal()[:3]}")
-
         if isinstance(tfm_fn, str):
+            # Force regeneration: seg_rsl_fn/tfm_ref_fn may have just been
+            # recreated above, and simple_ants_apply_tfm's own file-exists
+            # check has no way of knowing that, which can leave a stale
+            # seg_rsl_tfm_fn on a mismatched grid.
             simple_ants_apply_tfm(
                 tfm_input_fn,
                 tfm_ref_fn,
@@ -171,13 +161,18 @@ def resample_and_transform(
                 ndim=2,
                 n="NearestNeighbor",
                 empty_ok=True,
+                clobber=True,
             )
         else:
             print("\tNo transform for", seg_rsl_fn)
             shutil.copy(tfm_input_fn, seg_rsl_tfm_fn)
 
-    img_rsl_tfm_fn = (
-        f'{output_dir}/{row["base"]}_y-{row["sample"]}_{resolution_2d}mm_rsl_tfm.nii.gz'
+    # Derived from row["img"]'s own basename (not just row["base"]/sample) so
+    # that changing the base downsample resolution produces a distinct cache
+    # key instead of silently reusing a stale file from a different base
+    # resolution's alignment.
+    img_rsl_tfm_fn = get_seg_fn(
+        output_dir, int(row["sample"]), resolution_2d, row["img"], "_rsl_tfm"
     )
 
     # Resample and transform the original image to the 2D resolution
@@ -223,7 +218,7 @@ def resample_and_transform(
 
         resample_to_resolution(
             row["img"],
-            [resolution_3d] * 2,
+            [resolution_2d] * 2,
             output_filename=img_rsl_tfm_fn,
             order=1,
             section_axis=section_axis,
@@ -276,7 +271,15 @@ def resample_transform_segmented_images(
     os.makedirs(output_dir, exist_ok=True)
     os.uname()
 
-    tfm_ref_fn = output_dir + "/2d_reference_image.nii.gz"
+    # Encode the source image's own basename (which carries the base
+    # downsample resolution tag) so this reference grid isn't silently
+    # reused from a prior run at a different base resolution.
+    tfm_ref_basename = (
+        os.path.basename(sect_info["img"].values[0])
+        .replace(".nii.gz", "")
+        .replace(".nii", "")
+    )
+    tfm_ref_fn = f"{output_dir}/{tfm_ref_basename}_{resolution_3d}mm_2d_reference_image.nii.gz"
     section_axis = section_axis_from_row(sect_info.iloc[0])
 
     if not os.path.exists(tfm_ref_fn) and resolution_itr != 0:
@@ -303,7 +306,8 @@ def resample_transform_segmented_images(
     )
 
     sect_info = pd.DataFrame(results)
-
+    print(resolution_2d)
+    print(resolution_3d)
     check_consistent_dimensions(sect_info, "2d_align")
     check_consistent_dimensions(sect_info, "2d_align_3d_res")
     check_consistent_dimensions(sect_info, "seg_rsl")
