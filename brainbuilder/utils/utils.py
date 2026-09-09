@@ -422,6 +422,7 @@ class AntsParams:
         base_itr: int,
         max_resolution: Optional[float] = None,
         verbose: bool = False,
+        only_align_current_resolution: bool = False,
     ) -> None:
         """Initialize the AntsParams object.
 
@@ -430,6 +431,7 @@ class AntsParams:
         :param base_itr: int, base iteration
         :param max_resolution: Optional[float], maximum resolution (default: None)
         :param verbose: bool, verbose flag (default: False)
+        :param only_align_current_resolution: bool, only keep the parameters for <resolution>, dropping the coarser levels of the multiresolution schedule. Use when the registration is initialized with the transform from the previous resolution level (default: False)
         :return: None
         """
         if type(max_resolution) == type(None):
@@ -444,21 +446,32 @@ class AntsParams:
         self.max_n = len(resolution_list)
         self.cur_n = resolution_list.index(resolution)
         self.max_itr = int((self.max_n) * base_itr)
+        self.only_align_current_resolution = only_align_current_resolution
 
-        self.f_list = self.gen_downsample_factor_list(resolution_list)
-        self.max_downsample_factor = int(self.f_list[0])
+        f_list = self.gen_downsample_factor_list(resolution_list)
+        self.max_downsample_factor = int(f_list[0])
 
-        self.f_str = self.get_downsample_params(resolution_list)
-        self.s_list = self.gen_smoothing_factor_list(resolution_list)
-        self.s_str = self.get_smoothing_params(resolution_list)
-        self.itr_str = self.gen_itr_str(self.max_itr, base_itr)
+        self.f_list = self._trim(f_list)
+        self.f_str = "x".join(self.f_list)
+        self.s_list = self._trim(self.gen_smoothing_factor_list(resolution_list))
+        self.s_str = self.gen_smoothing_factor_string(self.s_list)
+        self.itr_list = self._trim(self.gen_itr_list(self.max_itr, base_itr))
+        self.itr_str = self.gen_itr_str_from_list(self.itr_list)
 
         if verbose:
             self._print()
 
         assert (
-            len(self.f_list) == len(self.s_list) == len(self.itr_str.split("x"))
+            len(self.f_list) == len(self.s_list) == len(self.itr_list)
         ), f"Error: incorrect number of elements in: \n{self.f_list}\n{self.s_list}\n{self.itr_str}\n{resolution_list}"
+
+    def _trim(self, lst: List) -> List:
+        """Keep only the current resolution's parameters when the alignment is initialized from a previous transform.
+
+        :param lst: List, multiresolution parameter list ordered from coarsest to finest
+        :return: List
+        """
+        return lst[-1:] if self.only_align_current_resolution else lst
 
     def print(self) -> None:
         """Print the AntsParams object.
@@ -470,22 +483,26 @@ class AntsParams:
         print("Smoothing:\t", self.s_str)
         return None
 
-    def gen_itr_str(self, max_itr: int, step: float) -> str:
-        """Generate the iteration string.
+    def gen_itr_list(self, max_itr: int, step: float) -> List[str]:
+        """Generate the list of iterations.
 
         :param max_itr: int, maximum iteration
         :param step: float, step size
+        :return: List[str]
+        """
+        return [
+            str(int(max_itr - i * step))
+            for i in range(self.cur_n + 1)
+            if self.resolution_list[i] >= self.max_resolution
+        ]
+
+    def gen_itr_str_from_list(self, itr_list: List[str]) -> str:
+        """Generate the iteration string.
+
+        :param itr_list: List[str], list of iterations
         :return: str
         """
-        itr_str = "x".join(
-            [
-                str(int(max_itr - i * step))
-                for i in range(self.cur_n + 1)
-                if self.resolution_list[i] >= self.max_resolution
-            ]
-        )
-        itr_str = "[" + itr_str + ",1e-7,20 ]"
-        return itr_str
+        return "[" + "x".join(itr_list) + ",1e-7,20 ]"
 
     def gen_smoothing_factor_string(self, lst: List) -> str:
         """Generate the smoothing factor string.

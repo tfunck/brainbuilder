@@ -87,6 +87,7 @@ def multiresolution_alignment(
     max_resolution_3d: float = 0.3,
     use_3d_syn_cc: bool = True,
     use_syn: bool = True,
+    align_2d_use_init_tfm: bool = False,
     linear_steps: list = ["rigid", "similarity", "affine"],
     base_lin_itr_2d: int = 100,
     base_nl_itr_2d: int = 30,
@@ -108,6 +109,7 @@ def multiresolution_alignment(
     params: base_nl_itr_2d: base number of nonlinear iterations for 2D alignment
     params: base_lin_itr_3d: base number of linear iterations for 3D alignment
     params: base_nl_itr_3d: base number of nonlinear iterations for 3D alignment
+    params: align_2d_use_init_tfm: initialize the 2d alignment at each resolution with the transform from the previous resolution
     returns: csv file containing chunk information
     """
     num_cores = utils.set_cores(num_cores)
@@ -199,6 +201,7 @@ def multiresolution_alignment(
                 num_cores=num_cores,
                 use_3d_syn_cc=use_3d_syn_cc,
                 use_syn=use_syn,
+                align_2d_use_init_tfm=align_2d_use_init_tfm,
                 linear_steps=linear_steps,
                 base_lin_itr_2d=base_lin_itr_2d,
                 base_nl_itr_2d=base_nl_itr_2d,
@@ -360,6 +363,7 @@ def alignment_iteration(
     max_resolution_3d: float,
     resolution_list_3d: list,
     use_syn: bool = False,
+    use_init_tfm: bool = False,
     num_cores: int = 1,
     use_3d_syn_cc: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
@@ -489,6 +493,7 @@ def alignment_iteration(
             base_nl_itr=base_nl_itr_2d,
             file_to_align="seg_rsl",
             use_syn=use_syn,
+            use_init_tfm=use_init_tfm,
             num_cores=num_cores,
             clobber=clobber,
         )
@@ -539,6 +544,7 @@ def align_chunk(
     base_lin_itr_3d: int = 500,
     base_nl_itr_3d: int = 200,
     use_syn: bool = True,
+    align_2d_use_init_tfm: bool = False,
     interpolation: str = "Linear",
     landmark_dir: str = None,
     clobber: bool = False,
@@ -558,6 +564,7 @@ def align_chunk(
     :param output_dir:         output directory
     :param n_passes:           number of passes for 3d-2d alignment
     :param num_cores:          number of cores to use
+    :param align_2d_use_init_tfm: initialize the 2d alignment at each resolution with the transform from the previous resolution
     :return sect_info: updated sect_info data frame with filenames for nonlinearly 2d aligned sections
     """
     sub, hemisphere, chunk = utils.get_values_from_df(chunk_info_row)
@@ -635,6 +642,7 @@ def align_chunk(
                 resolution_list_3d,
                 use_3d_syn_cc=use_3d_syn_cc,
                 use_syn=use_syn,
+                use_init_tfm=align_2d_use_init_tfm and resolution_itr > 0,
                 linear_steps=linear_steps,
                 base_lin_itr_2d=base_lin_itr_2d,
                 base_nl_itr_2d=base_nl_itr_2d,

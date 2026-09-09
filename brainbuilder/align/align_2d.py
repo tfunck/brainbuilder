@@ -299,6 +299,7 @@ def affine_trials(
     prefix: str,
     n_trials: int = 5,
     lin_transforms: list = ["Rigid", "Similarity", "Affine"],
+    init_tfm: str = None,
     verbose: bool = False,
     metric: str = "MattesMutualInformation",
     cleanup_affine_files: bool = True,
@@ -311,6 +312,7 @@ def affine_trials(
     :param linParams: linear parameters
     :param prefix: prefix
     :param n_trials: number of trials
+    :param init_tfm: transform used to initialize the registration
     :param verbose: verbose
     :param cleanup_affine_files: remove suboptimal affine trial files and directories to reduce storage (default: True)
     :return: affine_tfm, best moving image filename
@@ -349,6 +351,7 @@ def affine_trials(
                 transforms=lin_transforms,
                 sampling=0.5,
                 metrics=["Mattes"] * len(lin_transforms),
+                init_tfm=init_tfm,
                 verbose=verbose,
             )
 
@@ -415,6 +418,7 @@ def align_2d_parallel(
     base_lin_itr: int = 100,
     base_nl_itr: int = 30,
     n_affine_trials: int = 5,
+    use_init_tfm: bool = False,
     verbose: bool = False,
 ) -> int:
     """Align 2d sections to sections.
@@ -435,12 +439,31 @@ def align_2d_parallel(
     :param base_nl_itr: number of iterations for nonlinear alignment
     :param base_cc_itr: number of iterations for cross correlation
     :param n_affine_trials: number of affine trials
+    :param use_init_tfm: initialize the registration with the transform calculated at the previous resolution level instead of restarting from scratch
     :param verbose: verbose
     :return: 0
     """
-    linParams = AntsParams(resolution_list, resolution, base_lin_itr)
+    init_tfm = row["prev_2d_tfm"] if use_init_tfm and "prev_2d_tfm" in row else None
 
-    nlParams = AntsParams(resolution_list, resolution, base_nl_itr)
+    if not (isinstance(init_tfm, str) and os.path.exists(init_tfm)):
+        init_tfm = None
+
+    # the coarser levels of the multiresolution schedule were already applied by <init_tfm>
+    only_align_current_resolution = init_tfm is not None
+
+    linParams = AntsParams(
+        resolution_list,
+        resolution,
+        base_lin_itr,
+        only_align_current_resolution=only_align_current_resolution,
+    )
+
+    nlParams = AntsParams(
+        resolution_list,
+        resolution,
+        base_nl_itr,
+        only_align_current_resolution=only_align_current_resolution,
+    )
 
     y = int(row["sample"])
     base = get_base_from_raw(row["raw"])
@@ -454,8 +477,14 @@ def align_2d_parallel(
     verbose = False
 
     affine_tfm = affine_trials(
-        fx_fn, mv_fn, linParams, prefix, n_trials=n_affine_trials,  metric = "MattesMutualInformation", verbose=verbose
-       
+        fx_fn,
+        mv_fn,
+        linParams,
+        prefix,
+        n_trials=n_affine_trials,
+        init_tfm=init_tfm,
+        metric="MattesMutualInformation",
+        verbose=verbose,
     )
 
     if use_syn:
@@ -652,6 +681,7 @@ def align_sections(
     base_nl_itr: int = 30,
     file_to_align: str = "seg_rsl",
     use_syn: bool = True,
+    use_init_tfm: bool = False,
     num_cores: int = 0,
     interpolation: str = "Linear",
     verbose: bool = False,
@@ -671,6 +701,7 @@ def align_sections(
     :param base_cc_itr: number of iterations for cross correlation
     :param file_to_align: filename of file to align
     :param use_syn: use syn registration
+    :param use_init_tfm: initialize the alignment with the transform from the previous resolution level
     :param batch_processing: batch processing
     :param verbose: verbose
     :param clobber: clobber
@@ -699,6 +730,7 @@ def align_sections(
                     base_nl_itr=base_nl_itr,
                     file_to_align=file_to_align,
                     use_syn=use_syn,
+                    use_init_tfm=use_init_tfm,
                     verbose=verbose,
                 )
                 for row in to_do_sect_info
@@ -721,6 +753,9 @@ def align_sections(
 
     sect_info["2d_align"] = sect_info["2d_align_out"]
     sect_info["2d_align_cls"] = sect_info["2d_align_cls_out"]
+
+    # kept so that the next resolution level can be initialized with the current transforms
+    sect_info["prev_2d_tfm"] = sect_info["2d_tfm"]
 
     return sect_info
 
@@ -779,6 +814,7 @@ def align_2d(
     base_lin_itr: int = 100,
     base_nl_itr: int = 30,
     use_syn: bool = True,
+    use_init_tfm: bool = False,
     file_to_align: str = "acq_rsl",
     num_cores: int = 1,
     interpolation: str = "Linear",
@@ -804,6 +840,7 @@ def align_2d(
     :param resolution_itr: current iteration
     :param resolution_list: list of resolutions
     :param file_to_align: file to align
+    :param use_init_tfm: initialize the alignment with the transform from the previous resolution level
     :param target_str: target string
     :return: sect_info
     """
@@ -854,6 +891,7 @@ def align_2d(
         resolution,
         resolution_list,
         use_syn=use_syn,
+        use_init_tfm=use_init_tfm,
         base_lin_itr=base_lin_itr,
         base_nl_itr=base_nl_itr,
         num_cores=num_cores,

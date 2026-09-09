@@ -50,7 +50,7 @@ def test_ant_params_print(ants_params, capsys):
     assert captured.out == "Iterations:\t 4x3x2x1\nFactors:\t 1x2x4vox\nSmoothing:\t 0.0x0.0x0.0vox\n"
 
 def test_ant_params_gen_itr_str(ants_params):
-    assert ants_params.gen_itr_str(50, 10) == "[50,1e-7,20 ]"
+    assert ants_params.gen_itr_str_from_list(ants_params.gen_itr_list(50, 10)) == "[50,1e-7,20 ]"
 
 def test_ant_params_gen_smoothing_factor_string(ants_params):
     assert ants_params.gen_smoothing_factor_string([0.0, 0.0, 0.0]) == "0.0x0.0x0.0vox"
