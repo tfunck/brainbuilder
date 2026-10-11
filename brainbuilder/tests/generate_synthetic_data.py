@@ -183,11 +183,6 @@ def create_landmarks(
     # check the number of existing landmarks in out_dir
     n_landmarks = len(glob(f"{out_dir}/*.nii.gz"))
 
-    print(out_dir)
-    print(n_landmarks)
-    print(os.path.exists(out_landmark_fn))
-    print(not clobber)
-
     if n_landmarks >= n and os.path.exists(out_landmark_fn) and not clobber:
         print(f"Landmarks already exist in {out_dir}, skipping creation.")
         return

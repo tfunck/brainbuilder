@@ -51,7 +51,6 @@ def smooth_section_means(section_numbers, interp_f):
     fwhm = np.mean(np.abs(np.diff(y)))
 
     sigma = fwhm / 2.355
-    print(f'FWHM: {fwhm} sigma: {sigma}')
     y_smooth = gaussian_filter1d(y, sigma=sigma)    
     return x, y_smooth
 

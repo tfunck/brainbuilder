@@ -20,7 +20,9 @@ import numpy as np
 from scipy.ndimage import gaussian_filter
 
 from brainbuilder.utils.mesh_io import load_mesh_ext, write_gifti
-from brainbuilder.utils.utils import shell
+from brainbuilder.utils.utils import get_logger, shell
+
+logger = get_logger(__name__)
 
 
 def interleve(x: np.ndarray, step: float) -> np.ndarray:
@@ -136,10 +138,7 @@ def pairwise_coord_distances(
 
         D = D.reshape(c0.shape[0], c1.shape[0])
     except MemoryError or np.core._exceptions.MemoryError:
-        print(
-            "Warning: OOM. Defaulting to slower pairwise distance calculator",
-            end="...\n",
-        )
+        logger.warning("Warning: OOM. Defaulting to slower pairwise distance calculator")
         D = np.zeros([c0.shape[0], c1.shape[0]], dtype=np.float16)
         for i in range(c0.shape[0]):  # iterate over rows of co
             if i % 100 == 0:
@@ -383,13 +382,13 @@ def smooth_surface_profiles(
     smoothed_profiles_fn = profiles_fn + "_smoothed"
 
     if not os.path.exists(smoothed_profiles_fn) or clobber:
-        print("\tSmoothing surface profiles")
+        logger.info("\tSmoothing surface profiles")
 
         profiles = np.load(profiles_fn + ".npz")["data"]
         smoothed_profiles = np.zeros_like(profiles)
 
         for i, (depth, surf_dict) in enumerate(surf_depth_mni_dict.items()):
-            print("\t\tDepth:", depth)
+            logger.info(f"\t\tDepth: {depth}")
             surf_fn = surf_dict["sphere_rsl_fn"]
             coords = load_mesh_ext(surf_fn)[0]
             profile = profiles[:, i]
@@ -464,7 +463,7 @@ def volume_filename_to_mesh(
 
     vol = img.get_fdata()
     if sigma > 0:
-        print("Smoothing sigma:", sigma)
+        logger.info(f"Smoothing sigma: {sigma}")
         vol = gaussian_filter(vol, sigma=sigma)
 
     if zscore:
@@ -508,9 +507,13 @@ def volume_to_mesh(
     xmax = np.max(x)
     zmax = np.max(z)
     if zmax >= vol.shape[2]:
-        print(f"\nWARNING: z index {zmax} is greater than dimension {vol.shape[2]}\n")
+        logger.warning(
+            f"WARNING: z index {zmax} is greater than dimension {vol.shape[2]}"
+        )
     if xmax >= vol.shape[0]:
-        print(f"\nWARNING: x index {xmax} is greater than dimension {vol.shape[0]}\n")
+        logger.warning(
+            f"WARNING: x index {xmax} is greater than dimension {vol.shape[0]}"
+        )
 
     idx = (
         (x >= 0)
@@ -560,7 +563,7 @@ def write_mesh_to_volume(
             resolution,
         )
 
-        print(f"\tWriting mesh to volume {output_fn}")
+        logger.info(f"\tWriting mesh to volume {output_fn}")
         nib.Nifti1Image(
             vol, nib.load(volume_fn).affine, direction_order="lpi"
         ).to_filename(output_fn)
@@ -725,7 +728,7 @@ def upsample_over_faces(
             del faces
             faces = ref_faces
         else:
-            print("Error: ref faces not defined")
+            logger.error("Error: ref faces not defined")
 
     if type(face_mask) != np.ndarray:
         face_mask = np.ones(faces.shape[0]).astype(bool)
@@ -777,7 +780,7 @@ def upsample_over_faces(
 
     new_points_gen = [new_points_gen[i] for i in unique_index]
 
-    print("\t\tSaved", out_fn)
+    logger.info(f"\t\tSaved {out_fn}")
     assert (
         len(new_points_gen) == points.shape[0]
     ), f"Error: the amount of points does not equal the amount of point generators {len(new_points_gen)} vs {points.shape[0]}"
@@ -1072,9 +1075,9 @@ def transform_surface_to_chunks(
         nl_3d_tfm_fn = chunk_df["nl_3d_tfm_fn"].values[0]
         surf_chunk_space_fn = f"{out_dir}/chunk-{chunk[0]}_{os.path.basename(surf_fn)}"
 
-        print("\tFROM:", surf_fn)
-        print("\tTO:", surf_chunk_space_fn)
-        print("\tWITH:", nl_3d_tfm_fn)
+        logger.info(f"\tFROM: {surf_fn}")
+        logger.info(f"\tTO: {surf_chunk_space_fn}")
+        logger.info(f"\tWITH: {nl_3d_tfm_fn}")
 
         surf_chunk_dict[chunk] = surf_chunk_space_fn
 
@@ -1149,7 +1152,7 @@ def visualization(
 
         ax.grid(False)
 
-    print("\tWriting", output_filename)
+    logger.info(f"\tWriting {output_filename}")
     plt.savefig(output_filename)
     plt.clf()
     plt.cla()
@@ -1235,7 +1238,7 @@ def apply_ants_transform_to_gii(
         steps = img.affine[[0, 1, 2], [0, 1, 2]]
         starts = img.affine[[0, 1, 2], 3]
         dimensions = img.shape
-        print("\t\tReference volume:", ref_vol_fn)
+        logger.info(f"\t\tReference volume: {ref_vol_fn}")
         interp_vol, n = mesh_to_volume(
             new_coords,
             np.ones(new_coords.shape[0]),
@@ -1246,7 +1249,7 @@ def apply_ants_transform_to_gii(
         )
         if np.sum(interp_vol) > 0:
             interp_vol[n > 0] = interp_vol[n > 0] / n[n > 0]
-            print("\tWriting surface to volume file:", nii_fn)
+            logger.info(f"\tWriting surface to volume file: {nii_fn}")
             nib.Nifti1Image(
                 interp_vol, nib.load(ref_vol_fn).affine, direction_order="lpi"
             ).to_filename(nii_fn)
@@ -1262,5 +1265,5 @@ def apply_ants_transform_to_gii(
         )
         np.savez(out_basename, points=new_coords)
     else:
-        print("\tWriting Transformed Surface:", out_gii_fn, faces.shape)
+        logger.info(f"\tWriting Transformed Surface: {out_gii_fn} {faces.shape}")
         write_gifti(out_gii_fn, new_coords, faces)

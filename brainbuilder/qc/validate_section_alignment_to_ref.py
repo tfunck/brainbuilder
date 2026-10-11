@@ -307,10 +307,11 @@ def section_to_ref_dice(
 
         to_do.append((cls_fn, fx_fn, out_png, idx))
 
-    parrallel_results = Parallel(n_jobs=num_cores)(
-        delayed(get_section_metric)(fx_fn, cls_fn, out_png, idx, verbose=False)
-        for cls_fn, fx_fn, out_png, idx in to_do
-    )
+    with utils.single_threaded_itk():
+        parrallel_results = Parallel(n_jobs=num_cores)(
+            delayed(get_section_metric)(fx_fn, cls_fn, out_png, idx, verbose=False)
+            for cls_fn, fx_fn, out_png, idx in to_do
+        )
 
     sect_info["dice"] = [0] * len(sect_info)
     dice_col_idx = sect_info.columns.get_loc("dice")

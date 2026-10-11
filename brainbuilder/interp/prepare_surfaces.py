@@ -15,7 +15,9 @@ from brainbuilder.utils.mesh_utils import (
     mesh_to_volume,
     upsample_over_faces,
 )
-from brainbuilder.utils.utils import shell
+from brainbuilder.utils.utils import get_logger, shell
+
+logger = get_logger(__name__)
 
 
 
@@ -57,10 +59,10 @@ def transform_surface_to_chunks(
         if not os.path.exists(surf_chunk_space_fn) or utils.newer_than(
             nl_3d_tfm_fn, surf_chunk_space_fn
         ):
-            print("\tFROM:", surf_fn)
-            print("\tTO:", surf_chunk_space_fn)
-            print("\tWITH:", nl_3d_tfm_fn)
-            print("\tREF:", thickened_fn)
+            logger.info(f"\tFROM: {surf_fn}")
+            logger.info(f"\tTO: {surf_chunk_space_fn}")
+            logger.info(f"\tWITH: {nl_3d_tfm_fn}")
+            logger.info(f"\tREF: {thickened_fn}")
 
             apply_ants_transform_to_gii(
                 surf_fn,
@@ -98,7 +100,7 @@ def prepare_surfaces(
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    print("\tGenerating surfaces across cortical depth.")
+    logger.info("\tGenerating surfaces across cortical depth.")
     surf_depth_mni_dict = generate_cortical_depth_surfaces(
         ref_vol_fn,
         depth_list,
@@ -108,12 +110,12 @@ def prepare_surfaces(
         output_dir,
     )
 
-    print("\tInflating surfaces.")
+    logger.info("\tInflating surfaces.")
     surf_depth_mni_dict = inflate_surfaces(
         surf_depth_mni_dict, output_dir, resolution, depth_list, clobber=clobber
     )
 
-    print("\tUpsampling surfaces.")
+    logger.info("\tUpsampling surfaces.")
     surf_depth_mni_dict = upsample_surfaces(
         surf_depth_mni_dict,
         output_dir,
@@ -125,7 +127,7 @@ def prepare_surfaces(
     )
 
     # For each chunk, transform the mesh surface to the receptor space
-    print("\tTransforming surfaces to chunk space.")
+    logger.info("\tTransforming surfaces to chunk space.")
     surf_depth_chunk_dict = transfrom_depth_surf_to_chunk_space(
         chunk_info, surf_depth_mni_dict, output_dir
     )
@@ -229,7 +231,7 @@ def generate_cortical_depth_surfaces(
         depth_vol_fn = "{}/{}_{}mm_{}.nii.gz".format(
             output_dir, surf_base, resolution, depth
         )
-        print(depth_surf_fn)
+        logger.info(depth_surf_fn)
         surf_depth_mni_dict[depth] = {"depth_surf_fn": depth_surf_fn}
 
         coords = gm_coords + depth * d_coords
@@ -241,7 +243,7 @@ def generate_cortical_depth_surfaces(
             interp_vol, _ = mesh_to_volume(
                 coords, np.ones(coords.shape[0]), dimensions, starts, steps
             )
-            print("\tWriting", depth_vol_fn)
+            logger.info(f"\tWriting {depth_vol_fn}")
             nib.Nifti1Image(
                 interp_vol, nib.load(ref_vol_fn).affine, direction_order="lpi"
             ).to_filename(depth_vol_fn)
@@ -301,11 +303,11 @@ def inflate_surfaces(
         surf_depth_mni_dict[depth]["inflate_fn"] = inflate_fn
 
         if not os.path.exists(sphere_fn) or clobber:
-            print("\tInflate to sphere")
+            logger.info("\tInflate to sphere")
             shell(f"{FREESURFER_DIR}/mris_inflate -n 100  {depth_surf_fn} {inflate_fn}")
-            print(f"\t\t{inflate_fn}")
+            logger.info(f"\t\t{inflate_fn}")
             shell(f"{FREESURFER_DIR}/mris_sphere -q  {inflate_fn} {sphere_fn}")
-            print(f"\t\t{sphere_fn}")
+            logger.info(f"\t\t{sphere_fn}")
 
     return surf_depth_mni_dict
 
@@ -434,7 +436,7 @@ def upsample_surfaces(
             interp_vol, nib.load(ref_vol_fn).affine, direction_order="lpi"
         ).to_filename(f"{output_dir}/surf_{resolution}mm_{depth}_rsl.nii.gz")
 
-        print("Upsampled points", points.shape, len(new_points_gen))
+        logger.info(f"Upsampled points {points.shape} {len(new_points_gen)}")
 
         ref_points = np.load(ref_rsl_npy_fn + ".npz")["points"]
         n_points = ref_points.shape[0]
@@ -450,10 +452,10 @@ def upsample_surfaces(
             nib.Nifti1Image(
                 interp_vol, nib.load(ref_vol_fn).affine, direction_order="lpi"
             ).to_filename(nii_fn)
-            print("\tWriting (nifti):", nii_fn)
+            logger.info(f"\tWriting (nifti): {nii_fn}")
             assert points.shape[1], (
                 "Error: shape of points is incorrect " + points.shape
             )
             np.savez(out_fn, points=points)
-            print("\tWriting (npz)", out_fn)
+            logger.info(f"\tWriting (npz) {out_fn}")
     return surf_depth_mni_dict

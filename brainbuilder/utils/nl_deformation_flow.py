@@ -20,6 +20,9 @@ from brainbuilder.utils.axis_utils import (
     set_section,
     volume_shape,
 )
+from brainbuilder.utils.utils import get_logger
+
+logger = get_logger(__name__)
 
 
 def _atomic_ants_image_write(
@@ -168,8 +171,6 @@ def compute_ants_alignment(
             raise RuntimeError(
                 f"antsRegistration failed with exit code {e.returncode}: {cmd}"
             ) from e
-
-        print(cmd)
 
     assert os.path.exists(fwd_tfm_path), f"Error: output does not exist {fwd_tfm_path}"
     assert os.path.exists(inv_tfm_path), f"Error: output does not exist {inv_tfm_path}"
@@ -346,19 +347,15 @@ def process_section(
     clobber: bool = False,
 ):
     """Process a pair of sections and compute the deformation flow."""
-    print("\t>>> Processing sections:", y0, y1)
-
     try:
         ants.set_num_threads(1)
     except Exception:
         pass
     if fwd_tfm_path is not None:
         assert os.path.exists(fwd_tfm_path)
-        print("Using fwd_tfm_path:", fwd_tfm_path)
 
     if inv_tfm_path is not None:
         assert os.path.exists(inv_tfm_path)
-        print("Using inv_tfm_path:", inv_tfm_path)
 
     orig_dir = f"{output_dir}/orig"
 
@@ -451,7 +448,7 @@ def nl_deformation_flow_3d(
 
     for y_list, inter_images, _ in results:
         for y, image_path in zip(y_list, inter_images):
-            print(y, image_path)
+            logger.info(f"{y} {image_path}")
             try:
                 set_section(
                     out_vol,
@@ -635,7 +632,7 @@ def nlflow_isometric(
         clobber=clobber,
     )
 
-    print("Resampling", interp_iso_fin)
+    logger.info(f"Resampling {interp_iso_fin}")
     resample_interp_vol_to_resolution(
         interp_fin, interp_iso_fin, resolution, axis=axis, clobber=clobber
     )

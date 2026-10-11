@@ -9,7 +9,7 @@ import os
 import re
 from collections.abc import Iterable
 from subprocess import PIPE, STDOUT, Popen
-from typing import List, Optional, Tuple, Union
+from typing import Iterator, List, Optional, Tuple, Union
 
 import ants
 import imageio
@@ -161,13 +161,9 @@ def get_maximum_cores(
     total_cores = multiprocessing.cpu_count()
     max_cores = max([0, min([max_cores, total_cores])])
 
-    print(
-        "\tAvailable memory (Gb): ",
-        available_memory_gb,
-        "Estimated memory: ",
-        estimated_memory_gb,
-        "Max cores: ",
-        max_cores,
+    logger.info(
+        f"\tAvailable memory (Gb):  {available_memory_gb}"
+        f" Estimated memory:  {estimated_memory_gb} Max cores:  {max_cores}"
     )
     return max_cores
 
@@ -209,10 +205,9 @@ def check_dimensions(fns: list, dims: tuple, axis: int = DEFAULT_SECTION_AXIS) -
         sec = nibabel.load(fn)
 
         if sec.shape[0] != dims[inplane[0]] or sec.shape[1] != dims[inplane[1]]:
-            print("Warning: section dimensions do not match target dimensions")
-            print("\tSection:", fn, sec.shape)
-            print("\tTarget:", dims)
-            print()
+            logger.warning("Warning: section dimensions do not match target dimensions")
+            logger.warning(f"\tSection: {fn} {sec.shape}")
+            logger.warning(f"\tTarget: {dims}")
 
             sections_okay_flag = False
 
@@ -268,14 +263,14 @@ def concatenate_sections_to_volume(
 
                 set_section(out_vol, sec, int(y), axis)
             except EOFError:
-                print("Error:", fn)
+                logger.error(f"Error: {fn}")
                 os.remove(fn)
                 exit_flag = True
 
             if exit_flag:
                 exit(1)
 
-        print("\t\tWriting 3D non-linear:", out_fn)
+        logger.info(f"\t\tWriting 3D non-linear: {out_fn}")
 
         nib.Nifti1Image(
             out_vol, affine, dtype=np.float32, direction_order="lpi"
@@ -396,7 +391,7 @@ def get_section_intervals(vol: np.ndarray, axis: int = DEFAULT_SECTION_AXIS) -> 
     valid_sections = section_sums > np.min(section_sums)
     labeled_sections, nlabels = label(valid_sections)
     if nlabels < 2:
-        print(
+        logger.error(
             "Error: there must be a gap between thickened sections. Use higher resolution volumes."
         )
 
@@ -478,9 +473,9 @@ class AntsParams:
 
         :return: None
         """
-        print("Iterations:\t", self.itr_str)
-        print("Factors:\t", self.f_str)
-        print("Smoothing:\t", self.s_str)
+        logger.info(f"Iterations:\t {self.itr_str}")
+        logger.info(f"Factors:\t {self.f_str}")
+        logger.info(f"Smoothing:\t {self.s_str}")
         return None
 
     def gen_itr_list(self, max_itr: int, step: float) -> List[str]:
@@ -848,10 +843,6 @@ def save_sections(
         origin = [img.origin[inplane[0]], img.origin[inplane[1]]]
         direction = img.direction[np.ix_(inplane, inplane)]
 
-    print(srv_fn)
-    print("Spacing:", spacing)
-    print("Origin:", origin)
-    print("Direction:", direction)
     ystep = img.spacing[axis]  # step size along the sectioning axis
     for fn, y in file_list:
         i = 0
@@ -1006,7 +997,7 @@ def splitext(s: str) -> List:
 newlines = ["\n", "\r\n", "\r"]
 
 
-def unbuffered(proc: Popen, stream: str = "stdout") -> str:
+def unbuffered(proc: Popen, stream: str = "stdout") -> Iterator[str]:
     """Read unbuffered from a process.
 
     :param proc: process
@@ -1032,6 +1023,30 @@ def unbuffered(proc: Popen, stream: str = "stdout") -> str:
             yield out
 
 
+@contextlib.contextmanager
+def single_threaded_itk() -> Iterator[None]:
+    """Restrict ANTs/ITK to one thread per process for the duration of the block.
+
+    Wrap parallel fan-out blocks (joblib etc.) that invoke ANTs, so the two
+    layers of parallelism don't oversubscribe the machine. ITK reads
+    ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS and ignores the OpenMP/BLAS variables
+    that joblib's `inner_max_num_threads` sets, so it must be pinned explicitly.
+
+    Do not set this globally: serial 3D registrations benefit from ANTs using
+    every core.
+    """
+    var = "ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"
+    previous = os.environ.get(var)
+    os.environ[var] = "1"
+    try:
+        yield
+    finally:
+        if previous is None:
+            del os.environ[var]
+        else:
+            os.environ[var] = previous
+
+
 def shell(
     cmd: str, verbose: bool = False, exit_on_failure: bool = True, bash: bool = True
 ) -> tuple:
@@ -1046,7 +1061,7 @@ def shell(
         cmd = f'exec bash -c "{cmd}"'
 
     if verbose:
-        print(cmd)
+        logger.info(cmd)
 
     process = Popen(
         cmd,
@@ -1064,9 +1079,9 @@ def shell(
     errorcode = process.returncode
     stderr = stdout
     if errorcode != 0:
-        print("Error:")
-        print("Command:", cmd)
-        print("Stderr:", stdout)
+        logger.error("Error:")
+        logger.error(f"Command: {cmd}")
+        logger.error(f"Stderr: {stdout}")
         if exit_on_failure:
             exit(errorcode)
     return stdout, stderr, errorcode
@@ -1168,7 +1183,7 @@ def parse_resample_arguments(
 
         origin, spacing, direction = get_params_from_affine(aff, len(vol.shape))
     else:
-        print("Error: input_arg must be a string or numpy array")
+        logger.error("Error: input_arg must be a string or numpy array")
         exit(1)
 
     if not isinstance(output_filename, type(None)):
@@ -1234,7 +1249,7 @@ def compare_timestamp_of_files(x: Union[str, List], y: Union[str, List]) -> bool
             if not newer_than(fn1, fn2):
                 return False
     else:
-        print(
+        logger.error(
             "Error: x and y must be both strings or lists. Got {} and {}".format(
                 type(x), type(y)
             )
@@ -1306,7 +1321,7 @@ def check_run_stage(
         elif isinstance(col, Iterable):
             file_list = col
         else:
-            print("Error: col2 must be a string or list")
+            logger.error("Error: col2 must be a string or list")
             exit(1)
 
         return file_list
@@ -1322,7 +1337,7 @@ def check_run_stage(
             if nan_okay & pd.isnull(x):
                 continue
             elif not os.path.exists(x):
-                print("File does not exist: {}".format(x))
+                logger.info("File does not exist: {}".format(x))
                 return False
         return True
 
@@ -1347,12 +1362,12 @@ def check_run_stage(
         if not all_outputs_exist:
             # if not all outputs exist, run stage
             run_stage = True
-            print("Not all files exist for {}".format(col1))
+            logger.info("Not all files exist for {}".format(col1))
 
         # files in col1 should be newer than the ones in col2
         # check if this is the case, if not run stage
         if not compare_timestamp_of_files(file_list_1, file_list_2):
-            print("All files exist but some are older than {}".format(col2))
+            logger.info("All files exist but some are older than {}".format(col2))
             run_stage = True
 
     return run_stage

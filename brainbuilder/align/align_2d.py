@@ -27,6 +27,7 @@ from brainbuilder.utils.utils import (
     concatenate_sections_to_volume,
     resample_to_resolution,
     shell,
+    single_threaded_itk,
     threshold,
 )
 from joblib import Parallel, cpu_count, delayed, parallel_backend
@@ -194,7 +195,7 @@ def ants_registration_2d_section(
 
     mv_rsl_fn = f"{prefix}_{transforms[-1]}_{metrics[-1]}_cls_rsl.nii.gz"
 
-    verbose = 0 if logger.getEffectiveLevel() == logging.INFO else 1
+    #verbose = 0 if logger.getEffectiveLevel() == logging.INFO else 1
 
     if not os.path.exists(final_tfm) or not os.path.exists(mv_rsl_fn) or clobber:
         for transform, metric, f_str, s_str, itr_str in zip(
@@ -209,7 +210,7 @@ def ants_registration_2d_section(
             if not check_alignment_files(
                 fx_fn, mv_fn, minimum_foreground_ratio=minimum_foreground_ratio
             ):
-                print("\tSkipping registration step.")
+                logger.info("\tSkipping registration step.")
                 fallback_tfm, mv_rsl_fn = apply_transform_fallback(
                     mv_fn,
                     fx_fn,
@@ -250,7 +251,8 @@ def ants_registration_2d_section(
                 mask_mv = threshold(mv_fn)
                 command_str += f" -x [{mask_fx},{mask_mv}] "
 
-            logger.debug(command_str)
+            if verbose :
+                logger.info(command_str)
 
             with open(command_log_fname, "w") as f:
                 f.write(command_str)
@@ -260,7 +262,7 @@ def ants_registration_2d_section(
             # Some ANTs runs can leave zero-byte/truncated outputs (e.g. interrupted I/O).
             # Validate each stage output immediately so callers can retry/skip this trial.
             check_volume(mv_rsl_fn)
-            shell(command_str, exit_on_failure=False)
+
             # check that output files exist and are not empty, otherwise
             # return just the initial transform and apply it to the moving image
             # if there is not initial transform, default to identity transform
@@ -443,13 +445,23 @@ def align_2d_parallel(
     :param verbose: verbose
     :return: 0
     """
-    init_tfm = row["prev_2d_tfm"] if use_init_tfm and "prev_2d_tfm" in row else None
+    # coarser resolution; on the very first run fall back to the rigid
+    # transform initalign.py already computed for this section.
+    if use_init_tfm and "2d_tfm" in row and isinstance(row["2d_tfm"], str):
+        init_tfm = row["2d_tfm"]
+    elif use_init_tfm and "init_tfm" in row:
+        init_tfm = row["init_tfm"]
+    else:
+        init_tfm = None
 
     if not (isinstance(init_tfm, str) and os.path.exists(init_tfm)):
         init_tfm = None
 
     # the coarser levels of the multiresolution schedule were already applied by <init_tfm>
     only_align_current_resolution = init_tfm is not None
+
+    base_nl_itr = 10  #FIXME DELETEME
+    base_lin_itr = 10 #FIXME DELETEME
 
     linParams = AntsParams(
         resolution_list,
@@ -458,12 +470,17 @@ def align_2d_parallel(
         only_align_current_resolution=only_align_current_resolution,
     )
 
+
     nlParams = AntsParams(
         resolution_list,
         resolution,
         base_nl_itr,
         only_align_current_resolution=only_align_current_resolution,
     )
+
+    # print linParams and nlParams
+    logger.info(f'linParams:\n\titr_list:\t{linParams.itr_list}\tfactor_list:\t{linParams.f_str}\tsmooth_list:\t{linParams.s_str}')
+    logger.info(f'nlParams:\n\titr_list:\t{nlParams.itr_list}\tfactor_list:\t{nlParams.f_str}\tsmooth_list:\t{nlParams.s_str}')
 
     y = int(row["sample"])
     base = get_base_from_raw(row["raw"])
@@ -474,7 +491,7 @@ def align_2d_parallel(
 
     mv_fn = row[file_to_align]
 
-    verbose = False
+    verbose = True
 
     affine_tfm = affine_trials(
         fx_fn,
@@ -589,7 +606,7 @@ def apply_transforms_parallel(
     tfm_fn = row["2d_tfm"]
 
     if not isinstance(tfm_fn, str):  # assume identity transform
-        print(
+        logger.warning(
             f"Warning: transform file does not exist, assuming identity transform in:\n{base}"
         )
         # copy img_rsl_fn to out_fn
@@ -719,7 +736,7 @@ def align_sections(
     to_do_sect_info, to_do_resample_sect_info = get_align_2d_to_do(sect_info)
 
     if len(to_do_sect_info) > 0:
-        with parallel_backend("loky", inner_max_num_threads=1):
+        with single_threaded_itk(), parallel_backend("loky", inner_max_num_threads=1):
             Parallel(n_jobs=num_cores, backend="loky", prefer="processes")(
                 delayed(align_2d_parallel)(
                     tfm_dir,
@@ -738,7 +755,9 @@ def align_sections(
 
     if len(to_do_resample_sect_info) > 0:
         for tissue_str in ["", "_cls"]:
-            with parallel_backend("loky", inner_max_num_threads=1):
+            with single_threaded_itk(), parallel_backend(
+                "loky", inner_max_num_threads=1
+            ):
                 Parallel(n_jobs=num_cores, backend="loky", prefer="processes")(
                     delayed(apply_transforms_parallel)(
                         tfm_dir,
@@ -754,8 +773,6 @@ def align_sections(
     sect_info["2d_align"] = sect_info["2d_align_out"]
     sect_info["2d_align_cls"] = sect_info["2d_align_cls_out"]
 
-    # kept so that the next resolution level can be initialized with the current transforms
-    sect_info["prev_2d_tfm"] = sect_info["2d_tfm"]
 
     return sect_info
 

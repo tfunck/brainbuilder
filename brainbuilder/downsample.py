@@ -65,7 +65,7 @@ def compute_max_new_dims(
 
         np.save(results_file, np.array([max_dim_0, max_dim_1]))
 
-    print(
+    logger.info(
         f"\t\tMax dimensions for downsampling to {resolution}mm: {max_dim_0}, {max_dim_1}"
     )
 
@@ -79,13 +79,8 @@ def assemble_downsampled_volume(
     for (sub, hemisphere, chunk), chunk_sect_info in sect_info.groupby(
         ["sub", "hemisphere", "chunk"]
     ):
-        print(
-            "\tAssembling downsampled volume for sub:",
-            sub,
-            "hemisphere:",
-            hemisphere,
-            "chunk:",
-            chunk,
+        logger.info(
+            f"\tAssembling downsampled volume for sub: {sub} hemisphere: {hemisphere} chunk: {chunk}"
         )
         vol_fn = f"{output_dir}/sub-{sub}_hemi-{hemisphere}_chunk-{chunk}_{resolution}mm.nii.gz"
 
@@ -101,7 +96,7 @@ def assemble_downsampled_volume(
             max_dim_0, max_dim_1 = int(max_dims[0]), int(max_dims[1])
             section_shape = (max_dim_0, max_dim_1)
 
-            print("Allocate Volume")
+            logger.info("Allocate Volume")
             vol = alloc_volume(section_shape, n_sections, axis, dtype=np.uint8)
 
             for _, tdf in chunk_sect_info.groupby(["acquisition"]):
@@ -214,7 +209,7 @@ def downsample_sections(
         for (sub, hemi, chunk), sect_info_sub_hemi_chunk in sect_info.groupby(
             ["sub", "hemisphere", "chunk"]
         ):
-            print(f"\tDownsampling sub: {sub}, hemisphere: {hemi}, chunk: {chunk}")
+            logger.info(f"\tDownsampling sub: {sub}, hemisphere: {hemi}, chunk: {chunk}")
 
             max_dim_0, max_dim_1 = compute_max_new_dims(
                 sub,

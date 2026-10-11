@@ -27,7 +27,6 @@ def idw(vol, nearest_i, min_dist, p=2, axis=DEFAULT_SECTION_AXIS):
     # min_dist += 1
     weights = min_dist / np.sum(min_dist)
 
-    print(min_dist, weights)
     interp = np.sum(
         [w * get_section(vol, nearest_i[j], axis) for j, w in enumerate(weights)],
         axis=0,
@@ -214,7 +213,7 @@ def volumetric_interpolation(
 
     axis = get_section_axis(curr_chunk_info)
 
-    print("Volumetric Interpolation")
+    logger.info("Volumetric Interpolation")
     chunk_info_thickened_csv = create_thickened_volumes(
         output_dir,
         curr_chunk_info,
@@ -297,7 +296,7 @@ def volumetric_interpolation_over_dataframe(
     for (sub, hemisphere, chunk, acq), curr_sect_info in sect_info.groupby(
         ["sub", "hemisphere", "chunk", "acquisition"]
     ):
-        print(
+        logger.info(
             f"Processing sub: {sub}, hemisphere: {hemisphere}, chunk: {chunk}, acquisition: {acq}"
         )
         curr_output_dir = (
@@ -334,10 +333,9 @@ def volumetric_interpolation_over_dataframe(
         validate_target_section_pair(
             curr_sect_info, curr_target_section_acq, curr_target_section_cls
         )
-        print(
-            "Target sections for interpolation:",
-            curr_target_section_acq,
-            curr_target_section_cls,
+        logger.info(
+            f"Target sections for interpolation: {curr_target_section_acq}"
+            f" {curr_target_section_cls}"
         )
 
         # First calculate the interpolation for the acquisition volume
@@ -464,7 +462,7 @@ def chunked_percentile(
                 H = np.zeros((sz, sy, sx, bins), dtype=np.uint32)
 
                 for f in fins:
-                    print("\tIncluding", f)
+                    logger.info(f"\tIncluding {f}")
                     blk = np.asarray(nib.load(f).dataobj[z0:z1, y0:y1, x0:x1])
                     if background is not None:
                         blk = np.where(blk == background, np.nan, blk)
@@ -529,9 +527,9 @@ def create_acq_atlas(chunk_info, output_dir, atlas_fin, clobber: bool = False):
     """
     mask_fin = f"{output_dir}/atlas_mask.nii.gz"
 
-    print("Creating atlas from interpolated volumes")
-    print(f"Atlas filename: {atlas_fin}")
-    print(f"Atlas mask filename: {mask_fin}")
+    logger.info("Creating atlas from interpolated volumes")
+    logger.info(f"Atlas filename: {atlas_fin}")
+    logger.info(f"Atlas mask filename: {mask_fin}")
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -544,7 +542,7 @@ def create_acq_atlas(chunk_info, output_dir, atlas_fin, clobber: bool = False):
             interp_vol_fin = row["interp_cls_nat"]
 
             img = nib.load(interp_vol_fin)
-            print(i / n, interp_vol_fin)
+            logger.info(f"{i / n} {interp_vol_fin}")
 
             vol = img.get_fdata()
 
@@ -588,12 +586,12 @@ def apply_final_transform_to_files(
         interp_nat_fin = row["interp_nat"]
         interp_stx_fin = row["interp_stx"]
 
-        print("interp_stx_fin:", interp_stx_fin)
+        logger.info(f"interp_stx_fin: {interp_stx_fin}")
 
         if not os.path.exists(interp_stx_fin) or clobber:
             cmd = f"antsApplyTransforms -d 3 -n {interpolation} -i {interp_nat_fin} -o {interp_stx_fin} -r {ref_vol_fin} -t {nl_3d_tfm_fn} --float 1"
 
-            print(cmd)
+            logger.info(cmd)
 
             run(cmd, shell=True)
 
@@ -616,7 +614,7 @@ def create_final_transform(
 ):
     os.makedirs(output_dir, exist_ok=True)
 
-    print("Create Acquisition Atlas")
+    logger.info("Create Acquisition Atlas")
     atlas_vol_fin, _ = create_acq_atlas(
         chunk_info, output_dir, output_dir + "/atlas.nii.gz", clobber=clobber
     )
@@ -633,7 +631,7 @@ def create_final_transform(
     nl_3d_tfm_fn = chunk_info["nl_3d_tfm_fn"].values[0]
 
     out_nl_3d_tfm_fn = nl_3d_tfm_fn
-    print("atlas_vol_fn:", atlas_vol_fin)
+    logger.info(f"atlas_vol_fn: {atlas_vol_fin}")
 
     chunk_info = apply_final_transform_to_files(
         chunk_info,
@@ -668,7 +666,7 @@ def prepare_chunk_info_for_stx(chunk_info, acq_interp_chunk_info):
     This is necessary because chunk_info adds the 'acquisition' column and is used
     in the final transformation of each reconstrucred acquisition volume into stx space
     """
-    print(chunk_info.columns)
+    logger.info(chunk_info.columns)
 
     merged = pd.DataFrame()
     for acq, temp_acq_chunk_info in acq_interp_chunk_info.groupby("acquisition"):
@@ -805,14 +803,13 @@ def volumetric_pipeline(
             target_section_cls=target_section_cls,
         )
 
-        print(
-            "Target sections for interpolation:",
-            curr_target_section_acq,
-            curr_target_section_cls,
+        logger.info(
+            f"Target sections for interpolation: {curr_target_section_acq}"
+            f" {curr_target_section_cls}"
         )
 
         # Volumetric interpolation
-        print("Volumetric Interpolation for sub:", sub, "hemi:", hemisphere)
+        logger.info(f"Volumetric Interpolation for sub: {sub} hemi: {hemisphere}")
         acq_interp_chunk_info = volumetric_interpolation_over_dataframe(
             sect_info_sub_hemi,
             curr_chunk_info,

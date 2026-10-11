@@ -783,7 +783,7 @@ def segment(
 
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
-            print("\tSegmenting with method:", seg_method)
+            logger.info(f"\tSegmenting with method: {seg_method}")
 
             # *** CHANGED: run nnunet per subject so each gets its own nnunet/nnunet_out dirs ***
             if missing_segmentations or clobber:

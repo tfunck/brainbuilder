@@ -14,6 +14,9 @@ from brainbuilder.utils.mesh_utils import (
     pairwise_coord_distances,
     visualization,
 )
+from brainbuilder.utils.utils import get_logger
+
+logger = get_logger(__name__)
 
 
 def apply_batch_correction(
@@ -225,7 +228,7 @@ def create_surface_section_labels(
             labels[values == 0] = 0
             np.savez(out_fn, data=labels)
 
-            print("Label png :", qc_fn)
+            logger.info(f"Label png : {qc_fn}")
             visualization(qc_surface_fn, labels, qc_fn)
             img = nibabel.load(ref_vol_fn)
             aff = img.affine
@@ -233,8 +236,6 @@ def create_surface_section_labels(
             steps = aff[[0, 1, 2], [0, 1, 2]]
             dimensions = img.shape
 
-            print(qc_surface_fn)
-            print(starts, steps)
             vol, n = mesh_to_volume(
                 load_mesh_ext(qc_surface_fn)[0],
                 labels,
@@ -258,7 +259,7 @@ def update_df_with_correction_params(
     :param label_to_chunk_dict: dictionary containing the mapping between labels and chunks
     :return: dataframe with updated correction parameters
     """
-    print("Update df with correction parameters")
+    logger.info("Update df with correction parameters")
     df["batch_offset"] = [0] * df.shape[0]
     df["batch_multiplier"] = [1] * df.shape[0]
 
@@ -270,7 +271,7 @@ def update_df_with_correction_params(
 
         df.loc[idx, "batch_offset"] = row["offset"]
         df.loc[idx, "batch_multiplier"] = row["multiplier"]
-        print(row["label"], row["offset"])
+        logger.info(f"{row['label']} {row['offset']}")
 
     return df
 
@@ -444,7 +445,7 @@ def create_dataframe_for_pairs(
     idx1 = (next_values > next_perc_min) & (next_values < next_perc_max)
 
     idx = idx0 & idx1
-    print("Sum of valid pairs", np.sum(idx))
+    logger.info(f"Sum of valid pairs {np.sum(idx)}")
 
     temp_paired_values = paired_values[idx]
 
@@ -608,7 +609,7 @@ def get_paired_values(
         curr_labels = label_list[label_start:-1:label_offset]
         next_labels = label_list[label_start + 1 :: label_offset]
         for curr_label, next_label in zip(curr_labels, next_labels):
-            print(f"Finding pairs between {curr_label} and {next_label}")
+            logger.info(f"Finding pairs between {curr_label} and {next_label}")
 
             curr_paired_values = find_pairs_between_labels(
                 curr_label, next_label, stereo_sphere_coords, labels, values
@@ -640,7 +641,7 @@ def get_paired_values(
             plt.scatter(x, y, c="r")
             plt.plot(x, y, c="b", alpha=0.1)
         plt.savefig(png_fn)
-    print("Done")
+    logger.info("Done")
     return unique_paired_values
 
 
@@ -693,7 +694,7 @@ def simple_chunk_correction(paired_values: pd.DataFrame) -> pd.DataFrame:
 
         offset = mean_diff
         total_offset += offset
-        print(curr_values, next_values, offset, total_offset)
+        logger.info(f"{curr_values} {next_values} {offset} {total_offset}")
 
         row_dict = {
             "label": next_label,
@@ -740,9 +741,9 @@ def calc_batch_correction_params(
 
     if not os.path.exists(params_fn) or clobber:
         labels = np.unique(load_values(label_filename))[1:]
-        print("\t\tNumber of labels", len(labels), labels)
+        logger.info(f"\t\tNumber of labels {len(labels)} {labels}")
 
-        print("\t\tGet Paired Values")
+        logger.info("\t\tGet Paired Values")
         """
         paired_values = get_paired_values(
                 paired_values_csv, 

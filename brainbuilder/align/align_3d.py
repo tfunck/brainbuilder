@@ -227,7 +227,7 @@ def verify_chunk_limits(
         assert y0 > 0, f"Error: y0 is negative: {y0}"
         assert y1 > 0, f"Error: y1 is negatove: {y1}"
         if verbose:
-            print(y0w, y1w, y0, y1)
+            logger.info(f"{y0w} {y1w} {y0} {y1}")
 
     else:
         y0w = ystart
@@ -311,7 +311,7 @@ def write_ref_chunk_with_fixed_limits(
             dtype=np.uint8,
         ).to_filename(ref_chunk_fn)
 
-        print(f"Written ref chunk: {ref_chunk_fn}")
+        logger.info(f"Written ref chunk: {ref_chunk_fn}")
 
     return ref_chunk_fn
 

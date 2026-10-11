@@ -2,7 +2,7 @@
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/tfunck/brainbuilder/blob/main/LICENSE)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![pages](https://img.shields.io/badge/api-docs-blue)](documentation/html/brainbuilder/index.html)
+[![pages](https://img.shields.io/badge/api-docs-blue)](docs/html/brainbuilder/index.html)
 ![stability-stable](https://img.shields.io/badge/stability-stable-green.svg)
 
 BrainBuilder reconstructs 3D volumes from sparse 2D post-mortem brain sections by combining section-wise alignment, 3D registration to a structural reference, and missing-section interpolation.
@@ -122,7 +122,7 @@ Landmark-assisted chunk localization is optional. For detailed setup and constra
 
 ## Documentation
 
-- API docs: [documentation/html/brainbuilder/index.html](documentation/html/brainbuilder/index.html)
+- API docs: [docs/html/brainbuilder/index.html](docs/html/brainbuilder/index.html)
 - morphint package: [morphint/README.md](morphint/README.md)
 
 ## Reference

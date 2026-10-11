@@ -152,7 +152,7 @@ def align_neighbours_to_fixed(
             )
 
         if not os.path.exists(qc_fn):
-            print(
+            logger.info(
                 f"\tCreating QC image for fixed: {fixed_fn}, moving: {moving_fn}, registered: {moving_rsl_fn}"
             )
             create_qc_image(
@@ -698,7 +698,18 @@ def initalign(
     initalign_sect_info = pd.DataFrame({})
     initalign_chunk_info = pd.DataFrame({})
 
-    linParams = AntsParams(resolution_list, resolution_list[-1], 250)
+    # Init rigid transforms only seed the coarsest multires iteration, so stop
+    # the pyramid at the second-coarsest resolution: much cheaper, and coarse
+    # levels are less prone to local minima driven by fine image features.
+    # resolution_list[-1] is still passed as `resolution` so shrink factors
+    # remain relative to the base-resolution images.
+    init_align_max_res = resolution_list[min(1, len(resolution_list) - 1)]
+    linParams = AntsParams(
+        resolution_list,
+        resolution_list[-1],
+        500,
+        max_resolution=init_align_max_res,
+    )
 
     cache_exists = os.path.exists(initalign_sect_info_csv) and os.path.exists(
         initalign_chunk_info_csv

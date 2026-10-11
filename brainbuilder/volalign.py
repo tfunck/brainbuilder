@@ -281,13 +281,11 @@ def alignment_qc(
         plt.savefig(png_fn, dpi=300, bbox_inches="tight")
 
         dice_df = df.groupby(["sub", "hemisphere", "chunk"])
-        print(dice_df["dice"].mean())
-        print(dice_df["dice"].std())
 
         m = df["dice"].mean()
         s = df["dice"].std()
 
-        print("\t\tDice of Aligned Sections:", m, s)
+        logger.info(f"\t\tDice of Aligned Sections: {m} {s}")
         dice_df["dice"].mean().to_csv(global_dice_csv)
         with open(f"{output_dir}/global_dice.csv", "w") as f:
             f.write(f"{m},{s}\n")
@@ -304,7 +302,7 @@ def alignment_qc(
             plt.title("Dice: {:.2f}".format(row["dice"]))
             plt.imshow(ar, cmap="gray")
             plt.savefig(out_fn, dpi=300, bbox_inches="tight")
-            print("\t\tBad section:", out_fn)
+            logger.info(f"\t\tBad section: {out_fn}")
     return None
 
 

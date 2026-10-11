@@ -21,8 +21,10 @@ from brainbuilder.utils.mesh_utils import (
     volume_to_mesh,
     write_mesh_to_volume,
 )
-from brainbuilder.utils.utils import get_section_intervals
+from brainbuilder.utils.utils import get_logger, get_section_intervals
 from brainbuilder.utils.axis_utils import DEFAULT_SECTION_AXIS
+
+logger = get_logger(__name__)
 
 
 def volumes_to_surface_profiles(
@@ -192,7 +194,7 @@ def create_surface_interpolated_volume(
             clobber=clobber,
         )
 
-        print(f"Creating final volume with {final_profiles_fn}")
+        logger.info(f"Creating final volume with {final_profiles_fn}")
         # do surface based interpolation to fill missing sections
         create_final_reconstructed_volume(
             reconstructed_cortex_fn,
@@ -338,7 +340,7 @@ def get_profiles(
     :param clobber: boolean indicating whether to overwrite existing files
     :return: path to profiles file
     """
-    print("\tGetting profiles")
+    logger.info("\tGetting profiles")
     # 3. Interpolate missing densities over surface
     if not os.path.exists(profiles_fn + ".npz") or clobber:
         depth_list = sorted(surf_depth_mni_dict.keys())
@@ -467,7 +469,9 @@ def project_values_over_section_intervals(
 
             assert np.sum(np.isnan(values)) == 0, "Error: nan found in values."
         else:
-            print("\t\t\t\tWarning: no valid coordinates found in interval", y0, y1)
+            logger.warning(
+                f"Warning: no valid coordinates found in interval {y0} {y1}"
+            )
 
     return all_values, n
 
@@ -504,7 +508,7 @@ def volume_to_surface_over_chunks(
 
         # Iterate over chunks within a given
         for chunk, surf_fn in surf_chunk_dict.items():
-            print("\t\t\tChunk:", chunk)
+            logger.info(f"\t\t\tChunk: {chunk}")
 
             vol_fn = volumes_df[volume_type].loc[volumes_df["chunk"] == chunk].values[0]
 
@@ -512,8 +516,8 @@ def volume_to_surface_over_chunks(
             n_vtx = coords.shape[0]
 
             if verbose or True:
-                print("surf_fn:\n", surf_fn)
-                print("vol_fn:\n", vol_fn)
+                logger.info(f"surf_fn:\n {surf_fn}")
+                logger.info(f"vol_fn:\n {vol_fn}")
 
             # read chunk volume
             img = nib.load(vol_fn)
@@ -569,7 +573,7 @@ def volume_to_surface_over_chunks(
         assert (
             np.sum(np.abs(all_values)) > 0
         ), "Error, empty array all_values in project_volumes_to_surfaces"
-        print("\tWriting surface values to", interp_csv)
+        logger.info(f"\tWriting surface values to {interp_csv}")
 
         np.savetxt(interp_csv, all_values)
 
@@ -729,7 +733,7 @@ def project_volume_to_surfaces(
 
     # iterate over depths in cortical surface
     for depth, surf_depth_dict in surf_depth_chunk_dict.items():
-        print("\t\tDepth", depth)
+        logger.info(f"\t\tDepth {depth}")
 
         interp_csv = f"{output_prefix}{tissue_type}_{depth}_interp_{volume_type}.csv"
 
@@ -788,8 +792,8 @@ def interpolate_over_surface(
     :param order: order of interpolation
     :return: interpolated values
     """
-    print("\tInterpolating Over Surface")
-    print("\t\t\tSphere fn:", sphere_obj_fn)
+    logger.info("\tInterpolating Over Surface")
+    logger.info(f"\t\t\tSphere fn: {sphere_obj_fn}")
     # get coordinates from dicitonary with mesh info
     coords = load_mesh_ext(sphere_obj_fn)[0]
 
@@ -961,7 +965,7 @@ def combine_volumes(
         img = nib.load(volume_fns[0])
         aff = img.affine
 
-        print("\tCombining volumes")
+        logger.info("\tCombining volumes")
         vol = img.get_fdata()
 
         n = np.zeros(vol.shape)
@@ -972,8 +976,8 @@ def combine_volumes(
         for vol_fn in volume_fns[1:]:
             curr_vol = nib.load(vol_fn).get_fdata()
             orig_vol = curr_vol.copy()
-            print("\t\tVolume files:", volume_fns)
-            print("" "\t\tReplacing volume", vol_fn)
+            logger.info(f"\t\tVolume files: {volume_fns}")
+            logger.info(f"\t\tReplacing volume {vol_fn}")
 
             if priority == "equal":
                 idx_replace = curr_vol > 0
@@ -984,20 +988,19 @@ def combine_volumes(
                 idx_replace = idx_replace_orig & (curr_vol > 0)
                 # Use max value
                 ar = np.vstack([curr_vol[idx_replace], vol[idx_replace]]).T
-                print(ar.shape)
                 vol[idx_replace] = np.max(ar, axis=1)
             else:
-                print("Error: priority not recognized")
+                logger.error("Error: priority not recognized")
                 exit(1)
 
         vol[n > 0] /= n[n > 0]
-        print("n = ", np.unique(n))
+        logger.info(f"n =  {np.unique(n)}")
 
         if mask_fn is not None:
             mask = nib.load(mask_fn).get_fdata()
             vol[mask < mask.max() * 0.5] = 0
 
-        print("\tWriting", output_filename)
+        logger.info(f"\tWriting {output_filename}")
 
         nib.Nifti1Image(vol, aff, direction_order="lpi").to_filename(output_filename)
     else:
@@ -1080,9 +1083,9 @@ def create_final_reconstructed_volume(
     :param clobber: boolean indicating whether to overwrite existing files
     :return: None
     """
-    print("\t Creating final reconstructed volume")
+    logger.info("\t Creating final reconstructed volume")
     if not os.path.exists(reconstructed_cortex_fn) or clobber:
-        print("\t\tMulti-mesh to volume")
+        logger.info("\t\tMulti-mesh to volume")
         surf_volume_fn = re.sub(".nii.gz", "_surf.nii.gz", reconstructed_cortex_fn)
         thickened_vol_stx_fn = re.sub(
             ".nii.gz", "_interp-vol_stx.nii.gz", reconstructed_cortex_fn
@@ -1105,7 +1108,7 @@ def create_final_reconstructed_volume(
             clobber=clobber,
         )
 
-        print("\tWriting", reconstructed_cortex_fn)
+        logger.info(f"\tWriting {reconstructed_cortex_fn}")
         combine_volumes(
             [thickened_vol_stx_fn, surf_volume_fn],
             reconstructed_cortex_fn,

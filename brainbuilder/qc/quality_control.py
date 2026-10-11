@@ -16,10 +16,7 @@ def get_min_max(fn: str) -> str:
     :param fn: image file name
     :return: min, max
     """
-    print("qc read ", fn)
     ar = utils.load_image(fn)
-    print(fn)
-    print(ar)
     if isinstance(ar, np.ndarray):
         return np.min(ar), np.max(ar)
     else:

@@ -21,9 +21,12 @@ from brainbuilder.utils.axis_utils import (
     set_section,
 )
 from brainbuilder.utils.utils import (
+    get_logger,
     get_thicken_width,
     simple_ants_apply_tfm,
 )
+
+logger = get_logger(__name__)
 
 
 def setup_section_normalization(
@@ -47,7 +50,7 @@ def setup_section_normalization(
 
     sect_info = sect_info.sort_values(["sample"])
     if acquisition in [] or normalize_sections:
-        print("Normalizing", acquisition)
+        logger.info(f"Normalizing {acquisition}")
 
         for row_i, row in sect_info.iterrows():
             y = int(row["sample"])
@@ -123,7 +126,7 @@ def thicken_sections_within_chunk(
     if width is None:
         width = get_thicken_width(resolution, section_thickness, scale=1)
 
-    print("\t\tThickening sections to ", 0.02 * width * 2, "with width", width)
+    logger.info(f"\t\tThickening sections to {0.02 * width * 2} with width {width}")
 
     example_2d_fin = chunk_sect_info.iloc[0][target_section]
 
@@ -153,7 +156,7 @@ def thicken_sections_within_chunk(
             )
 
         if np.sum(section) == 0:
-            print(f"Warning: empty frame {row_i} {row}\n")
+            logger.warning(f"Warning: empty frame {row_i} {row}")
 
         y0 = int(y) - width if int(y) - width > 0 else 0
         y1 = 1 + int(y) + width if 1 + int(y) + width < ydim else ydim
@@ -179,17 +182,14 @@ def thicken_sections_within_chunk(
     #    rec_vol = rec_vol + batch_offset
 
     assert np.sum(rec_vol) != 0, "Error: thickened volume is empty"
-    print(
-        "\t\t\tThickened volume:\t",
-        np.min(rec_vol),
-        np.mean(rec_vol[rec_vol > rec_vol.min()]),
-        np.max(rec_vol),
+    logger.info(
+        f"\t\t\tThickened volume:\t {np.min(rec_vol)}"
+        f" {np.mean(rec_vol[rec_vol > rec_vol.min()])} {np.max(rec_vol)}"
     )
 
     for a in inplane_axes(axis):
         affine[a, a] = resolution
 
-    print("\tthickened_fn", thickened_fn, rec_vol.shape)
     nib.Nifti1Image(rec_vol, affine, direction_order="lpi").to_filename(thickened_fn)
 
     return rec_vol
@@ -234,7 +234,7 @@ def get_section_intervals(vol: np.ndarray, axis: int = DEFAULT_SECTION_AXIS) -> 
     labeled_sections, nlabels = label(valid_sections)
 
     if nlabels < 2:
-        print(
+        logger.error(
             "Error: there must be a gap between thickened sections. Use higher resolution volumes."
         )
 
@@ -310,7 +310,7 @@ def transform_chunk_volumes(
             nl_3d_tfm_fn = chunk_df["nl_3d_tfm_fn"].values[0]
 
             if not os.path.exists(thickened_stx_fn) or clobber:
-                print(
+                logger.info(
                     f"\tTransforming {thickened_fn} to stx space:\n\t {thickened_stx_fn}"
                 )
 

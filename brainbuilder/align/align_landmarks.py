@@ -17,7 +17,7 @@ from brainbuilder.utils.axis_utils import (
     inplane_axes,
     volume_shape,
 )
-from brainbuilder.utils.utils import pad_volume, simple_ants_apply_tfm
+from brainbuilder.utils.utils import pad_volume, simple_ants_apply_tfm, single_threaded_itk
 from joblib import Parallel, delayed
 from scipy.ndimage import binary_dilation, center_of_mass
 
@@ -182,7 +182,7 @@ def _process_and_save_sparse_landmark_volume(
     reference_direction = ants.image_read(reference_vol_path).direction[
         [0, 1, 2], [0, 1, 2]
     ]
-    print(f"Reference origin: {reference_origin}, direction: {reference_direction}")
+    logger.info(f"Reference origin: {reference_origin}, direction: {reference_direction}")
 
     # Initialize affine and dimensions
     affine, dims, target_dims, scaling, steps = _init_parameters(
@@ -207,7 +207,7 @@ def _process_and_save_sparse_landmark_volume(
 
         warped_slice_path = str(warped_slice_path)
 
-        print("\tProcessing warped slice:", warped_slice_path)
+        logger.info(f"\tProcessing warped slice: {warped_slice_path}")
 
         warped = np.squeeze(nib.load(str(warped_slice_path)).get_fdata()).astype(
             np.uint32
@@ -272,7 +272,7 @@ def _process_and_save_sparse_landmark_volume(
         f"after: {sorted(int(v) for v in unique_labels_rsl)}"
     )
 
-    print("Writing sparse landmark volume to", out_vol_path)
+    logger.info(f"Writing sparse landmark volume to {out_vol_path}")
     nib.Nifti1Image(out_data, affine, direction_order="lpi").to_filename(out_vol_path)
 
 
@@ -300,8 +300,6 @@ def apply_tfm_and_check(
 
     dilate_count = 0
     while dilate_count <= max_dilation:
-        print()
-        print("Current input file:", current_input_file)
         simple_ants_apply_tfm(
             current_input_file,
             ref_file,
@@ -366,12 +364,12 @@ def process_row(row: pd.Series, clobber: bool = False) -> None:
 
     if _is_missing(tfm_path) or not os.path.exists(str(tfm_path)):
         # Copy landmark as is (no transform)
-        print(f"No transform found for section {lm_path}, copying landmark as is.")
+        logger.info(f"No transform found for section {lm_path}, copying landmark as is.")
         # shutil.copy(str(lm_path), str(landmark_tfm))
         shutil.copy(str(lm_path), str(landmark_2d_rsl))
 
     if landmark_2d_rsl and not os.path.exists(landmark_2d_rsl) or clobber:
-        print(
+        logger.info(
             f"\tWarping landmark {lm_path} to {landmark_2d_rsl} using transform {tfm_path}."
         )
 
@@ -417,10 +415,11 @@ def build_sparse_landmark_volume(
     )
 
     if not os.path.exists(out_vol_path) or clobber:
-        Parallel(n_jobs=-1)(
-            delayed(process_row)(row, clobber=clobber)
-            for _, row in sect_info.iterrows()
-        )
+        with single_threaded_itk():
+            Parallel(n_jobs=-1)(
+                delayed(process_row)(row, clobber=clobber)
+                for _, row in sect_info.iterrows()
+            )
 
         _process_and_save_sparse_landmark_volume(
             sect_info,
@@ -443,7 +442,7 @@ def convert_transform(
     clobber: bool = False,
 ) -> None:
     """Convert ANTs transforms to h5 format."""
-    print("Converting landmark transforms to h5 format...")
+    logger.info("Converting landmark transforms to h5 format...")
     if os.path.exists(out_tfm_h5) and not clobber:
         return
 
@@ -553,7 +552,7 @@ def calculate_dist_between_labels(
 
         dists.append(dist)
 
-        print(
+        logger.info(
             f"Label {label}: distance = {dist:.2f} mm\t(com1: {np.round(com1,1)}, com2: {np.round(com2,1)})"
         )
 
@@ -578,8 +577,8 @@ def calculate_dist_between_labels(
     mean_dist = float(np.mean(dists))
     std_dist = float(np.std(dists))
 
-    print(f"Mean distance: {mean_dist:.2f} mm")
-    print(f"Standard deviation: {std_dist:.2f} mm")
+    logger.info(f"Mean distance: {mean_dist:.2f} mm")
+    logger.info(f"Standard deviation: {std_dist:.2f} mm")
 
     return mean_dist
 
@@ -620,7 +619,7 @@ def init_landmark_transform(
 
     ### 1) Run affine alignment
     if not os.path.exists(affine_tfm) or clobber:
-        print("Running affine landmark-based alignment...")
+        logger.info("Running affine landmark-based alignment...")
         cmd = [
             "antsLandmarkBasedTransformInitializer",
             "3",
@@ -638,7 +637,7 @@ def init_landmark_transform(
             affine_tfm
         ), f"Affine landmark transform not created: {affine_tfm}"
     ### 2) Apply affine to moving landmarks to get intermediate volume
-    print("Applying affine transform to moving landmarks...")
+    logger.info("Applying affine transform to moving landmarks...")
 
     simple_ants_apply_tfm(
         moving_landmarks,
@@ -667,7 +666,7 @@ def init_landmark_transform(
     ], f"Invalid transform type: {transform_type}"
 
     if fixed_qc_vol_path and moving_qc_vol_path:
-        print("\nApplying transforms to moving QC volume for visual inspection...")
+        logger.info("Applying transforms to moving QC volume for visual inspection...")
         simple_ants_apply_tfm(
             moving_qc_vol_path,
             fixed_qc_vol_path,
@@ -677,7 +676,7 @@ def init_landmark_transform(
             n="Linear",
             clobber=clobber,
         )
-        print(f"wrote: {moving_qc_affine_path}\n")
+        logger.info(f"wrote: {moving_qc_affine_path}")
 
     # assert check that the affin_vol_fn has same values as moving_landmarks after transform
     affine_labels = set(np.unique(nib.load(affine_vol_fn).get_fdata())[1:])
@@ -692,7 +691,7 @@ def init_landmark_transform(
     )
 
     if not os.path.exists(nl_tfm) or clobber:
-        print("Running non-linear landmark-based alignment...")
+        logger.info("Running non-linear landmark-based alignment...")
 
         cmd = [
             "antsLandmarkBasedTransformInitializer",
@@ -716,7 +715,7 @@ def init_landmark_transform(
         ), f"Non-linear landmark transform not created: {nl_tfm}"
 
     if not os.path.exists(nl_vol_fn) or clobber:
-        print("Applying non-linear transform to affine-warped landmarks...")
+        logger.info("Applying non-linear transform to affine-warped landmarks...")
         simple_ants_apply_tfm(
             affine_vol_fn,
             fixed_landmarks,
@@ -742,14 +741,14 @@ def init_landmark_transform(
     )
 
     if fixed_qc_vol_path and moving_qc_vol_path:
-        print(
-            "\nApplying non-linear transforms to moving QC volume for visual inspection..."
+        logger.info(
+            "Applying non-linear transforms to moving QC volume for visual inspection..."
         )
 
-        print("-i", moving_qc_vol_path)
-        print("-t", out_tfm)
-        print("-r", fixed_qc_vol_path)
-        print("-o", moving_qc_nl_final_path)
+        logger.info(f"-i {moving_qc_vol_path}")
+        logger.info(f"-t {out_tfm}")
+        logger.info(f"-r {fixed_qc_vol_path}")
+        logger.info(f"-o {moving_qc_nl_final_path}")
 
         # if  '0.125' in moving_qc_nl_final_path and 'final' in moving_qc_nl_final_path: #FIXME
 
@@ -763,7 +762,7 @@ def init_landmark_transform(
             clobber=clobber,
         )
 
-        print(f"wrote: {moving_qc_nl_final_path}\n")
+        logger.info(f"wrote: {moving_qc_nl_final_path}")
 
     return affine_tfm, nl_tfm, out_tfm
 
@@ -878,7 +877,7 @@ def check_for_identical_landmark_values(
         # check that no label in lm_labels is already in all_labels
         intersection = all_labels.intersection(lm_labels)
         if len(intersection) != 0:
-            print(f"\tERROR: Labels {intersection} appear in multiple landmark files.")
+            logger.error(f"\tERROR: Labels {intersection} appear in multiple landmark files.")
             error_flag = True
         all_labels.update(lm_labels)
 
@@ -948,7 +947,7 @@ def adjust_reference_landmark_labels(
 
     adjusted_img.to_filename(adjusted_ref_landmark_path)
 
-    print(
+    logger.info(
         f"Adjusted reference landmark labels and saved to {adjusted_ref_landmark_path}"
     )
 

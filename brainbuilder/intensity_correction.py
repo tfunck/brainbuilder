@@ -29,7 +29,7 @@ def apply_optimized_params(df, best_params, n_chunks):
     df_list = []
     # Apply optimized parameters to the data
     for i, (chunk, data) in enumerate(df.groupby("chunk")):
-        print(f"Processing pair: {chunk}", i)
+        logger.info(f"Processing pair: {chunk} {i}")
 
         opt_biases = best_params[:n_chunks]
         opt_scales = best_params[n_chunks:]
@@ -80,7 +80,7 @@ def find_optimal_params(data_pairs, n_chunks):
 
     # Optimize using different methods
     for method in ["L-BFGS-B"]:  # , 'Powell', 'Nelder-Mead'  ]:
-        print(f"Using optimization method: {method}")
+        logger.info(f"Using optimization method: {method}")
         # Run optimization
         result = minimize(
             loss,
@@ -145,7 +145,7 @@ def get_optimized_correction_factors(df_full):
             if int(clusters[i]) == int(clusters[i + 1])
             and clusters[i] < clusters[i + 1]
         ]
-        print("Caudal-Rostral Pairs:", caudal_rostral_pairs)
+        logger.info(f"Caudal-Rostral Pairs: {caudal_rostral_pairs}")
 
         # Map cluster to chunk number
         cluster_to_chunk = {c: int(float(c)) for c in clusters if float(c).is_integer()}
@@ -169,7 +169,7 @@ def get_optimized_correction_factors(df_full):
 
     df["density_corr"] = df["slope"] * df["density_orig"] + df["intercept"]
 
-    print(df)
+    logger.info(df)
     return df
 
 
@@ -309,7 +309,7 @@ def get_dataset_percentiles(
             # Reverse the y coordinate for chunks so that the smaller values are rostral
             sect_info_df.loc[idx, "y0"] = y0
 
-            print(chunk, direction, ymax0, chunk_y_max)
+            logger.info(f"{chunk} {direction} {ymax0} {chunk_y_max}")
 
             ymax0 = y0.max()
 

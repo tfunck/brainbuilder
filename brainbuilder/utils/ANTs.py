@@ -10,7 +10,9 @@ from scipy.ndimage import gaussian_filter
 from skimage.filters import threshold_otsu
 
 import brainbuilder.utils.ants_nibabel as nib
-from brainbuilder.utils.utils import shell, simple_ants_apply_tfm, splitext
+from brainbuilder.utils.utils import get_logger, shell, simple_ants_apply_tfm, splitext
+
+logger = get_logger(__name__)
 
 
 def generate_mask(fn: str, out_fn: str, sigma: float = 8) -> None:
@@ -80,10 +82,6 @@ def use_identity_backup(
         ndim=dim,
         clobber=True,
     )
-
-    print("Wrote identity transform to", final_tfm_fn)
-    print("Wrote identity inverse transform to", final_tfm_inv_fn)
-    print("Applied identity transform to", final_moving_rsl_fn)
 
     return final_tfm_fn, final_tfm_inv_fn, final_moving_rsl_fn
 
@@ -238,12 +236,9 @@ def ANTs(
     if len(output_files_not_exists) == 0 and clobber == 0:
         return final_tfm_fn, final_tfm_inv_fn, final_moving_rsl_fn
 
-    print("Following output files do not exist. Will run registration to create them")
-    print(output_files_not_exists)
-
     if verbose:
-        print("Moving:", moving_fn)
-        print("Fixed:", fixed_fn)
+        logger.info(f"Moving: {moving_fn}")
+        logger.info(f"Fixed: {fixed_fn}")
 
     moving_mask_fn = None
     fixed_mask_fn = None
@@ -282,7 +277,7 @@ def ANTs(
     img_mv = nib.load(moving_fn)
     # If image volume is empty, write identity matrix
     if np.sum(img_fx.get_fdata()) == 0 or np.sum(img_mv.get_fdata()) == 0:
-        print("Warning: at least one of the image volume is empty")
+        logger.warning("Warning: at least one of the image volume is empty")
 
         return use_identity_backup(
             final_tfm_fn,
@@ -425,17 +420,17 @@ def ANTs(
             )
 
             if verbose == 1:
-                print(cmdline)
+                logger.info(cmdline)
 
             errorcode = 0
             for attempt in range(n_tries):
                 try:
                     # Run command line
                     stdout, stderr, errorcode = shell(cmdline, exit_on_failure=False)
-                    print("Attempt:", attempt, errorcode)
+                    logger.info(f"Attempt: {attempt} {errorcode}")
                     if verbose == 1:
-                        print(stdout)
-                        print(stderr)
+                        logger.info(stdout)
+                        logger.info(stderr)
                 except RuntimeError:
                     continue
 
@@ -443,7 +438,7 @@ def ANTs(
                     break
             if errorcode != 0:
                 # If registration fails after n_tries, write identity transform and copy moving image to output
-                print(
+                logger.error(
                     f"Error: ANTs registration failed after {n_tries} attempts. Writing identity transform and copying moving image to output."
                 )
                 return use_identity_backup(
@@ -466,10 +461,10 @@ def ANTs(
                 fn for fn in expected_stage_outputs if not os.path.exists(fn)
             ]
             if missing_stage_outputs:
-                print(
+                logger.error(
                     "Error: ANTs registration completed but expected outputs are missing"
                 )
-                print(missing_stage_outputs)
+                logger.error(missing_stage_outputs)
                 return use_identity_backup(
                     final_tfm_fn,
                     final_tfm_inv_fn,

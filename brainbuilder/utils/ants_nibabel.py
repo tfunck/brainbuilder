@@ -1,9 +1,14 @@
 """Module for reading and writing nifti files using ANTsPy."""
+import logging
 import os
 
 import ants
 import nibabel as nb
 import numpy as np
+
+# Resolved by name rather than via brainbuilder.utils.utils.get_logger, which
+# would be a circular import (utils imports this module).
+logger = logging.getLogger("brainbuilder")
 
 ras = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]])
 lpi = np.array([[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]])
@@ -47,7 +52,7 @@ class Nifti1Image:
         elif len(direction) != 0:
             direction = direction
         else:
-            print(
+            logger.error(
                 "Error: <direction_order> not supported, specify <direction> directly"
             )
             exit(1)
@@ -82,7 +87,7 @@ def safe_image_read(fn: str) -> ants.core.ants_image.ANTsImage:
     try:
         img = ants.image_read(str(fn))
     except RuntimeError:
-        print("Error: cannot load file", fn)
+        logger.error(f"Error: cannot load file {fn}")
         exit(1)
 
     return img
@@ -106,7 +111,7 @@ def read_affine_antspy(fn: str) -> np.ndarray:
     orientation = img.orientation
     if len(img.shape) == 3 and img.shape[-1] != 1:
         if orientation != "RAS":
-            print(f"Warning: file has {orientation}, not RAS. {fn}")
+            logger.warning(f"Warning: file has {orientation}, not RAS. {fn}")
 
     return affine
 

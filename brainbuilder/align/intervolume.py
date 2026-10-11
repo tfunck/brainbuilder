@@ -22,14 +22,18 @@ from brainbuilder.utils.axis_utils import (
 )
 from brainbuilder.utils.utils import (
     check_consistent_dimensions,
+    get_logger,
     get_section_intervals,
     get_seg_fn,
     resample_to_resolution,
     simple_ants_apply_tfm,
+    single_threaded_itk,
 )
-from joblib import Parallel, delayed
+from joblib import Parallel, cpu_count, delayed
 from scipy.ndimage import binary_dilation, binary_erosion, center_of_mass, shift
 from skimage.transform import resize
+
+logger = get_logger(__name__)
 
 
 def get_input_file(
@@ -127,11 +131,15 @@ def resample_and_transform(
         if resolution_itr == 0:
             init_fixed = row.get("init_fixed", None)
             if isinstance(init_fixed, str) and os.path.exists(init_fixed):
+                # Named from row["img"], not init_fixed: every init_fixed shares
+                # the same basename (_level-N_Mattes_<tfm>.nii.gz, unique only by
+                # directory), so naming from it makes all parallel workers write
+                # the same file.
                 fixed_rsl_fn = get_seg_fn(
                     output_dir,
                     int(row["sample"]),
                     resolution_3d,
-                    init_fixed,
+                    row["img"],
                     "_fixed_rsl",
                 )
                 if not os.path.exists(fixed_rsl_fn) or clobber:
@@ -164,7 +172,7 @@ def resample_and_transform(
                 clobber=True,
             )
         else:
-            print("\tNo transform for", seg_rsl_fn)
+            logger.info(f"\tNo transform for {seg_rsl_fn}")
             shutil.copy(tfm_input_fn, seg_rsl_tfm_fn)
 
     # Derived from row["img"]'s own basename (not just row["base"]/sample) so
@@ -184,7 +192,7 @@ def resample_and_transform(
                 output_dir,
                 int(row["sample"]),
                 resolution_2d,
-                init_fixed,
+                row["img"],
                 "_fixed_rsl_img",
             )
             if not os.path.exists(fixed_rsl_img_fn) or clobber:
@@ -212,7 +220,7 @@ def resample_and_transform(
             empty_ok=True,
         )
     else:
-        print("\tNo transform for", row["img"])
+        logger.info(f"\tNo transform for {row['img']}")
 
         shutil.copy(row["img"], img_rsl_tfm_fn)
 
@@ -291,23 +299,24 @@ def resample_transform_segmented_images(
             section_axis=section_axis,
         )
 
-    num_cores = 1  # DEBUG DELETE ME
-    results = Parallel(n_jobs=num_cores, backend="multiprocessing")(
-        delayed(resample_and_transform)(
-            output_dir,
-            resolution_itr,
-            resolution_2d,
-            resolution_3d,
-            row,
-            tfm_ref_fn,
-            clobber=clobber,
+    num_cores = cpu_count() if num_cores == 0 else num_cores
+
+    with single_threaded_itk():
+        results = Parallel(n_jobs=num_cores, backend="multiprocessing")(
+            delayed(resample_and_transform)(
+                output_dir,
+                resolution_itr,
+                resolution_2d,
+                resolution_3d,
+                row,
+                tfm_ref_fn,
+                clobber=clobber,
+            )
+            for i, row in sect_info.iterrows()
         )
-        for i, row in sect_info.iterrows()
-    )
 
     sect_info = pd.DataFrame(results)
-    print(resolution_2d)
-    print(resolution_3d)
+
     check_consistent_dimensions(sect_info, "2d_align")
     check_consistent_dimensions(sect_info, "2d_align_3d_res")
     check_consistent_dimensions(sect_info, "seg_rsl")
@@ -453,7 +462,6 @@ def create_acquisition_volume(
 
     param: sect_info: dataframe containing information about each section
     param: chunk_info: dataframe containing information about each chunk
-        print("created:", seg_rsl_fn)
     param: resolution_itr: current resolution iteration
     param: resolution: current resolution
     param: resolution_3d: current 3d resolution
@@ -473,9 +481,9 @@ def create_acquisition_volume(
     if resolution_3d not in resolution_list:
         resolution_list.append(resolution_3d)
 
-    print("\t\tStep 2: Autoradiograph segmentation")
+    logger.info("\t\tStep 2: Autoradiograph segmentation")
     if not os.path.exists(seg_rsl_fn) or not os.path.exists(sect_info_csv) or clobber:
-        print("\t\t\tResampling segemented sections")
+        logger.info("\t\t\tResampling segemented sections")
 
         sect_info["base"] = sect_info["raw"].apply(
             lambda x: os.path.basename(x).replace(".nii.gz", "")
@@ -536,7 +544,7 @@ def create_acquisition_volume(
             clobber=clobber,
         )
 
-        print("Create Acquisition Atlas")
+        logger.info("Create Acquisition Atlas")
         # create_acq_atlas(chunk_info, out_dir, seg_rsl_fn, clobber=clobber)
 
         chunked_percentile(
