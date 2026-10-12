@@ -32,6 +32,8 @@ One row per tissue chunk (slab).
 | `chunk` | yes | Integer chunk/slab identifier. |
 | `section_thickness` | yes | Physical section thickness in mm (e.g., `0.02` for 20 µm). |
 | `section_axis` | no | Axis of the reference volume along which sections were acquired: `0`/`1`/`2` or `x`/`y`/`z`. Default `1` (coronal). |
+| `caudal_limit` | no | World coordinate of the caudal boundary of the chunk in the reference volume, along `section_axis`. Used to crop the reference to a per-chunk target for 3D alignment (see [outputs.md](outputs.md)). |
+| `rostral_limit` | no | World coordinate of the rostral boundary of the chunk. If the limits are omitted (and no landmarks are provided), each chunk is registered against the full reference volume. |
 
 Example:
 
