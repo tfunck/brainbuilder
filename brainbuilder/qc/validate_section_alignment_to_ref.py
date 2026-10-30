@@ -1,11 +1,10 @@
 """Validate alignment of histological sections to structural reference volume."""
 import os
-import ants
 from multiprocessing import cpu_count
 from typing import Callable, Tuple
 
+import ants
 import matplotlib.pyplot as plt
-import nibabel as nib
 import numpy as np
 import pandas as pd
 from brainbuilder.utils import utils
@@ -217,7 +216,7 @@ def get_section_metric(
     out_png: str,
     idx: int,
     create_qc_plot: bool = False,
-    metric: str = 'dice_local',
+    metric: str = "dice_local",
     verbose: bool = False,
 ) -> None:
     """Calculate the section metric for given input files and parameters.
@@ -229,26 +228,36 @@ def get_section_metric(
     :param verbose: Whether to enable verbose mode.
     :return: None
     """
-    valid_metric = ['dice_local', 'MeanSquares', 'Correlation', 'ANTSNeighborhoodCorrelation', 'MattesMutualInformation', 'JointHistogramMutualInformation', 'Demons']
-
+    valid_metric = [
+        "dice_local",
+        "MeanSquares",
+        "Correlation",
+        "ANTSNeighborhoodCorrelation",
+        "MattesMutualInformation",
+        "JointHistogramMutualInformation",
+        "Demons",
+    ]
 
     img0 = ants.image_read(fx_fn)
     fx_vol = img0.numpy()
     img1 = ants.image_read(mv_fn)
     mv_vol = img1.numpy()
 
-    if metric == 'dice_local':
+    if metric == "dice_local":
         section_metric = dice_local(fx_vol, mv_vol, offset=5)
     elif metric in valid_metric:
-        #ANTs/ITK metrics are multiplied by -1 because they are minimized during optimization, so we multiply by -1 to get a positive similarity score.
-        section_metric = -1 * ants.math.image_similarity(img0, img1, metric_type=metric)
-        
-    else :
+        # ANTs/ITK metrics are multiplied by -1 because they are minimized during optimization, so we multiply by -1 to get a positive similarity score.
+        # image_similarity moved from ants.math (antspyx >=0.5) to the top level (antspyx <=0.4); support both.
+        image_similarity = (
+            getattr(ants, "image_similarity", None) or ants.math.image_similarity
+        )
+        section_metric = -1 * image_similarity(img0, img1, metric_type=metric)
+
+    else:
         raise ValueError(f"Invalid metric: {metric}. Valid metrics are: {valid_metric}")
 
-
     if create_qc_plot:
-        if metric == 'dice_local':
+        if metric == "dice_local":
             fx_vol = prepare_volume(img0.numpy())
             mv_vol = prepare_volume(img1.numpy())
         plt.cla()

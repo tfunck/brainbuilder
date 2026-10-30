@@ -25,6 +25,7 @@ from brainbuilder.utils.utils import (
     get_logger,
     get_section_intervals,
     get_seg_fn,
+    inplane_section_shape,
     resample_to_resolution,
     simple_ants_apply_tfm,
     single_threaded_itk,
@@ -234,7 +235,18 @@ def resample_and_transform(
 
     row["2d_align"] = img_rsl_tfm_fn  # Final transformed 2D image at 2D resolution
 
-    if resolution_2d == resolution_3d:
+    # The 3D-resolution acquisition section and the transformed segmentation are
+    # consumed as a pair downstream, so the acquisition is pinned onto the
+    # segmentation's grid. Deriving its shape from the resolution ratio instead
+    # lets the chained resample (source -> 2D res -> 3D res) round differently
+    # than the segmentation's direct resample (source -> 3D res) and land one
+    # voxel off.
+    seg_rsl_tfm_shape = inplane_section_shape(seg_rsl_tfm_fn)
+
+    if (
+        resolution_2d == resolution_3d
+        and inplane_section_shape(img_rsl_tfm_fn) == seg_rsl_tfm_shape
+    ):
         row["2d_align_3d_res"] = img_rsl_tfm_fn  # If same resolution, use same file
     else:  # Resample transformed 2D image to 3D resolution, used for creating intermediate volume later (which is always at 3D resolution)
         img_rsl_tfm_3d_fn = f'{output_dir}/{row["base"]}_y-{row["sample"]}_itr-{resolution_2d}_{resolution_3d}mm_rsl_tfm.nii.gz'
@@ -244,6 +256,7 @@ def resample_and_transform(
             output_filename=img_rsl_tfm_3d_fn,
             order=1,
             section_axis=section_axis,
+            target_shape=seg_rsl_tfm_shape,
         )
         row["2d_align_3d_res"] = img_rsl_tfm_3d_fn
 
@@ -287,7 +300,9 @@ def resample_transform_segmented_images(
         .replace(".nii.gz", "")
         .replace(".nii", "")
     )
-    tfm_ref_fn = f"{output_dir}/{tfm_ref_basename}_{resolution_3d}mm_2d_reference_image.nii.gz"
+    tfm_ref_fn = (
+        f"{output_dir}/{tfm_ref_basename}_{resolution_3d}mm_2d_reference_image.nii.gz"
+    )
     section_axis = section_axis_from_row(sect_info.iloc[0])
 
     if not os.path.exists(tfm_ref_fn) and resolution_itr != 0:
@@ -456,6 +471,7 @@ def create_acquisition_volume(
     init_align_fn: str,
     axis: int = DEFAULT_SECTION_AXIS,
     num_cores: int = 0,
+    cleanup: bool = True,
     clobber: bool = False,
 ) -> None:
     """Create intermediate acquisition volume for use in registration to the structural reference volume.
@@ -541,6 +557,7 @@ def create_acquisition_volume(
             num_cores=num_cores,
             tissue_type="cls",
             target_section="seg_rsl_tfm",
+            cleanup=cleanup,
             clobber=clobber,
         )
 

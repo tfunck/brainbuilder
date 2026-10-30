@@ -71,9 +71,7 @@ def _multires_output_covers_resolution_list(
 
     target_resolution = float(resolution_list[-1])
 
-    return bool(
-        (chunk_info_out["resolution"].astype(float) == target_resolution).all()
-    )
+    return bool((chunk_info_out["resolution"].astype(float) == target_resolution).all())
 
 
 def multiresolution_alignment(
@@ -96,6 +94,7 @@ def multiresolution_alignment(
     num_cores: int = 0,
     landmark_dir: Path = None,
     interpolation: str = "Linear",
+    cleanup: bool = True,
     clobber: bool = False,
 ) -> str:
     """Multiresolution alignment of chunks.
@@ -136,11 +135,8 @@ def multiresolution_alignment(
     qc_dir = f"{align_output_dir}/qc/"
     os.makedirs(qc_dir, exist_ok=True)
 
-    if (
-        clobber
-        or not _multires_output_covers_resolution_list(
-            chunk_output_csv, sect_output_csv, resolution_list
-        )
+    if clobber or not _multires_output_covers_resolution_list(
+        chunk_output_csv, sect_output_csv, resolution_list
     ):
         hemi_info = pd.read_csv(hemi_info_csv, index_col=None)
 
@@ -209,6 +205,7 @@ def multiresolution_alignment(
                 base_nl_itr_3d=base_nl_itr_3d,
                 interpolation=interpolation,
                 landmark_dir=landmark_dir,
+                cleanup=cleanup,
                 clobber=clobber,
             )
 
@@ -374,6 +371,7 @@ def alignment_iteration(
     landmark_dir: str = None,
     section_thickness: float = 0.02,
     skip_2d_alignment: bool = False,
+    cleanup: bool = True,
     clobber: bool = False,
 ) -> tuple:
     """Perform 3D-2D alignment for each resolution.
@@ -416,6 +414,7 @@ def alignment_iteration(
         paths.init_volume,
         axis=axis,
         num_cores=num_cores,
+        cleanup=cleanup,
         clobber=clobber,
     )
 
@@ -545,6 +544,7 @@ def align_chunk(
     align_2d_use_init_tfm: bool = False,
     interpolation: str = "Linear",
     landmark_dir: str = None,
+    cleanup: bool = True,
     clobber: bool = False,
 ) -> tuple:
     """3D-2D mutliresolution scheme.
@@ -650,6 +650,7 @@ def align_chunk(
                 num_cores=num_cores,
                 interpolation=interpolation,
                 landmark_dir=landmark_dir,
+                cleanup=cleanup,
                 clobber=clobber,
             )
 
@@ -702,6 +703,7 @@ def align_chunk(
         num_cores=num_cores,
         interpolation=interpolation,
         landmark_dir=landmark_dir,
+        cleanup=cleanup,
         clobber=clobber,
     )
 

@@ -127,6 +127,7 @@ def interpolate_missing_sections(
     refine_2d_alignment_flag: bool = False,
     num_cores: int = -1,
     use_final_transform: bool = True,
+    cleanup: bool = True,
     clobber: bool = False,
 ) -> str:
     """Interpolate missing sections in a volume.
@@ -157,6 +158,7 @@ def interpolate_missing_sections(
         refine_2d_alignment_flag=refine_2d_alignment_flag,
         num_cores=num_cores,
         use_final_transform=use_final_transform,
+        cleanup=cleanup,
         clobber=clobber,
     )
     assert (

@@ -47,6 +47,7 @@ def get_logger(name="brainbuilder"):
         logger.setLevel(LOG_VERBOSITY_LEVEL)
     return logger
 
+
 logger = get_logger()
 
 
@@ -214,12 +215,45 @@ def check_dimensions(fns: list, dims: tuple, axis: int = DEFAULT_SECTION_AXIS) -
     return sections_okay_flag
 
 
+def scale_to_uint8(arr: np.ndarray) -> np.ndarray:
+    """Scale an array to the 0-255 range and cast to uint8."""
+    arr = arr.astype(np.float32)
+    vmin = float(np.min(arr))
+    vmax = float(np.max(arr))
+    if vmax > vmin:
+        arr = (arr - vmin) / (vmax - vmin)
+    else:
+        arr = np.zeros_like(arr)
+    return np.rint(arr * 255).astype(np.uint8)
+
+
+def convert_nifti_to_uint8(fn: str) -> None:
+    """Rewrite an existing NIfTI volume as uint8, scaling intensities to 0-255."""
+    img = ants.image_read(fn)
+    if img.numpy().dtype == np.uint8:
+        return
+    out = ants.from_numpy(
+        scale_to_uint8(img.numpy()),
+        origin=img.origin,
+        spacing=img.spacing,
+        direction=img.direction,
+    )
+    ants.image_write(out, fn)
+
+
 def concatenate_sections_to_volume(
-    sect_info, target_name, out_fn, dims, affine, axis: int = DEFAULT_SECTION_AXIS
+    sect_info,
+    target_name,
+    out_fn,
+    dims,
+    affine,
+    axis: int = DEFAULT_SECTION_AXIS,
+    output_dtype=np.float32,
 ):
     """Process sections and write the 3D volume to a file.
 
     :param axis: sectioning axis along which sections are stacked (default 1, coronal)
+    :param output_dtype: dtype of the written volume; np.uint8 scales intensities to 0-255.
     """
     if not os.path.exists(out_fn):
         out_vol = np.zeros(dims, dtype=np.float32)
@@ -272,8 +306,11 @@ def concatenate_sections_to_volume(
 
         logger.info(f"\t\tWriting 3D non-linear: {out_fn}")
 
+        if output_dtype == np.uint8:
+            out_vol = scale_to_uint8(out_vol)
+
         nib.Nifti1Image(
-            out_vol, affine, dtype=np.float32, direction_order="lpi"
+            out_vol, affine, dtype=output_dtype, direction_order="lpi"
         ).to_filename(out_fn)
 
 
@@ -1019,7 +1056,7 @@ def unbuffered(proc: Popen, stream: str = "stdout") -> Iterator[str]:
                 out.append(last)
                 last = stream.read(1)
             out = "".join(out)
-            #print(out)
+            # print(out)
             yield out
 
 
@@ -1196,8 +1233,10 @@ def parse_resample_arguments(
 
     vol_sum = np.sum(np.abs(vol))
 
-    if not vol_sum > 0 :
-        logger.warning(f"Error: empty ({vol_sum}) input file for resample_to_resolution\ninput_arg = {input_arg}")
+    if not vol_sum > 0:
+        logger.warning(
+            f"Error: empty ({vol_sum}) input file for resample_to_resolution\ninput_arg = {input_arg}"
+        )
 
     ndim = len(vol.shape)
 
@@ -1259,21 +1298,67 @@ def compare_timestamp_of_files(x: Union[str, List], y: Union[str, List]) -> bool
     return True
 
 
+# Relative tolerance used to snap a scaled dimension onto an exact integer
+# before rounding up.  NIfTI/ITK store voxel sizes as float32, so a nominal
+# 0.1 mm step reads back as 0.10000000149011612.  Without snapping, a scale of
+# 0.1/0.1 evaluates to 1.0000000149 and np.ceil silently adds one voxel per
+# axis on every same-resolution resample.  Those inflated grids then disagree
+# with grids produced by resampling the same source directly, which is the
+# classic off-by-one shape mismatch between acquisition and segmentation
+# sections.
+DIM_SCALE_RTOL = 1e-6
+
+
 def get_new_dims(
     old_resolution: Tuple[float, float, float],
     new_resolution: Tuple[float, float, float],
     old_dimensions: np.ndarray,
 ) -> np.ndarray:
-    """Calculate new dimensions based on old and new resolutions."""
-    old_resolution = np.abs(np.array(old_resolution))
-    new_resolution = np.abs(new_resolution)
+    """Calculate new dimensions based on old and new resolutions.
 
-    scale = old_resolution / np.array(new_resolution)
+    The scaled dimensions are snapped to an exact integer when they are within
+    ``DIM_SCALE_RTOL`` of one, so that floating point noise in the stored voxel
+    sizes cannot inflate the output grid by a voxel.
+    """
+    old_resolution = np.abs(np.array(old_resolution, dtype=np.float64))
+    new_resolution = np.abs(np.array(new_resolution, dtype=np.float64))
+
+    scale = old_resolution / new_resolution
 
     downsample_factor = 1 / scale
 
-    new_dims = np.ceil(old_dimensions * scale)
+    scaled_dims = np.asarray(old_dimensions, dtype=np.float64) * scale
+    nearest_dims = np.round(scaled_dims)
+    snapped_dims = np.where(
+        np.abs(scaled_dims - nearest_dims)
+        <= DIM_SCALE_RTOL * np.maximum(np.abs(scaled_dims), 1.0),
+        nearest_dims,
+        scaled_dims,
+    )
+
+    new_dims = np.ceil(snapped_dims)
     return new_dims, downsample_factor
+
+
+def inplane_section_shape(section: Union[str, tuple]) -> tuple:
+    """Return the in-plane shape of a 2D section, dropping a trailing singleton axis.
+
+    2D sections are sometimes stored as (m, n, 1), which compares unequal to an
+    otherwise identical (m, n) section.
+
+    :param section: path to a section or an already-loaded shape
+    :return: the in-plane shape as a tuple
+    """
+    shape = (
+        tuple(section)
+        if not isinstance(section, str)
+        else tuple(nib.load(section).shape)
+    )
+
+    if len(shape) == 3 and shape[2] == 1:
+        shape = shape[:2]
+
+    return shape
 
 
 # Check if all dimensions are the same for 2D_align, seg_rsl, seg_rsl_tfm
@@ -1758,6 +1843,7 @@ def resample_to_resolution(
     factor: float = 1,
     max_dims: Optional[np.ndarray] = None,
     section_axis: Optional[int] = None,
+    target_shape: Optional[Tuple[int, ...]] = None,
 ) -> nib.Nifti1Image:
     """Resample a volume to a new resolution.
 
@@ -1767,6 +1853,10 @@ def resample_to_resolution(
     :param dtype: data type
     :param affine: np.ndarray, affine
     :param order: order of interpolation
+    :param target_shape: optional explicit output grid. When given, the output
+        has exactly this shape instead of one derived from the resolution
+        ratio. Use it to pin a volume onto the grid of a companion volume so
+        that chained resampling cannot introduce off-by-one shape mismatches.
     :return: img_out
     """
     (
@@ -1783,6 +1873,18 @@ def resample_to_resolution(
     new_dims, downsample_factor = get_new_dims(
         old_resolution, new_resolution, vol.shape
     )
+
+    if target_shape is not None:
+        target_shape = tuple(int(dim) for dim in np.atleast_1d(target_shape))
+
+        assert len(target_shape) == ndim, (
+            f"Error: target_shape {target_shape} has {len(target_shape)} dimensions "
+            f"but the input volume has {ndim}"
+        )
+
+        new_dims = np.array(target_shape, dtype=np.float64)
+        # Base the anti-aliasing sigma on the grid that is actually produced.
+        downsample_factor = np.array(vol.shape, dtype=np.float64) / new_dims
 
     if order != 0:
         sigma = calculate_sigma_for_downsampling(downsample_factor)

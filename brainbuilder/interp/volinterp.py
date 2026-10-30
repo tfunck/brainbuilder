@@ -184,8 +184,8 @@ def validate_target_section_pair(
                 f"Segmentation section file does not exist for {target_section_cls}: {cls_fn}"
             )
 
-        acq_shape = nib.load(acq_fn).shape
-        cls_shape = nib.load(cls_fn).shape
+        acq_shape = utils.inplane_section_shape(acq_fn)
+        cls_shape = utils.inplane_section_shape(cls_fn)
         if acq_shape != cls_shape:
             raise ValueError(
                 "Acquisition and segmentation interpolation inputs must have the "
@@ -207,6 +207,7 @@ def volumetric_interpolation(
     refine_2d_alignment_flag: bool = False,
     nlflow_tfm_dict: dict = None,
     num_cores: int = -1,
+    cleanup: bool = True,
     clobber: bool = False,
 ) -> pd.DataFrame:
     os.makedirs(output_dir, exist_ok=True)
@@ -245,6 +246,7 @@ def volumetric_interpolation(
         refine_2d_alignment_flag=refine_2d_alignment_flag,
         base_ants_itr=40,
         n_resolutions=4,
+        cleanup=cleanup,
         clobber=clobber,
     )
 
@@ -266,6 +268,7 @@ def volumetric_interpolation_over_dataframe(
     target_section_acq: str = None,
     target_section_cls: str = None,
     num_cores: int = -1,
+    cleanup: bool = True,
 ) -> pd.DataFrame:
     """Interpolates the volumes of the sections in the chunk_info dataframe.
     The interpolation is done in the following steps:
@@ -348,6 +351,7 @@ def volumetric_interpolation_over_dataframe(
             interpolation=interpolation,
             target_section=curr_target_section_acq,
             num_cores=num_cores,
+            cleanup=cleanup,
             clobber=clobber,
             refine_2d_alignment_flag=refine_2d_alignment_flag,
         )
@@ -363,6 +367,7 @@ def volumetric_interpolation_over_dataframe(
             target_section=curr_target_section_cls,
             nlflow_tfm_dict=nlflow_tfm_dict,
             num_cores=num_cores,
+            cleanup=cleanup,
             clobber=clobber,
         )
 
@@ -773,6 +778,7 @@ def volumetric_pipeline(
     target_section_cls: str = None,
     num_cores: int = -1,
     use_final_transform: bool = True,
+    cleanup: bool = True,
     clobber: bool = False,
 ):
     chunk_info_list = []
@@ -822,6 +828,7 @@ def volumetric_pipeline(
             target_section_acq=curr_target_section_acq,
             target_section_cls=curr_target_section_cls,
             num_cores=num_cores,
+            cleanup=cleanup,
             clobber=clobber,
             refine_2d_alignment_flag=refine_2d_alignment_flag,
         )

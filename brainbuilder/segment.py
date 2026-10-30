@@ -561,7 +561,6 @@ def run_nnunet_segmentation(
             logger.warning(e)
             nnunet_failed = True
 
-
     return nnunet_failed
 
 
@@ -897,7 +896,7 @@ def convert_from_nnunet(
 
         if "hybrid" in seg_method:
             logger.info("\tUsing nnUNet hybrid segmentation")
-            ar_thr = multi_threshold(ref_img.get_fdata())
+            ar_thr = multi_threshold(ref_img.numpy())
             ar = ar + ar_thr
             ar /= ar.max()
 

@@ -104,7 +104,7 @@ The `acq/` and `cls/` subdirectories contain the same sequence of volumes, compu
 | File | Description |
 |---|---|
 | `sub-{sub}_hemi-{hemi}_{chunk}_{acq}_{resolution}_thickened.nii.gz` | "Thickened" volume: each acquired 2D-aligned section is expanded along the section axis to the reconstruction resolution, with empty slabs where sections are missing. Input to the interpolation. The `cls/` variant has a `_cls_thickened` suffix. |
-| `*_interp-vol_orig.nii.gz` | Interpolated volume on the original (anisotropic) grid: missing sections filled in by the nonlinear deformation-flow interpolation (`morphint`). |
+| `*_interp-vol_orig.nii.gz` | Interpolated volume on the original (anisotropic) grid: missing sections filled in by the nonlinear deformation-flow interpolation (`morphint`). Deleted automatically once the `_iso` volume is written, along with the per-slice flow/scratch files under `nl_flow/`, because they dominate disk usage; pass `keep_intermediate_outputs=True` (CLI: `--keep-intermediate-outputs`) to keep them. |
 | `*_interp-vol_iso.nii.gz` | **Final interpolated volume in native chunk space**, resampled to isotropic voxels at the reconstruction resolution. Recorded as `interp_nat` (acq) and `interp_cls_nat` (cls) in `reconstructed_chunk_info.csv`. |
 | `*_interp-vol_stx.nii.gz` | **Final interpolated volume in reference (stereotaxic) space**: the `_iso` volume resampled onto the resampled structural reference grid with the chunk's 3D transform (`nl_3d_tfm_fn`). Recorded as `interp_stx`. This is the primary per-chunk end product for analyses in reference space. |
 

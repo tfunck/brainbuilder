@@ -1,6 +1,5 @@
 """Performs 2D non-linear alignment of sections to sections from reference volume using ANTs."""
 
-import logging
 import os
 import shutil
 
@@ -195,7 +194,7 @@ def ants_registration_2d_section(
 
     mv_rsl_fn = f"{prefix}_{transforms[-1]}_{metrics[-1]}_cls_rsl.nii.gz"
 
-    #verbose = 0 if logger.getEffectiveLevel() == logging.INFO else 1
+    # verbose = 0 if logger.getEffectiveLevel() == logging.INFO else 1
 
     if not os.path.exists(final_tfm) or not os.path.exists(mv_rsl_fn) or clobber:
         for transform, metric, f_str, s_str, itr_str in zip(
@@ -251,7 +250,7 @@ def ants_registration_2d_section(
                 mask_mv = threshold(mv_fn)
                 command_str += f" -x [{mask_fx},{mask_mv}] "
 
-            if verbose :
+            if verbose:
                 logger.info(command_str)
 
             with open(command_log_fname, "w") as f:
@@ -342,7 +341,6 @@ def affine_trials(
         trial_prefix = affine_dir + f"_trial-{trial}"
 
         try:
-
             affine_tfm, mv_rsl_fn = ants_registration_2d_section(
                 fx_fn=fx_fn,
                 mv_fn=mv_fn,
@@ -360,10 +358,15 @@ def affine_trials(
             # Re-validate the final moving image before metric computation.
             check_volume(mv_rsl_fn)
 
-            metric_str = '_'.join(metric)
+            metric_str = "_".join(metric)
 
             trial_metric, _ = get_section_metric(
-                fx_fn, mv_rsl_fn, trial_prefix + f"_{metric_str}.png", 0, metric=metric, verbose=False
+                fx_fn,
+                mv_rsl_fn,
+                trial_prefix + f"_{metric_str}.png",
+                0,
+                metric=metric,
+                verbose=False,
             )
         except Exception as e:
             logger.warning(
@@ -379,9 +382,7 @@ def affine_trials(
 
     trial_log += f"max_metric: {max_metric}\tbest_trial: {best_trial}\n"
 
-    logger.info(
-        trial_log
-    )
+    logger.info(trial_log)
 
     if len(affine_tfm_trials) == 0:
         logger.warning(
@@ -460,8 +461,8 @@ def align_2d_parallel(
     # the coarser levels of the multiresolution schedule were already applied by <init_tfm>
     only_align_current_resolution = init_tfm is not None
 
-    base_nl_itr = 10  #FIXME DELETEME
-    base_lin_itr = 10 #FIXME DELETEME
+    base_nl_itr = 10  # FIXME DELETEME
+    base_lin_itr = 10  # FIXME DELETEME
 
     linParams = AntsParams(
         resolution_list,
@@ -469,7 +470,6 @@ def align_2d_parallel(
         base_lin_itr,
         only_align_current_resolution=only_align_current_resolution,
     )
-
 
     nlParams = AntsParams(
         resolution_list,
@@ -479,8 +479,12 @@ def align_2d_parallel(
     )
 
     # print linParams and nlParams
-    logger.info(f'linParams:\n\titr_list:\t{linParams.itr_list}\tfactor_list:\t{linParams.f_str}\tsmooth_list:\t{linParams.s_str}')
-    logger.info(f'nlParams:\n\titr_list:\t{nlParams.itr_list}\tfactor_list:\t{nlParams.f_str}\tsmooth_list:\t{nlParams.s_str}')
+    logger.info(
+        f"linParams:\n\titr_list:\t{linParams.itr_list}\tfactor_list:\t{linParams.f_str}\tsmooth_list:\t{linParams.s_str}"
+    )
+    logger.info(
+        f"nlParams:\n\titr_list:\t{nlParams.itr_list}\tfactor_list:\t{nlParams.f_str}\tsmooth_list:\t{nlParams.s_str}"
+    )
 
     y = int(row["sample"])
     base = get_base_from_raw(row["raw"])
@@ -773,7 +777,6 @@ def align_sections(
     sect_info["2d_align"] = sect_info["2d_align_out"]
     sect_info["2d_align_cls"] = sect_info["2d_align_cls_out"]
 
-
     return sect_info
 
 
@@ -784,6 +787,7 @@ def concatenate_tfm_sections_to_volume(
     out_fn: str,
     target_str: str = "",
     axis: int = DEFAULT_SECTION_AXIS,
+    output_dtype=np.float32,
 ) -> pd.DataFrame:
     """Concatenate 2D sections into output volume.
 
@@ -810,7 +814,13 @@ def concatenate_tfm_sections_to_volume(
     # )
 
     concatenate_sections_to_volume(
-        sect_info, target_name, out_fn, hires_img.shape, hires_img.affine, axis=axis
+        sect_info,
+        target_name,
+        out_fn,
+        hires_img.shape,
+        hires_img.affine,
+        axis=axis,
+        output_dtype=output_dtype,
     )
 
     return sect_info
@@ -922,6 +932,8 @@ def align_2d(
     )
 
     # Concatenate 2D nonlinear aligned cls sections into an output volume
+    # cls is a discrete segmentation volume, so save it as uint8 to save space;
+    # nl_2d_vol_fn above stays float because it holds biological intensity values.
     sect_info = concatenate_tfm_sections_to_volume(
         sect_info,
         ref_space_nat_fn,
@@ -929,6 +941,7 @@ def align_2d(
         nl_2d_cls_fn,
         target_str="_cls",
         axis=axis,
+        output_dtype=np.uint8,
     )
 
     return sect_info, ref_space_nat_fn

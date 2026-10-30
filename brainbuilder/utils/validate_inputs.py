@@ -287,11 +287,21 @@ def validate_unique_samples(sect_info_csv: str) -> bool:
     valid = True
 
     if "sample" in df.columns:
-        duplicated_samples = df["sample"][df["sample"].duplicated()].unique()
+        # Sample numbers are the within-chunk section index, so they only need to
+        # be unique within each sub/hemisphere/chunk group, not across the whole file.
+        group_cols = [c for c in ["sub", "hemisphere", "chunk"] if c in df.columns]
+        if group_cols:
+            duplicated_mask = df.groupby(group_cols)["sample"].transform(
+                lambda s: s.duplicated(keep=False)
+            )
+        else:
+            duplicated_mask = df["sample"].duplicated(keep=False)
+
+        duplicated_samples = df["sample"][duplicated_mask].unique()
         if len(duplicated_samples) > 0:
             logger.critical(
                 f"\tDuplicate sample numbers found in {sect_info_csv}: {sorted(duplicated_samples.tolist())}. "
-                "Each sample number must be unique."
+                "Each sample number must be unique within a sub/hemisphere/chunk group."
             )
             valid = False
 

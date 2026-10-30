@@ -742,6 +742,9 @@ def run_alignment(
         orig_mv_fn, fx_fn, out_tfm_list, out_fn, n="BSpline[2]", clobber=clobber
     )
 
+    # Store the warped reference as uint8 (scaled 0-255) to save space.
+    utils.convert_nifti_to_uint8(out_fn)
+
     # if os.path.exists(f"{prefix_syn}InverseComposite.h5"):
     #    utils.simple_ants_apply_tfm(
     #        fx_fn, mv_fn, prefix_syn + "InverseComposite.h5", out_inv_fn, n="BSpline[2]",

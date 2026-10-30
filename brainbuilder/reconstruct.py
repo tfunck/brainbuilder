@@ -155,6 +155,7 @@ def reconstruct(
     refine_2d_alignment_flag: bool = False,
     use_3d_align_stage: bool = True,
     use_interp_stage: bool = True,
+    keep_intermediate_outputs: bool = False,
     verbose: bool = False,
     clobber: bool = False,
     csv_clobber: bool = False,
@@ -198,6 +199,7 @@ def reconstruct(
     :param use_intensity_correction: bool, perform intensity correction (default=False)
     :param use_3d_align_stage: bool, run multiresolution alignment stage (default=True)
     :param use_interp_stage: bool, run interpolation stage (default=True)
+    :param keep_intermediate_outputs: bool, keep all intermediate interpolation files (per-slice flow images, scaled displacement fields, full-resolution interp-vol_orig volumes). By default these are deleted as soon as they are no longer needed because they dominate disk usage (default=False)
     :param verbose: bool, verbose output for debugging (default=False)
     :param clobber: bool, overwrite existing results (default=False)
     :param csv_clobber: bool, overwrite stage manifest CSVs only (default=False)
@@ -247,6 +249,7 @@ def reconstruct(
     logger.info(f"\t\tMissing Section Interpolation method: {interp_method}")
     logger.info(f"\t\t2D interpolation method: {interpolation_2d}")
     logger.info(f"\t\tUse intensity correction: {use_intensity_correction}")
+    logger.info(f"\t\tKeep intermediate outputs: {keep_intermediate_outputs}")
     logger.info(f"\t\tClobber: {clobber}")
     logger.info(f"\t\tCSV clobber: {csv_clobber}")
     logger.info("\tStages to run:")
@@ -335,6 +338,7 @@ def reconstruct(
             base_nl_itr_3d=base_nl_itr_3d,
             interpolation=interpolation_2d,
             landmark_dir=landmark_dir,
+            cleanup=not keep_intermediate_outputs,
             clobber=clobber,
         )
     # qc.data_set_quality_control(align_sect_info_csv, qc_dir, column="init_img")
@@ -355,6 +359,7 @@ def reconstruct(
             refine_2d_alignment_flag=refine_2d_alignment_flag,
             num_cores=num_cores,
             use_final_transform=use_3d_align_stage,  # only apply the final transform if we did the 3D alignment stage
+            cleanup=not keep_intermediate_outputs,
             clobber=clobber,
         )
 
@@ -544,6 +549,13 @@ def setup_argparse() -> argparse.ArgumentParser:
         help="Skip interpolation step",
     )
     parser.add_argument(
+        "--keep-intermediate-outputs",
+        dest="keep_intermediate_outputs",
+        default=False,
+        action="store_true",
+        help="Keep all intermediate interpolation files (per-slice flow images, scaled displacement fields, full-resolution interp-vol_orig volumes). By default these are deleted as soon as they are no longer needed because they dominate disk usage.",
+    )
+    parser.add_argument(
         "--debug", dest="debug", default=False, action="store_true", help="DEBUG mode"
     )
 
@@ -575,6 +587,7 @@ if __name__ == "__main__":
         final_resolution=args.final_resolution,
         interp_method=args.interp_method,
         use_interp_stage=not args.skip_interp,
+        keep_intermediate_outputs=args.keep_intermediate_outputs,
         verbose=args.verbose,
         clobber=args.clobber,
         csv_clobber=args.csv_clobber,

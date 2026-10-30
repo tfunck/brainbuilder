@@ -29,7 +29,7 @@ Validation results are cached in `{output_dir}/valid_inputs.npz` — delete it o
 |---|---|
 | `Error: 0 denominator when interpolating missing sections` | A chunk has too few usable sections (or empty segmentations) to interpolate between. Check the `seg` images from `1_seg` for empty masks. |
 | `Error: input volume sum is 0 in recenter` | An intermediate chunk volume is empty, usually meaning segmentation failed for all sections of a chunk. Inspect `1_seg` outputs and consider another `seg_method`. |
-| `Inconsistent dimensions in 2d_align` / shape-mismatch assertions | Typically stale cached files after a change of `resolution_list` on an existing output directory. See "Rerunning and Caching" above. |
+| `Inconsistent dimensions in 2d_align` / shape-mismatch assertions | Typically stale cached files after a change of `resolution_list` on an existing output directory. See "Rerunning and Caching" above. Note that grids written before the float32 voxel-size fix in `get_new_dims` are one voxel larger per axis; mixing them with freshly written files in the same directory will trip this assertion, so clear the affected stage directory. |
 | `Error: cannot load file ...` from `antsApplyTransforms` | A truncated or partially written NIfTI, e.g. after an interrupted run. Delete the named file and rerun. |
 | `No landmark files found in {landmark_dir}` | Landmark filenames must begin with the basename of the corresponding `raw` file; see [landmarks.md](landmarks.md). |
 
@@ -39,7 +39,7 @@ Validation results are cached in `{output_dir}/valid_inputs.npz` — delete it o
 |---|---|
 | `Could not resolve matching acquisition/segmentation section columns` | `sect_info` lacks the expected alignment columns, usually because the multiresolution stage was skipped or its manifest is stale. Rerun with `use_3d_align_stage=True` or clear the stage manifests. |
 | `Acquisition/Segmentation section file does not exist for ...` | A path recorded in the manifest no longer exists on disk. Rerun with `csv_clobber=True`. |
-| `Acquisition and segmentation interpolation inputs must have the same in-plane shape` | Stale files from a previous run at a different resolution; clear manifests or use a fresh output directory. |
+| `Acquisition and segmentation interpolation inputs must have the same in-plane shape` | The acquisition section is now resampled onto the segmentation's grid, so a mismatch of one voxel no longer occurs. If you still see this, the two files come from genuinely different sources — check that the `img` and `seg` entries for the named section refer to the same acquisition. |
 | `Error: Empty Output` / `Error: Output file not found` | The final transform to reference space produced an empty volume — usually a degenerate `nl_3d_tfm_fn` from a failed 3D alignment. Inspect `3.2_align_3d/*_moving_rsl.nii.gz` for that chunk. |
 | `Error: no hemisphere info found` / `Error: no chunk info found` | `sub`/`hemisphere`/`chunk` values are inconsistent between the three input CSVs (including type mismatches like `"1"` vs `1`). |
 
