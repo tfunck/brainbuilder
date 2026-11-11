@@ -16,6 +16,7 @@ import brainbuilder.utils.ants_nibabel as nib
 from brainbuilder.align.align_2d import align_2d
 from brainbuilder.align.align_3d import align_3d, pad_acq_volume, write_ref_chunk
 from brainbuilder.align.intervolume import create_acquisition_volume
+from brainbuilder.align.refine_2d import refine_2d_alignment
 from brainbuilder.utils import utils
 from brainbuilder.utils import validate_inputs as valinpts
 from brainbuilder.utils.axis_utils import get_section_axis
@@ -86,6 +87,7 @@ def multiresolution_alignment(
     use_3d_syn_cc: bool = True,
     use_syn: bool = True,
     align_2d_use_init_tfm: bool = False,
+    align_2d_refine_sections: bool = False,
     linear_steps: list = ["rigid", "similarity", "affine"],
     base_lin_itr_2d: int = 100,
     base_nl_itr_2d: int = 30,
@@ -109,6 +111,7 @@ def multiresolution_alignment(
     params: base_lin_itr_3d: base number of linear iterations for 3D alignment
     params: base_nl_itr_3d: base number of nonlinear iterations for 3D alignment
     params: align_2d_use_init_tfm: initialize the 2d alignment at each resolution with the transform from the previous resolution
+    params: align_2d_refine_sections: run stage 3.4, refining the 2d alignment of each section to its neighbours with morphint at each resolution
     returns: csv file containing chunk information
     """
     num_cores = utils.set_cores(num_cores)
@@ -198,6 +201,7 @@ def multiresolution_alignment(
                 use_3d_syn_cc=use_3d_syn_cc,
                 use_syn=use_syn,
                 align_2d_use_init_tfm=align_2d_use_init_tfm,
+                align_2d_refine_sections=align_2d_refine_sections,
                 linear_steps=linear_steps,
                 base_lin_itr_2d=base_lin_itr_2d,
                 base_nl_itr_2d=base_nl_itr_2d,
@@ -359,6 +363,7 @@ def alignment_iteration(
     resolution_list_3d: list,
     use_syn: bool = False,
     use_init_tfm: bool = False,
+    align_2d_refine_sections: bool = False,
     num_cores: int = 1,
     use_3d_syn_cc: bool = True,
     linear_steps: list = ["rigid", "similarity", "affine"],
@@ -379,6 +384,7 @@ def alignment_iteration(
     1) Create intermediate GM volume using best availble 2D transforms
     2) Align GM volume to MRI in 3D
     3) Align sections to GM volume in 2D.
+    4) Optionally (align_2d_refine_sections), refine the 2D alignment of each section to its neighbours.
     """
     logger.info("\t\tCreate intermediate 3d volume")
 
@@ -495,7 +501,31 @@ def alignment_iteration(
             clobber=clobber,
         )
 
+    ###
+    ### Stage 3.4 : Optional refinement of the 2D alignment of each section to its neighbours
+    ###
+    refine_2d_sections = align_2d_refine_sections and not skip_2d_alignment
+    if refine_2d_sections:
+        logger.info("\t\tRefine 2D alignment of sections to their neighbours")
+        sect_info = refine_2d_alignment(
+            sect_info,
+            paths.nl_2d_vol_fn,
+            paths.refine_2d_dir,
+            resolution,
+            paths.nl_2d_refined_vol_fn,
+            paths.nl_2d_refined_vol_cls_fn,
+            axis=axis,
+            num_cores=num_cores,
+            cleanup=cleanup,
+            clobber=clobber,
+        )
+
     chunk_info_out = paths.to_dataframe()
+
+    if refine_2d_sections:
+        # Downstream stages use the latest 2D-aligned volumes.
+        chunk_info_out["nl_2d_vol_fn"] = paths.nl_2d_refined_vol_fn
+        chunk_info_out["nl_2d_vol_cls_fn"] = paths.nl_2d_refined_vol_cls_fn
 
     # Preserve sectioning axis metadata across resolution iterations. Without
     # this, subsequent iterations default to coronal (axis=1).
@@ -542,6 +572,7 @@ def align_chunk(
     base_nl_itr_3d: int = 200,
     use_syn: bool = True,
     align_2d_use_init_tfm: bool = False,
+    align_2d_refine_sections: bool = False,
     interpolation: str = "Linear",
     landmark_dir: str = None,
     cleanup: bool = True,
@@ -563,6 +594,7 @@ def align_chunk(
     :param n_passes:           number of passes for 3d-2d alignment
     :param num_cores:          number of cores to use
     :param align_2d_use_init_tfm: initialize the 2d alignment at each resolution with the transform from the previous resolution
+    :param align_2d_refine_sections: refine the 2d alignment of each section to its neighbours after the 2d alignment at each resolution (stage 3.4)
     :return sect_info: updated sect_info data frame with filenames for nonlinearly 2d aligned sections
     """
     sub, hemisphere, chunk = utils.get_values_from_df(chunk_info_row)
@@ -641,6 +673,7 @@ def align_chunk(
                 use_3d_syn_cc=use_3d_syn_cc,
                 use_syn=use_syn,
                 use_init_tfm=align_2d_use_init_tfm and resolution_itr > 0,
+                align_2d_refine_sections=align_2d_refine_sections,
                 linear_steps=linear_steps,
                 base_lin_itr_2d=base_lin_itr_2d,
                 base_nl_itr_2d=base_nl_itr_2d,

@@ -41,6 +41,7 @@ Any new parallel block that shells out to ANTs must pin `ITK_GLOBAL_DEFAULT_NUMB
 | 2 Init align | `initalign.py` | `init_tfm` (rigid 2D transform, `.h5`), `init_img` (rigidly aligned section), `init_fixed` (fixed image used), `original_img` (cache-validation copy of `img`) |
 | 3.1 Intermediate volume | `align/intervolume.py` | `base` (basename from `raw`), `seg_rsl`, `seg_rsl_tfm` (segmentation resampled/transformed at the 3D resolution), `2d_align_3d_res` |
 | 3.3 Align 2D | `align/align_2d.py` | `2d_tfm_affine`, `2d_tfm` (per-section 2D transforms), `2d_align`, `2d_align_cls` (nonlinearly aligned section and segmentation) |
+| 3.4 Refine 2D (optional) | `align/refine_2d.py` | Overwrites `2d_tfm` (3.3 transform concatenated with the morphint section-to-section refinement), `2d_align`, `2d_align_cls` for all but the first/last acquired section |
 
 Columns added to `chunk_info`:
 
@@ -49,9 +50,10 @@ Columns added to `chunk_info`:
 | 2 Init align | `init_volume` — stacked rigid-aligned chunk volume |
 | 3.2 Align 3D | `nl_3d_tfm_fn`, `nl_3d_tfm_inv_fn` (chunk↔reference composite transforms), `rec_3d_rsl_fn`, `ref_3d_rsl_fn`, `ref_rsl_fn` |
 | 3.3 Align 2D | `nl_2d_vol_fn`, `nl_2d_vol_cls_fn` — chunk volumes rebuilt from 2D-aligned sections |
+| 3.4 Refine 2D (optional) | Overwrites `nl_2d_vol_fn`, `nl_2d_vol_cls_fn` with the volumes rebuilt from the refined sections |
 | 4 Interp | `interp_nat`, `interp_cls_nat`, `interp_stx`, `ref_vol_rsl_fn` |
 
-The multiresolution loop in `volalign.py` repeats stages 3.1–3.3 for every resolution in `resolution_list` (and per `pass_`), overwriting the alignment columns each time so that they always point at the current-best outputs. See [outputs.md](outputs.md) for the corresponding files on disk.
+The multiresolution loop in `volalign.py` repeats stages 3.1–3.3 (and 3.4 when `align_2d_refine_sections=True`) for every resolution in `resolution_list` (and per `pass_`), overwriting the alignment columns each time so that they always point at the current-best outputs. See [outputs.md](outputs.md) for the corresponding files on disk.
 
 ## Module Map
 
@@ -65,6 +67,7 @@ The multiresolution loop in `volalign.py` repeats stages 3.1–3.3 for every res
 | `align/intervolume.py` | Builds intermediate chunk volumes from aligned sections |
 | `align/align_3d.py` | 3D chunk-to-reference registration (ANTs) |
 | `align/align_2d.py` | Per-section 2D registration to reference slices |
+| `align/refine_2d.py` | Optional section-to-section refinement of the 2D alignment (`morphint`) |
 | `align/align_landmarks.py` | Optional landmark-based initialization |
 | `interpsections.py`, `interp/` | Missing-section interpolation (volumetric via `morphint`, or surface-based) |
 | `qc/` | Quality-control metrics and reports |

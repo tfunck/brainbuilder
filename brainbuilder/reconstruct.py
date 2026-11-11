@@ -134,7 +134,8 @@ def reconstruct(
     n_depths: int = 0,
     use_3d_syn_cc: bool = True,
     use_syn: bool = True,
-    align_2d_use_init_tfm: bool = False,
+    align_2d_use_init_tfm: bool = True,
+    align_2d_refine_sections: bool = False,
     init_tfm_type: str = ["rigid"],
     vol_lin_tfm_type: list = ["rigid", "similarity", "affine"],
     base_lin_itr_2d: int = 100,
@@ -180,7 +181,8 @@ def reconstruct(
     :param n_depths: int, number of mid-surface depths between GM and WM surface (default=0)
     :param use_3d_syn_cc: bool, use 3D nonlinear SyN with cross-correlation (default=True)
     :param use_syn: bool, use 2D nonlinear SyN (default=True)
-    :param align_2d_use_init_tfm: bool, initialize the 2D alignment at each resolution with the transform from the previous resolution instead of restarting from scratch. Faster, but a bad alignment at a coarse resolution can no longer be corrected at a finer one (default=False)
+    :param align_2d_use_init_tfm: bool, initialize the 2D alignment at each resolution with the transform from the previous resolution instead of restarting from scratch. Faster, but a bad alignment at a coarse resolution can no longer be corrected at a finer one (default=True)
+    :param align_2d_refine_sections: bool, after the 2D alignment at each resolution, refine the alignment of each section to its neighbours with morphint (stage 3.4). The refinement warps are concatenated into the 2D transforms (default=False)
     :param init_tfm_type: list, initial transformation types to use for alignment (default=['rigid'])
     :param vol_lin_tfm_type: list, linear transformation types to use for volume alignment (default=['rigid', 'similarity', 'affine'])
     :param base_lin_itr_2d: int, base number of linear iterations for 2D alignment (default=100)
@@ -246,6 +248,7 @@ def reconstruct(
     logger.info(
         f"\t\tUse 2D init transform from previous resolution: {align_2d_use_init_tfm}"
     )
+    logger.info(f"\t\tRefine 2D alignment between sections: {align_2d_refine_sections}")
     logger.info(f"\t\tMissing Section Interpolation method: {interp_method}")
     logger.info(f"\t\t2D interpolation method: {interpolation_2d}")
     logger.info(f"\t\tUse intensity correction: {use_intensity_correction}")
@@ -330,6 +333,7 @@ def reconstruct(
             use_3d_syn_cc=use_3d_syn_cc,
             use_syn=use_syn,
             align_2d_use_init_tfm=align_2d_use_init_tfm,
+            align_2d_refine_sections=align_2d_refine_sections,
             num_cores=num_cores,
             linear_steps=vol_lin_tfm_type,
             base_lin_itr_2d=base_lin_itr_2d,
@@ -542,6 +546,13 @@ def setup_argparse() -> argparse.ArgumentParser:
         help="Initialize the 2D alignment at each resolution with the transform from the previous resolution instead of restarting from scratch. Much faster, but a section that is badly aligned at a coarse resolution cannot be recovered at a finer one.",
     )
     parser.add_argument(
+        "--align-2d-refine-sections",
+        dest="align_2d_refine_sections",
+        default=False,
+        action="store_true",
+        help="After the 2D alignment at each resolution, refine the alignment of each section to its neighbouring sections with morphint (stage 3.4). The refinement is concatenated into the 2D transforms.",
+    )
+    parser.add_argument(
         "--skip-interp",
         dest="skip_interp",
         default=False,
@@ -583,6 +594,7 @@ if __name__ == "__main__":
         base_lin_itr_3d=args.base_lin_itr_3d,
         base_nl_itr_3d=args.base_nl_itr_3d,
         align_2d_use_init_tfm=args.align_2d_use_init_tfm,
+        align_2d_refine_sections=args.align_2d_refine_sections,
         num_cores=args.num_cores,
         final_resolution=args.final_resolution,
         interp_method=args.interp_method,

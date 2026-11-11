@@ -24,6 +24,7 @@ output_dir/
 │       ├── 3.1_intermediate_volume/
 │       ├── 3.2_align_3d/
 │       ├── 3.3_align_2d/
+│       ├── 3.4_refine_2d/            # optional (align_2d_refine_sections)
 │       └── landmarks/
 ├── 4_interp/                         # missing-section interpolation and final volumes
 │   └── reconstructed_chunk_info.csv
@@ -49,7 +50,7 @@ Each stage also writes a manifest CSV (listed above). These CSVs record the file
 
 ### 3_multires_align — Multiresolution alignment
 
-For each chunk, the pipeline iterates over the resolutions in `resolution_list` (coarse → fine). Each `{resolution}mm/pass_{N}/` directory contains three sub-stages. In the names below, `{prefix}` = `sub-{sub}_hemi-{hemi}_chunk-{chunk}_{resolution}mm` and `{prefix_3d}` = `sub-{sub}_hemi-{hemi}_chunk-{chunk}_itr-{resolution}_{resolution_3d}mm`, where `resolution_3d` is the 3D alignment resolution for that iteration (capped by `max_resolution_3d`).
+For each chunk, the pipeline iterates over the resolutions in `resolution_list` (coarse → fine). Each `{resolution}mm/pass_{N}/` directory contains three sub-stages, plus an optional fourth (`3.4_refine_2d`). In the names below, `{prefix}` = `sub-{sub}_hemi-{hemi}_chunk-{chunk}_{resolution}mm` and `{prefix_3d}` = `sub-{sub}_hemi-{hemi}_chunk-{chunk}_itr-{resolution}_{resolution_3d}mm`, where `resolution_3d` is the 3D alignment resolution for that iteration (capped by `max_resolution_3d`).
 
 #### 3.1_intermediate_volume
 
@@ -77,7 +78,19 @@ For each chunk, the pipeline iterates over the resolutions in `resolution_list` 
 | `{prefix}_nl_2d_cls.nii.gz` | Segmentation (tissue-classification) counterpart of the above (`nl_2d_vol_cls_fn`), built from the 2D-aligned section segmentations. |
 | `{prefix}_ref_space-nat.nii.gz` | Reference volume in native chunk space at the 2D resolution. |
 
-At the final (finest) resolution, the `pass` outputs of `3.3_align_2d` — together with `nl_3d_tfm_fn` — are what the interpolation stage consumes. The per-section columns `2d_align` (aligned acquisition section), `2d_align_cls` (aligned segmentation) and `2d_align_3d_res` recorded in `sect_info_multiresolution_alignment.csv` point to the individual aligned sections used to build the thickened volumes below.
+At the final (finest) resolution, the `pass` outputs of `3.3_align_2d` (or `3.4_refine_2d` when enabled) — together with `nl_3d_tfm_fn` — are what the interpolation stage consumes. The per-section columns `2d_align` (aligned acquisition section), `2d_align_cls` (aligned segmentation) and `2d_align_3d_res` recorded in `sect_info_multiresolution_alignment.csv` point to the individual aligned sections used to build the thickened volumes below.
+
+#### 3.4_refine_2d — Optional section-to-section refinement
+
+Only written when `align_2d_refine_sections=True` (CLI: `--align-2d-refine-sections`). The `3.3_align_2d` volume `{prefix}_nl_2d.nii.gz` is passed to `morphint` with `intersection_fill_flag=False`, which refines the alignment of each section to its neighbouring sections without interpolating the gaps between them. The refinement only uses the current resolution, so every resolution iteration refines the sections at its own level of 2D alignment. The first and last acquired sections have only one neighbour and keep their `3.3_align_2d` transform.
+
+| File | Description |
+|---|---|
+| `tfm/*_refined_Composite.h5` | Per-section 2D transform (`2d_tfm`): the `3.3_align_2d` transform concatenated with the morphint refinement warp, mapping the downsampled section directly onto the refined section. Used by the next resolution iteration and by the interpolation stage. |
+| `tfm/*_refined_rsl.nii.gz`, `tfm/*_refined_cls_rsl.nii.gz` | Downsampled sections resampled with the refined transforms (`2d_align`, `2d_align_cls`). |
+| `{prefix}_nl_2d_refined.nii.gz` | Volume assembled from the refined sections. Replaces `{prefix}_nl_2d.nii.gz` as `nl_2d_vol_fn`. |
+| `{prefix}_nl_2d_refined_cls.nii.gz` | `uint8` counterpart of the above. Replaces `{prefix}_nl_2d_cls.nii.gz` as `nl_2d_vol_cls_fn`. |
+| `refine_alignment/{prefix}_nl_2d_refined-2d.nii.gz` | Refined volume written by `morphint` (with `*_refine_tfm.json`); kept so that reruns can skip the refinement. morphint's per-iteration scratch (`refine_alignment/section_refine/`) is deleted once the refined transforms are written unless `keep_intermediate_outputs=True`. |
 
 ## 4_interp — Interpolation Outputs
 

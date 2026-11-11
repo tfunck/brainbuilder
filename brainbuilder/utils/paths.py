@@ -87,6 +87,7 @@ class Stage(Enum):
     INTERMEDIATE_VOLUME = "intermediate_volume"  # 3.1_intermediate_volume
     ALIGN_3D = "align_3d"  # 3.2_align_3d
     ALIGN_2D = "align_2d"  # 3.3_align_2d
+    REFINE_2D = "refine_2d"  # 3.4_refine_2d (optional)
 
 
 @dataclass()
@@ -169,6 +170,11 @@ class MultiResPaths:
         return f"{self.multires_out_dir}/3.3_align_2d/"
 
     @property
+    def refine_2d_dir(self) -> Path:
+        # Optional stage, so it is created on demand rather than in ensure_stage_dirs().
+        return f"{self.multires_out_dir}/3.4_refine_2d/"
+
+    @property
     def landmark_dir(self) -> Path:
         return f"{self.multires_out_dir}/landmarks/"
 
@@ -208,6 +214,14 @@ class MultiResPaths:
     @property
     def nl_2d_vol_cls_fn(self) -> Path:
         return f"{self.align_2d_dir}/{self.prefix}_nl_2d_cls.nii.gz"
+
+    @property
+    def nl_2d_refined_vol_fn(self) -> Path:
+        return f"{self.refine_2d_dir}/{self.prefix}_nl_2d_refined.nii.gz"
+
+    @property
+    def nl_2d_refined_vol_cls_fn(self) -> Path:
+        return f"{self.refine_2d_dir}/{self.prefix}_nl_2d_refined_cls.nii.gz"
 
     @property
     def ref_rsl_fn(self) -> Path:
