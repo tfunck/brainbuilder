@@ -411,6 +411,24 @@ def affine_trials(
     return output_tfm
 
 
+def get_init_tfm(row: pd.Series, prev_2d_tfm: str) -> str:
+    """Select the transform that initializes the 2D alignment of a section.
+
+    Prefer the section's 2D transform from the previous resolution level and fall
+    back to the rigid transform computed by initalign.py.
+
+    :param row: section row
+    :param prev_2d_tfm: section's 2D transform before the current resolution level
+    :return: path to the initial transform, or None if no transform exists
+    """
+    init_tfm = prev_2d_tfm if isinstance(prev_2d_tfm, str) else row.get("init_tfm")
+
+    if isinstance(init_tfm, str) and os.path.exists(init_tfm):
+        return init_tfm
+
+    return None
+
+
 def align_2d_parallel(
     tfm_dir: str,
     resolution: float,
@@ -421,7 +439,7 @@ def align_2d_parallel(
     base_lin_itr: int = 100,
     base_nl_itr: int = 30,
     n_affine_trials: int = 5,
-    use_init_tfm: bool = False,
+    init_tfm: str = None,
     verbose: bool = False,
 ) -> int:
     """Align 2d sections to sections.
@@ -442,27 +460,15 @@ def align_2d_parallel(
     :param base_nl_itr: number of iterations for nonlinear alignment
     :param base_cc_itr: number of iterations for cross correlation
     :param n_affine_trials: number of affine trials
-    :param use_init_tfm: initialize the registration with the transform calculated at the previous resolution level instead of restarting from scratch
+    :param init_tfm: transform from the previous resolution level used to initialize the registration instead of restarting from scratch (see get_init_tfm)
     :param verbose: verbose
     :return: 0
     """
-    # coarser resolution; on the very first run fall back to the rigid
-    # transform initalign.py already computed for this section.
-    if use_init_tfm and "2d_tfm" in row and isinstance(row["2d_tfm"], str):
-        init_tfm = row["2d_tfm"]
-    elif use_init_tfm and "init_tfm" in row:
-        init_tfm = row["init_tfm"]
-    else:
-        init_tfm = None
-
     if not (isinstance(init_tfm, str) and os.path.exists(init_tfm)):
         init_tfm = None
 
     # the coarser levels of the multiresolution schedule were already applied by <init_tfm>
     only_align_current_resolution = init_tfm is not None
-
-    base_nl_itr = 10  # FIXME DELETEME
-    base_lin_itr = 10  # FIXME DELETEME
 
     linParams = AntsParams(
         resolution_list,
@@ -494,8 +500,6 @@ def align_2d_parallel(
     fx_fn = row["fx"]
 
     mv_fn = row[file_to_align]
-
-    verbose = True
 
     affine_tfm = affine_trials(
         fx_fn,
@@ -734,6 +738,14 @@ def align_sections(
 
     tfm_dir = output_dir + os.sep + "tfm"
 
+    # get_align_filenames points "2d_tfm" at this resolution level's outputs, so keep
+    # the current transforms (previous level, or stage 3.4 refinement) to initialize from.
+    prev_2d_tfm = (
+        sect_info["2d_tfm"].copy()
+        if "2d_tfm" in sect_info.columns
+        else pd.Series(None, index=sect_info.index, dtype=object)
+    )
+
     sect_info = get_align_filenames(tfm_dir, sect_info)
 
     # get lists of files that need to be aligned and resampled
@@ -751,7 +763,9 @@ def align_sections(
                     base_nl_itr=base_nl_itr,
                     file_to_align=file_to_align,
                     use_syn=use_syn,
-                    use_init_tfm=use_init_tfm,
+                    init_tfm=get_init_tfm(row, prev_2d_tfm[row.name])
+                    if use_init_tfm
+                    else None,
                     verbose=verbose,
                 )
                 for row in to_do_sect_info
